@@ -24,6 +24,7 @@ export type {
   TaskStatus,
   TextProviderOutput,
   TextProviderResult,
+  TextStreamChunk,
   VideoTaskProviderOutput,
   VideoTaskProviderResult,
 } from './types'

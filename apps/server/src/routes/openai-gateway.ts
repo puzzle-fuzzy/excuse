@@ -1,5 +1,7 @@
 import type { OutputResult } from '@excuse/db'
+import type { ModelConfig } from '@excuse/shared'
 import type { OpenAIChatRequest } from '@excuse/shared'
+import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ServerConfig } from '../config'
 import { calculateCost } from '@excuse/billing'
 import {
@@ -17,9 +19,12 @@ import {
   createOpenAIChatResponse,
   createOpenAIError,
   createOpenAIModelsResponse,
+  createOpenAIStreamChunk,
   isOpenAIGatewayError,
   normalizeOpenAIChatRequest,
   OPENAI_GATEWAY_ERROR_CODES,
+  OPENAI_STREAM_DONE,
+  serializeOpenAIStreamChunk,
 } from '@excuse/gateway'
 import { DashScopeClient, getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
@@ -45,6 +50,201 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
     apiKey: config.dashscopeApiKey,
     baseUrl: config.dashscopeBaseUrl,
   })
+
+  /**
+   * 流式 chat completions 处理器 — 仅支持 openai-chat 协议模型
+   *
+   * 独立维护 reserve / markSucceeded / markFailed / debit / refund / audit，
+   * 不与非流式路径共享 orchestrator（本轮范围控制）。
+   *
+   * 返回 SSE Response；reserve 失败时返回常规 OpenAI 错误 JSON。
+   */
+  async function handleStreamChatCompletions(opts: {
+    userId: string
+    modelConfig: ModelConfig
+    validatedParams: ValidatedModelParameters
+    request: OpenAIChatRequest
+  }): Promise<Response> {
+    const { userId, modelConfig, validatedParams, request } = opts
+
+    const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
+    const traceId = crypto.randomUUID()
+    const taskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const dedupeKey = await createDedupeKey({
+      accountId: userId,
+      model: modelConfig.id,
+      parameters: validatedParams,
+    })
+
+    const record = await createGenerationRecord({
+      accountId: userId,
+      taskId,
+      traceId,
+      model: modelConfig.id,
+      category: 'text',
+      status: 'pending',
+      inputParams: { ...validatedParams, source: 'gateway', requestedModel: request.model },
+      cost: { ...estimatedCost, estimated: true, billable: false, source: 'estimated' },
+      dedupeKey,
+    })
+
+    if (estimatedCost.totalPriceCents > 0) {
+      try {
+        await reserveCredit({
+          accountId: userId,
+          generationRecordId: record.id,
+          amountCents: estimatedCost.totalPriceCents,
+          description: `OpenAI 网关预留：${modelConfig.id}`,
+        })
+        audit('credit_reserve', {
+          accountId: userId,
+          targetId: record.id,
+          detail: { accountId: userId, generationRecordId: record.id, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关预留：${modelConfig.id}`, source: 'gateway' },
+        })
+      }
+      catch (error) {
+        // 预留失败发生在 SSE 启动之前，按常规 JSON 错误返回，不进入 SSE 帧
+        const message = error instanceof Error ? error.message : 'Insufficient balance'
+        if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
+          await notifyInsufficientBalance(userId).catch(() => {})
+        }
+        await markGenerationFailed(record.id, message)
+        recordGenerationStatus('failed')
+        const err = createOpenAIError(message, 'insufficient_quota', OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE, 402)
+        return new Response(JSON.stringify(err.response), {
+          status: err.status,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    const recordId = record.id
+    const completionId = `chatcmpl-${recordId}`
+    const createdAt = new Date()
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const encoder = new TextEncoder()
+        let fullText = ''
+        let lastUsage: { prompt_tokens: number, completion_tokens: number } | undefined
+        let isFirst = true
+        try {
+          for await (const chunk of client.chatCompletionStream(modelConfig.id, validatedParams)) {
+            if (chunk.delta) {
+              fullText += chunk.delta
+              const chunkEvent = serializeOpenAIStreamChunk(createOpenAIStreamChunk({
+                id: completionId,
+                createdAt,
+                requestedModel: request.model,
+                delta: chunk.delta,
+                finishReason: null,
+                isFirst,
+              }))
+              controller.enqueue(encoder.encode(chunkEvent))
+              isFirst = false
+            }
+            if (chunk.usage) {
+              lastUsage = {
+                prompt_tokens: chunk.usage.inputTokens ?? 0,
+                completion_tokens: chunk.usage.outputTokens ?? 0,
+              }
+            }
+          }
+
+          // 终止帧（finish_reason=stop + usage）
+          const finalChunk = serializeOpenAIStreamChunk(createOpenAIStreamChunk({
+            id: completionId,
+            createdAt,
+            requestedModel: request.model,
+            delta: '',
+            finishReason: 'stop',
+            isFirst: false,
+            usage: lastUsage,
+          }))
+          controller.enqueue(encoder.encode(finalChunk))
+          controller.enqueue(encoder.encode(OPENAI_STREAM_DONE))
+          controller.close()
+
+          const actualCost = {
+            ...calculateCost(
+              modelConfig,
+              extractBillingParams(validatedParams),
+              lastUsage
+                ? { inputTokens: lastUsage.prompt_tokens, outputTokens: lastUsage.completion_tokens }
+                : undefined,
+            ),
+            billable: true,
+            source: 'actual' as const,
+          }
+          const textOutput: OutputResult = { type: 'text' as const, text: fullText }
+          await markGenerationSucceeded(recordId, textOutput, actualCost)
+          recordGenerationStatus('succeeded')
+          if (actualCost.totalPriceCents > 0) {
+            await debitCredit({
+              accountId: userId,
+              generationRecordId: recordId,
+              actualCents: actualCost.totalPriceCents,
+              description: `OpenAI 网关扣款：${modelConfig.id}`,
+            })
+            audit('credit_debit', {
+              accountId: userId,
+              targetId: recordId,
+              detail: { accountId: userId, generationRecordId: recordId, amountCents: actualCost.totalPriceCents, description: `OpenAI 网关扣款：${modelConfig.id}`, source: 'gateway' },
+            })
+          }
+          audit('gateway_call', {
+            accountId: userId,
+            targetId: recordId,
+            detail: {
+              model: modelConfig.id,
+              recordId,
+              inputTokens: lastUsage?.prompt_tokens,
+              outputTokens: lastUsage?.completion_tokens,
+              totalPriceCents: actualCost.totalPriceCents,
+              status: 'succeeded',
+            },
+          })
+        }
+        catch (error) {
+          // 流中断：直接关闭流（不向客户端发错误帧，由 markFailed/refund 落库）
+          const message = error instanceof Error ? error.message : String(error)
+          try {
+            controller.close()
+          }
+          catch {
+            // controller 已关闭时忽略
+          }
+          await markGenerationFailed(recordId, message)
+          recordGenerationStatus('failed')
+          if (estimatedCost.totalPriceCents > 0) {
+            await refundCredit({
+              accountId: userId,
+              generationRecordId: recordId,
+              description: `OpenAI 网关失败退款：${modelConfig.id}`,
+            })
+            audit('credit_refund', {
+              accountId: userId,
+              targetId: recordId,
+              detail: { accountId: userId, generationRecordId: recordId, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关失败退款：${modelConfig.id}`, source: 'gateway' },
+            })
+          }
+          audit('gateway_call', {
+            accountId: userId,
+            targetId: recordId,
+            detail: { model: modelConfig.id, recordId, totalPriceCents: estimatedCost.totalPriceCents, status: 'failed', error: message },
+          })
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
+  }
 
   return new Elysia({ prefix: '/v1' })
     .use(createRequireAuthPlugin(config))
@@ -80,6 +280,21 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
         return err.response
       }
       const validatedParams = validationResult.params
+
+      // stream 分支 — 仅 openai-chat 协议模型支持，chat 协议模型 400
+      if (normalized.stream) {
+        if (modelConfig.requestType !== 'openai-chat') {
+          const err = createOpenAIError(
+            `Model '${request.model}' does not support streaming`,
+            'invalid_request_error',
+            OPENAI_GATEWAY_ERROR_CODES.STREAMING_MODEL_NOT_SUPPORTED,
+            400,
+          )
+          set.status = err.status
+          return err.response
+        }
+        return handleStreamChatCompletions({ userId, modelConfig, validatedParams, request })
+      }
 
       // 成本估算 — 使用 extractBillingParams 从 ValidatedModelParameters 提取计费字段
       const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))

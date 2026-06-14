@@ -1,4 +1,4 @@
-import type { OpenAIChatRequest, OpenAIChatResponse, OpenAIErrorResponse, OpenAIModelsResponse, OpenAIGatewayUsageItem, OpenAIGatewayUsageResponse } from '@excuse/shared'
+import type { OpenAIChatCompletionChunk, OpenAIChatRequest, OpenAIChatResponse, OpenAIErrorResponse, OpenAIGatewayUsageItem, OpenAIGatewayUsageResponse, OpenAIModelsResponse } from '@excuse/shared'
 import { resolveModelId } from '@excuse/shared'
 
 /**
@@ -26,6 +26,7 @@ export const OPENAI_GATEWAY_ERROR_CODES = {
   INSUFFICIENT_BALANCE: 'insufficient_balance',
   GENERATION_FAILED: 'generation_failed',
   STREAM_NOT_SUPPORTED: 'stream_not_supported',
+  STREAMING_MODEL_NOT_SUPPORTED: 'streaming_model_not_supported',
   MISSING_USER_MESSAGE: 'missing_user_message',
 } as const
 
@@ -43,12 +44,14 @@ export interface OpenAIGatewayError {
  * - internalModelId：经过 MODEL_ALIASES 解析后的内部模型 ID（如 gpt-4 → qwen-max）
  * - prompt：取自最后一条 user 消息的内容（DashScope 文本生成是单轮接口）
  * - parameters：传给内部 generate 接口的参数集合（已剔除 undefined）
+ * - stream：是否走流式响应 — route 据此分流，normalize 不再拒绝
  */
 export interface NormalizedOpenAIChatRequest {
   request: OpenAIChatRequest
   internalModelId: string
   prompt: string
   parameters: Record<string, unknown>
+  stream: boolean
 }
 
 /** /v1/models 列表项的最小入参（只关心 id，其余字段由 createOpenAIModelsResponse 补全）。 */
@@ -90,15 +93,11 @@ export function createOpenAIError(
  * 调用方必须先用 isOpenAIGatewayError() 做类型收窄。
  *
  * 规则：
- *   - stream=true → 400 stream_not_supported（本网关不支持流式）
+ *   - stream 字段透传到返回值；route 层根据模型协议决定是否支持
  *   - 没有 user 消息 → 400 missing_user_message
  *   - 否则取最后一条 user 消息作为 prompt，附上 temperature/max_tokens/top_p（仅当用户显式传入时）
  */
 export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
-  if (request.stream) {
-    return createOpenAIError('Streaming is not supported', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.STREAM_NOT_SUPPORTED, 400)
-  }
-
   const userMessages = request.messages.filter(m => m.role === 'user')
   if (userMessages.length === 0) {
     return createOpenAIError('No user message provided', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE, 400)
@@ -122,6 +121,7 @@ export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): Normaliz
     internalModelId: resolveModelId(request.model),
     prompt: lastUserMessage.content,
     parameters,
+    stream: request.stream ?? false,
   }
 }
 
@@ -179,6 +179,54 @@ export function createOpenAIModelsResponse(models: GatewayModelListItem[]): Open
     })),
   }
 }
+
+/** 构造 chat.completion.chunk 帧 */
+export interface OpenAIStreamChunkInput {
+  id: string
+  createdAt: Date
+  requestedModel: string
+  delta: string
+  finishReason: 'stop' | 'length' | null
+  isFirst: boolean
+  usage?: { prompt_tokens: number, completion_tokens: number }
+}
+
+/**
+ * 构造一个 OpenAI 兼容的 chat.completion.chunk 数据帧。
+ *
+ * - 首帧（isFirst=true）的 delta 带 `role: 'assistant'`，与 OpenAI SDK 行为一致。
+ * - usage 仅在终止帧传入；其余帧 usage 为 undefined。
+ */
+export function createOpenAIStreamChunk(input: OpenAIStreamChunkInput): OpenAIChatCompletionChunk {
+  return {
+    id: input.id,
+    object: 'chat.completion.chunk',
+    created: Math.floor(input.createdAt.getTime() / 1000),
+    model: input.requestedModel,
+    choices: [{
+      index: 0,
+      delta: input.isFirst
+        ? { role: 'assistant', content: input.delta }
+        : { content: input.delta },
+      finish_reason: input.finishReason,
+    }],
+    usage: input.usage
+      ? {
+          prompt_tokens: input.usage.prompt_tokens,
+          completion_tokens: input.usage.completion_tokens,
+          total_tokens: input.usage.prompt_tokens + input.usage.completion_tokens,
+        }
+      : undefined,
+  }
+}
+
+/** 把单个 chunk 序列化为 SSE 数据帧（含尾部 `\n\n`） */
+export function serializeOpenAIStreamChunk(chunk: OpenAIChatCompletionChunk): string {
+  return `data: ${JSON.stringify(chunk)}\n\n`
+}
+
+/** SSE 结束标记 */
+export const OPENAI_STREAM_DONE = 'data: [DONE]\n\n'
 
 /**
  * /v1/usage 聚合所需的最小记录输入。

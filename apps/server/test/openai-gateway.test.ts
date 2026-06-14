@@ -48,6 +48,13 @@ const mockChatCompletion = mock<(model: string, params: Record<string, unknown>)
   usage: { inputTokens: 10, outputTokens: 20 },
 }))
 
+const mockChatCompletionStream = mock<(model: string, params: Record<string, unknown>) => AsyncGenerator<Record<string, unknown>>>(function* () {
+  // 默认 mock：3 个 delta + 1 个 done
+  yield { type: 'text-stream', model: 'qwen3.7-plus', delta: 'Hello', done: false }
+  yield { type: 'text-stream', model: 'qwen3.7-plus', delta: ' world', done: false }
+  yield { type: 'text-stream', model: 'qwen3.7-plus', delta: '', usage: { inputTokens: 5, outputTokens: 2 }, done: true }
+} as never)
+
 const mockValidateAndMerge = mock<(_modelConfig: unknown, params: Record<string, unknown>) => { ok: boolean, params?: unknown, errors?: Array<{ field: string, message: string }> }>(() => ({
   ok: true,
   params: makeValidatedParams({}),
@@ -70,16 +77,21 @@ mock.module('@excuse/db', () => ({
 mock.module('@excuse/provider', () => ({
   DashScopeClient: class {
     chatCompletion = mockChatCompletion
+    chatCompletionStream = mockChatCompletionStream
   },
   AssetStorage: class {},
   getModelById: (id: string) => {
     const models: Record<string, Record<string, unknown>> = {
-      'qwen-max': { id: 'qwen-max', category: 'text', pricing: { inputPriceCents: 240, outputPriceCents: 960, unit: 'token' }, parameters: [
+      'qwen-max': { id: 'qwen-max', category: 'text', requestType: 'chat', pricing: { inputPriceCents: 240, outputPriceCents: 960, unit: 'token' }, parameters: [
         { name: 'prompt', type: 'text', required: true },
         { name: 'temperature', type: 'number', defaultValue: 0.7 },
         { name: 'max_tokens', type: 'number', defaultValue: 1500 },
       ] },
-      'qwen-plus': { id: 'qwen-plus', category: 'text', pricing: { inputPriceCents: 80, outputPriceCents: 200, unit: 'token' }, parameters: [
+      'qwen3.7-plus': { id: 'qwen3.7-plus', category: 'text', requestType: 'openai-chat', pricing: { inputPriceCents: 160, outputPriceCents: 640, unit: 'token' }, parameters: [
+        { name: 'prompt', type: 'text', required: true },
+        { name: 'max_tokens', type: 'number', defaultValue: 1500 },
+      ] },
+      'qwen-plus': { id: 'qwen-plus', category: 'text', requestType: 'chat', pricing: { inputPriceCents: 80, outputPriceCents: 200, unit: 'token' }, parameters: [
         { name: 'prompt', type: 'text', required: true },
       ] },
       'qwen-image-2.0-pro': { id: 'qwen-image-2.0-pro', category: 'image', pricing: { inputPriceCents: 25, unit: 'image' }, parameters: [] },
@@ -171,6 +183,11 @@ describe('OpenAI 网关', () => {
       output: { text: 'Hello! How can I help you?' },
       usage: { inputTokens: 10, outputTokens: 20 },
     }))
+    mockChatCompletionStream.mockImplementation(function* () {
+      yield { type: 'text-stream', model: 'qwen3.7-plus', delta: 'Hello', done: false }
+      yield { type: 'text-stream', model: 'qwen3.7-plus', delta: ' world', done: false }
+      yield { type: 'text-stream', model: 'qwen3.7-plus', delta: '', usage: { inputTokens: 5, outputTokens: 2 }, done: true }
+    } as never)
   })
 
   describe('POST /v1/chat/completions', () => {
@@ -279,7 +296,7 @@ describe('OpenAI 网关', () => {
       expect(getErrorCode(error)).toBe('invalid_model')
     })
 
-    it('stream=true → 400 + code=stream_not_supported', async () => {
+    it('stream=true + chat 协议模型（qwen-max）→ 400 + code=streaming_model_not_supported', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
@@ -291,9 +308,7 @@ describe('OpenAI 网关', () => {
       }, { headers })
 
       expect(error).toBeTruthy()
-      const errBody = getErrorMessage(error)
-      expect(errBody).toContain('Streaming')
-      expect(getErrorCode(error)).toBe('stream_not_supported')
+      expect(getErrorCode(error)).toBe('streaming_model_not_supported')
     })
 
     it('缺少 user message → 400 + code=missing_user_message', async () => {
@@ -385,6 +400,104 @@ describe('OpenAI 网关', () => {
       })
 
       expect(error).toBeTruthy()
+    })
+  })
+
+  describe('POST /v1/chat/completions (stream)', () => {
+    /** 用 app.handle(Request) 直接拉 SSE Response body 文本 */
+    async function postStream(body: unknown, headers: Record<string, string>): Promise<{ status: number, contentType: string, text: string }> {
+      const app = createGatewayApp()
+      const response = await app.handle(new Request('http://localhost/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      }))
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type') ?? '',
+        text: await response.text(),
+      }
+    }
+
+    it('stream=true + openai-chat 模型 → 200 + text/event-stream + 至少 2 个 data 帧 + [DONE]', async () => {
+      const headers = await getAuthHeaders()
+      const { status, contentType, text } = await postStream({
+        model: 'qwen3.7-plus',
+        messages: [{ role: 'user', content: 'Hello' }],
+        stream: true,
+      }, headers)
+
+      expect(status).toBe(200)
+      expect(contentType).toContain('text/event-stream')
+      // 至少 2 个 data: {...} 帧 + 1 个 [DONE]
+      const dataFrames = text.match(/^data: \{.*\}$/gm) ?? []
+      expect(dataFrames.length).toBeGreaterThanOrEqual(2)
+      expect(text).toContain('data: [DONE]')
+      // 首帧带 role: assistant
+      expect(text).toContain('"role":"assistant"')
+    })
+
+    it('stream=true + chat 协议模型（qwen-max）→ 400 + streaming_model_not_supported', async () => {
+      const headers = await getAuthHeaders()
+      const { status, text } = await postStream({
+        model: 'qwen-max',
+        messages: [{ role: 'user', content: 'Hello' }],
+        stream: true,
+      }, headers)
+
+      expect(status).toBe(400)
+      expect(text).toContain('streaming_model_not_supported')
+    })
+
+    it('stream=true + 未认证 → 401', async () => {
+      const { status } = await postStream({
+        model: 'qwen3.7-plus',
+        messages: [{ role: 'user', content: 'Hello' }],
+        stream: true,
+      }, {})
+
+      expect(status).toBe(401)
+    })
+
+    it('流式成功路径：markGenerationSucceeded / debitCredit / audit 都被调用', async () => {
+      const headers = await getAuthHeaders()
+      await postStream({
+        model: 'qwen3.7-plus',
+        messages: [{ role: 'user', content: 'Hello' }],
+        stream: true,
+      }, headers)
+
+      expect(mockMarkGenerationSucceeded).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ type: 'text', text: 'Hello world' }),
+        expect.objectContaining({ billable: true, source: 'actual' }),
+      )
+      expect(mockDebitCredit).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        actualCents: 1,
+      }))
+    })
+
+    it('流式失败路径：chatCompletionStream throw → markGenerationFailed / refundCredit 被调用', async () => {
+      mockChatCompletionStream.mockImplementation((function* () {
+        yield { type: 'text-stream', model: 'qwen3.7-plus', delta: 'partial', done: false }
+        throw new Error('upstream stream broken')
+      }) as never)
+
+      const headers = await getAuthHeaders()
+      const { status, text } = await postStream({
+        model: 'qwen3.7-plus',
+        messages: [{ role: 'user', content: 'Hello' }],
+        stream: true,
+      }, headers)
+
+      // 流中断：status 仍 200（已经返回了 SSE response），但 markFailed + refund 被调用
+      expect(status).toBe(200)
+      expect(text).toContain('partial')
+      expect(mockMarkGenerationFailed).toHaveBeenCalledWith(expect.any(String), 'upstream stream broken')
+      expect(mockRefundCredit).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+      }))
     })
   })
 

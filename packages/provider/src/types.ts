@@ -14,6 +14,18 @@ export interface ProviderUsage {
   videoDuration?: number
 }
 
+/** 流式文本生成的单帧结果（async generator yield 类型） */
+export interface TextStreamChunk {
+  type: 'text-stream'
+  model: string
+  /** 当前帧的增量文本（首个帧可能为空字符串，仅带 role） */
+  delta: string
+  /** 流结束时的 usage（中间帧一般为 undefined） */
+  usage?: ProviderUsage
+  /** 是否流结束（finish_reason !== null） */
+  done: boolean
+}
+
 export interface TextProviderOutput {
   type: 'text'
   text: string

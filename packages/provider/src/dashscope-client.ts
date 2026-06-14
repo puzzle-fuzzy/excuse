@@ -16,6 +16,7 @@ import type {
   ProviderResult,
   TaskStatus,
   TextProviderResult,
+  TextStreamChunk,
   VideoTaskProviderResult,
 } from './types'
 import { parseDashScopeError } from './dashscope-errors'
@@ -357,6 +358,102 @@ export class DashScopeClient {
     catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+    }
+  }
+
+  /**
+   * 文本生成（流式） — 只支持 requestType: 'openai-chat' 模型
+   *
+   * 调用 compatible-mode/v1/chat/completions 端点 with stream=true，
+   * 解析 OpenAI 兼容 SSE 数据帧（data: {...}\n\n）。
+   *
+   * chat requestType 模型走 DashScope 原生 SSE 格式（需要 X-DashScope-SSE header +
+   * incremental_output），本轮不支持。
+   *
+   * @throws Error 当模型不存在或 requestType !== 'openai-chat'
+   */
+  async *chatCompletionStream(
+    model: string,
+    params: ValidatedModelParameters,
+  ): AsyncGenerator<TextStreamChunk> {
+    const modelConfig = getModelById(model)
+    if (!modelConfig)
+      throw new Error(`未知模型: ${model}`)
+    if (modelConfig.requestType !== 'openai-chat')
+      throw new Error(`模型 ${model} 不支持流式（仅 openai-chat 协议支持）`)
+
+    const body = this.buildRequestBody(modelConfig, params)
+    // 强制开启流式
+    ;(body as Record<string, unknown>).stream = true
+
+    const response = await fetch(modelConfig.endpoint, {
+      method: 'POST',
+      headers: { ...this.headers, Accept: 'text/event-stream' },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`DashScope stream 启动失败 (${response.status}): ${text}`)
+    }
+
+    // 解析 SSE：按 \n\n 分块，每块形如 "data: {...}\n\n"
+    // 结束标记为 "data: [DONE]\n\n"
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done)
+          break
+        buffer += decoder.decode(value, { stream: true })
+
+        let sep = buffer.indexOf('\n\n')
+        while (sep >= 0) {
+          const rawEvent = buffer.slice(0, sep)
+          buffer = buffer.slice(sep + 2)
+
+          for (const line of rawEvent.split('\n')) {
+            if (!line.startsWith('data:'))
+              continue
+            const data = line.slice(5).trim()
+            if (data === '[DONE]') {
+              yield { type: 'text-stream', model, delta: '', done: true }
+              return
+            }
+            try {
+              const parsed = JSON.parse(data) as {
+                choices?: Array<{ delta?: { content?: string }, finish_reason?: string | null }>
+                usage?: { prompt_tokens?: number, completion_tokens?: number }
+              }
+              const choice = parsed.choices?.[0]
+              const delta = choice?.delta?.content ?? ''
+              const finishReason = choice?.finish_reason ?? null
+              const parsedUsage = parsed.usage
+                ? {
+                    inputTokens: parsed.usage.prompt_tokens ?? 0,
+                    outputTokens: parsed.usage.completion_tokens ?? 0,
+                  }
+                : undefined
+              yield {
+                type: 'text-stream',
+                model,
+                delta,
+                usage: parsedUsage,
+                done: finishReason !== null,
+              }
+            }
+            catch {
+              // 单行解析失败时跳过，不终止流
+            }
+          }
+          sep = buffer.indexOf('\n\n')
+        }
+      }
+    }
+    finally {
+      reader.releaseLock()
     }
   }
 

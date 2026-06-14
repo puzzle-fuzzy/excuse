@@ -44,6 +44,28 @@ export interface OpenAIModelsResponse {
   }>
 }
 
+/**
+ * OpenAI chat.completion.chunk 单个 SSE 数据帧
+ *
+ * 流式响应中每一帧的格式。usage 通常只在最后一帧带（OpenAI 习惯）。
+ */
+export interface OpenAIChatCompletionChunk {
+  id: string
+  object: 'chat.completion.chunk'
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    delta: { role?: 'assistant', content?: string }
+    finish_reason: 'stop' | 'length' | null
+  }>
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
 /** OpenAI 错误响应 */
 export interface OpenAIErrorResponse {
   error: {
