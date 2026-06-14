@@ -7,6 +7,7 @@ export const auditActionEnum = pgEnum('audit_action', [
   'register',
   'generate',
   'file_delete',
+  'file_update',
   'billing_transaction',
   'api_key_create',
   'api_key_revoke',

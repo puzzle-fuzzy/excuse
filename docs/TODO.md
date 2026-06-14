@@ -56,7 +56,7 @@
 待办：
 
 - 回收站/恢复能力 UI（第一版只做隐藏，不做恢复 UI）。
-- uploaded_files 编辑产品流程：重命名、用途、metadata。
+- uploaded_files metadata 编辑产品流程（重命名、用途已完成）。
 - 高级筛选 UI 优化：排序、标签、收藏。
 
 验收：

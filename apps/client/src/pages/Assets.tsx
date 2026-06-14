@@ -13,6 +13,7 @@ import {
   Layers,
   Link2,
   MapPin,
+  Pencil,
   RotateCcw,
   Search,
   Trash2,
@@ -26,11 +27,13 @@ import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
 import { hideAsset, queryAssetLibrary } from '@/api/asset-library'
-import { deleteUploadedFile, listCanvasProjects } from '@/api/client'
+import { deleteUploadedFile, listCanvasProjects, updateUploadedFile } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import {
   buildAssetLibraryStats,
   canDeleteAsset,
@@ -450,8 +453,13 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
   const Icon = KIND_ICON[item.kind] ?? FileText
   const deletable = canDeleteAsset(item)
   const hideable = item.source === 'generation_record' || item.source === 'canvas_asset'
+  const editable = item.source === 'uploaded_file'
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editFileName, setEditFileName] = useState(item.title)
+  const [editPurpose, setEditPurpose] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
 
   // 确认弹窗文案
   const confirmTitle = deletable ? '确认删除上传文件？' : '确认移出资产中心？'
@@ -482,6 +490,38 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
     }
     finally {
       setActionLoading(false)
+    }
+  }
+
+  function openEdit() {
+    setEditFileName(item.title)
+    setEditPurpose('')
+    setEditOpen(true)
+  }
+
+  async function handleSaveEdit() {
+    const trimmedName = editFileName.trim()
+    const trimmedPurpose = editPurpose.trim()
+    if (!trimmedName) {
+      toast.error('文件名不能为空')
+      return
+    }
+    setEditLoading(true)
+    try {
+      await updateUploadedFile(item.id, {
+        fileName: trimmedName,
+        purpose: trimmedPurpose || undefined,
+      })
+      toast.success('已保存修改')
+      setEditOpen(false)
+      onAction()
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : '保存失败'
+      toast.error(message)
+    }
+    finally {
+      setEditLoading(false)
     }
   }
 
@@ -569,6 +609,17 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
               </Button>
             </Link>
           )}
+          {editable && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={editLoading || actionLoading}
+              onClick={openEdit}
+            >
+              <Pencil className="size-3" />
+              编辑
+            </Button>
+          )}
           {deletable && (
             <Button variant="destructive" size="sm" disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
               <Trash2 className="size-3" />
@@ -593,6 +644,58 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
             confirmText={confirmText}
             onConfirm={handleAction}
           />
+        )}
+
+        {/* 编辑弹窗（仅 uploaded_file） */}
+        {editable && (
+          <Dialog open={editOpen} onOpenChange={setEditOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>编辑上传文件</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground" htmlFor="edit-file-name">文件名</label>
+                  <Input
+                    id="edit-file-name"
+                    value={editFileName}
+                    onChange={e => setEditFileName(e.target.value)}
+                    disabled={editLoading}
+                    placeholder="文件名"
+                    maxLength={500}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-muted-foreground" htmlFor="edit-purpose">用途</label>
+                  <Input
+                    id="edit-purpose"
+                    value={editPurpose}
+                    onChange={e => setEditPurpose(e.target.value)}
+                    disabled={editLoading}
+                    placeholder="如 reference / avatar / first-frame"
+                    maxLength={50}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditOpen(false)}
+                    disabled={editLoading}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveEdit}
+                    disabled={editLoading || actionLoading}
+                  >
+                    {editLoading ? '保存中...' : '保存'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
     </div>

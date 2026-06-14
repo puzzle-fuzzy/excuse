@@ -98,6 +98,38 @@ export async function listUploadedFilesForAccount(
     .offset(offset)
 }
 
+/** 编辑上传文件 patch — 仅允许 fileName / purpose */
+export interface UploadedFilePatch {
+  fileName?: string
+  purpose?: string
+}
+
+/**
+ * 编辑上传文件（重命名 / 用途） — 强制 accountId 隔离
+ *
+ * 空 patch 直接 fallback 到 `getUploadedFileByIdForAccount`，避免无意义 UPDATE。
+ * 越权访问（id 存在但属于其他用户）会被 WHERE 子句静默过滤，最终返回 null。
+ */
+export async function updateUploadedFile(
+  id: string,
+  accountId: string,
+  patch: UploadedFilePatch,
+) {
+  const set: Partial<typeof uploadedFiles.$inferInsert> = {}
+  if (patch.fileName !== undefined)
+    set.fileName = patch.fileName
+  if (patch.purpose !== undefined)
+    set.purpose = patch.purpose
+  if (Object.keys(set).length === 0)
+    return getUploadedFileByIdForAccount(id, accountId)
+  const [row] = await getDb()
+    .update(uploadedFiles)
+    .set(set)
+    .where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId)))
+    .returning()
+  return row ?? null
+}
+
 /** 按 ID 删除单个上传文件记录 */
 export async function deleteUploadedFileById(id: string) {
   await getDb().delete(uploadedFiles).where(eq(uploadedFiles.id, id))

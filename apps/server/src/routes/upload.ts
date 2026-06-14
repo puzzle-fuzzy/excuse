@@ -1,6 +1,7 @@
+import type { UploadedFilePatch } from '@excuse/db'
 import type { MutationOkResponse, UploadedFileDTO, UploadResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { createUploadedFile, deleteUploadedFileById, getUploadedFileById, getUploadedFileUsage } from '@excuse/db'
+import { createUploadedFile, deleteUploadedFileById, getUploadedFileById, getUploadedFileUsage, updateUploadedFile } from '@excuse/db'
 import { AssetStorage } from '@excuse/provider'
 import { createLogger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
@@ -136,6 +137,57 @@ export function createUploadRoutes(config: ServerConfig) {
       detail: {
         summary: '删除上传文件',
         description: '删除指定文件（需为文件所有者）。被字幕项目或生成记录使用的文件不能删除。先删除 DB 记录再删除存储文件。',
+        tags: ['上传'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // 编辑上传文件（重命名/用途）
+    .patch('/upload/:id', async ({ params: { id }, body, userId, set }) => {
+      const record = await getUploadedFileById(id)
+      if (!record) {
+        return notFound(set, '文件不存在')
+      }
+      if (record.accountId !== userId) {
+        return forbidden(set, '无权编辑该文件')
+      }
+
+      const patch: UploadedFilePatch = {}
+      if (body.fileName !== undefined) {
+        const trimmed = body.fileName.trim()
+        if (!trimmed) {
+          return validationError(set, '文件名不能为空')
+        }
+        patch.fileName = trimmed
+      }
+      if (body.purpose !== undefined) {
+        const trimmed = body.purpose.trim()
+        if (!trimmed) {
+          return validationError(set, '用途不能为空')
+        }
+        patch.purpose = trimmed
+      }
+
+      const updated = await updateUploadedFile(id, userId, patch)
+      if (!updated) {
+        return notFound(set, '文件不存在')
+      }
+
+      audit('file_update', { accountId: userId, targetId: id })
+
+      return {
+        success: true,
+        data: serializeUploadedFile(updated),
+      } satisfies UploadResponse
+    }, {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        fileName: t.Optional(t.String({ maxLength: 500 })),
+        purpose: t.Optional(t.String({ maxLength: 50 })),
+      }),
+      detail: {
+        summary: '编辑上传文件（重命名/用途）',
+        description: '编辑指定上传文件的文件名或用途（需为文件所有者）。返回更新后的文件 DTO；空 patch 直接返回当前记录。',
         tags: ['上传'],
         security: [{ bearerAuth: [] }],
       },

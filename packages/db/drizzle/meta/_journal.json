@@ -176,6 +176,13 @@
       "when": 1781434545549,
       "tag": "0024_petite_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781440059646,
+      "tag": "0025_great_master_mold",
+      "breakpoints": true
     }
   ]
 }

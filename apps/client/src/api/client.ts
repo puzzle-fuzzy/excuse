@@ -211,6 +211,16 @@ export async function deleteUploadedFile(id: string): Promise<MutationOkResponse
   )
 }
 
+/** 编辑上传文件（重命名/用途） — 返回更新后的 DTO */
+export async function updateUploadedFile(
+  id: string,
+  patch: { fileName?: string, purpose?: string },
+): Promise<UploadResponse> {
+  return unwrapEden<UploadResponse>(
+    await api.api.upload({ id }).patch(patch),
+  )
+}
+
 export async function fetchBillingStatistics(): Promise<BillingStatisticsResponse> {
   return unwrapEden<BillingStatisticsResponse>(
     await api.api.billing.statistics.get(),
