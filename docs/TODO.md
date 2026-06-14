@@ -126,7 +126,7 @@
 - streaming adapter。
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。
-- Gateway 协议解析和响应映射优先放 `packages/gateway`，不要继续堆在 route。
+- Gateway 协议解析和响应映射继续下沉 `packages/gateway`（usage 聚合已下沉；chat 请求/响应、错误码已下沉；streaming adapter 路径待补）。
 
 验收：
 

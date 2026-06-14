@@ -13,6 +13,7 @@ import {
   reserveCredit,
 } from '@excuse/db'
 import {
+  aggregateGatewayUsage,
   createOpenAIChatResponse,
   createOpenAIError,
   createOpenAIModelsResponse,
@@ -249,51 +250,18 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
         offset: 0,
       })
 
-      let totalCalls = 0
-      let succeededCalls = 0
-      let failedCalls = 0
-      let totalTokens = 0
-      let totalPriceCents = 0
-      const items = records.map((record) => {
-        totalCalls++
-        if (record.status === 'succeeded')
-          succeededCalls++
-        if (record.status === 'failed')
-          failedCalls++
-
-        const cost = record.cost ?? null
-        const inputTokens = cost?.inputTokens ?? null
-        const outputTokens = cost?.outputTokens ?? null
-        const tokenSum = (inputTokens ?? 0) + (outputTokens ?? 0)
-        if (inputTokens !== null && outputTokens !== null)
-          totalTokens += tokenSum
-
-        const price = record.totalPriceCents ?? cost?.totalPriceCents ?? 0
-        totalPriceCents += price
-
-        const requestedModel = (record.inputParams as { requestedModel?: unknown } | null)?.requestedModel
-        return {
-          id: record.id,
-          model: record.model,
-          requestedModel: typeof requestedModel === 'string' ? requestedModel : null,
-          status: record.status,
-          inputTokens,
-          outputTokens,
-          totalTokens: inputTokens !== null && outputTokens !== null ? tokenSum : null,
-          totalPriceCents: price,
-          errorMessage: record.errorMessage,
-          createdAt: record.createdAt.toISOString(),
-        }
-      })
-
-      return {
-        totalCalls,
-        succeededCalls,
-        failedCalls,
-        totalTokens,
-        totalPriceCents,
-        items,
-      }
+      // 聚合 / 单条映射已下沉到 @excuse/gateway；route 只挑 7 个必要字段，
+      // 避免 prompt / output 全文等敏感字段进入 usage 列表。
+      return aggregateGatewayUsage(records.map(record => ({
+        id: record.id,
+        model: record.model,
+        status: record.status,
+        inputParams: record.inputParams as { requestedModel?: unknown } | null,
+        cost: record.cost,
+        totalPriceCents: record.totalPriceCents,
+        errorMessage: record.errorMessage,
+        createdAt: record.createdAt,
+      })))
     }, {
       query: t.Object({
         days: t.Optional(t.Number({ minimum: 1, maximum: 90 })),
