@@ -11,4 +11,3 @@ window.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 } as unknown as typeof ResizeObserver
-

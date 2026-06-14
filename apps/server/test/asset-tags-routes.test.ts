@@ -1,5 +1,3 @@
-import type { AssetTagDTO } from '@excuse/shared'
-import { treaty } from '@elysia/eden'
 import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 /**
@@ -15,7 +13,7 @@ import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
  */
 
 import { createAssetTagRoutes } from '../src/routes/asset-tags'
-import { extractEdenError, makeTestConfig, signTestToken } from './helpers/test-factory'
+import { makeTestConfig, signTestToken } from './helpers/test-factory'
 
 // ─── Mocks ───────────────────────────────────────────────
 
@@ -106,12 +104,15 @@ describe('asset-tags routes', () => {
   describe('POST /api/asset-tags/', () => {
     it('POST { name: " 高亮 " } → 200，data.name="高亮"（trim 验证）', async () => {
       mockCreateAssetTag.mockResolvedValueOnce({
-        id: 'tag-1', accountId: 'acc-001', name: '高亮', createdAt: new Date('2024-06-01T00:00:00Z'),
+        id: 'tag-1',
+        accountId: 'acc-001',
+        name: '高亮',
+        createdAt: new Date('2024-06-01T00:00:00Z'),
       })
 
       const res = await app.handle(new Request('http://localhost/api/asset-tags/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: ' 高亮 ' }),
       }))
       const body = await res.json()
@@ -128,7 +129,7 @@ describe('asset-tags routes', () => {
 
       const res = await app.handle(new Request('http://localhost/api/asset-tags/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: '高亮' }),
       }))
       expect(res.status).toBe(409)
@@ -139,7 +140,7 @@ describe('asset-tags routes', () => {
     it('POST 空名（trim 后空）→ 422', async () => {
       const res = await app.handle(new Request('http://localhost/api/asset-tags/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: '   ' }),
       }))
       expect(res.status).toBe(422)
@@ -150,7 +151,7 @@ describe('asset-tags routes', () => {
       const longName = 'a'.repeat(33)
       const res = await app.handle(new Request('http://localhost/api/asset-tags/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: longName }),
       }))
       expect(res.status).toBe(422)
@@ -162,7 +163,7 @@ describe('asset-tags routes', () => {
 
       const res = await app.handle(new Request('http://localhost/api/asset-tags/', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'x' }),
       }))
       expect(res.status).toBe(500)

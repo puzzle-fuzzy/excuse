@@ -29,6 +29,10 @@ export interface TaskRetryCandidate {
   maxAttempts: number
 }
 
+export interface TaskStatusCandidate {
+  status: string
+}
+
 export interface TaskDefinition<TTask, TContext, TOutput = Record<string, unknown> | undefined> {
   type: string
   handler: TaskHandler<TTask, TContext, TOutput>
@@ -204,6 +208,14 @@ export async function cancelTaskWithAdapter<TTask>(
   input: CancelTaskWithAdapterInput<TTask>,
 ): Promise<TTask | null> {
   return input.adapter.cancelTask(input.taskId)
+}
+
+export function canRequeueTask(task: TaskStatusCandidate): boolean {
+  return task.status === 'failed' || task.status === 'retrying' || task.status === 'queued'
+}
+
+export function canCancelTask(task: TaskStatusCandidate): boolean {
+  return task.status === 'queued' || task.status === 'running' || task.status === 'retrying'
 }
 
 export async function applyTaskFailureWithAdapter<TTask extends TaskRetryCandidate & { id: string }>(

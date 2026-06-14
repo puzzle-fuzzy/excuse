@@ -1,6 +1,7 @@
 import type { NotificationItem } from '@/api/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Beaker,
   Bell,
   CheckCheck,
   Clapperboard,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Map,
   Receipt,
+  ShieldCheck,
   Wallet,
   XCircle,
 } from 'lucide-react'
@@ -37,6 +39,8 @@ const NAV_ITEMS = [
   { to: '/billing', label: '计费', icon: Receipt },
   { to: '/api-keys', label: 'API Keys', icon: KeyRound },
   { to: '/developers', label: '开发者', icon: Code2 },
+  { to: '/model-lab', label: 'Model Lab', icon: Beaker },
+  { to: '/admin', label: '管理', icon: ShieldCheck },
 ] as const
 
 /** 通知类型 → 图标 + 主色 */

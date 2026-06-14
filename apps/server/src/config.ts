@@ -21,6 +21,8 @@ export interface ServerConfig {
   metricsAccessToken?: string
   /** 允许访问 `/metrics` 的 IP CIDR 列表；默认 `['127.0.0.1/32', '::1/128']` */
   metricsAllowedCidrs: string[]
+  /** 允许访问内部管理后台的用户 ID 列表；未配置时后台接口默认拒绝 */
+  adminUserIds?: string[]
 }
 
 /**
@@ -44,6 +46,10 @@ export function loadConfig(): ServerConfig {
     oss: loadOSSConfig(),
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
+    adminUserIds: (process.env.ADMIN_USER_IDS || '')
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),

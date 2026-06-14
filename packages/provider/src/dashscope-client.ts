@@ -375,7 +375,7 @@ export class DashScopeClient {
    *
    * @throws Error 当模型不存在或 requestType 不是 'openai-chat' / 'chat'
    */
-  async *chatCompletionStream(
+  async* chatCompletionStream(
     model: string,
     params: ValidatedModelParameters,
   ): AsyncGenerator<TextStreamChunk> {
@@ -430,7 +430,7 @@ export class DashScopeClient {
    * SSE 按 `\n\n` 分块；每块形如 `data: {...}\n\n`；结束标记 `data: [DONE]`。
    * 单行 JSON.parse 失败时跳过该行，不终止流。
    */
-  private async *parseOpenAIChatSSE(
+  private async* parseOpenAIChatSSE(
     body: ReadableStream<Uint8Array>,
     model: string,
   ): AsyncGenerator<TextStreamChunk> {
@@ -502,7 +502,7 @@ export class DashScopeClient {
    *
    * 流结束：`finish_reason === 'stop' | 'length'`，或收到 `data: [DONE]`。
    */
-  private async *parseDashScopeChatSSE(
+  private async* parseDashScopeChatSSE(
     body: ReadableStream<Uint8Array>,
     model: string,
   ): AsyncGenerator<TextStreamChunk> {

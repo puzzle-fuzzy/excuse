@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -61,6 +61,7 @@ export const api = treaty<App>(resolveApiBaseUrl())
 
 export type { ModelConfig, ModelParameter } from '@excuse/shared'
 export type { AcceptedResponse, GenerateResponse, GenerationRecord } from '@excuse/shared'
+export type { AdminOverview, AdminTaskItem, AdminTaskListQuery } from '@excuse/shared'
 export type { AssetLibraryItem, AssetLibraryKind, AssetLibraryListResponse, AssetLibraryQuery, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
 export type { BillingStatistics } from '@excuse/shared'
 export type CostDetail = GenerationRecord['cost']
@@ -225,6 +226,41 @@ export async function fetchBillingStatistics(): Promise<BillingStatisticsRespons
   return unwrapEden<BillingStatisticsResponse>(
     await api.api.billing.statistics.get(),
   )
+}
+
+export async function fetchAdminOverview(): Promise<AdminOverview> {
+  const response = unwrapEden<AdminOverviewResponse>(
+    await api.api.admin.overview.get(),
+  )
+  return response.data
+}
+
+export async function fetchAdminTasks(params?: AdminTaskListQuery): Promise<AdminTaskListResponse> {
+  return unwrapEden<AdminTaskListResponse>(
+    await api.api.admin.tasks.get({
+      query: {
+        status: params?.status || undefined,
+        domain: params?.domain || undefined,
+        search: params?.search || undefined,
+        limit: params?.limit ?? 40,
+        offset: params?.offset ?? 0,
+      },
+    }),
+  )
+}
+
+export async function requeueAdminTask(id: string): Promise<AdminTaskItem> {
+  const response = unwrapEden<AdminTaskMutationResponse>(
+    await api.api.admin.tasks({ id }).requeue.post(),
+  )
+  return response.data
+}
+
+export async function cancelAdminTask(id: string): Promise<AdminTaskItem> {
+  const response = unwrapEden<AdminTaskMutationResponse>(
+    await api.api.admin.tasks({ id }).cancel.post(),
+  )
+  return response.data
 }
 
 // ===== 统一资产中心 API =====

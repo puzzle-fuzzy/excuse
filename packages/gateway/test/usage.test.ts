@@ -1,8 +1,9 @@
+import type { GatewayUsageRecordInput } from '../src'
 import { describe, expect, it } from 'bun:test'
 import {
   aggregateGatewayUsage,
+
   mapGatewayUsageItem,
-  type GatewayUsageRecordInput,
 } from '../src'
 
 /**

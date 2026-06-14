@@ -365,7 +365,8 @@ describe('assets 标签功能', () => {
     // 验证点击加标签按钮不会打开 PreviewModal（不出现编辑按钮等 modal 内容）
     const user = userEvent.setup()
     renderAssets([makeItem({
-      id: 'no-preview', title: '不打开预览.png',
+      id: 'no-preview',
+      title: '不打开预览.png',
       source: 'uploaded_file',
       tagNames: [],
     })])

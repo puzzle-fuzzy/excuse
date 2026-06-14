@@ -510,7 +510,7 @@ export default function Assets() {
       {filters.tagIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-muted-foreground">已选标签：</span>
-          {filters.tagIds.map(tagId => {
+          {filters.tagIds.map((tagId) => {
             const tag = allTags.find(t => t.id === tagId)
             if (!tag)
               return null
@@ -705,7 +705,7 @@ function AssetCard({
                 )
               : (
                   <div className="max-h-60 overflow-y-auto">
-                    {allTags.map(tag => {
+                    {allTags.map((tag) => {
                       const assigned = item.tagNames.includes(tag.name)
                       return (
                         <button
@@ -1114,7 +1114,7 @@ function TagManagementModal({
                     <Trash2 className="size-3" />
                   </Button>
                 </div>
-            ))}
+              ))}
         </div>
       </DialogContent>
       <ConfirmDialog

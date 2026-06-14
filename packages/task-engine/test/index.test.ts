@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 import {
   applyTaskFailureWithAdapter,
+  canCancelTask,
   cancelTaskWithAdapter,
+  canRequeueTask,
   claimNextTaskWithAdapter,
   classifyTaskError,
   completeTaskWithAdapter,
@@ -52,6 +54,20 @@ describe('@excuse/task-engine', () => {
 
     expect(shouldRetryTask(error, 1, 3)).toBe(true)
     expect(shouldRetryTask(error, 3, 3)).toBe(false)
+  })
+
+  it('exposes admin-safe task operation guards', () => {
+    expect(canRequeueTask({ status: 'failed' })).toBe(true)
+    expect(canRequeueTask({ status: 'retrying' })).toBe(true)
+    expect(canRequeueTask({ status: 'queued' })).toBe(true)
+    expect(canRequeueTask({ status: 'running' })).toBe(false)
+    expect(canRequeueTask({ status: 'succeeded' })).toBe(false)
+
+    expect(canCancelTask({ status: 'queued' })).toBe(true)
+    expect(canCancelTask({ status: 'running' })).toBe(true)
+    expect(canCancelTask({ status: 'retrying' })).toBe(true)
+    expect(canCancelTask({ status: 'failed' })).toBe(false)
+    expect(canCancelTask({ status: 'succeeded' })).toBe(false)
   })
 
   it('uses longer exponential delay for video tasks', () => {

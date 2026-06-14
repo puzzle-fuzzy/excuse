@@ -864,7 +864,10 @@ describe('assets routes', () => {
   describe('POST /api/assets/:source/:id/tags/:tagId', () => {
     it('POST assign（tagId 属于当前用户）→ 200', async () => {
       mockFindAssetTagById.mockResolvedValueOnce({
-        id: 'tag-1', accountId: 'acc-001', name: '高亮', createdAt: new Date(),
+        id: 'tag-1',
+        accountId: 'acc-001',
+        name: '高亮',
+        createdAt: new Date(),
       })
 
       const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/tags/tag-1', {
