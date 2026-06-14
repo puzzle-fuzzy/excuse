@@ -132,7 +132,7 @@
 
 待办：
 
-- 补 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时。
+- 补 provider 错误率、模型耗时。
 - 线上排障检查命令或文档。
 - Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
 
@@ -158,12 +158,7 @@
 
 待办：
 
-- 内部模型实验页。
-- 支持文本、图片、视频模型测试。
-- 支持参数表单、prompt 输入、结果预览、成本显示。
-- 支持保存测试结果，并一键复用到 Canvas 默认配置。
-- 支持同 prompt 多模型对比。
-- 表单建议使用 `react-hook-form`，参数 schema 可与 provider/model config 对齐。
+- Canvas 新项目 / 编辑器消费 Model Lab 保存的默认模型偏好。
 
 验收：
 
@@ -173,9 +168,10 @@
 
 待办：
 
-- 项目和任务检索。
-- 用户、余额、用量、成本统计。
-- 失败任务诊断。
+- 项目细粒度检索（全局只读概览已完成）。
+- 任务队列细粒度检索、失败重排和运行中取消已完成；后续补项目级检索和跨业务状态联动修复。
+- 用户余额明细、用户级用量和成本统计（全局用户 / 成本摘要已完成）。
+- 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
 - provider 错误率和模型成本统计。
 - API Key 和 Gateway 客户管理。
 - 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
@@ -200,7 +196,8 @@
    - 用于资产中心、Canvas 项目详情、字幕项目、Billing、通知列表。
    - SSE 只做“有变化”通知，收到事件后 invalidate query。
    - 减少手写 loading/error/refetch/cache 状态。
-
+   - ✅ Canvas 资产轮询、PipelineController 兜底轮询已迁移到 react-query。
+   - ✅ Canvas 资产轮询、PipelineController 兜底轮询已迁移到 react-query。
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。

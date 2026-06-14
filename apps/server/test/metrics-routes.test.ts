@@ -45,6 +45,22 @@ mock.module('../src/services/sse-manager', () => ({
   getOnlineUserCount: mock(() => 3),
 }))
 
+const DB_FIXTURE_PHASE = [
+  { phase: 'analyze', status: 'succeeded', count: 5, durationP50Ms: 1000, durationP95Ms: 2000, durationAvgMs: 1200 },
+  { phase: 'analyze', status: 'failed', count: 1, durationP50Ms: 0, durationP95Ms: 0, durationAvgMs: 0 },
+  { phase: 'characters', status: 'succeeded', count: 3, durationP50Ms: 3000, durationP95Ms: 5000, durationAvgMs: 3500 },
+]
+const DB_FIXTURE_QUEUE = [
+  { domain: 'canvas', status: 'queued', count: 3 },
+  { domain: 'canvas', status: 'running', count: 1 },
+  { domain: 'generate', status: 'queued', count: 2 },
+]
+
+mock.module('@excuse/db', () => ({
+  getCanvasPhaseStats: mock(() => Promise.resolve(DB_FIXTURE_PHASE)),
+  getTaskQueueStats: mock(() => Promise.resolve(DB_FIXTURE_QUEUE)),
+}))
+
 function buildApp(overrides: Parameters<typeof makeTestConfig>[0] = {}) {
   const config = makeTestConfig(overrides)
   return new Elysia().use(createMetricsRoutes(config))
@@ -177,5 +193,89 @@ describe('isAllowedIp', () => {
 
   it('空字符串 IP 拒绝', () => {
     expect(isAllowedIp('', ['127.0.0.0/8'])).toBe(false)
+  })
+})
+
+describe('GET /metrics — DB-derived metrics', () => {
+  it('输出含 excuse_canvas_phase_total{phase="analyze",status="succeeded"} 5', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    expect(body).toContain('# HELP excuse_canvas_phase_total')
+    expect(body).toContain('# TYPE excuse_canvas_phase_total counter')
+    expect(body).toContain('excuse_canvas_phase_total{phase="analyze",status="succeeded"} 5')
+    expect(body).toContain('excuse_canvas_phase_total{phase="analyze",status="failed"} 1')
+    expect(body).toContain('excuse_canvas_phase_total{phase="characters",status="succeeded"} 3')
+  })
+
+  it('输出含 excuse_canvas_phase_duration_seconds quantile 样本', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    expect(body).toContain('# HELP excuse_canvas_phase_duration_seconds')
+    expect(body).toContain('# TYPE excuse_canvas_phase_duration_seconds gauge')
+    expect(body).toContain('excuse_canvas_phase_duration_seconds{phase="analyze",quantile="0.5"} 1')
+    expect(body).toContain('excuse_canvas_phase_duration_seconds{phase="analyze",quantile="0.95"} 2')
+    expect(body).toContain('excuse_canvas_phase_duration_seconds{phase="analyze",quantile="avg"} 1.2')
+    // failed phase 不出现在 duration 里
+    expect(body).not.toContain('phase="analyze",quantile="0.5"} 0')
+  })
+
+  it('输出含 excuse_task_queue_depth{domain="canvas",status="queued"} 3', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    expect(body).toContain('# HELP excuse_task_queue_depth')
+    expect(body).toContain('# TYPE excuse_task_queue_depth gauge')
+    expect(body).toContain('excuse_task_queue_depth{domain="canvas",status="queued"} 3')
+    expect(body).toContain('excuse_task_queue_depth{domain="canvas",status="running"} 1')
+    expect(body).toContain('excuse_task_queue_depth{domain="generate",status="queued"} 2')
+  })
+
+  it('DB 异常兜底：既有 in-memory metric 仍正常输出', async () => {
+    const failMock = mock(() => Promise.reject(new Error('DB down')))
+    mock.module('@excuse/db', () => ({
+      getCanvasPhaseStats: failMock,
+      getTaskQueueStats: failMock,
+    }))
+
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    // 既有 in-memory family 完好
+    expect(body).toContain('# HELP excuse_http_requests_total')
+    expect(body).toContain('# HELP excuse_http_latency_seconds')
+    expect(body).toContain('# HELP excuse_sse_online_users')
+    expect(body).toContain('# HELP excuse_generation_total')
+    expect(body).toContain('# HELP excuse_errors_total')
+    expect(body).toContain('# HELP excuse_uptime_seconds')
+
+    // DB-derived family 仍有 HELP+TYPE 头部（空 samples）
+    expect(body).toContain('# HELP excuse_canvas_phase_total')
+    expect(body).toContain('# TYPE excuse_canvas_phase_total counter')
+    expect(body).toContain('# HELP excuse_task_queue_depth')
+    expect(body).toContain('# TYPE excuse_task_queue_depth gauge')
+
+    // 恢复正常 mock 供后续用例
+    mock.module('@excuse/db', () => ({
+      getCanvasPhaseStats: mock(() => Promise.resolve(DB_FIXTURE_PHASE)),
+      getTaskQueueStats: mock(() => Promise.resolve(DB_FIXTURE_QUEUE)),
+    }))
+  })
+
+  it('既有 in-memory family 在新输出中全部保留', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+    for (const name of [
+      'excuse_http_requests_total',
+      'excuse_http_latency_seconds',
+      'excuse_sse_online_users',
+      'excuse_generation_total',
+      'excuse_errors_total',
+      'excuse_uptime_seconds',
+    ]) {
+      expect(body).toContain(`# HELP ${name}`)
+      expect(body).toMatch(new RegExp(`# TYPE ${name} (counter|gauge)`))
+    }
   })
 })

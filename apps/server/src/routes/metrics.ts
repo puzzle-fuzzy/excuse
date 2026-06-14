@@ -1,5 +1,6 @@
 import type { ServerConfig } from '../config'
-import { serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
+import { getCanvasPhaseStats, getTaskQueueStats } from '@excuse/db'
+import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
 import { Elysia } from 'elysia'
 import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'
@@ -85,7 +86,7 @@ export function isAllowedIp(remoteIp: string, allowedCidrs: string[]): boolean {
  */
 export function createMetricsRoutes(config: ServerConfig) {
   return new Elysia()
-    .get('/metrics', ({ request, set }) => {
+    .get('/metrics', async ({ request, set }) => {
       const xff = request.headers.get('x-forwarded-for')
       const remoteIp = xff?.split(',')[0]?.trim() ?? ''
 
@@ -112,7 +113,19 @@ export function createMetricsRoutes(config: ServerConfig) {
       // 3. 序列化为 prometheus exposition format
       const uptime = Math.floor((Date.now() - startTime) / 1000)
       const snapshot = getMetrics(getOnlineUserCount(), uptime)
-      const body = serializePrometheus(snapshotToPrometheus(snapshot))
+      const inProcessMetrics = snapshotToPrometheus(snapshot)
+
+      // DB 派生指标（每 scrape 一次查询；DB 异常时不阻塞 in-memory 输出）
+      const [phaseStats, queueStats] = await Promise.all([
+        getCanvasPhaseStats(24).catch(() => []),
+        getTaskQueueStats().catch(() => []),
+      ])
+      const dbDerivedMetrics = [
+        ...aggregateCanvasPhaseMetrics(phaseStats),
+        ...aggregateTaskQueueMetrics(queueStats),
+      ]
+
+      const body = serializePrometheus([...inProcessMetrics, ...dbDerivedMetrics])
 
       set.headers['content-type'] = 'text/plain; version=0.0.4; charset=utf-8'
       return body
