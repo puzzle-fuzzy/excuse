@@ -239,7 +239,7 @@ export function resolveShotVideoReferences(
 
   // 按 URL 去重，保留首次出现
   const seen = new Set<string>()
-  return refs.filter(ref => {
+  return refs.filter((ref) => {
     if (seen.has(ref.url))
       return false
     seen.add(ref.url)

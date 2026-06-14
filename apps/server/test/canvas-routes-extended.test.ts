@@ -65,9 +65,9 @@ const mockUpdateCanvasShot = mock(() => Promise.resolve({ id: 'shot-001', update
 
 // ── 参考资产归属校验（v0.3）：account-scoped 查询 mock ──
 // 默认返回 null（未找到 / 无权限），各用例按需 override
-type UploadedFileFixture = { id: string; mimeType: string | null; publicUrl: string | null }
-type CanvasAssetFixture = { id: string; status: string; category: string; publicUrl: string; outputJson: unknown }
-type GenerationRecordFixture = { id: string; status: string; category: string; outputResult: unknown }
+interface UploadedFileFixture { id: string, mimeType: string | null, publicUrl: string | null }
+interface CanvasAssetFixture { id: string, status: string, category: string, publicUrl: string, outputJson: unknown }
+interface GenerationRecordFixture { id: string, status: string, category: string, outputResult: unknown }
 
 const mockGetCanvasAssetByIdForAccount = mock<() => Promise<CanvasAssetFixture | null>>(() => Promise.resolve(null))
 const mockGetGenerationRecordByIdForAccount = mock<() => Promise<GenerationRecordFixture | null>>(() => Promise.resolve(null))

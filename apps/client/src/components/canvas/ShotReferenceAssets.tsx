@@ -1,5 +1,6 @@
 import type { AssetLibraryItem, CanvasShotReferenceAsset, ProjectDTO } from '@excuse/shared'
-import { useCallback, useMemo, useEffect, useState } from 'react'
+import { recommendCanvasVideoVariant } from '@excuse/shared'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { fetchAssetLibrary } from '../../api/client'
 import {
@@ -11,7 +12,6 @@ import {
   mergeShotReferenceAssets,
   SOURCE_LABELS,
 } from '../../lib/asset-library'
-import { recommendCanvasVideoVariant } from '@excuse/shared'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -59,8 +59,7 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
   const atLimit = shot.referenceAssets.length >= MAX_SHOT_REFERENCE_ASSETS
 
   const recommendation = useMemo(() =>
-    recommendCanvasVideoVariant(shot.referenceAssets.filter(a => a.url)),
-  [shot.referenceAssets])
+    recommendCanvasVideoVariant(shot.referenceAssets.filter(a => a.url)), [shot.referenceAssets])
 
   const VARIANT_LABEL: Record<string, string> = {
     t2v: 'T2V 文生视频',
@@ -237,7 +236,12 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
 
       {/* 视频生成模式推荐 */}
       <p className="text-[10px] text-muted-foreground">
-        当前推荐：{VARIANT_LABEL[recommendation.variant]} — {recommendation.reason}
+        当前推荐：
+        {VARIANT_LABEL[recommendation.variant]}
+        {' '}
+        —
+        {' '}
+        {recommendation.reason}
       </p>
 
       {/* 从资产库选择（主路径） */}

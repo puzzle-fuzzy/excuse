@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test'
 import type { DashScopeTaskOutput, ImageProviderOutput, TextProviderOutput, VideoTaskProviderOutput } from '@excuse/provider'
+import { describe, expect, it } from 'bun:test'
 import { extractImageUrls, parseProviderOutput } from '../src/modules/generation/output-parser'
 
 describe('parseProviderOutput', () => {
@@ -121,8 +121,11 @@ describe('parseProviderOutput', () => {
   })
 
   it('DashScope image results filters non-string items', () => {
+    // DashScopeTaskOutput has index signature, so runtime values may not match declared type
     const input: DashScopeTaskOutput = {
-      results: [{ url: 42 }, { b64_image: null }, { url: 'https://img1.jpg' }],
+      results: [{ url: 'https://img1.jpg' }, { b64_image: 'data:image/png;base64,abc' }],
+      // Simulate non-string entries via index signature (type allows unknown at runtime)
+      ...({ results: [{ url: 42 as unknown as string }, { b64_image: null as unknown as string }, { url: 'https://img1.jpg' }] } as Record<string, unknown>),
     }
     const result = parseProviderOutput(input)
     if (result.type === 'image') {

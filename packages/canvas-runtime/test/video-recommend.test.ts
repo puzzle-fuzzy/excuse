@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'bun:test'
 import type { CanvasShotReferenceAsset } from '@excuse/db'
+import { describe, expect, it } from 'bun:test'
 import { recommendCanvasVideoModel, resolveShotVideoReferences } from '../src/index'
 
 // ─── resolveShotVideoReferences ─────────────────────────────
@@ -61,7 +61,7 @@ describe('resolveShotVideoReferences', () => {
 
   it('角色无参考图时跳过', () => {
     const shot = {
-      characterIdsJson: ['char-3'] as string[],  // char-3 referenceImageUrl = null
+      characterIdsJson: ['char-3'] as string[], // char-3 referenceImageUrl = null
       locationId: null as string | null,
       referenceAssetsJson: null as CanvasShotReferenceAsset[] | null,
     }
