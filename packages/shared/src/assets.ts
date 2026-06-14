@@ -101,6 +101,8 @@ export interface AssetLibraryItem {
   createdAt: string
   /** 当前用户是否已收藏（route 注入，client 只读） */
   isFavorite: boolean
+  /** 当前用户给该资产打的标签名列表（route 注入，可能为空数组） */
+  tagNames: string[]
 }
 
 /**
@@ -143,6 +145,13 @@ export interface AssetLibraryQuery {
   sort?: AssetLibrarySort
   /** 仅返回当前用户已收藏的资产；缺省或 false = 不过滤 */
   favorite?: boolean
+  /**
+   * 仅返回打了指定 tagId 之一的资产（OR 关系）；缺省 = 不过滤。
+   *
+   * URL 边界为逗号分隔字符串（`tagIds=id1,id2`），route 解析后内存匹配。
+   * 此处类型保持 string 以匹配 wire format，避免 Eden treaty 数组重复 query 序列化。
+   */
+  tagIds?: string
   limit?: number
   offset?: number
 }

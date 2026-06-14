@@ -28,6 +28,11 @@ const mockHideCanvasAsset = mock<() => Promise<{ id: string, hiddenAt: Date } | 
 const mockListAssetFavoriteKeys = mock<(accountId: string) => Promise<Array<{ source: 'generation_record' | 'canvas_asset' | 'uploaded_file', assetId: string }>>>(() => Promise.resolve([]))
 const mockAddAssetFavorite = mock<() => Promise<{ id: 'fav-1', accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1', createdAt: Date }>>(() => Promise.resolve({ id: 'fav-1', accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1', createdAt: new Date() }))
 const mockRemoveAssetFavorite = mock<() => Promise<void>>(() => Promise.resolve())
+const mockListAssetTags = mock<(accountId: string) => Promise<Array<{ id: string, accountId: string, name: string, createdAt: Date }>>>(() => Promise.resolve([]))
+const mockFindAssetTagById = mock<() => Promise<{ id: string, accountId: string, name: string, createdAt: Date } | null>>(() => Promise.resolve(null))
+const mockListAssetTagKeys = mock<(accountId: string) => Promise<Array<{ tagId: string, source: 'generation_record' | 'canvas_asset' | 'uploaded_file', assetId: string }>>>(() => Promise.resolve([]))
+const mockAssignAssetTag = mock<() => Promise<void>>(() => Promise.resolve())
+const mockUnassignAssetTag = mock<() => Promise<void>>(() => Promise.resolve())
 
 mock.module('@excuse/db', () => ({
   listGenerationRecords: mockListGenRecords,
@@ -40,6 +45,11 @@ mock.module('@excuse/db', () => ({
   listAssetFavoriteKeys: mockListAssetFavoriteKeys,
   addAssetFavorite: mockAddAssetFavorite,
   removeAssetFavorite: mockRemoveAssetFavorite,
+  listAssetTags: mockListAssetTags,
+  findAssetTagById: mockFindAssetTagById,
+  listAssetTagKeys: mockListAssetTagKeys,
+  assignAssetTag: mockAssignAssetTag,
+  unassignAssetTag: mockUnassignAssetTag,
 }))
 
 mock.module('../src/services/audit', () => ({
@@ -108,11 +118,18 @@ describe('assets routes', () => {
     mockListAssetFavoriteKeys.mockClear()
     mockAddAssetFavorite.mockClear()
     mockRemoveAssetFavorite.mockClear()
+    mockListAssetTags.mockClear()
+    mockFindAssetTagById.mockClear()
+    mockListAssetTagKeys.mockClear()
+    mockAssignAssetTag.mockClear()
+    mockUnassignAssetTag.mockClear()
 
     // 默认返回空，每个用例按需 mockResolvedValueOnce
     mockListGenRecords.mockResolvedValue([])
     mockListCanvasAssets.mockResolvedValue([])
     mockListUploadedFiles.mockResolvedValue([])
+    mockListAssetTags.mockResolvedValue([])
+    mockListAssetTagKeys.mockResolvedValue([])
     mockListAssetFavoriteKeys.mockResolvedValue([])
 
     app = createAssetsRoutes(testConfig)
@@ -760,6 +777,164 @@ describe('assets routes', () => {
       }))
       expect(res.status).toBe(422)
       expect(mockRemoveAssetFavorite).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── 标签过滤 + tagNames 注入 + assign/unassign ─────────────────────────────
+
+  describe('GET /api/assets tagIds filter + tagNames 注入', () => {
+    it('tagIds 过滤（OR 关系）：只返回打了指定 tagId 之一的资产', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-tagged', accountId: 'acc-001' }),
+        makeRecord({ id: 'rec-untagged', accountId: 'acc-001' }),
+      ])
+      mockListAssetTags.mockResolvedValueOnce([
+        { id: 'tag-1', accountId: 'acc-001', name: '高亮', createdAt: new Date() },
+        { id: 'tag-2', accountId: 'acc-001', name: '草稿', createdAt: new Date() },
+      ])
+      mockListAssetTagKeys.mockResolvedValueOnce([
+        { tagId: 'tag-1', source: 'generation_record', assetId: 'rec-tagged' },
+      ])
+
+      const { data, error } = await client.api.assets.get({
+        query: { tagIds: 'tag-1,tag-2' },
+        ...AUTH(token),
+      })
+
+      expect(error).toBeNull()
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items).toHaveLength(1)
+      expect(items[0]!.id).toBe('rec-tagged')
+      expect(items[0]!.tagNames).toEqual(['高亮'])
+    })
+
+    it('不传 tagIds 时返回全部资产，tagNames 反映实际打的标签', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-t1', accountId: 'acc-001' }),
+        makeRecord({ id: 'rec-none', accountId: 'acc-001' }),
+      ])
+      mockListAssetTags.mockResolvedValueOnce([
+        { id: 'tag-1', accountId: 'acc-001', name: '高亮', createdAt: new Date() },
+        { id: 'tag-2', accountId: 'acc-001', name: '草稿', createdAt: new Date() },
+      ])
+      mockListAssetTagKeys.mockResolvedValueOnce([
+        { tagId: 'tag-1', source: 'generation_record', assetId: 'rec-t1' },
+        { tagId: 'tag-2', source: 'generation_record', assetId: 'rec-t1' },
+      ])
+
+      const { data } = await client.api.assets.get({ ...AUTH(token) })
+
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items).toHaveLength(2)
+      const t1 = items.find(i => i.id === 'rec-t1')!
+      const none = items.find(i => i.id === 'rec-none')!
+      // tagNames 按服务端 tagNameMap 解析；顺序由 assignmentKeys 顺序决定
+      expect(t1.tagNames.sort()).toEqual(['草稿', '高亮'])
+      expect(none.tagNames).toEqual([])
+    })
+
+    it('跨用户隔离：当前用户看不到其他用户的标签 / 打标', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-1', accountId: 'acc-001' }),
+      ])
+      // mockListAssetTags / mockListAssetTagKeys 应始终按 userId 查询 — 这里返回空
+      mockListAssetTags.mockResolvedValueOnce([])
+      mockListAssetTagKeys.mockResolvedValueOnce([])
+
+      const { data } = await client.api.assets.get({ ...AUTH(token) })
+
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items[0]!.tagNames).toEqual([])
+      expect(mockListAssetTags).toHaveBeenCalledWith('acc-001')
+      expect(mockListAssetTagKeys).toHaveBeenCalledWith('acc-001')
+    })
+
+    it('tagNames 默认为空数组（route 始终注入）', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-1', accountId: 'acc-001' }),
+      ])
+
+      const { data } = await client.api.assets.get({ ...AUTH(token) })
+
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items[0]!.tagNames).toEqual([])
+    })
+  })
+
+  describe('POST /api/assets/:source/:id/tags/:tagId', () => {
+    it('POST assign（tagId 属于当前用户）→ 200', async () => {
+      mockFindAssetTagById.mockResolvedValueOnce({
+        id: 'tag-1', accountId: 'acc-001', name: '高亮', createdAt: new Date(),
+      })
+
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/tags/tag-1', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(mockAssignAssetTag).toHaveBeenCalledWith({
+        accountId: 'acc-001',
+        tagId: 'tag-1',
+        source: 'generation_record',
+        assetId: 'rec-1',
+      })
+    })
+
+    it('POST assign 不存在的 tagId → 404', async () => {
+      mockFindAssetTagById.mockResolvedValueOnce(null)
+
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/tags/missing', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(404)
+      expect(mockAssignAssetTag).not.toHaveBeenCalled()
+    })
+
+    it('POST assign 非法 source → 422', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/invalid_source/x/tags/tag-1', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(422)
+      expect(mockAssignAssetTag).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('DELETE /api/assets/:source/:id/tags/:tagId', () => {
+    it('DELETE unassign → 200', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/tags/tag-1', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(mockUnassignAssetTag).toHaveBeenCalledWith({
+        accountId: 'acc-001',
+        tagId: 'tag-1',
+        source: 'generation_record',
+        assetId: 'rec-1',
+      })
+    })
+
+    it('DELETE 幂等：未打标的组合也返回 200', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1/tags/non-existent', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(200)
+    })
+
+    it('DELETE 非法 source → 422', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/invalid_source/x/tags/tag-1', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(422)
+      expect(mockUnassignAssetTag).not.toHaveBeenCalled()
     })
   })
 })

@@ -14,6 +14,7 @@ import { rateLimitPlugin } from './plugins/rate-limit'
 import { requestIdPlugin } from './plugins/request-id'
 import { createApiKeyRoutes } from './routes/api-keys'
 import { createAssetsRoutes } from './routes/assets'
+import { createAssetTagRoutes } from './routes/asset-tags'
 import { createAuthRoutes } from './routes/auth'
 import { createBillingRoutes } from './routes/billing'
 import { createCanvasRoutes } from './routes/canvas'
@@ -116,6 +117,7 @@ const app = new Elysia()
   .use(createCanvasRoutes(config))
   .use(createGenerateRoutes(config))
   .use(createAssetsRoutes(config))
+  .use(createAssetTagRoutes(config))
   .use(createUploadRoutes(config))
   .use(createSubtitleRoutes(config))
   .use(createNotificationRoutes(config))

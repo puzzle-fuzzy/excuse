@@ -44,6 +44,7 @@ function makeItem(overrides: Partial<AssetLibraryItem>): AssetLibraryItem {
     costCents: 10,
     createdAt: '2024-06-01T00:00:00.000Z',
     isFavorite: false,
+    tagNames: [],
     ...overrides,
   }
 }
@@ -593,6 +594,10 @@ describe('default filters', () => {
   it('favorite 默认为 false', () => {
     expect(DEFAULT_FILTERS.favorite).toBe(false)
   })
+
+  it('tagIds 默认为空数组', () => {
+    expect(DEFAULT_FILTERS.tagIds).toEqual([])
+  })
 })
 
 describe('normalizeAssetLibraryFiltersFromSearchParams', () => {
@@ -656,6 +661,21 @@ describe('normalizeAssetLibraryFiltersFromSearchParams', () => {
     const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('favorite=false'))
     expect(result.favorite).toBe(false)
   })
+
+  it('tagIds=t1,t2 解析为 string[]', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('tagIds=t1,t2'))
+    expect(result.tagIds).toEqual(['t1', 't2'])
+  })
+
+  it('tagIds 缺省 → 空数组', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams())
+    expect(result.tagIds).toEqual([])
+  })
+
+  it('tagIds 带前后空白和空段 → trim + filter', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('tagIds= t1 , ,t2 '))
+    expect(result.tagIds).toEqual(['t1', 't2'])
+  })
 })
 
 describe('createAssetLibraryQueryKey', () => {
@@ -679,6 +699,12 @@ describe('createAssetLibraryQueryKey', () => {
   it('favorite 切换时 key 不同（filters 形状变化反映到 key）', () => {
     const f1 = { ...DEFAULT_FILTERS, favorite: false }
     const f2 = { ...DEFAULT_FILTERS, favorite: true }
+    expect(createAssetLibraryQueryKey(f1, null, 200)).not.toEqual(createAssetLibraryQueryKey(f2, null, 200))
+  })
+
+  it('tagIds 变化时 key 不同', () => {
+    const f1 = { ...DEFAULT_FILTERS, tagIds: [] }
+    const f2 = { ...DEFAULT_FILTERS, tagIds: ['t1'] }
     expect(createAssetLibraryQueryKey(f1, null, 200)).not.toEqual(createAssetLibraryQueryKey(f2, null, 200))
   })
 })
@@ -729,6 +755,17 @@ describe('filtersToQueryParams', () => {
     const filters = { ...DEFAULT_FILTERS, favorite: true }
     const result = filtersToQueryParams(filters, null, 200, 0)
     expect(result.favorite).toBe(true)
+  })
+
+  it('tagIds 空数组 → undefined（不传到 API）', () => {
+    const result = filtersToQueryParams(DEFAULT_FILTERS, null, 200, 0)
+    expect(result.tagIds).toBeUndefined()
+  })
+
+  it('tagIds 非空 → 逗号拼接字符串', () => {
+    const filters = { ...DEFAULT_FILTERS, tagIds: ['t1', 't2'] }
+    const result = filtersToQueryParams(filters, null, 200, 0)
+    expect(result.tagIds).toBe('t1,t2')
   })
 })
 

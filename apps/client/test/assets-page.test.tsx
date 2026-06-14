@@ -17,6 +17,11 @@ vi.mock('../src/api/asset-library', () => ({
   queryAssetLibrary: vi.fn(),
   hideAsset: vi.fn(),
   toggleAssetFavorite: vi.fn(),
+  listAssetTags: vi.fn(),
+  createAssetTag: vi.fn(),
+  deleteAssetTag: vi.fn(),
+  assignAssetTag: vi.fn(),
+  unassignAssetTag: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -28,7 +33,15 @@ vi.mock('sonner', () => ({
 }))
 
 const { updateUploadedFile, listCanvasProjects } = await import('../src/api/client')
-const { queryAssetLibrary, toggleAssetFavorite } = await import('../src/api/asset-library')
+const {
+  queryAssetLibrary,
+  toggleAssetFavorite,
+  listAssetTags,
+  createAssetTag,
+  deleteAssetTag,
+  assignAssetTag,
+  unassignAssetTag,
+} = await import('../src/api/asset-library')
 const { toast } = await import('sonner')
 
 // ── Fixtures ─────────────────────────────────────────────────────────
@@ -50,6 +63,7 @@ function makeItem(overrides: Partial<AssetLibraryItem>): AssetLibraryItem {
     costCents: null,
     createdAt: '2024-06-01T00:00:00.000Z',
     isFavorite: false,
+    tagNames: [],
     ...overrides,
   }
 }
@@ -62,6 +76,7 @@ function renderAssets(items: AssetLibraryItem[]) {
     hasMore: false,
   })
   vi.mocked(listCanvasProjects).mockResolvedValue({ success: true, items: [], total: 0 })
+  vi.mocked(listAssetTags).mockResolvedValue([])
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -74,6 +89,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(queryAssetLibrary).mockResolvedValue({ success: true, items: [], total: 0, hasMore: false })
   vi.mocked(listCanvasProjects).mockResolvedValue({ success: true, items: [], total: 0 })
+  vi.mocked(listAssetTags).mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -311,5 +327,72 @@ describe('assets 收藏功能', () => {
     await waitFor(() => {
       expect(toggleAssetFavorite).toHaveBeenCalledWith('canvas_asset', 'to-unfav', false)
     })
+  })
+})
+
+describe('assets 标签功能', () => {
+  it('卡片显示 tagNames（前 3 个 Badge）', async () => {
+    renderAssets([makeItem({
+      id: 'tagged-1',
+      title: '带标签.png',
+      tagNames: ['高亮', '草稿'],
+    })])
+
+    await screen.findByText('带标签.png')
+    expect(screen.getByText('高亮')).toBeInTheDocument()
+    expect(screen.getByText('草稿')).toBeInTheDocument()
+  })
+
+  it('卡片超过 3 个标签 → 显示 +N', async () => {
+    renderAssets([makeItem({
+      id: 'many-tags',
+      title: '多标签.png',
+      tagNames: ['t1', 't2', 't3', 't4', 't5'],
+    })])
+
+    await screen.findByText('多标签.png')
+    expect(screen.getByText('+2')).toBeInTheDocument()
+  })
+
+  it('卡片标签按钮 aria-label 为"加标签"', async () => {
+    renderAssets([makeItem({ id: 'has-tagbtn', title: '加标签测试.png' })])
+
+    await screen.findByText('加标签测试.png')
+    expect(screen.getByLabelText('加标签')).toBeInTheDocument()
+  })
+
+  it('点击卡片标签按钮不会触发卡片 onClick（stopPropagation）', async () => {
+    // 验证点击加标签按钮不会打开 PreviewModal（不出现编辑按钮等 modal 内容）
+    const user = userEvent.setup()
+    renderAssets([makeItem({
+      id: 'no-preview', title: '不打开预览.png',
+      source: 'uploaded_file',
+      tagNames: [],
+    })])
+
+    const trigger = await screen.findByTestId('asset-tag-trigger-uploaded_file:no-preview')
+    await user.click(trigger)
+
+    // PreviewModal 不应该打开（不会渲染「下载」按钮）
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /下载/ })).not.toBeInTheDocument()
+    })
+  })
+
+  it('标签管理按钮在页头', async () => {
+    renderAssets([])
+    expect(screen.getByText('标签管理')).toBeInTheDocument()
+  })
+
+  it('筛选区标签下拉按钮存在', async () => {
+    renderAssets([])
+    await screen.findByLabelText('排序')
+    expect(screen.getByLabelText('标签筛选')).toBeInTheDocument()
+  })
+
+  it('空标签时筛选下拉显示"全部标签"', async () => {
+    renderAssets([])
+    await screen.findByLabelText('排序')
+    expect(screen.getByText('全部标签')).toBeInTheDocument()
   })
 })

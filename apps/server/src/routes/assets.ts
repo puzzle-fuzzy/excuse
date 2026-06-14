@@ -18,15 +18,20 @@ import type {
 import type { ServerConfig } from '../config'
 import {
   addAssetFavorite,
+  assignAssetTag,
+  findAssetTagById,
   getCanvasAssetByIdForAccount,
   getGenerationRecordByIdForAccount,
   hideCanvasAsset,
   hideGenerationRecord,
   listAssetFavoriteKeys,
+  listAssetTagKeys,
+  listAssetTags,
   listCanvasAssetsForLibrary,
   listGenerationRecords,
   listUploadedFilesForAccount,
   removeAssetFavorite,
+  unassignAssetTag,
 } from '@excuse/db'
 import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
@@ -158,6 +163,8 @@ function mapGenerationRecord(record: GenerationRecordRow): AssetLibraryItem {
     createdAt: record.createdAt.toISOString(),
     // route 在 favorite 注入阶段会用 favoriteSet 覆盖；这里给默认值满足类型。
     isFavorite: false,
+    // route 在 tagNames 注入阶段会用 assetTagsMap 覆盖；这里给默认值满足类型。
+    tagNames: [],
   }
 }
 
@@ -180,6 +187,7 @@ function mapCanvasAsset(asset: CanvasAssetRow): AssetLibraryItem {
     costCents: asset.totalPriceCents ?? null,
     createdAt: asset.createdAt.toISOString(),
     isFavorite: false,
+    tagNames: [],
   }
 }
 
@@ -200,6 +208,7 @@ function mapUploadedFile(file: UploadedFileRow): AssetLibraryItem {
     costCents: null,
     createdAt: file.createdAt.toISOString(),
     isFavorite: false,
+    tagNames: [],
   }
 }
 
@@ -318,8 +327,8 @@ export function createAssetsRoutes(config: ServerConfig) {
 
       const plan = resolveSourcePlan(source, kind, status, Boolean(model))
 
-      // 并行查询各来源 + 当前用户收藏 key 集合（按 accountId 隔离，model/时间下推到 SQL）
-      const [genRows, canvasRows, uploadRows, favoriteKeys] = await Promise.all([
+      // 并行查询各来源 + 当前用户收藏 key 集合 + 标签集合（按 accountId 隔离，model/时间下推到 SQL）
+      const [genRows, canvasRows, uploadRows, favoriteKeys, tagRows, assignmentKeys] = await Promise.all([
         plan.gen
           ? listGenerationRecords({
               accountId: userId,
@@ -355,9 +364,32 @@ export function createAssetsRoutes(config: ServerConfig) {
           : Promise.resolve([]),
         // 一次性查回当前用户全部收藏 key，避免对每条资产发一次 SQL
         listAssetFavoriteKeys(userId),
+        // 一次性查回当前用户全部标签定义（id → name 映射）
+        listAssetTags(userId),
+        // 一次性查回当前用户全部 (tagId, source, assetId) 集合
+        listAssetTagKeys(userId),
       ])
 
       const favoriteSet = new Set(favoriteKeys.map(k => `${k.source}:${k.assetId}`))
+      const tagNameMap = new Map(tagRows.map(t => [t.id, t.name]))
+      const assetTagsMap = new Map<string, Set<string>>() // key: `${source}:${assetId}`，value: tagId 集合
+      for (const k of assignmentKeys) {
+        const key = `${k.source}:${k.assetId}`
+        let set = assetTagsMap.get(key)
+        if (!set) {
+          set = new Set<string>()
+          assetTagsMap.set(key, set)
+        }
+        set.add(k.tagId)
+      }
+
+      // 解析 tagIds 查询参数（逗号分隔字符串 → tagId 列表，OR 关系）
+      const tagIdFilterRaw = typeof query.tagIds === 'string' ? query.tagIds : ''
+      const tagIdFilter = tagIdFilterRaw
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+      const tagIdFilterSet = new Set(tagIdFilter)
 
       // 映射 + 合并
       const items: AssetLibraryItem[] = [
@@ -370,16 +402,30 @@ export function createAssetsRoutes(config: ServerConfig) {
       sortAssetLibraryItems(items, sort)
 
       // 注入 isFavorite + favorite 过滤（在排序之后、hasMore 计算之前）
-      const filtered = items.filter((item) => {
+      const filteredFavorite = items.filter((item) => {
         item.isFavorite = favoriteSet.has(`${item.source}:${item.id}`)
         if (favorite && !item.isFavorite)
           return false
         return true
       })
 
+      // 注入 tagNames + tagIds 过滤（在 favorite 注入之后、hasMore 计算之前）
+      const filtered = filteredFavorite.filter((item) => {
+        const tagIds = assetTagsMap.get(`${item.source}:${item.id}`)
+        item.tagNames = tagIds
+          ? [...tagIds].map(id => tagNameMap.get(id)).filter((n): n is string => Boolean(n))
+          : []
+        if (tagIdFilterSet.size > 0) {
+          const hasAny = tagIds ? [...tagIds].some(id => tagIdFilterSet.has(id)) : false
+          if (!hasAny)
+            return false
+        }
+        return true
+      })
+
       // 轻量分页（Plan A）：返回条数 >= limit 时认为“可能有更多”，不做 SQL count。
-      // 注意：favorite=true 时，实际 items 可能少于 limit，但 hasMore 仍按原 limit 触发，
-      // 这是 v1 已知限制（避免为了 favorite 做 SQL JOIN）。
+      // 注意：favorite=true 或 tagIds 非空时，实际 items 可能少于 limit，但 hasMore 仍按原 limit 触发，
+      // 这是 v1 已知限制（避免为了 favorite/tagIds 做 SQL JOIN）。
       const hasMore = items.length >= limit
 
       return { success: true, items: filtered, total: filtered.length, hasMore } satisfies AssetLibraryListResponse
@@ -395,12 +441,13 @@ export function createAssetsRoutes(config: ServerConfig) {
         createdTo: t.Optional(t.String()),
         sort: t.Optional(t.String({ description: '排序：created_desc（默认） / created_asc / title_asc / title_desc' })),
         favorite: t.Optional(t.Boolean({ description: '仅返回当前用户已收藏的资产（默认 false）' })),
+        tagIds: t.Optional(t.String({ description: '标签 ID 列表（逗号分隔），OR 关系：返回打了任一标签的资产' })),
         limit: t.Optional(t.Numeric()),
         offset: t.Optional(t.Numeric()),
       }),
       detail: {
         summary: '获取统一资产列表',
-        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，sort 排序（created_desc / created_asc / title_asc / title_desc，默认 created_desc，非法值静默回落），favorite=true 时仅返回当前用户已收藏的资产并在每条 item 上注入 isFavorite 字段，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true；favorite 过滤后可能少于 limit，但 hasMore 仍按原 limit 触发，v1 已知限制）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
+        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，sort 排序（created_desc / created_asc / title_asc / title_desc，默认 created_desc，非法值静默回落），favorite=true 时仅返回当前用户已收藏的资产并在每条 item 上注入 isFavorite 字段，tagIds（逗号分隔）按 OR 关系过滤并注入 tagNames 字段（用户私有标签），limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true；favorite/tagIds 过滤后可能少于 limit，但 hasMore 仍按原 limit 触发，v1 已知限制）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },
@@ -485,6 +532,56 @@ export function createAssetsRoutes(config: ServerConfig) {
       detail: {
         summary: '取消收藏资产',
         description: '将资产从当前用户收藏中移除（幂等，未收藏则保持）。返回 { success: true, data: { isFavorite: false } } 作为权威状态。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 标签 assign/unassign（用户私有标签，幂等） ───────────────────────────
+    //
+    // 不走 audit：与 favorite toggle 一致，避免扩 audit 枚举触碰既有 schema。
+    // assign 时校验 tag 属于当前用户（避免给不存在 / 他人的标签打标）。
+    // 资产本身的归属校验（assetId 是否属于当前用户）v1 暂不做（与 favorite endpoint 一致）。
+    .post('/assets/:source/:id/tags/:tagId', async ({ params: { source, id, tagId }, userId, set }) => {
+      const tag = await findAssetTagById({ accountId: userId, tagId })
+      if (!tag)
+        return notFound(set, '标签不存在')
+      await assignAssetTag({ accountId: userId, tagId, source, assetId: id })
+      return { success: true as const }
+    }, {
+      params: t.Object({
+        source: t.Union([
+          t.Literal('generation_record'),
+          t.Literal('canvas_asset'),
+          t.Literal('uploaded_file'),
+        ]),
+        id: t.String(),
+        tagId: t.String(),
+      }),
+      detail: {
+        summary: '给资产打标签',
+        description: '将指定标签打在资产上（幂等，已打标则保持）。tagId 不存在或不属于当前用户时返回 404。source 必须是 generation_record / canvas_asset / uploaded_file 之一。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    .delete('/assets/:source/:id/tags/:tagId', async ({ params: { source, id, tagId }, userId }) => {
+      await unassignAssetTag({ accountId: userId, tagId, source, assetId: id })
+      return { success: true as const }
+    }, {
+      params: t.Object({
+        source: t.Union([
+          t.Literal('generation_record'),
+          t.Literal('canvas_asset'),
+          t.Literal('uploaded_file'),
+        ]),
+        id: t.String(),
+        tagId: t.String(),
+      }),
+      detail: {
+        summary: '取消资产的标签',
+        description: '将指定标签从资产上移除（幂等，未打标则保持）。不校验 tagId 归属（unassign 不存在的标签同样幂等成功）。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

@@ -1,5 +1,6 @@
 export * from './api-keys'
 export * from './api-response'
+export * from './asset-tags'
 export * from './assets'
 export * from './auth'
 export * from './billing'

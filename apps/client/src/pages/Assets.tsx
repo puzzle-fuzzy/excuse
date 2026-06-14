@@ -1,4 +1,4 @@
-import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
+import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, AssetTagDTO, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,9 +14,12 @@ import {
   Link2,
   MapPin,
   Pencil,
+  Plus,
   RotateCcw,
   Search,
   Star,
+  Tag,
+  Tags,
   Trash2,
   Upload,
   User,
@@ -27,7 +30,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { hideAsset, queryAssetLibrary, toggleAssetFavorite } from '@/api/asset-library'
+import {
+  assignAssetTag,
+  createAssetTag as createAssetTagApi,
+  deleteAssetTag as deleteAssetTagApi,
+  hideAsset,
+  listAssetTags,
+  queryAssetLibrary,
+  toggleAssetFavorite,
+  unassignAssetTag,
+} from '@/api/asset-library'
 import { deleteUploadedFile, listCanvasProjects, updateUploadedFile } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +47,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   buildAssetLibraryStats,
   canDeleteAsset,
@@ -99,7 +112,7 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
 
 function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
   const url = new URL(window.location.href)
-  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'sort', 'favorite', 'project'])
+  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'sort', 'favorite', 'tagIds', 'project'])
     url.searchParams.delete(key)
   if (filters.source !== 'all')
     url.searchParams.set('source', filters.source)
@@ -119,6 +132,8 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
     url.searchParams.set('sort', filters.sort)
   if (filters.favorite)
     url.searchParams.set('favorite', 'true')
+  if (filters.tagIds.length > 0)
+    url.searchParams.set('tagIds', filters.tagIds.join(','))
   if (projectId)
     url.searchParams.set('project', projectId)
   window.history.replaceState({}, '', url.toString())
@@ -141,7 +156,21 @@ export default function Assets() {
   const [projectId, setProjectId] = useState<string | null>(readProjectIdFromUrl)
   const [previewItem, setPreviewItem] = useState<AssetLibraryItem | null>(null)
   const [projects, setProjects] = useState<ProjectDTO[]>([])
+  const [tagManageOpen, setTagManageOpen] = useState(false)
+  const [tagPopoverSourceId, setTagPopoverSourceId] = useState<string | null>(null)
   const queryClient = useQueryClient()
+
+  // 加载当前用户全部标签（用于标签管理 modal + 卡片打标 popover + 筛选区下拉）
+  const { data: allTags = [] } = useQuery({
+    queryKey: ['asset-tags'],
+    queryFn: listAssetTags,
+  })
+  const tagNameToId = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const t of allTags)
+      m.set(t.name, t.id)
+    return m
+  }, [allTags])
 
   // Debounce search term to avoid firing API on every keystroke
   const [debouncedSearch] = useDebounce(filters.search, 300)
@@ -208,11 +237,41 @@ export default function Assets() {
   const stats = useMemo(() => buildAssetLibraryStats(allItems), [allItems])
 
   const hasActiveFilters = filters.source !== 'all' || filters.kind !== 'all' || filters.status !== 'all'
-    || filters.search || filters.model || filters.createdFrom || filters.createdTo || filters.favorite || projectId
+    || filters.search || filters.model || filters.createdFrom || filters.createdTo || filters.favorite
+    || filters.tagIds.length > 0 || projectId
 
   function clearFilters() {
     setFilters(DEFAULT_FILTERS)
     setProjectId(null)
+  }
+
+  function toggleFilterTagId(tagId: string) {
+    setFilters(f => ({
+      ...f,
+      tagIds: f.tagIds.includes(tagId)
+        ? f.tagIds.filter(t => t !== tagId)
+        : [...f.tagIds, tagId],
+    }))
+  }
+
+  // 切换资产上的标签（POST assign / DELETE unassign），完成后失效查询
+  async function toggleAssetTag(source: AssetLibrarySource, id: string, tagName: string, currentlyAssigned: boolean) {
+    const tagId = tagNameToId.get(tagName)
+    if (!tagId) {
+      toast.error('标签不存在，请刷新')
+      return
+    }
+    try {
+      if (currentlyAssigned)
+        await unassignAssetTag(source, id, tagId)
+      else
+        await assignAssetTag(source, id, tagId)
+      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : '打标签失败'
+      toast.error(message)
+    }
   }
 
   function updateFilter<K extends keyof AssetLibraryFilters>(key: K, value: AssetLibraryFilters[K]) {
@@ -270,6 +329,15 @@ export default function Assets() {
             …
           </Badge>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => setTagManageOpen(true)}
+        >
+          <Tags className="size-3" />
+          标签管理
+        </Button>
       </div>
 
       {/* 来源 + 状态筛选 */}
@@ -392,6 +460,44 @@ export default function Assets() {
           />
           仅看收藏
         </label>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground">标签</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" aria-label="标签筛选" className="h-8">
+                <Tag className="size-3" />
+                {filters.tagIds.length > 0 ? `已选 ${filters.tagIds.length}` : '全部标签'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="start">
+              {allTags.length === 0
+                ? (
+                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                      还没有标签，前往
+                      <button type="button" className="mx-1 underline" onClick={() => setTagManageOpen(true)}>
+                        标签管理
+                      </button>
+                      创建
+                    </p>
+                  )
+                : (
+                    <div className="max-h-60 overflow-y-auto">
+                      {allTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleFilterTagId(tag.id)}
+                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                        >
+                          <span className="truncate">{tag.name}</span>
+                          {filters.tagIds.includes(tag.id) && <X className="size-3" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+            </PopoverContent>
+          </Popover>
+        </div>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             <RotateCcw className="size-3" />
@@ -399,6 +505,31 @@ export default function Assets() {
           </Button>
         )}
       </div>
+
+      {/* 已选标签 badge 行（filters.tagIds 非空时显示） */}
+      {filters.tagIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-[10px] text-muted-foreground">已选标签：</span>
+          {filters.tagIds.map(tagId => {
+            const tag = allTags.find(t => t.id === tagId)
+            if (!tag)
+              return null
+            return (
+              <Badge key={tagId} variant="secondary" className="gap-1 text-[10px]">
+                {tag.name}
+                <button
+                  type="button"
+                  aria-label={`移除标签 ${tag.name}`}
+                  onClick={() => toggleFilterTagId(tagId)}
+                  className="hover:text-foreground"
+                >
+                  <X className="size-3" />
+                </button>
+              </Badge>
+            )
+          })}
+        </div>
+      )}
 
       {/* 加载状态 */}
       {isLoading && (
@@ -436,6 +567,13 @@ export default function Assets() {
               item={item}
               onClick={() => setPreviewItem(item)}
               onToggleFavorite={toggleFavorite}
+              allTags={allTags}
+              onToggleTag={toggleAssetTag}
+              tagPopoverKey={`${item.source}:${item.id}`}
+              tagPopoverOpen={tagPopoverSourceId === `${item.source}:${item.id}`}
+              onTagPopoverOpenChange={(open) => {
+                setTagPopoverSourceId(open ? `${item.source}:${item.id}` : null)
+              }}
             />
           ))}
         </div>
@@ -459,6 +597,13 @@ export default function Assets() {
           }}
         />
       )}
+
+      {/* 标签管理 modal */}
+      <TagManagementModal
+        open={tagManageOpen}
+        onOpenChange={setTagManageOpen}
+        tags={allTags}
+      />
     </div>
   )
 }
@@ -467,13 +612,25 @@ function AssetCard({
   item,
   onClick,
   onToggleFavorite,
+  allTags,
+  onToggleTag,
+  tagPopoverKey,
+  tagPopoverOpen,
+  onTagPopoverOpenChange,
 }: {
   item: AssetLibraryItem
   onClick: () => void
   onToggleFavorite: (source: AssetLibrarySource, id: string, currentFavorite: boolean) => void
+  allTags: AssetTagDTO[]
+  onToggleTag: (source: AssetLibrarySource, id: string, tagName: string, currentlyAssigned: boolean) => void
+  tagPopoverKey: string
+  tagPopoverOpen: boolean
+  onTagPopoverOpenChange: (open: boolean) => void
 }) {
   const previewKind = getAssetLibraryPreviewKind(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
+  const visibleTagNames = item.tagNames.slice(0, 3)
+  const overflowCount = Math.max(0, item.tagNames.length - 3)
 
   return (
     <Card
@@ -517,6 +674,60 @@ function AssetCard({
         >
           <Star className={`size-3.5 ${item.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
         </button>
+        <Popover open={tagPopoverOpen} onOpenChange={onTagPopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onClick={(e) => {
+                // 阻止冒泡到 Card（避免打开 PreviewModal），让 Radix Popover 自己处理 open 状态
+                e.stopPropagation()
+              }}
+              aria-label="加标签"
+              data-testid={`asset-tag-trigger-${tagPopoverKey}`}
+              className="absolute bottom-1.5 left-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+            >
+              <Tag className="size-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-48 p-1"
+            onClick={e => e.stopPropagation()}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+              return false
+            }}
+          >
+            {allTags.length === 0
+              ? (
+                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                    还没有标签
+                  </p>
+                )
+              : (
+                  <div className="max-h-60 overflow-y-auto">
+                    {allTags.map(tag => {
+                      const assigned = item.tagNames.includes(tag.name)
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          data-testid={`asset-tag-option-${tagPopoverKey}-${tag.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            onToggleTag(item.source, item.id, tag.name, assigned)
+                          }}
+                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                        >
+                          <span className="truncate">{tag.name}</span>
+                          {assigned && <span aria-hidden>✓</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+          </PopoverContent>
+        </Popover>
       </div>
       <CardContent className="p-2">
         <p className="text-xs font-medium truncate">{item.title}</p>
@@ -524,6 +735,21 @@ function AssetCard({
           <span className="truncate">{item.model ?? '—'}</span>
           <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
         </div>
+        {item.tagNames.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {visibleTagNames.map(name => (
+              <Badge key={name} variant="secondary" className="text-[9px]">
+                {name}
+              </Badge>
+            ))}
+            {overflowCount > 0 && (
+              <Badge variant="outline" className="text-[9px]">
+                +
+                {overflowCount}
+              </Badge>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -789,4 +1015,119 @@ function readProjectIdFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search)
   const project = params.get('project')
   return project && project.length > 0 ? project : null
+}
+
+/**
+ * 标签管理 modal — 列出当前用户全部标签，支持创建 / 删除
+ *
+ * 删除使用 ConfirmDialog 二次确认（删除会级联取消所有打标）。
+ * 创建 / 删除成功后通过 queryClient invalidate 拉新列表。
+ */
+function TagManagementModal({
+  open,
+  onOpenChange,
+  tags,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  tags: AssetTagDTO[]
+}) {
+  const queryClient = useQueryClient()
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<AssetTagDTO | null>(null)
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = newName.trim()
+    if (!trimmed)
+      return
+    setCreating(true)
+    try {
+      await createAssetTagApi(trimmed)
+      setNewName('')
+      await queryClient.invalidateQueries({ queryKey: ['asset-tags'] })
+      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      toast.success('已创建标签')
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : '创建失败'
+      toast.error(message)
+    }
+    finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget)
+      return
+    try {
+      await deleteAssetTagApi(deleteTarget.id)
+      await queryClient.invalidateQueries({ queryKey: ['asset-tags'] })
+      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      toast.success('已删除标签')
+      setDeleteTarget(null)
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : '删除失败'
+      toast.error(message)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>标签管理</DialogTitle>
+        </DialogHeader>
+        <form className="flex gap-2" onSubmit={handleCreate}>
+          <Input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="标签名（最多 32 字符）"
+            maxLength={32}
+            disabled={creating}
+            aria-label="新标签名"
+          />
+          <Button type="submit" size="sm" disabled={creating || !newName.trim()}>
+            <Plus className="size-3" />
+            创建
+          </Button>
+        </form>
+        <div className="max-h-80 space-y-1 overflow-y-auto">
+          {tags.length === 0
+            ? (
+                <p className="py-8 text-center text-xs text-muted-foreground">
+                  还没有标签
+                </p>
+              )
+            : tags.map(tag => (
+                <div key={tag.id} className="flex items-center justify-between rounded px-2 py-1.5 hover:bg-accent">
+                  <span className="truncate text-sm">{tag.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`删除标签 ${tag.name}`}
+                    onClick={() => setDeleteTarget(tag)}
+                  >
+                    <Trash2 className="size-3" />
+                  </Button>
+                </div>
+            ))}
+        </div>
+      </DialogContent>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open)
+            setDeleteTarget(null)
+        }}
+        title={`删除标签「${deleteTarget?.name ?? ''}」？`}
+        description="该标签下的所有打标将一并取消，且无法恢复。"
+        confirmText="删除"
+        onConfirm={handleDeleteConfirm}
+      />
+    </Dialog>
+  )
 }
