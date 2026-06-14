@@ -91,6 +91,8 @@ export interface AssetLibraryFilters {
   source: 'all' | AssetLibrarySource
   kind: 'all' | AssetLibraryKind
   status: 'all' | AssetLibraryStatusFilter
+  /** 关键词搜索（空字符串=不过滤） */
+  search: string
   /** 模型精确匹配（空字符串=不过滤） */
   model: string
   /** 创建时间下界（ISO 日期字符串，空=不过滤） */
@@ -113,6 +115,13 @@ export function filterAssetLibraryItems(items: AssetLibraryItem[], filters: Asse
       return false
     if (filters.status !== 'all' && !matchesUnifiedStatus(item.status, filters.status))
       return false
+    // search 本地兜底过滤（主路径是服务端下推，此处做本地二次筛选）
+    if (filters.search) {
+      const q = filters.search.toLowerCase()
+      const haystack = [item.title, item.model, item.prompt].filter(Boolean).join(' ').toLowerCase()
+      if (!haystack.includes(q))
+        return false
+    }
     return true
   })
 }
@@ -343,4 +352,19 @@ export function resolveFocusNodeWithProject(
     default:
       return null
   }
+}
+
+// ── Canvas 项目选择器辅助函数 ──────────────────────────────────────────────────
+
+/** 项目选项标签 — 有标题用标题，无标题用 id 前 8 位 */
+export function formatProjectOptionLabel(project: { id: string, title: string | null }): string {
+  return project.title || `未命名项目 (${project.id.slice(0, 8)})`
+}
+
+/** 在项目列表中找到 projectId 对应的显示标签 */
+export function findProjectLabel(projects: Array<{ id: string, title: string | null }>, projectId: string | null): string {
+  if (!projectId)
+    return ''
+  const project = projects.find(p => p.id === projectId)
+  return project ? formatProjectOptionLabel(project) : projectId.slice(0, 8)
 }

@@ -56,10 +56,20 @@ export async function getUploadedFilesByIdsForAccount(ids: string[], accountId: 
  */
 export async function listUploadedFilesForAccount(
   accountId: string,
-  filter: { createdFrom?: Date, createdTo?: Date, limit?: number, offset?: number } = {},
+  filter: { search?: string, createdFrom?: Date, createdTo?: Date, limit?: number, offset?: number } = {},
 ) {
-  const { createdFrom, createdTo, limit = 100, offset = 0 } = filter
+  const { search, createdFrom, createdTo, limit = 100, offset = 0 } = filter
   const conditions = [eq(uploadedFiles.accountId, accountId)]
+  // 关键词搜索：ilike fileName / mimeType / purpose::text / publicUrl
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(sql`(
+      ${uploadedFiles.fileName} ILIKE ${pattern}
+      OR ${uploadedFiles.mimeType} ILIKE ${pattern}
+      OR ${uploadedFiles.purpose}::text ILIKE ${pattern}
+      OR ${uploadedFiles.publicUrl} ILIKE ${pattern}
+    )`)
+  }
   if (createdFrom)
     conditions.push(gte(uploadedFiles.createdAt, createdFrom))
   if (createdTo)

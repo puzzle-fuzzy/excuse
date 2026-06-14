@@ -42,7 +42,7 @@ export async function getGenerationRecordById(id: string) {
  * model/createdFrom/createdTo 为资产中心按模型与时间筛选（v1.1）。
  */
 export async function listGenerationRecords(filter: ListGenerationRecordsFilter = {}) {
-  const { accountId, category, status, statuses, projectId, model, createdFrom, createdTo, limit = 50, offset = 0 } = filter
+  const { accountId, category, status, statuses, projectId, model, search, createdFrom, createdTo, limit = 50, offset = 0 } = filter
 
   const conditions = []
   if (accountId)
@@ -58,6 +58,15 @@ export async function listGenerationRecords(filter: ListGenerationRecordsFilter 
     conditions.push(sql`input_params->>'projectId' = ${projectId}`)
   if (model)
     conditions.push(eq(generationRecords.model, model))
+  // 关键词搜索：ilike model / inputParams::text / outputResult::text
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(sql`(
+      ${generationRecords.model} ILIKE ${pattern}
+      OR ${generationRecords.inputParams}::text ILIKE ${pattern}
+      OR ${generationRecords.outputResult}::text ILIKE ${pattern}
+    )`)
+  }
   if (createdFrom)
     conditions.push(gte(generationRecords.createdAt, createdFrom))
   if (createdTo)

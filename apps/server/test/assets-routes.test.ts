@@ -336,4 +336,75 @@ describe('assets routes', () => {
 
     expect((data as { hasMore: boolean }).hasMore).toBe(false)
   })
+
+  // ─── search 关键词搜索 ──────────────────────────────────
+
+  it('search 传给 generation/canvas/upload 三来源查询', async () => {
+    await client.api.assets.get({
+      query: { search: 'cat' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ search: 'cat' }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'cat' }))
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'cat' }))
+  })
+
+  it('source=uploaded_file&search=xxx 只查 uploaded_files，search 传入', async () => {
+    mockListUploadedFiles.mockResolvedValueOnce([makeUploadedFile({ id: 'f1', accountId: 'acc-001' })])
+
+    const { data } = await client.api.assets.get({
+      query: { source: 'uploaded_file', search: 'photo' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).not.toHaveBeenCalled()
+    expect(mockListCanvasAssets).not.toHaveBeenCalled()
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'photo' }))
+    expect((data as { items: AssetLibraryItem[] }).items).toHaveLength(1)
+  })
+
+  it('model 非空 + search 非空：gen/canvas 都传 search，uploads 跳过', async () => {
+    await client.api.assets.get({
+      query: { model: 'wanx2.1', search: 'portrait' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ model: 'wanx2.1', search: 'portrait' }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ model: 'wanx2.1', search: 'portrait' }))
+    // model 非空 → uploads 被跳过（无 model 列）
+    expect(mockListUploadedFiles).not.toHaveBeenCalled()
+  })
+
+  it('search 超长被 trim + clamp 到 120 字符', async () => {
+    const longSearch = 'a'.repeat(200)
+    await client.api.assets.get({
+      query: { search: longSearch },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ search: 'a'.repeat(120) }))
+  })
+
+  it('search 空字符串不传入查询条件（等同未传）', async () => {
+    await client.api.assets.get({
+      query: { search: '' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.not.objectContaining({ search: expect.anything() }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.not.objectContaining({ search: expect.anything() }))
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.not.objectContaining({ search: expect.anything() }))
+  })
+
+  it('search + projectId 同时存在时两者都下推', async () => {
+    await client.api.assets.get({
+      query: { search: 'hero', projectId: 'proj-999' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ search: 'hero', projectId: 'proj-999' }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'hero', projectId: 'proj-999' }))
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'hero' }))
+  })
 })

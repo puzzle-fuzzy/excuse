@@ -199,6 +199,8 @@ export interface ListGenerationRecordsFilter {
   projectId?: string
   /** 模型精确匹配（资产中心按模型筛选） */
   model?: string
+  /** 关键词搜索（ilike model / inputParams::text / outputResult::text） */
+  search?: string
   /** 创建时间下界（含） */
   createdFrom?: Date
   /** 创建时间上界（含） */

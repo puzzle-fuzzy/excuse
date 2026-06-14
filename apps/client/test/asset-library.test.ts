@@ -5,6 +5,8 @@ import {
   buildAssetLibraryStats,
   canDeleteAsset,
   filterAssetLibraryItems,
+  findProjectLabel,
+  formatProjectOptionLabel,
   getAssetLibraryPreviewKind,
   getCanvasAssetUrl,
   getCanvasFocusParam,
@@ -94,28 +96,48 @@ describe('filterAssetLibraryItems', () => {
   ]
 
   it('source 过滤生效', () => {
-    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
+    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
     expect(canvas.map(i => i.id).sort()).toEqual(['char', 'shot'])
   })
 
   it('status 过滤生效（running 匹配 processing/running）', () => {
-    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running', model: '', createdFrom: '', createdTo: '' })
+    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running', search: '', model: '', createdFrom: '', createdTo: '' })
     expect(running.map(i => i.id)).toEqual(['shot'])
   })
 
   it('kind 过滤生效', () => {
-    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all', model: '', createdFrom: '', createdTo: '' })
+    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
     expect(chars.map(i => i.id)).toEqual(['char'])
   })
 
   it('组合过滤', () => {
-    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running', model: '', createdFrom: '', createdTo: '' })
+    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running', search: '', model: '', createdFrom: '', createdTo: '' })
     expect(result.map(i => i.id)).toEqual(['shot'])
   })
 
   it('all 过滤返回全部', () => {
-    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
+    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
     expect(result).toHaveLength(5)
+  })
+
+  it('search 过滤：匹配 title/prompt/model', () => {
+    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: 'cat', model: '', createdFrom: '', createdTo: '' })
+    // makeItem defaults: title='test', prompt='a cat', model='qwen-max'
+    // 'cat' matches prompt 'a cat'
+    expect(searched).toHaveLength(5) // all items have prompt='a cat' from makeItem
+  })
+
+  it('search 过滤：精确匹配 model', () => {
+    const searched = filterAssetLibraryItems(
+      [makeItem({ id: 'gen1', model: 'wanx2.1' }), makeItem({ id: 'gen2', model: 'qwen-max' })],
+      { source: 'all', kind: 'all', status: 'all', search: 'wanx', model: '', createdFrom: '', createdTo: '' },
+    )
+    expect(searched.map(i => i.id)).toEqual(['gen1'])
+  })
+
+  it('search 过滤：空字符串不过滤', () => {
+    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    expect(searched).toHaveLength(5)
   })
 })
 
@@ -338,5 +360,43 @@ describe('canDeleteAsset', () => {
 
   it('source=canvas_asset → 不可删除', () => {
     expect(canDeleteAsset(makeItem({ source: 'canvas_asset' }))).toBe(false)
+  })
+})
+
+describe('formatProjectOptionLabel', () => {
+  it('有标题的项目显示标题', () => {
+    expect(formatProjectOptionLabel({ id: 'proj-123abc', title: '我的故事' })).toBe('我的故事')
+  })
+
+  it('无标题的项目显示未命名 + id 前8位', () => {
+    expect(formatProjectOptionLabel({ id: 'proj-123abcdef', title: null })).toBe('未命名项目 (proj-123)')
+  })
+
+  it('空字符串标题视为无标题', () => {
+    expect(formatProjectOptionLabel({ id: 'proj-abc', title: '' })).toBe('未命名项目 (proj-abc)')
+  })
+})
+
+describe('findProjectLabel', () => {
+  const projects = [
+    { id: 'proj-1', title: '英雄之旅' },
+    { id: 'proj-2', title: null },
+    { id: 'proj-3', title: '第三章' },
+  ]
+
+  it('找到项目时显示格式化标签', () => {
+    expect(findProjectLabel(projects, 'proj-1')).toBe('英雄之旅')
+  })
+
+  it('找到无标题项目时显示未命名标签', () => {
+    expect(findProjectLabel(projects, 'proj-2')).toBe('未命名项目 (proj-2)')
+  })
+
+  it('未找到项目时显示 id 前8位', () => {
+    expect(findProjectLabel(projects, 'proj-999xyz')).toBe('proj-999')
+  })
+
+  it('projectId null 返回空字符串', () => {
+    expect(findProjectLabel(projects, null)).toBe('')
   })
 })

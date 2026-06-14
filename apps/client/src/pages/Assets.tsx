@@ -1,4 +1,4 @@
-import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
+import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
 import {
   AudioLines,
@@ -13,6 +13,7 @@ import {
   Link2,
   MapPin,
   RotateCcw,
+  Search,
   Trash2,
   Upload,
   User,
@@ -22,7 +23,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
-import { deleteUploadedFile, fetchAssetLibrary } from '@/api/client'
+import { deleteUploadedFile, fetchAssetLibrary, listCanvasProjects } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,6 +31,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   buildAssetLibraryStats,
   canDeleteAsset,
+  formatProjectOptionLabel,
   getAssetLibraryPreviewKind,
   getCanvasAssetUrl,
   getCanvasSourceLabel,
@@ -91,6 +93,7 @@ function readFiltersFromUrl(): AssetLibraryFilters {
     source: (params.get('source') as SourceFilter) ?? 'all',
     kind: (params.get('kind') as KindFilter) ?? 'all',
     status: (params.get('status') as StatusFilter) ?? 'all',
+    search: params.get('search') ?? '',
     model: params.get('model') ?? '',
     createdFrom: params.get('createdFrom') ?? '',
     createdTo: params.get('createdTo') ?? '',
@@ -105,7 +108,7 @@ function readProjectIdFromUrl(): string | null {
 
 function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
   const url = new URL(window.location.href)
-  for (const key of ['source', 'kind', 'status', 'model', 'createdFrom', 'createdTo', 'project'])
+  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'project'])
     url.searchParams.delete(key)
   if (filters.source !== 'all')
     url.searchParams.set('source', filters.source)
@@ -113,6 +116,8 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
     url.searchParams.set('kind', filters.kind)
   if (filters.status !== 'all')
     url.searchParams.set('status', filters.status)
+  if (filters.search)
+    url.searchParams.set('search', filters.search)
   if (filters.model)
     url.searchParams.set('model', filters.model)
   if (filters.createdFrom)
@@ -129,6 +134,7 @@ function toQueryParams(filters: AssetLibraryFilters, projectId: string | null, l
     source: filters.source !== 'all' ? filters.source : undefined,
     kind: filters.kind !== 'all' ? filters.kind : undefined,
     status: filters.status !== 'all' ? filters.status : undefined,
+    search: filters.search.trim() || undefined,
     model: filters.model || undefined,
     createdFrom: filters.createdFrom || undefined,
     createdTo: filters.createdTo || undefined,
@@ -154,6 +160,14 @@ export default function Assets() {
   const [items, setItems] = useState<AssetLibraryItem[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [previewItem, setPreviewItem] = useState<AssetLibraryItem | null>(null)
+  const [projects, setProjects] = useState<ProjectDTO[]>([])
+
+  // 加载 Canvas 项目列表（用于项目选择器）
+  useEffect(() => {
+    listCanvasProjects()
+      .then(data => setProjects(data.items ?? []))
+      .catch(() => {}) // 非阻塞：选择器暂时为空
+  }, [])
 
   // 筛选变更 → URL 同步
   useEffect(() => {
@@ -191,10 +205,10 @@ export default function Assets() {
   const stats = useMemo(() => buildAssetLibraryStats(items), [items])
 
   const hasActiveFilters = filters.source !== 'all' || filters.kind !== 'all' || filters.status !== 'all'
-    || filters.model || filters.createdFrom || filters.createdTo || projectId
+    || filters.search || filters.model || filters.createdFrom || filters.createdTo || projectId
 
   function clearFilters() {
-    setFilters({ source: 'all', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
+    setFilters({ source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
     setProjectId(null)
   }
 
@@ -204,31 +218,53 @@ export default function Assets() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 space-y-6">
-      {/* 标题 */}
+      {/* 标题 + 项目选择器 */}
       <div className="flex items-center gap-2">
         <FolderOpen className="size-5" />
         <h1 className="text-lg font-semibold">资产库</h1>
-        {projectId && (
+        <select
+          value={projectId ?? ''}
+          onChange={e => setProjectId(e.target.value || null)}
+          className="h-7 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="">全部项目</option>
+          {projects.map(p => (
+            <option key={p.id} value={p.id}>{formatProjectOptionLabel(p)}</option>
+          ))}
+        </select>
+        {projectId && !projects.some(p => p.id === projectId) && (
           <Badge variant="secondary" className="gap-1">
             <Link2 className="size-3" />
-            项目:
-            {' '}
             {projectId.slice(0, 8)}
             …
-            <button
-              type="button"
-              onClick={() => setProjectId(null)}
-              className="ml-1 hover:text-foreground"
-              aria-label="清除项目筛选"
-            >
-              <X className="size-3" />
-            </button>
           </Badge>
         )}
       </div>
 
       {/* 来源 + 状态筛选 */}
       <div className="flex flex-wrap gap-2">
+        {/* 搜索框 */}
+        <div className="relative flex items-center">
+          <Search className="absolute left-2 size-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={filters.search}
+            onChange={e => updateFilter('search', e.target.value)}
+            placeholder="搜索文件名、Prompt、模型、项目内容..."
+            className="h-8 w-56 rounded-md border bg-background pl-7 pr-7 text-xs"
+          />
+          {filters.search && (
+            <button
+              type="button"
+              onClick={() => updateFilter('search', '')}
+              className="absolute right-1.5 text-muted-foreground hover:text-foreground"
+              aria-label="清空搜索"
+            >
+              <X className="size-3" />
+            </button>
+          )}
+        </div>
+        <span className="mx-1 self-center text-muted-foreground">·</span>
         {SOURCE_OPTIONS.map(({ value, label }) => (
           <Button
             key={value}

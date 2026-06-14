@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
 import type { CanvasAssetCategory, CanvasAssetInsert, CanvasAssetStatus } from '../types'
-import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasAssets } from '../schema/canvas-assets'
 
@@ -42,13 +42,15 @@ export async function listCanvasAssetsForLibrary(
     categories?: CanvasAssetCategory[]
     projectId?: string
     model?: string
+    /** 关键词搜索（ilike model / category::text / inputJson::text / outputJson::text） */
+    search?: string
     createdFrom?: Date
     createdTo?: Date
     limit?: number
     offset?: number
   } = {},
 ) {
-  const { statuses, categories, projectId, model, createdFrom, createdTo, limit = 100, offset = 0 } = filter
+  const { statuses, categories, projectId, model, search, createdFrom, createdTo, limit = 100, offset = 0 } = filter
 
   const conditions = [eq(canvasAssets.accountId, accountId)]
   if (statuses && statuses.length > 0)
@@ -59,6 +61,16 @@ export async function listCanvasAssetsForLibrary(
     conditions.push(eq(canvasAssets.projectId, projectId))
   if (model)
     conditions.push(eq(canvasAssets.model, model))
+  // 关键词搜索：ilike model / category::text / inputJson::text / outputJson::text
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(sql`(
+      ${canvasAssets.model} ILIKE ${pattern}
+      OR ${canvasAssets.category}::text ILIKE ${pattern}
+      OR ${canvasAssets.inputJson}::text ILIKE ${pattern}
+      OR ${canvasAssets.outputJson}::text ILIKE ${pattern}
+    )`)
+  }
   if (createdFrom)
     conditions.push(gte(canvasAssets.createdAt, createdFrom))
   if (createdTo)

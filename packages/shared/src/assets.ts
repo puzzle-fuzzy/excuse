@@ -113,6 +113,8 @@ export interface AssetLibraryQuery {
   kind?: 'all' | AssetLibraryKind
   status?: AssetLibraryStatusFilter
   projectId?: string
+  /** 关键词搜索（服务端 trim 后生效，空字符串等同未传，限长 120 字符） */
+  search?: string
   /** 模型精确匹配（generation_records.model / canvas_assets.model；上传文件无 model，非空时跳过 uploads） */
   model?: string
   /** 创建时间下界（含），ISO 日期字符串 */

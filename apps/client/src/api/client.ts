@@ -228,6 +228,7 @@ export async function fetchAssetLibrary(params?: AssetLibraryQuery): Promise<Ass
         kind: params?.kind || undefined,
         status: params?.status || undefined,
         projectId: params?.projectId || undefined,
+        search: params?.search || undefined,
         model: params?.model || undefined,
         createdFrom: params?.createdFrom || undefined,
         createdTo: params?.createdTo || undefined,

@@ -264,6 +264,9 @@ export function createAssetsRoutes(config: ServerConfig) {
       const status = (query.status ?? 'all') as AssetLibraryStatusFilter | 'all'
       const projectId = typeof query.projectId === 'string' && query.projectId.length > 0 ? query.projectId : undefined
       const model = typeof query.model === 'string' && query.model.length > 0 ? query.model : undefined
+      // search：trim + 限长 120 字符，空等同未传
+      const rawSearch = typeof query.search === 'string' ? query.search.trim() : ''
+      const search = rawSearch.length > 0 ? rawSearch.slice(0, 120) : undefined
       const createdFrom = parseDateParam(query.createdFrom)
       const createdTo = parseDateParam(query.createdTo)
       // clamp：limit ∈ [1, 200]，offset ≥ 0
@@ -281,6 +284,7 @@ export function createAssetsRoutes(config: ServerConfig) {
               category: kind !== 'all' && kindIsGenCategory(kind) ? kind as GenerationCategory : undefined,
               projectId,
               model,
+              search,
               createdFrom,
               createdTo,
               limit,
@@ -293,6 +297,7 @@ export function createAssetsRoutes(config: ServerConfig) {
               categories: kind !== 'all' ? canvasCategoriesForKind(kind) : undefined,
               projectId,
               model,
+              search,
               createdFrom,
               createdTo,
               limit,
@@ -301,7 +306,7 @@ export function createAssetsRoutes(config: ServerConfig) {
           : Promise.resolve([]),
         // uploaded_files 无 model 列；plan.upload 在 model 非空时已为 false
         plan.upload
-          ? listUploadedFilesForAccount(userId, { createdFrom, createdTo, limit, offset })
+          ? listUploadedFilesForAccount(userId, { search, createdFrom, createdTo, limit, offset })
           : Promise.resolve([]),
       ])
 
@@ -326,6 +331,7 @@ export function createAssetsRoutes(config: ServerConfig) {
         status: t.Optional(t.String()),
         projectId: t.Optional(t.String()),
         model: t.Optional(t.String()),
+        search: t.Optional(t.String({ description: '关键词搜索' })),
         createdFrom: t.Optional(t.String()),
         createdTo: t.Optional(t.String()),
         limit: t.Optional(t.Numeric()),
@@ -333,7 +339,7 @@ export function createAssetsRoutes(config: ServerConfig) {
       }),
       detail: {
         summary: '获取统一资产列表',
-        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、createdFrom/createdTo 过滤，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。',
+        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },
