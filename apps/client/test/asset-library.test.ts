@@ -1,10 +1,13 @@
-import type { AssetLibraryItem } from '@excuse/shared'
+import type { AssetLibraryItem, CanvasShotReferenceAsset } from '@excuse/shared'
 import type { FocusProjectLike } from '../src/lib/asset-library'
 import { describe, expect, it } from 'vitest'
+import { filtersToQueryParams } from '../src/api/asset-library'
 import {
   assetToShotReferenceAsset,
   buildAssetLibraryStats,
   canDeleteAsset,
+  createAssetLibraryQueryKey,
+  DEFAULT_FILTERS,
   filterAssetLibraryItems,
   findProjectLabel,
   formatProjectOptionLabel,
@@ -17,7 +20,9 @@ import {
   isReferenceAssetAdded,
   isReferenceAssetCandidate,
   mergeShotReferenceAssets,
+  normalizeAssetLibraryFiltersFromSearchParams,
   parseFocusParam,
+  previewApplyReferenceAssets,
   resolveFocusNodeWithProject,
 } from '../src/lib/asset-library'
 
@@ -567,5 +572,198 @@ describe('isReferenceAssetAdded', () => {
 
   it('完全不同的资产未添加', () => {
     expect(isReferenceAssetAdded(existing, makeItem({ id: 'a2', downloadUrl: 'https://x/2.png' }))).toBe(false)
+  })
+})
+
+// ── React Query 纯函数（P4 成熟库第一批）─────────────────────────────────────
+
+describe('default filters', () => {
+  it('所有字段默认为 all 或空字符串', () => {
+    expect(DEFAULT_FILTERS.source).toBe('all')
+    expect(DEFAULT_FILTERS.kind).toBe('all')
+    expect(DEFAULT_FILTERS.status).toBe('all')
+    expect(DEFAULT_FILTERS.search).toBe('')
+    expect(DEFAULT_FILTERS.model).toBe('')
+    expect(DEFAULT_FILTERS.createdFrom).toBe('')
+    expect(DEFAULT_FILTERS.createdTo).toBe('')
+  })
+})
+
+describe('normalizeAssetLibraryFiltersFromSearchParams', () => {
+  it('空 query 返回 DEFAULT_FILTERS', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams())
+    expect(result).toEqual(DEFAULT_FILTERS)
+  })
+
+  it('search 参数进入 filters.search', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('search=hello'))
+    expect(result.search).toBe('hello')
+  })
+
+  it('source 参数进入 filters.source', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('source=canvas_asset'))
+    expect(result.source).toBe('canvas_asset')
+  })
+
+  it('kind 参数进入 filters.kind', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('kind=video'))
+    expect(result.kind).toBe('video')
+  })
+
+  it('status 参数进入 filters.status', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('status=running'))
+    expect(result.status).toBe('running')
+  })
+
+  it('model 参数进入 filters.model', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('model=wanx'))
+    expect(result.model).toBe('wanx')
+  })
+
+  it('createdFrom / createdTo 进入对应字段', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('createdFrom=2024-01-01&createdTo=2024-12-31'))
+    expect(result.createdFrom).toBe('2024-01-01')
+    expect(result.createdTo).toBe('2024-12-31')
+  })
+
+  it('组合参数全部解析', () => {
+    const params = new URLSearchParams('source=uploaded_file&kind=image&status=succeeded&search=test&model=qwen')
+    const result = normalizeAssetLibraryFiltersFromSearchParams(params)
+    expect(result.source).toBe('uploaded_file')
+    expect(result.kind).toBe('image')
+    expect(result.status).toBe('succeeded')
+    expect(result.search).toBe('test')
+    expect(result.model).toBe('qwen')
+  })
+})
+
+describe('createAssetLibraryQueryKey', () => {
+  it('包含 filters + projectId + limit', () => {
+    const key = createAssetLibraryQueryKey(DEFAULT_FILTERS, null, 200)
+    expect(key).toEqual(['asset-library', DEFAULT_FILTERS, null, 200])
+  })
+
+  it('同一 filters 生成的 key 稳定', () => {
+    const f1 = { ...DEFAULT_FILTERS, kind: 'video' as const }
+    const f2 = { ...DEFAULT_FILTERS, kind: 'video' as const }
+    expect(createAssetLibraryQueryKey(f1, 'p1', 100)).toEqual(createAssetLibraryQueryKey(f2, 'p1', 100))
+  })
+
+  it('不同 filters 生成的 key 不同', () => {
+    const f1 = { ...DEFAULT_FILTERS }
+    const f2 = { ...DEFAULT_FILTERS, kind: 'video' as const }
+    expect(createAssetLibraryQueryKey(f1, null, 200)).not.toEqual(createAssetLibraryQueryKey(f2, null, 200))
+  })
+})
+
+describe('filtersToQueryParams', () => {
+  it('all 值映射为 undefined（不过滤）', () => {
+    const result = filtersToQueryParams(DEFAULT_FILTERS, null, 200, 0)
+    expect(result.source).toBeUndefined()
+    expect(result.kind).toBeUndefined()
+    expect(result.status).toBeUndefined()
+    expect(result.search).toBeUndefined()
+    expect(result.model).toBeUndefined()
+    expect(result.projectId).toBeUndefined()
+    expect(result.limit).toBe(200)
+    expect(result.offset).toBe(0)
+  })
+
+  it('非 all 值映射为实际值', () => {
+    const filters = { ...DEFAULT_FILTERS, source: 'canvas_asset' as const, kind: 'video' as const, status: 'succeeded' as const, search: 'cat', model: 'wanx' }
+    const result = filtersToQueryParams(filters, 'proj-1', 100, 50)
+    expect(result.source).toBe('canvas_asset')
+    expect(result.kind).toBe('video')
+    expect(result.status).toBe('succeeded')
+    expect(result.search).toBe('cat')
+    expect(result.model).toBe('wanx')
+    expect(result.projectId).toBe('proj-1')
+    expect(result.limit).toBe(100)
+    expect(result.offset).toBe(50)
+  })
+
+  it('空字符串 search 映射为 undefined', () => {
+    const result = filtersToQueryParams(DEFAULT_FILTERS, null, 200, 0)
+    expect(result.search).toBeUndefined()
+  })
+
+  it('空白 search 映射为 undefined', () => {
+    const filters = { ...DEFAULT_FILTERS, search: '  ' }
+    const result = filtersToQueryParams(filters, null, 200, 0)
+    expect(result.search).toBeUndefined()
+  })
+})
+
+// ── 批量应用参考资产纯函数（P1-2 v0.5）──────────────────────────────────────
+
+describe('previewApplyReferenceAssets', () => {
+  const ref: CanvasShotReferenceAsset = { assetId: 'r1', url: 'https://x/r1.png', role: 'character', source: 'asset_library' }
+  const ref2: CanvasShotReferenceAsset = { assetId: 'r2', url: 'https://x/r2.png', role: 'location', source: 'asset_library' }
+
+  it('append 模式：新资产追加到目标，去重', () => {
+    const targets = [{ shotId: 's1', referenceAssets: [ref] }]
+    const result = previewApplyReferenceAssets(targets, [ref2], 'append')
+    expect(result[0].shotId).toBe('s1')
+    expect(result[0].beforeCount).toBe(1)
+    expect(result[0].afterCount).toBe(2)
+    expect(result[0].addedCount).toBe(1)
+    expect(result[0].truncatedCount).toBe(0)
+    expect(result[0].assets).toEqual([ref, ref2])
+  })
+
+  it('append 模式：按 assetId 去重，不重复添加', () => {
+    const targets = [{ shotId: 's1', referenceAssets: [ref] }]
+    const result = previewApplyReferenceAssets(targets, [ref], 'append')
+    expect(result[0].afterCount).toBe(1)
+    expect(result[0].addedCount).toBe(0)
+  })
+
+  it('append 模式：超过 8 个截断', () => {
+    const existing = Array.from({ length: 7 }, (_, i) => ({ assetId: `e${i}`, url: `https://x/e${i}.png`, role: 'other' as const, source: 'asset_library' as const }))
+    const incoming = Array.from({ length: 5 }, (_, i) => ({ assetId: `n${i}`, url: `https://x/n${i}.png`, role: 'other' as const, source: 'asset_library' as const }))
+    const targets = [{ shotId: 's1', referenceAssets: existing }]
+    const result = previewApplyReferenceAssets(targets, incoming, 'append')
+    expect(result[0].afterCount).toBe(8)
+    expect(result[0].addedCount).toBe(1)
+    expect(result[0].truncatedCount).toBe(4) // 7+5=12 unique → 12-8=4 truncated
+  })
+
+  it('replace 模式：替换目标镜头已有资产', () => {
+    const targets = [{ shotId: 's1', referenceAssets: [ref, ref2] }]
+    const newAssets: CanvasShotReferenceAsset[] = [
+      { assetId: 'r3', url: 'https://x/r3.png', role: 'style', source: 'asset_library' },
+    ]
+    const result = previewApplyReferenceAssets(targets, newAssets, 'replace')
+    expect(result[0].beforeCount).toBe(2)
+    expect(result[0].afterCount).toBe(1)
+    expect(result[0].addedCount).toBe(1)
+    expect(result[0].truncatedCount).toBe(0)
+    expect(result[0].assets).toEqual(newAssets)
+  })
+
+  it('replace 模式：超过 8 个截断', () => {
+    const newAssets = Array.from({ length: 10 }, (_, i) => ({ assetId: `r${i}`, url: `https://x/r${i}.png`, role: 'other' as const, source: 'asset_library' as const }))
+    const targets = [{ shotId: 's1', referenceAssets: [] }]
+    const result = previewApplyReferenceAssets(targets, newAssets, 'replace')
+    expect(result[0].afterCount).toBe(8)
+    expect(result[0].addedCount).toBe(8)
+    expect(result[0].truncatedCount).toBe(2)
+  })
+
+  it('多个目标镜头', () => {
+    const targets = [
+      { shotId: 's1', referenceAssets: [ref] },
+      { shotId: 's2', referenceAssets: [] },
+    ]
+    const result = previewApplyReferenceAssets(targets, [ref2], 'append')
+    expect(result).toHaveLength(2)
+    expect(result[0].afterCount).toBe(2)
+    expect(result[0].addedCount).toBe(1)
+    expect(result[1].afterCount).toBe(1)
+    expect(result[1].addedCount).toBe(1)
+  })
+
+  it('空 targets 返回空数组', () => {
+    expect(previewApplyReferenceAssets([], [ref], 'append')).toEqual([])
   })
 })

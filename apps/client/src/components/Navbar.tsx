@@ -1,9 +1,29 @@
-import type { NotificationItem } from '../stores/notifications'
-import { Bell, CheckCheck, Clapperboard, ClosedCaption, Film, FolderOpen, LayoutDashboard, LogOut, Map, Receipt, Wallet, XCircle } from 'lucide-react'
+import type { NotificationItem } from '@/api/notifications'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Bell,
+  CheckCheck,
+  Clapperboard,
+  ClosedCaption,
+  Film,
+  FolderOpen,
+  LayoutDashboard,
+  LogOut,
+  Map,
+  Receipt,
+  Wallet,
+  XCircle,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
+import {
+  fetchNotifications,
+  fetchNotificationUnreadCount,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/api/notifications'
+import { notificationQueryKeys } from '@/api/query-client'
 import { useAuth } from '../auth/AuthContext'
-import { useNotificationsStore } from '../stores/notifications'
 import { Button } from './ui/button'
 
 const NAV_ITEMS = [
@@ -52,28 +72,49 @@ function formatRelativeTime(iso: string): string {
 export default function Navbar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const unreadCount = useNotificationsStore(s => s.unreadCount)
-  const items = useNotificationsStore(s => s.items)
-  const loaded = useNotificationsStore(s => s.loaded)
-  const fetchList = useNotificationsStore(s => s.fetchList)
-  const fetchUnread = useNotificationsStore(s => s.fetchUnread)
-  const markRead = useNotificationsStore(s => s.markRead)
-  const markAllRead = useNotificationsStore(s => s.markAllRead)
+  const queryClient = useQueryClient()
+
+  // 未读数角标 — 页面加载时即获取
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: notificationQueryKeys.unread,
+    queryFn: fetchNotificationUnreadCount,
+    enabled: !!user,
+  })
 
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // 挂载时拉取未读数（角标）
-  useEffect(() => {
-    if (user)
-      fetchUnread()
-  }, [user, fetchUnread])
+  // 通知列表 — 下拉展开时启用
+  const { data: items = [], isLoading: listLoading } = useQuery({
+    queryKey: notificationQueryKeys.list,
+    queryFn: fetchNotifications,
+    enabled: open && !!user,
+  })
 
-  // 首次展开时加载列表
-  useEffect(() => {
-    if (open && !loaded)
-      fetchList()
-  }, [open, loaded, fetchList])
+  // 单条已读 mutation
+  const markReadMutation = useMutation({
+    mutationFn: markNotificationRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.unread })
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.list })
+    },
+  })
+
+  // 全部已读 mutation
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllNotificationsRead,
+    onSuccess: () => {
+      // 乐观更新：先就地更新缓存，再 invalidate 确保一致性
+      queryClient.setQueryData<NotificationItem[]>(notificationQueryKeys.list, (old) => {
+        if (!old)
+          return old
+        return old.map(n => ({ ...n, read: true }))
+      })
+      queryClient.setQueryData<number>(notificationQueryKeys.unread, 0)
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.unread })
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.list })
+    },
+  })
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -89,7 +130,7 @@ export default function Navbar() {
 
   function handleClickItem(n: NotificationItem) {
     if (!n.read)
-      markRead(n.id)
+      markReadMutation.mutate(n.id)
     const target = resolveTarget(n)
     setOpen(false)
     if (target)
@@ -131,14 +172,14 @@ export default function Navbar() {
                 </span>
               )}
 
-              {/* 通知下拉面板（P2-2） */}
+              {/* 通知下拉面板 */}
               {open && (
                 <div className="absolute right-0 top-12 z-50 w-80 rounded-lg border bg-background shadow-lg">
                   <div className="flex items-center justify-between border-b px-3 py-2">
                     <span className="text-sm font-medium">通知</span>
                     {unreadCount > 0 && (
                       <button
-                        onClick={() => markAllRead()}
+                        onClick={() => markAllReadMutation.mutate()}
                         className="text-xs text-muted-foreground hover:text-foreground"
                       >
                         全部已读
@@ -150,7 +191,7 @@ export default function Navbar() {
                     {items.length === 0
                       ? (
                           <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                            {loaded ? '暂无通知' : '加载中...'}
+                            {listLoading ? '加载中...' : '暂无通知'}
                           </p>
                         )
                       : (

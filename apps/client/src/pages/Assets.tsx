@@ -1,5 +1,6 @@
 import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
+import { useQuery } from '@tanstack/react-query'
 import {
   AudioLines,
   Box,
@@ -23,7 +24,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
-import { deleteUploadedFile, fetchAssetLibrary, listCanvasProjects } from '@/api/client'
+import { useDebounce } from 'use-debounce'
+import { hideAsset, queryAssetLibrary } from '@/api/asset-library'
+import { deleteUploadedFile, listCanvasProjects } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -31,11 +34,14 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   buildAssetLibraryStats,
   canDeleteAsset,
+  createAssetLibraryQueryKey,
+  DEFAULT_FILTERS,
   formatProjectOptionLabel,
   getAssetLibraryPreviewKind,
   getCanvasAssetUrl,
   getCanvasSourceLabel,
   KIND_LABELS,
+  normalizeAssetLibraryFiltersFromSearchParams,
   SOURCE_LABELS,
   STATUS_LABELS,
 } from '@/lib/asset-library'
@@ -87,25 +93,6 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
 
 // ── URL ↔ 状态同步 ──────────────────────────────────────────────────────────
 
-function readFiltersFromUrl(): AssetLibraryFilters {
-  const params = new URLSearchParams(window.location.search)
-  return {
-    source: (params.get('source') as SourceFilter) ?? 'all',
-    kind: (params.get('kind') as KindFilter) ?? 'all',
-    status: (params.get('status') as StatusFilter) ?? 'all',
-    search: params.get('search') ?? '',
-    model: params.get('model') ?? '',
-    createdFrom: params.get('createdFrom') ?? '',
-    createdTo: params.get('createdTo') ?? '',
-  }
-}
-
-function readProjectIdFromUrl(): string | null {
-  const params = new URLSearchParams(window.location.search)
-  const project = params.get('project')
-  return project && project.length > 0 ? project : null
-}
-
 function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
   const url = new URL(window.location.href)
   for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'project'])
@@ -129,21 +116,6 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
   window.history.replaceState({}, '', url.toString())
 }
 
-function toQueryParams(filters: AssetLibraryFilters, projectId: string | null, limit: number, offset: number) {
-  return {
-    source: filters.source !== 'all' ? filters.source : undefined,
-    kind: filters.kind !== 'all' ? filters.kind : undefined,
-    status: filters.status !== 'all' ? filters.status : undefined,
-    search: filters.search.trim() || undefined,
-    model: filters.model || undefined,
-    createdFrom: filters.createdFrom || undefined,
-    createdTo: filters.createdTo || undefined,
-    projectId: projectId ?? undefined,
-    limit,
-    offset,
-  }
-}
-
 async function copyLink(url: string) {
   try {
     await navigator.clipboard.writeText(url)
@@ -155,60 +127,82 @@ async function copyLink(url: string) {
 }
 
 export default function Assets() {
-  const [filters, setFilters] = useState<AssetLibraryFilters>(readFiltersFromUrl)
+  const [filters, setFilters] = useState<AssetLibraryFilters>(
+    () => normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams(window.location.search)),
+  )
   const [projectId, setProjectId] = useState<string | null>(readProjectIdFromUrl)
-  const [items, setItems] = useState<AssetLibraryItem[]>([])
-  const [hasMore, setHasMore] = useState(false)
   const [previewItem, setPreviewItem] = useState<AssetLibraryItem | null>(null)
   const [projects, setProjects] = useState<ProjectDTO[]>([])
+
+  // Debounce search term to avoid firing API on every keystroke
+  const [debouncedSearch] = useDebounce(filters.search, 300)
+
+  // Build debounced filters: swap live search for debounced search
+  const debouncedFilters: AssetLibraryFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  )
 
   // 加载 Canvas 项目列表（用于项目选择器）
   useEffect(() => {
     listCanvasProjects()
       .then(data => setProjects(data.items ?? []))
-      .catch(() => {}) // 非阻塞：选择器暂时为空
+      .catch(() => {})
   }, [])
 
-  // 筛选变更 → URL 同步
+  // 筛选变更 → URL 同步（sync live filters, not debounced)
   useEffect(() => {
     syncFiltersToUrl(filters, projectId)
   }, [filters, projectId])
 
-  // 服务端筛选加载（主筛选下推到 SQL，不再只在前端本地过滤）
-  const loadAssets = useCallback(async () => {
-    try {
-      const data = await fetchAssetLibrary(toQueryParams(filters, projectId, 200, 0))
-      setItems(data.items)
-      setHasMore(data.hasMore ?? false)
-    }
-    catch {
-      toast.error('加载资产列表失败')
-    }
-  }, [filters, projectId])
+  // 主查询：资产列表（用 React Query 承接 loading/error/data）
+  const queryKey = createAssetLibraryQueryKey(debouncedFilters, projectId, 200)
 
-  useEffect(() => {
-    loadAssets()
-  }, [loadAssets])
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey,
+    queryFn: () => queryAssetLibrary({
+      filters: debouncedFilters,
+      projectId,
+      limit: 200,
+      offset: 0,
+    }),
+  })
+
+  const items = useMemo(() => data?.items ?? [], [data?.items])
+  const hasMore = data?.hasMore ?? false
 
   // 加载更多（轻量分页 Plan A：offset 推进，hasMore 启发式）
+  const [extraItems, setExtraItems] = useState<AssetLibraryItem[]>([])
   const loadMore = useCallback(async () => {
     try {
-      const data = await fetchAssetLibrary(toQueryParams(filters, projectId, 200, items.length))
-      setItems(prev => [...prev, ...data.items])
-      setHasMore(data.hasMore ?? false)
+      const more = await queryAssetLibrary({
+        filters: debouncedFilters,
+        projectId,
+        limit: 200,
+        offset: items.length + extraItems.length,
+      })
+      setExtraItems(prev => [...prev, ...more.items])
+      if (!more.hasMore)
+        toast.info('已加载全部资产')
     }
     catch {
       toast.error('加载更多失败')
     }
-  }, [filters, projectId, items.length])
+  }, [debouncedFilters, projectId, items.length, extraItems.length])
 
-  const stats = useMemo(() => buildAssetLibraryStats(items), [items])
+  // 清空 extra items when filters/projectId change
+  useEffect(() => {
+    setExtraItems([])
+  }, [debouncedFilters, projectId])
+
+  const allItems = useMemo(() => [...items, ...extraItems], [items, extraItems])
+  const stats = useMemo(() => buildAssetLibraryStats(allItems), [allItems])
 
   const hasActiveFilters = filters.source !== 'all' || filters.kind !== 'all' || filters.status !== 'all'
     || filters.search || filters.model || filters.createdFrom || filters.createdTo || projectId
 
   function clearFilters() {
-    setFilters({ source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    setFilters(DEFAULT_FILTERS)
     setProjectId(null)
   }
 
@@ -346,24 +340,44 @@ export default function Assets() {
         )}
       </div>
 
+      {/* 加载状态 */}
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <FolderOpen className="mb-2 size-10 animate-pulse" />
+          <p>加载中...</p>
+        </div>
+      )}
+
+      {/* 错误状态 */}
+      {error && !isLoading && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <FolderOpen className="mb-2 size-10" />
+          <p>加载失败</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RotateCcw className="size-3" />
+            重试
+          </Button>
+        </div>
+      )}
+
       {/* 资产网格（服务端已筛选，直接展示） */}
-      {items.length === 0
-        ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <FolderOpen className="mb-2 size-10" />
-              <p>暂无资产</p>
-            </div>
-          )
-        : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {items.map(item => (
-                <AssetCard key={`${item.source}-${item.id}`} item={item} onClick={() => setPreviewItem(item)} />
-              ))}
-            </div>
-          )}
+      {!isLoading && !error && allItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <FolderOpen className="mb-2 size-10" />
+          <p>暂无资产</p>
+        </div>
+      )}
+
+      {!isLoading && !error && allItems.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {allItems.map(item => (
+            <AssetCard key={`${item.source}-${item.id}`} item={item} onClick={() => setPreviewItem(item)} />
+          ))}
+        </div>
+      )}
 
       {/* 加载更多（轻量分页 Plan A） */}
-      {hasMore && (
+      {!isLoading && !error && hasMore && (
         <div className="flex justify-center">
           <Button variant="outline" onClick={loadMore}>加载更多</Button>
         </div>
@@ -374,9 +388,9 @@ export default function Assets() {
         <PreviewModal
           item={previewItem}
           onClose={() => setPreviewItem(null)}
-          onDeleted={(deletedId) => {
-            setItems(prev => prev.filter(i => !(i.source === 'uploaded_file' && i.id === deletedId)))
+          onAction={() => {
             setPreviewItem(null)
+            refetch()
           }}
         />
       )}
@@ -429,29 +443,45 @@ function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => v
   )
 }
 
-function PreviewModal({ item, onClose, onDeleted }: { item: AssetLibraryItem, onClose: () => void, onDeleted: (id: string) => void }) {
+function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onClose: () => void, onAction: () => void }) {
   const previewKind = getAssetLibraryPreviewKind(item)
   const canvasUrl = getCanvasAssetUrl(item)
   const sourceLabel = getCanvasSourceLabel(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
   const deletable = canDeleteAsset(item)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [deleteLoading, setDeleteLoading] = useState(false)
+  const hideable = item.source === 'generation_record' || item.source === 'canvas_asset'
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
-  async function handleDelete() {
-    setDeleteLoading(true)
+  // 确认弹窗文案
+  const confirmTitle = deletable ? '确认删除上传文件？' : '确认移出资产中心？'
+  const confirmDescription = deletable
+    ? '删除后该文件将从资产中心移除，并从存储中删除。已被项目使用的文件不会被删除。'
+    : item.source === 'generation_record'
+      ? '此操作会将该生成记录从资产中心隐藏，不会删除已保存文件。'
+      : '此操作会将该 Canvas 资产从资产中心隐藏，不会影响项目中已使用的镜头或参考图。'
+  const confirmText = deletable ? '删除' : '移出'
+
+  async function handleAction() {
+    setActionLoading(true)
     try {
-      await deleteUploadedFile(item.id)
-      toast.success('已删除上传文件')
-      onDeleted(item.id)
+      if (deletable) {
+        await deleteUploadedFile(item.id)
+        toast.success('已删除上传文件')
+      }
+      else if (hideable) {
+        await hideAsset(item.source as 'generation_record' | 'canvas_asset', item.id)
+        toast.success('已移出资产中心')
+      }
+      onAction()
     }
     catch (err) {
-      const message = err instanceof Error ? err.message : '删除失败'
+      const message = err instanceof Error ? err.message : (deletable ? '删除失败' : '移出失败')
       toast.error(message)
-      setDeleteConfirmOpen(false)
+      setConfirmOpen(false)
     }
     finally {
-      setDeleteLoading(false)
+      setActionLoading(false)
     }
   }
 
@@ -540,25 +570,37 @@ function PreviewModal({ item, onClose, onDeleted }: { item: AssetLibraryItem, on
             </Link>
           )}
           {deletable && (
-            <Button variant="destructive" size="sm" disabled={deleteLoading} onClick={() => setDeleteConfirmOpen(true)}>
+            <Button variant="destructive" size="sm" disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
               <Trash2 className="size-3" />
               删除文件
             </Button>
           )}
+          {hideable && (
+            <Button variant="outline" size="sm" disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
+              <X className="size-3" />
+              移出资产中心
+            </Button>
+          )}
         </div>
 
-        {/* 删除确认弹窗 */}
-        {deletable && (
+        {/* 操作确认弹窗 */}
+        {(deletable || hideable) && (
           <ConfirmDialog
-            open={deleteConfirmOpen}
-            onOpenChange={setDeleteConfirmOpen}
-            title="确认删除上传文件？"
-            description="删除后该文件将从资产中心移除，并从存储中删除。已被项目使用的文件不会被删除。"
-            confirmText="删除"
-            onConfirm={handleDelete}
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title={confirmTitle}
+            description={confirmDescription}
+            confirmText={confirmText}
+            onConfirm={handleAction}
           />
         )}
       </div>
     </div>
   )
+}
+
+function readProjectIdFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search)
+  const project = params.get('project')
+  return project && project.length > 0 ? project : null
 }

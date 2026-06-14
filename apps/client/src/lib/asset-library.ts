@@ -1,4 +1,4 @@
-import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, CanvasShotReferenceAsset, CanvasShotReferenceRole } from '@excuse/shared'
+import type { ApplyReferenceAssetsMode, AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, CanvasShotReferenceAsset, CanvasShotReferenceRole, ReferenceAssetApplyPreview, ReferenceAssetApplyTarget } from '@excuse/shared'
 import { isImageUrl, isVideoUrl } from './generation-utils'
 
 /**
@@ -99,6 +99,34 @@ export interface AssetLibraryFilters {
   createdFrom: string
   /** 创建时间上界（ISO 日期字符串，空=不过滤） */
   createdTo: string
+}
+
+export const DEFAULT_FILTERS: AssetLibraryFilters = {
+  source: 'all',
+  kind: 'all',
+  status: 'all',
+  search: '',
+  model: '',
+  createdFrom: '',
+  createdTo: '',
+}
+
+/** 从 URLSearchParams 解析筛选条件，缺省值用 DEFAULT_FILTERS */
+export function normalizeAssetLibraryFiltersFromSearchParams(params: URLSearchParams): AssetLibraryFilters {
+  return {
+    source: (params.get('source') as 'all' | AssetLibrarySource) ?? DEFAULT_FILTERS.source,
+    kind: (params.get('kind') as 'all' | AssetLibraryKind) ?? DEFAULT_FILTERS.kind,
+    status: (params.get('status') as 'all' | AssetLibraryStatusFilter) ?? DEFAULT_FILTERS.status,
+    search: params.get('search') ?? DEFAULT_FILTERS.search,
+    model: params.get('model') ?? DEFAULT_FILTERS.model,
+    createdFrom: params.get('createdFrom') ?? DEFAULT_FILTERS.createdFrom,
+    createdTo: params.get('createdTo') ?? DEFAULT_FILTERS.createdTo,
+  }
+}
+
+/** 生成稳定的 React Query query key */
+export function createAssetLibraryQueryKey(filters: AssetLibraryFilters, projectId: string | null, limit: number): readonly unknown[] {
+  return ['asset-library', filters, projectId, limit] as const
 }
 
 /**
@@ -484,4 +512,71 @@ export function mergeShotReferenceAssets(
 export function isReferenceAssetAdded(existing: CanvasShotReferenceAsset[], item: AssetLibraryItem): boolean {
   const url = item.downloadUrl ?? item.previewUrl
   return existing.some(a => a.assetId === item.id || (url != null && a.url === url))
+}
+
+// ── 批量应用参考资产（P1-2 v0.5）─────────────────────────────────────────────
+
+/**
+ * 预览批量应用参考资产的结果
+ *
+ * - `replace`：目标 assets = source assets 截断到 max
+ * - `append`：复用 mergeShotReferenceAssets，按 assetId/url 去重，截断到 max
+ * - `addedCount`：实际新增数量
+ *   - replace：afterCount（全部为新放置）
+ *   - append：afterCount - beforeCount（净增）
+ * - `truncatedCount`：因上限被截断的数量
+ */
+export function previewApplyReferenceAssets(
+  targets: ReferenceAssetApplyTarget[],
+  sourceAssets: CanvasShotReferenceAsset[],
+  mode: ApplyReferenceAssetsMode,
+  max: number = MAX_SHOT_REFERENCE_ASSETS,
+): ReferenceAssetApplyPreview[] {
+  return targets.map((target) => {
+    const beforeCount = target.referenceAssets.length
+    if (mode === 'replace') {
+      const assets = sourceAssets.slice(0, max)
+      return {
+        shotId: target.shotId,
+        beforeCount,
+        afterCount: assets.length,
+        addedCount: assets.length,
+        truncatedCount: Math.max(0, sourceAssets.length - max),
+        assets,
+      }
+    }
+    // append mode
+    const assets = mergeShotReferenceAssets(target.referenceAssets, sourceAssets, max)
+    const totalUnique = countUniqueMerged(target.referenceAssets, sourceAssets)
+    return {
+      shotId: target.shotId,
+      beforeCount,
+      afterCount: assets.length,
+      addedCount: Math.max(0, assets.length - beforeCount),
+      truncatedCount: Math.max(0, totalUnique - max),
+      assets,
+    }
+  })
+}
+
+/** 计算合并后去重但不截断的总数量 */
+function countUniqueMerged(current: CanvasShotReferenceAsset[], incoming: CanvasShotReferenceAsset[]): number {
+  const seenAssetIds = new Set<string>()
+  const seenUrls = new Set<string>()
+  let count = 0
+  for (const asset of current) {
+    if (seenAssetIds.has(asset.assetId) || seenUrls.has(asset.url))
+      continue
+    seenAssetIds.add(asset.assetId)
+    seenUrls.add(asset.url)
+    count++
+  }
+  for (const asset of incoming) {
+    if (seenAssetIds.has(asset.assetId) || seenUrls.has(asset.url))
+      continue
+    seenAssetIds.add(asset.assetId)
+    seenUrls.add(asset.url)
+    count++
+  }
+  return count
 }
