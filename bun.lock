@@ -188,6 +188,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@excuse/shared": "workspace:*",
+        "zod": "^4.4.3",
       },
     },
     "packages/metrics": {
@@ -197,6 +198,9 @@
     "packages/prompt-engine": {
       "name": "@excuse/prompt-engine",
       "version": "0.0.1",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
     },
     "packages/provider": {
       "name": "@excuse/provider",

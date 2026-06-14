@@ -1,5 +1,6 @@
+import { z } from 'zod'
 import { describe, expect, it } from 'bun:test'
-import { parseLLMJson } from '../src'
+import { LLMSchemaValidationError, parseLLMJson, parseLLMJsonWithSchema } from '../src'
 
 describe('parseLLMJson', () => {
   it('should parse clean JSON object', () => {
@@ -99,5 +100,109 @@ describe('parseLLMJson', () => {
     }>(input)
     expect(result.summary).toBe('一个关于少年的成长故事')
     expect(result.characterNames).toEqual(['小明', '小红'])
+  })
+})
+
+describe('parseLLMJsonWithSchema', () => {
+  const schema = z.object({ name: z.string(), value: z.number() })
+
+  it('returns typed value on valid JSON', () => {
+    const result = parseLLMJsonWithSchema('{"name":"foo","value":42}', schema)
+    expect(result.name).toBe('foo')
+    expect(result.value).toBe(42)
+  })
+
+  it('parses JSON wrapped in markdown fence', () => {
+    const result = parseLLMJsonWithSchema('```json\n{"name":"foo","value":42}\n```', schema)
+    expect(result.name).toBe('foo')
+    expect(result.value).toBe(42)
+  })
+
+  it('parses JSON extracted from surrounding text', () => {
+    const result = parseLLMJsonWithSchema(
+      'Result:\n{"name":"foo","value":42}\nDone.',
+      schema,
+    )
+    expect(result.name).toBe('foo')
+  })
+
+  it('throws LLMSchemaValidationError on schema mismatch (wrong field type)', () => {
+    expect(() =>
+      parseLLMJsonWithSchema('{"name":"foo","value":"not a number"}', schema),
+    ).toThrow(LLMSchemaValidationError)
+  })
+
+  it('throws LLMSchemaValidationError on missing required field', () => {
+    expect(() =>
+      parseLLMJsonWithSchema('{"name":"foo"}', schema),
+    ).toThrow(LLMSchemaValidationError)
+  })
+
+  it('error carries zodError + rawPreview (≤ 200 chars)', () => {
+    const raw = '{"name":"foo","value":"x"} extra padding '.repeat(20)
+    try {
+      parseLLMJsonWithSchema(raw, schema)
+      expect.fail('should have thrown')
+    }
+    catch (err) {
+      expect(err).toBeInstanceOf(LLMSchemaValidationError)
+      const e = err as LLMSchemaValidationError
+      expect(e.rawPreview.length).toBeLessThanOrEqual(200)
+      expect(e.zodError.issues.length).toBeGreaterThan(0)
+      expect(e.message).toContain('LLM output failed schema validation')
+    }
+  })
+
+  it('zodError.issues 含 value 字段路径', () => {
+    try {
+      parseLLMJsonWithSchema('{"name":"foo","value":"x"}', schema)
+      expect.fail('should have thrown')
+    }
+    catch (err) {
+      const e = err as LLMSchemaValidationError
+      const paths = e.zodError.issues.map(i => i.path.join('.'))
+      expect(paths).toContain('value')
+    }
+  })
+
+  it('preserves parseLLMJson behavior on non-JSON input (throws base Error)', () => {
+    expect(() => parseLLMJsonWithSchema('no json here', schema)).toThrow('Failed to extract JSON')
+    expect(() => parseLLMJsonWithSchema('no json here', schema)).not.toThrow(LLMSchemaValidationError)
+  })
+
+  it('distinguishes schema error from JSON parse error via instanceof', () => {
+    let caught: unknown
+    try {
+      parseLLMJsonWithSchema('{"name":"foo","value":"x"}', schema)
+    }
+    catch (err) {
+      caught = err
+    }
+    expect(caught).toBeInstanceOf(LLMSchemaValidationError)
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as LLMSchemaValidationError).name).toBe('LLMSchemaValidationError')
+
+    let jsonError: unknown
+    try {
+      parseLLMJsonWithSchema('not json', schema)
+    }
+    catch (err) {
+      jsonError = err
+    }
+    expect(jsonError).not.toBeInstanceOf(LLMSchemaValidationError)
+    expect(jsonError).toBeInstanceOf(Error)
+  })
+
+  it('works with array schema (z.array)', () => {
+    const arrSchema = z.array(z.object({ id: z.number() }))
+    const result = parseLLMJsonWithSchema('[{"id":1},{"id":2}]', arrSchema)
+    expect(result).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('works with .loose() schema — extra fields passthrough', () => {
+    const looseSchema = z.object({ name: z.string() }).loose()
+    const result = parseLLMJsonWithSchema('{"name":"foo","extra":"bar"}', looseSchema)
+    expect(result.name).toBe('foo')
+    expect((result as Record<string, unknown>).extra).toBe('bar')
   })
 })

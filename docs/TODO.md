@@ -208,6 +208,7 @@
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
    - Elysia route schema 可以保留，不强行替换。
+   - ✅ packages/gateway（`normalizeOpenAIChatRequest` / `mapGatewayUsageItem` 引入 zod safeParse + 新建 `packages/gateway/src/schemas.ts`）+ packages/prompt-engine（新建 `parseLLMJsonWithSchema` + `LLMSchemaValidationError` + `packages/prompt-engine/src/schemas.ts`，保留 `parseLLMJson` 原签名）已完成第一批迁移（commit: `<本轮 hash>`）。canvas-runtime / regenerate.ts 调用迁移留待独立任务。
 
 5. `p-limit` / `p-queue`
    - 用于单个任务内部的批量上传、下载、生成、持久化并发控制。

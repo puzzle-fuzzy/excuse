@@ -142,6 +142,52 @@ describe('mapGatewayUsageItem', () => {
   })
 })
 
+describe('mapGatewayUsageItem — zod safeParse 兜底', () => {
+  it('cost.inputTokens 是字符串：safeParse 失败时降级到原 record 走 ?? null 兜底', () => {
+    // 注意：safeParse 失败 → value = 原 record；既有逻辑 `cost?.inputTokens ?? null`
+    // 字段是字符串 'foo'（truthy）→ 不命中 ?? null，会原样透传字符串。
+    // 这暴露了「既有 ?? 兜底只防 undefined/null，不防错误类型」的局限；
+    // zod 兜底只在 parse 成功时收窄类型；失败时让调用方明确知道 record shape 异常。
+    const item = mapGatewayUsageItem(makeRecord({
+      cost: { inputTokens: '100' as unknown as number, outputTokens: 50 },
+    }))
+
+    // safeParse 失败 → fallback 到原 record；原 ?? 兜底未生效（'100' truthy）
+    expect(item.inputTokens).toBe('100' as unknown as number)
+  })
+
+  it('totalPriceCents 是字符串：safeParse 失败时 fallback 到原 record', () => {
+    const item = mapGatewayUsageItem(makeRecord({
+      totalPriceCents: '12' as unknown as number,
+    }))
+
+    // 字符串 '12' truthy → 不触发 ?? 0 兜底；safeParse 失败也不强制类型
+    expect(item.totalPriceCents).toBe('12' as unknown as number)
+  })
+
+  it('合法 record：zod parse 成功 → 行为不变', () => {
+    const item = mapGatewayUsageItem(makeRecord({
+      cost: { inputTokens: 100, outputTokens: 50, totalPriceCents: 12 },
+    }))
+
+    expect(item.inputTokens).toBe(100)
+    expect(item.outputTokens).toBe(50)
+    expect(item.totalTokens).toBe(150)
+  })
+
+  it('cost 为 null：zod parse 成功 → 既有兜底逻辑生效', () => {
+    const item = mapGatewayUsageItem(makeRecord({
+      cost: null,
+      totalPriceCents: 7,
+    }))
+
+    expect(item.inputTokens).toBeNull()
+    expect(item.outputTokens).toBeNull()
+    expect(item.totalTokens).toBeNull()
+    expect(item.totalPriceCents).toBe(7)
+  })
+})
+
 describe('aggregateGatewayUsage', () => {
   it('空数组：返回零值响应', () => {
     const result = aggregateGatewayUsage([])

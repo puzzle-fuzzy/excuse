@@ -1,5 +1,6 @@
 import type { OpenAIChatCompletionChunk, OpenAIChatRequest, OpenAIChatResponse, OpenAIErrorResponse, OpenAIGatewayUsageItem, OpenAIGatewayUsageResponse, OpenAIModelsResponse } from '@excuse/shared'
 import { resolveModelId } from '@excuse/shared'
+import { gatewayUsageRecordSchema, openaiChatRequestSchema } from './schemas'
 
 /**
  * @excuse/gateway —— OpenAI 兼容网关的纯规则包（无 IO 依赖）
@@ -166,35 +167,45 @@ export function generationFailedError(message: string): OpenAIGatewayError {
  * 调用方必须先用 isOpenAIGatewayError() 做类型收窄。
  *
  * 规则：
+ *   - 先用 `openaiChatRequestSchema.safeParse(request)` 做运行时校验
+ *     （route 传的是 Elysia 解析的 JSON，可能是任意 shape）。
+ *     parse 失败 → 400 invalid_parameters（携带 zod issues 字段路径 + message）。
  *   - stream 字段透传到返回值；route 层根据模型协议决定是否支持
  *   - 没有 user 消息 → 400 missing_user_message
  *   - 否则取最后一条 user 消息作为 prompt，附上 temperature/max_tokens/top_p（仅当用户显式传入时）
  */
 export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
-  const userMessages = request.messages.filter(m => m.role === 'user')
+  const parsed = openaiChatRequestSchema.safeParse(request)
+  if (!parsed.success) {
+    const errors = parsed.error.issues.map(issue => ({
+      field: issue.path.length > 0 ? issue.path.join('.') : '(root)',
+      message: issue.message,
+    }))
+    return invalidParametersError(errors)
+  }
+
+  const value = parsed.data
+  const userMessages = value.messages.filter(m => m.role === 'user')
   if (userMessages.length === 0) {
     return missingUserMessageError()
   }
 
-  const lastUserMessage = userMessages[userMessages.length - 1]
-  if (!lastUserMessage) {
-    return missingUserMessageError()
-  }
+  const lastUserMessage = userMessages[userMessages.length - 1]!
 
   const parameters: Record<string, unknown> = { prompt: lastUserMessage.content }
-  if (request.temperature !== undefined)
-    parameters.temperature = request.temperature
-  if (request.max_tokens !== undefined)
-    parameters.max_tokens = request.max_tokens
-  if (request.top_p !== undefined)
-    parameters.top_p = request.top_p
+  if (value.temperature !== undefined)
+    parameters.temperature = value.temperature
+  if (value.max_tokens !== undefined)
+    parameters.max_tokens = value.max_tokens
+  if (value.top_p !== undefined)
+    parameters.top_p = value.top_p
 
   return {
     request,
-    internalModelId: resolveModelId(request.model),
+    internalModelId: resolveModelId(value.model),
     prompt: lastUserMessage.content,
     parameters,
-    stream: request.stream ?? false,
+    stream: value.stream ?? false,
   }
 }
 
@@ -331,31 +342,38 @@ export interface GatewayUsageRecordInput {
  * 把单条 generation_records 行映射成 /v1/usage items 数组的一个元素。
  *
  * 注意：
+ *   - 先用 `gatewayUsageRecordSchema.safeParse(record)` 做字段类型守卫
+ *     （route 传的是 DB JSONB 反序列化结果，旧 record 字段可能缺失或类型错误）。
+ *     parse 失败时降级到原 record 走既有兜底逻辑，**不抛错**（保持向后兼容）。
  *   - inputTokens / outputTokens 任一为 null 时，totalTokens 输出 null（不强行抹零）。
  *   - totalPriceCents 优先用 row 顶层字段，回落 cost.totalPriceCents，再回落 0。
  *   - requestedModel 只接受字符串，其余情况输出 null。
  *   - createdAt 必须 toISOString()，不允许 Date 对象泄露到 API 响应。
  */
 export function mapGatewayUsageItem(record: GatewayUsageRecordInput): OpenAIGatewayUsageItem {
-  const cost = record.cost ?? null
+  // zod 类型守卫：合法 record 走 parsed.data；非法 shape 回落到原 record 让既有 ?? null 兜底
+  const parsed = gatewayUsageRecordSchema.safeParse(record)
+  const value = parsed.success ? parsed.data : record
+
+  const cost = value.cost ?? null
   const inputTokens = cost?.inputTokens ?? null
   const outputTokens = cost?.outputTokens ?? null
   const tokenSum = (inputTokens ?? 0) + (outputTokens ?? 0)
 
-  const requestedModelRaw = record.inputParams?.requestedModel
+  const requestedModelRaw = value.inputParams?.requestedModel
   const requestedModel = typeof requestedModelRaw === 'string' ? requestedModelRaw : null
 
   return {
-    id: record.id,
-    model: record.model,
+    id: value.id,
+    model: value.model,
     requestedModel,
-    status: record.status,
+    status: value.status,
     inputTokens,
     outputTokens,
     totalTokens: inputTokens !== null && outputTokens !== null ? tokenSum : null,
-    totalPriceCents: record.totalPriceCents ?? cost?.totalPriceCents ?? 0,
-    errorMessage: record.errorMessage,
-    createdAt: record.createdAt.toISOString(),
+    totalPriceCents: value.totalPriceCents ?? cost?.totalPriceCents ?? 0,
+    errorMessage: value.errorMessage,
+    createdAt: value.createdAt.toISOString(),
   }
 }
 

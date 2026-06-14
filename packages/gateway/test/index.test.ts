@@ -1,3 +1,4 @@
+import type { OpenAIChatRequest } from '@excuse/shared'
 import { describe, expect, it } from 'bun:test'
 import {
   createOpenAIChatResponse,
@@ -345,6 +346,117 @@ describe('@excuse/gateway', () => {
         expect(err.response.error).toHaveProperty('type')
         expect(err.response.error).toHaveProperty('code')
       }
+    })
+  })
+
+  describe('normalizeOpenAIChatRequest — zod runtime guard', () => {
+    it('rejects non-array messages with invalid_parameters', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: 'foo',
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.status).toBe(400)
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+      expect(result.response.error.message).toContain('messages')
+    })
+
+    it('rejects message missing role with invalid_parameters', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: [{ content: 'hi' }],
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+    })
+
+    it('rejects string temperature with invalid_parameters', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: 'hi' }],
+        temperature: '0.5',
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+      expect(result.response.error.message).toContain('temperature')
+    })
+
+    it('rejects empty messages array', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: [],
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+    })
+
+    it('rejects unknown message role with invalid_parameters', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: [{ role: 'developer', content: 'hi' }],
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+    })
+
+    it('preserves unknown OpenAI fields on success path (.loose() passthrough)', () => {
+      const request = {
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: 'hi' }],
+        n: 2,
+        presence_penalty: 0.5,
+      } as unknown as OpenAIChatRequest
+      const result = normalizeOpenAIChatRequest(request)
+
+      expect(isOpenAIGatewayError(result)).toBe(false)
+      if (isOpenAIGatewayError(result))
+        throw new Error('unexpected error')
+      // request 引用透传保留（route 可继续访问原对象未知字段）
+      expect((result.request as Record<string, unknown>).n).toBe(2)
+      expect(result.prompt).toBe('hi')
+    })
+
+    it('returns missing_user_message when valid messages but no user role', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 'gpt-4',
+        messages: [{ role: 'system', content: 'sys' }],
+      })
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      // schema 通过但缺少 user → missing_user_message（与 schema 失败的 invalid_parameters 区分）
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE)
+    })
+
+    it('multiple zod issues concatenated into one invalid_parameters message', () => {
+      const result = normalizeOpenAIChatRequest({
+        model: 42,
+        messages: 'foo',
+        temperature: 'bar',
+      } as unknown as OpenAIChatRequest)
+
+      expect(isOpenAIGatewayError(result)).toBe(true)
+      if (!isOpenAIGatewayError(result))
+        throw new Error('expected error')
+      expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+      // 至少 2 个 issue 被拼接（model + messages + temperature）
+      expect(result.response.error.message).toContain(';')
     })
   })
 })
