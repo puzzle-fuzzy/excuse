@@ -1,4 +1,4 @@
-import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
+import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, CanvasShotReferenceAsset, CanvasShotReferenceRole } from '@excuse/shared'
 import { isImageUrl, isVideoUrl } from './generation-utils'
 
 /**
@@ -367,4 +367,121 @@ export function findProjectLabel(projects: Array<{ id: string, title: string | n
     return ''
   const project = projects.find(p => p.id === projectId)
   return project ? formatProjectOptionLabel(project) : projectId.slice(0, 8)
+}
+
+// ── 镜头参考资产选择（P1-2 v0.2）─────────────────────────────────────────────
+
+/** 镜头参考资产数量上限（与服务端 PATCH schema maxItems: 8 对齐） */
+export const MAX_SHOT_REFERENCE_ASSETS = 8
+
+/**
+ * 判断资产是否可作为镜头参考资产候选
+ *
+ * 只允许图片类候选（image/character/location，以及 upload 中实际是图片的），
+ * 排除 video/shot/text/subtitle/project 以及无稳定 URL 的资产。
+ * 不要只用 `kind=image` 判断，否则会漏掉 Canvas 角色图、场景图和上传图片。
+ */
+export function isReferenceAssetCandidate(item: AssetLibraryItem): boolean {
+  // 必须有稳定 URL：优先 downloadUrl，其次 previewUrl
+  if (!item.downloadUrl && !item.previewUrl)
+    return false
+
+  switch (item.kind) {
+    case 'image':
+    case 'character':
+    case 'location':
+      return true
+    case 'upload':
+      // upload 按 URL 扩展名复用 previewKind 判断是否图片
+      return getAssetLibraryPreviewKind(item) === 'image'
+    case 'video':
+    case 'shot':
+    case 'text':
+    case 'subtitle':
+    case 'project':
+    default:
+      return false
+  }
+}
+
+/**
+ * 根据资产 kind 推断参考角色
+ *
+ * - character → character
+ * - location → location
+ * - 其他图片 → other
+ */
+export function inferReferenceRole(item: AssetLibraryItem): CanvasShotReferenceRole {
+  if (item.kind === 'character')
+    return 'character'
+  if (item.kind === 'location')
+    return 'location'
+  return 'other'
+}
+
+/**
+ * 将资产条目转换为镜头参考资产
+ *
+ * - assetId = item.id
+ * - url = downloadUrl ?? previewUrl
+ * - role = inferReferenceRole(item)
+ * - label = item.title
+ * - source = uploaded_file → uploaded_file，其余 → asset_library
+ *
+ * 非候选资产（isReferenceAssetCandidate=false）返回 null。
+ */
+export function assetToShotReferenceAsset(item: AssetLibraryItem): CanvasShotReferenceAsset | null {
+  if (!isReferenceAssetCandidate(item))
+    return null
+  const url = item.downloadUrl ?? item.previewUrl
+  // isReferenceAssetCandidate 已保证 url 非空，这里二次防御
+  if (!url)
+    return null
+  return {
+    assetId: item.id,
+    url,
+    role: inferReferenceRole(item),
+    label: item.title,
+    source: item.source === 'uploaded_file' ? 'uploaded_file' : 'asset_library',
+  }
+}
+
+/**
+ * 合并已有参考资产与新加入参考资产
+ *
+ * - 按 assetId 或 url 去重（任一命中即视为重复）
+ * - 保留已有资产顺序，新加入资产追加到末尾
+ * - 默认最多 8 个，超出截断
+ */
+export function mergeShotReferenceAssets(
+  current: CanvasShotReferenceAsset[],
+  incoming: CanvasShotReferenceAsset[],
+  max: number = MAX_SHOT_REFERENCE_ASSETS,
+): CanvasShotReferenceAsset[] {
+  const seenAssetIds = new Set<string>()
+  const seenUrls = new Set<string>()
+  const result: CanvasShotReferenceAsset[] = []
+
+  const push = (asset: CanvasShotReferenceAsset) => {
+    if (result.length >= max)
+      return
+    if (seenAssetIds.has(asset.assetId) || seenUrls.has(asset.url))
+      return
+    seenAssetIds.add(asset.assetId)
+    seenUrls.add(asset.url)
+    result.push(asset)
+  }
+
+  for (const asset of current)
+    push(asset)
+  for (const asset of incoming)
+    push(asset)
+
+  return result
+}
+
+/** 判断资产是否已存在于参考资产列表（按 assetId 或 url 匹配） */
+export function isReferenceAssetAdded(existing: CanvasShotReferenceAsset[], item: AssetLibraryItem): boolean {
+  const url = item.downloadUrl ?? item.previewUrl
+  return existing.some(a => a.assetId === item.id || (url != null && a.url === url))
 }

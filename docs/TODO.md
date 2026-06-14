@@ -303,21 +303,21 @@
 
 ### 2. 参考资产复用
 
-当前状态：部分完成（镜头额外参考资产 v0.1，commit：`本轮新增待提交`）。
+当前状态：部分完成（镜头额外参考资产 v0.1 + 资产库选择 v0.2，commit：`4fb64b3`、`本轮新增待提交`）。
 
 已完成：
 
 - v0.1：canvas_shots 支持保存 referenceAssetsJson（最多 8 个参考资产，每个含 assetId/url/role/可选 label/可选 source）。
 - v0.1：PATCH /api/canvas/shots/:shotId 支持更新 referenceAssetsJson，Elysia schema 校验（role 枚举、maxItems 8、label maxLength 100）。
-- v0.1：镜头详情面板增加参考资产管理 UI（URL 输入 + role 选择 + label + 删除），保存调用 updateCanvasShot。
 - v0.1：视频生成、重试、重新生成镜头变体时合并角色/场景自动引用与镜头额外参考资产，并去重后传给 provider（角色/场景在前，用户额外引用在后）。
+- v0.2：镜头详情支持从资产中心直接选择多个图片参考资产（选择器前端过滤 image/character/location/上传图片候选，自动推断 role、按 assetId/url 去重保存），手动输入 URL 降级为高级兜底入口。
+- v0.2：已选参考资产支持在镜头详情内调整基础 role（角色图/场景图/风格图/首帧图/其他）。
 
 待办：
 
-- 从资产中心直接选择多个参考资产，而不是手动输入 URL。
-- 参考资产标注更完整：角色图、场景图、风格图、首帧图、其他。
 - 根据参考资产数量自动推荐 T2V/I2V/R2V 模型，并在 UI 上解释选择原因。
 - 支持将资产应用到一个镜头、一组镜头或整个项目。
+- 服务端严格校验 referenceAssetsJson 中 assetId/url 属于当前用户。
 
 验收：
 

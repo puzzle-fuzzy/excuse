@@ -2,6 +2,7 @@ import type { AssetLibraryItem } from '@excuse/shared'
 import type { FocusProjectLike } from '../src/lib/asset-library'
 import { describe, expect, it } from 'vitest'
 import {
+  assetToShotReferenceAsset,
   buildAssetLibraryStats,
   canDeleteAsset,
   filterAssetLibraryItems,
@@ -12,6 +13,10 @@ import {
   getCanvasFocusParam,
   getCanvasProjectUrl,
   getCanvasSourceLabel,
+  inferReferenceRole,
+  isReferenceAssetAdded,
+  isReferenceAssetCandidate,
+  mergeShotReferenceAssets,
   parseFocusParam,
   resolveFocusNodeWithProject,
 } from '../src/lib/asset-library'
@@ -398,5 +403,169 @@ describe('findProjectLabel', () => {
 
   it('projectId null 返回空字符串', () => {
     expect(findProjectLabel(projects, null)).toBe('')
+  })
+})
+
+// ── 镜头参考资产选择纯函数（P1-2 v0.2）──────────────────────────────────────
+
+describe('isReferenceAssetCandidate', () => {
+  it('接受 image 资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'image' }))).toBe(true)
+  })
+
+  it('接受 character / location 资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'character' }))).toBe(true)
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'location' }))).toBe(true)
+  })
+
+  it('接受 upload 且实际是图片的资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'upload', previewUrl: 'https://x/a.png', downloadUrl: 'https://x/a.png' }))).toBe(true)
+  })
+
+  it('拒绝 upload 但实际是视频的资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'upload', previewUrl: 'https://x/a.mp4', downloadUrl: 'https://x/a.mp4' }))).toBe(false)
+  })
+
+  it('拒绝 video / shot 资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'video' }))).toBe(false)
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'shot' }))).toBe(false)
+  })
+
+  it('拒绝 text / subtitle / project 资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'text' }))).toBe(false)
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'subtitle' }))).toBe(false)
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'project' }))).toBe(false)
+  })
+
+  it('拒绝无 URL 的资产', () => {
+    expect(isReferenceAssetCandidate(makeItem({ kind: 'image', previewUrl: null, downloadUrl: null }))).toBe(false)
+  })
+})
+
+describe('inferReferenceRole', () => {
+  it('character → character', () => {
+    expect(inferReferenceRole(makeItem({ kind: 'character' }))).toBe('character')
+  })
+
+  it('location → location', () => {
+    expect(inferReferenceRole(makeItem({ kind: 'location' }))).toBe('location')
+  })
+
+  it('其他图片 → other', () => {
+    expect(inferReferenceRole(makeItem({ kind: 'image' }))).toBe('other')
+    expect(inferReferenceRole(makeItem({ kind: 'upload', previewUrl: 'https://x/a.png' }))).toBe('other')
+  })
+})
+
+describe('assetToShotReferenceAsset', () => {
+  it('生成正确的 assetId/url/role/label/source（生成记录）', () => {
+    const ref = assetToShotReferenceAsset(makeItem({
+      id: 'gen-1',
+      kind: 'image',
+      source: 'generation_record',
+      title: '我的图片',
+      downloadUrl: 'https://cdn.local/a.png',
+      previewUrl: 'https://cdn.local/preview.png',
+    }))
+    expect(ref).toEqual({
+      assetId: 'gen-1',
+      url: 'https://cdn.local/a.png', // 优先 downloadUrl
+      role: 'other',
+      label: '我的图片',
+      source: 'asset_library',
+    })
+  })
+
+  it('character 资产 role=character，无 downloadUrl 时用 previewUrl', () => {
+    const ref = assetToShotReferenceAsset(makeItem({
+      id: 'char-1',
+      kind: 'character',
+      source: 'canvas_asset',
+      downloadUrl: null,
+      previewUrl: 'https://cdn.local/char.png',
+    }))
+    expect(ref?.role).toBe('character')
+    expect(ref?.url).toBe('https://cdn.local/char.png')
+    expect(ref?.source).toBe('asset_library')
+  })
+
+  it('uploaded_file 来源 → source=uploaded_file', () => {
+    const ref = assetToShotReferenceAsset(makeItem({
+      id: 'up-1',
+      kind: 'upload',
+      source: 'uploaded_file',
+      previewUrl: 'https://cdn.local/up.png',
+      downloadUrl: 'https://cdn.local/up.png',
+    }))
+    expect(ref?.source).toBe('uploaded_file')
+  })
+
+  it('非候选资产返回 null', () => {
+    expect(assetToShotReferenceAsset(makeItem({ kind: 'video' }))).toBeNull()
+    expect(assetToShotReferenceAsset(makeItem({ kind: 'image', previewUrl: null, downloadUrl: null }))).toBeNull()
+  })
+})
+
+describe('mergeShotReferenceAssets', () => {
+  const a1 = { assetId: 'a1', url: 'https://x/1.png', role: 'character' as const }
+  const a2 = { assetId: 'a2', url: 'https://x/2.png', role: 'location' as const }
+
+  it('新资产追加到末尾，保留已有顺序', () => {
+    const merged = mergeShotReferenceAssets([a1], [a2])
+    expect(merged.map(m => m.assetId)).toEqual(['a1', 'a2'])
+  })
+
+  it('按 assetId 去重', () => {
+    const dupByAssetId = { assetId: 'a1', url: 'https://x/other.png', role: 'other' as const }
+    const merged = mergeShotReferenceAssets([a1], [dupByAssetId])
+    expect(merged).toHaveLength(1)
+  })
+
+  it('按 url 去重（即使 assetId 不同）', () => {
+    const dupByUrl = { assetId: 'a3', url: 'https://x/1.png', role: 'other' as const }
+    const merged = mergeShotReferenceAssets([a1], [dupByUrl])
+    expect(merged).toHaveLength(1)
+  })
+
+  it('incoming 内部自身去重', () => {
+    const dup = { assetId: 'a2', url: 'https://x/2.png', role: 'other' as const }
+    const merged = mergeShotReferenceAssets([], [a2, dup])
+    expect(merged).toHaveLength(1)
+  })
+
+  it('默认最多 8 个，超出截断', () => {
+    const current = Array.from({ length: 7 }, (_, i) => ({ assetId: `c${i}`, url: `https://x/c${i}.png`, role: 'other' as const }))
+    const incoming = Array.from({ length: 5 }, (_, i) => ({ assetId: `n${i}`, url: `https://x/n${i}.png`, role: 'other' as const }))
+    const merged = mergeShotReferenceAssets(current, incoming)
+    expect(merged).toHaveLength(8)
+    // 已有 7 个保留，新资产只追加 1 个
+    expect(merged[7]?.assetId).toBe('n0')
+  })
+
+  it('自定义 max 生效', () => {
+    const items = Array.from({ length: 5 }, (_, i) => ({ assetId: `m${i}`, url: `https://x/m${i}.png`, role: 'other' as const }))
+    expect(mergeShotReferenceAssets([], items, 3)).toHaveLength(3)
+  })
+
+  it('空输入返回空数组', () => {
+    expect(mergeShotReferenceAssets([], [])).toEqual([])
+  })
+})
+
+describe('isReferenceAssetAdded', () => {
+  const existing = [
+    { assetId: 'a1', url: 'https://x/1.png', role: 'character' as const },
+  ]
+
+  it('同 assetId 视为已添加', () => {
+    expect(isReferenceAssetAdded(existing, makeItem({ id: 'a1' }))).toBe(true)
+  })
+
+  it('同 url 视为已添加', () => {
+    expect(isReferenceAssetAdded(existing, makeItem({ id: 'a9', downloadUrl: 'https://x/1.png', previewUrl: 'https://x/1.png' }))).toBe(true)
+  })
+
+  it('完全不同的资产未添加', () => {
+    expect(isReferenceAssetAdded(existing, makeItem({ id: 'a2', downloadUrl: 'https://x/2.png' }))).toBe(false)
   })
 })
