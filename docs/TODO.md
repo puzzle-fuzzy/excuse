@@ -128,7 +128,6 @@
 待办：
 
 - streaming adapter。
-- 错误码对外文档（开发者页面错误对照表）仍需整理。
 - 用量查询。
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。

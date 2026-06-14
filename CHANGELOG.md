@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - OpenAI Gateway 开发者使用说明入口第一版（commit: `0bcd860`）。
 - 资产中心、通知和 Billing 已完成 React Query 试点接入（commit: `e44a8f1`）。
 - `packages/ffmpeg`、`packages/storage`、`packages/auth`、`packages/rate-limit`、`packages/metrics`、`packages/subtitle-engine` 等通用能力已完成第一批拆包（commits: `65e775b`、`8ac92b3`、`de60178`、`b575959`、`a80936f`、`a269aa6`）。
+- 开发者接入页新增「错误响应」板块：OpenAI 错误响应格式示例 + 7 个公开错误码（`model_not_found`、`invalid_model`、`invalid_parameters`、`insufficient_balance`、`generation_failed`、`stream_not_supported`、`missing_user_message`）的 HTTP 状态、含义和处理建议对照表；前端使用页面局部常量，不依赖 `@excuse/gateway`，避免把服务端协议包打入 client bundle。
 
 ### Testing
 

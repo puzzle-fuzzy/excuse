@@ -42,7 +42,7 @@ describe('developers page', () => {
 
   it('shows streaming limitation message', () => {
     renderDevelopers()
-    expect(screen.getByText(/暂不支持 streaming|不支持 streaming|streaming/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/暂不支持 streaming|不支持 streaming|streaming/i).length).toBeGreaterThan(0)
   })
 
   it('copy button calls navigator.clipboard.writeText', async () => {
@@ -64,5 +64,32 @@ describe('developers page', () => {
     renderDevelopers()
     const link = screen.getByText(/前往 API Keys 页面/).closest('a')
     expect(link).toHaveAttribute('href', '/api-keys')
+  })
+
+  it('shows error response section heading', () => {
+    renderDevelopers()
+    expect(screen.getByText('错误响应')).toBeInTheDocument()
+  })
+
+  it('shows all 7 OpenAI gateway error codes', () => {
+    renderDevelopers()
+    const codes = [
+      'model_not_found',
+      'invalid_model',
+      'invalid_parameters',
+      'insufficient_balance',
+      'generation_failed',
+      'stream_not_supported',
+      'missing_user_message',
+    ]
+    for (const code of codes) {
+      expect(screen.getByText(code)).toBeInTheDocument()
+    }
+  })
+
+  it('shows action hints for insufficient_balance and stream_not_supported', () => {
+    renderDevelopers()
+    expect(screen.getByText(/充值后重试/)).toBeInTheDocument()
+    expect(screen.getByText(/关闭 stream 参数/)).toBeInTheDocument()
   })
 })

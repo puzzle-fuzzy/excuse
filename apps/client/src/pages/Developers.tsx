@@ -15,6 +15,59 @@ const MODEL_ALIASES: Array<{ alias: string, internal: string }> = [
   { alias: 'gpt-4o-mini', internal: 'qwen-plus' },
 ]
 
+const ERROR_CODES: Array<{ code: string, status: number, meaning: string, action: string }> = [
+  {
+    code: 'model_not_found',
+    status: 404,
+    meaning: '请求的模型不存在或别名无法解析',
+    action: '检查 model 参数,优先使用「支持模型」表中的别名或内部模型名。',
+  },
+  {
+    code: 'invalid_model',
+    status: 400,
+    meaning: '模型存在但不是文本模型',
+    action: '文本生成接口仅支持文本模型,请使用 qwen-max / qwen-plus / qwen-turbo。',
+  },
+  {
+    code: 'invalid_parameters',
+    status: 400,
+    meaning: '模型参数不符合配置范围',
+    action: '按 message 提示调整 temperature / max_tokens / top_p 等参数。',
+  },
+  {
+    code: 'insufficient_balance',
+    status: 402,
+    meaning: '账户余额不足,无法预留本次生成费用',
+    action: '充值后重试,或更换为有余额的 API Key。',
+  },
+  {
+    code: 'generation_failed',
+    status: 500,
+    meaning: '上游 provider 调用失败',
+    action: '失败已自动退款,可重试一次;连续失败请检查 provider 状态或联系管理员。',
+  },
+  {
+    code: 'stream_not_supported',
+    status: 400,
+    meaning: '当前接口不支持 streaming',
+    action: '关闭 stream 参数,使用非流式响应(所有请求均返回完整结果)。',
+  },
+  {
+    code: 'missing_user_message',
+    status: 400,
+    meaning: 'messages 中没有 role=user 的消息',
+    action: '在 messages 数组中至少添加一条 user 消息。',
+  },
+]
+
+const ERROR_RESPONSE_EXAMPLE = `{
+  "error": {
+    "message": "Model 'xxx' not found",
+    "type": "invalid_request_error",
+    "code": "model_not_found"
+  }
+}`
+
 const CURL_EXAMPLE = `curl ${BASE_URL}/v1/chat/completions \\
   -H "Authorization: Bearer exc_YOUR_KEY" \\
   -H "Content-Type: application/json" \\
@@ -175,6 +228,51 @@ export default function Developers() {
           <p className="mt-3 text-xs text-muted-foreground">
             也可直接使用内部模型名（如 qwen-max）作为 model 参数。
           </p>
+        </CardContent>
+      </Card>
+
+      {/* 错误响应 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">错误响应</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-sm">所有错误响应遵循 OpenAI 错误格式：</p>
+            <pre className="mt-2 rounded-lg bg-muted p-4 text-xs overflow-auto">
+              <code>{ERROR_RESPONSE_EXAMPLE}</code>
+            </pre>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">message</code>
+              {' '}
+              是人类可读的描述（文案可变），
+              <code className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs">code</code>
+              {' '}
+              是稳定错误码，适合程序分支判断。
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left font-medium text-muted-foreground">错误码</th>
+                  <th className="py-2 text-left font-medium text-muted-foreground">HTTP</th>
+                  <th className="py-2 text-left font-medium text-muted-foreground">含义</th>
+                  <th className="py-2 text-left font-medium text-muted-foreground">处理建议</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ERROR_CODES.map(row => (
+                  <tr key={row.code} className="border-b last:border-b-0 align-top">
+                    <td className="py-2 pr-3 whitespace-nowrap"><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{row.code}</code></td>
+                    <td className="py-2 pr-3 text-muted-foreground">{row.status}</td>
+                    <td className="py-2 pr-3">{row.meaning}</td>
+                    <td className="py-2 text-muted-foreground">{row.action}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
