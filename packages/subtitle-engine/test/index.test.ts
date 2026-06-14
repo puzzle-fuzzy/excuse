@@ -19,7 +19,7 @@ describe('@excuse/subtitle-engine', () => {
     ], getDefaultStyleConfig(), 1280, 720)
 
     expect(ass).toContain('PlayResX: 1280')
-    expect(ass).toContain('Style: Default,Arial,24')
+    expect(ass).toContain('Style: Default,Arial,38')
     expect(ass).toContain('Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,你好')
   })
 

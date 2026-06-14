@@ -116,7 +116,7 @@ export default function Subtitle() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">字幕生成</h1>
+          <h1 className="text-2xl font-bold">视频加字幕</h1>
           <p className="text-sm text-muted-foreground mt-1">
             上传视频 → AI 识别对白 → 生成时间轴字幕 → 样式编辑 → 导出带字幕视频
           </p>
@@ -150,9 +150,9 @@ export default function Subtitle() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <FileVideo className="mb-4 size-12 text-muted-foreground" />
-            <p className="text-lg font-medium text-muted-foreground">还没有字幕项目</p>
+            <p className="text-lg font-medium text-muted-foreground">还没有加字幕项目</p>
             <p className="text-sm text-muted-foreground mt-1">
-              点击上方"上传视频"按钮，开始创建字幕
+              点击上方"上传视频"按钮，开始给视频自动加字幕
             </p>
           </CardContent>
         </Card>

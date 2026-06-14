@@ -190,7 +190,7 @@ export async function processExportTask(project: SubtitleProjectRow, config: Wor
     const videoBuffer = await Bun.file(outputPath).arrayBuffer()
     const exportedVideoUrl = await storage.uploadGenerated(
       Buffer.from(videoBuffer),
-      `subtitle/export_${project.id}.mp4`,
+      `subtitle/${project.id}/export_${project.exportRecordId}.mp4`,
       'video/mp4',
     )
 

@@ -1,6 +1,6 @@
 import type { SubtitleSentence, SubtitleStyleConfig } from '@excuse/shared'
 import { SUBTITLE_STYLE_PRESETS } from '@excuse/shared'
-import { ArrowLeft, Download, Loader2, RefreshCcw, Save, Scissors } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, RefreshCcw, Save, Scissors, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -22,12 +22,29 @@ const STATUS_LABELS: Record<string, string> = {
   failed: '失败',
 }
 
+const FONT_SIZE_MIN = 18
+const FONT_SIZE_MAX = 96
+const FONT_SIZE_STEP = 2
+const FONT_SIZE_PRESETS = [
+  { label: '小', value: 28 },
+  { label: '标准', value: 38 },
+  { label: '大', value: 48 },
+  { label: '超大', value: 60 },
+] as const
+const BUSY_STATUSES = ['draft', 'extracting_audio', 'asr_processing', 'exporting'] as const
+
 /** 格式化毫秒为 mm:ss 格式 */
 function formatMs(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+function clampFontSize(value: number): number {
+  if (!Number.isFinite(value))
+    return 38
+  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(value)))
 }
 
 export default function SubtitleEditor() {
@@ -46,6 +63,7 @@ export default function SubtitleEditor() {
   const [selectedSentenceIndex, setSelectedSentenceIndex] = useState<number | null>(null)
   const [editingSentences, setEditingSentences] = useState<SubtitleSentence[]>([])
   const [selectedPreset, setSelectedPreset] = useState<string>('cinema')
+  const [styleDraft, setStyleDraft] = useState<SubtitleStyleConfig | null>(null)
   const [saving, setSaving] = useState(false)
   /** 是否已从服务器加载过句子 — 防止 SSE 刷新覆盖本地编辑 */
   const [sentencesLoaded, setSentencesLoaded] = useState(false)
@@ -73,13 +91,18 @@ export default function SubtitleEditor() {
   // 同步字幕样式预设选择
   useEffect(() => {
     if (currentProject?.styleConfig) {
+      setStyleDraft(currentProject.styleConfig)
       setSelectedPreset(currentProject.styleConfig.templateId)
     }
   }, [currentProject?.styleConfig])
 
-  const canEdit = currentProject?.status === 'subtitle_editing'
-  const canExport = currentProject?.status === 'subtitle_editing' || currentProject?.status === 'completed'
+  const hasSubtitleSentences = Boolean(currentProject?.sentences?.length)
+  const isBusy = currentProject ? BUSY_STATUSES.includes(currentProject.status as typeof BUSY_STATUSES[number]) : true
+  const canEditSentences = currentProject?.status === 'subtitle_editing'
+  const canEditStyle = hasSubtitleSentences && !isBusy
+  const canExport = hasSubtitleSentences && !isBusy
   const isCompleted = currentProject?.status === 'completed'
+  const currentStyle = styleDraft ?? currentProject?.styleConfig ?? null
 
   async function handleSave() {
     setSaving(true)
@@ -97,6 +120,9 @@ export default function SubtitleEditor() {
 
   async function handleExport() {
     try {
+      if (canEditStyle && styleDraft) {
+        await updateStyle(styleDraft)
+      }
       await exportProject()
     }
     catch {
@@ -158,17 +184,21 @@ export default function SubtitleEditor() {
     setSelectedPreset(presetId)
     const preset = SUBTITLE_STYLE_PRESETS.find(p => p.id === presetId)
     if (preset) {
-      updateStyle(preset.config)
+      setStyleDraft(preset.config)
     }
   }
 
   function handleStyleOverride(key: keyof SubtitleStyleConfig, value: unknown) {
     // 基于当前 styleConfig（包含之前的修改）而非 preset 基础值
-    const current = currentProject?.styleConfig
+    const current = styleDraft ?? currentProject?.styleConfig
     if (!current)
       return
     const updated = { ...current, [key]: value }
-    updateStyle(updated as SubtitleStyleConfig)
+    setStyleDraft(updated as SubtitleStyleConfig)
+  }
+
+  function handleFontSizeChange(value: number) {
+    handleStyleOverride('fontSize', clampFontSize(value))
   }
 
   if (!currentProject) {
@@ -188,7 +218,7 @@ export default function SubtitleEditor() {
           返回列表
         </Button>
         <div className="flex items-center gap-2">
-          <span className={`text-sm ${canEdit ? 'text-green-600' : currentProject.status === 'failed' ? 'text-destructive' : 'text-blue-500'}`}>
+          <span className={`text-sm ${canEditStyle ? 'text-green-600' : currentProject.status === 'failed' ? 'text-destructive' : 'text-blue-500'}`}>
             {STATUS_LABELS[currentProject.status] || currentProject.status}
           </span>
           {currentProject.status === 'failed' && (
@@ -197,23 +227,23 @@ export default function SubtitleEditor() {
               重试
             </Button>
           )}
-          {canEdit && (
+          {canEditSentences && (
             <Button onClick={handleSave} disabled={saving} size="sm">
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               保存
             </Button>
           )}
-          {canExport && !isCompleted && (
+          {canExport && (
             <Button onClick={handleExport} disabled={exporting} size="sm">
-              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              导出视频
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <WandSparkles className="size-4" />}
+              {isCompleted ? '按当前样式重新生成' : '生成带字幕视频'}
             </Button>
           )}
           {isCompleted && currentProject.exportedVideoUrl && (
             <a href={currentProject.exportedVideoUrl} download>
-              <Button size="sm">
+              <Button size="sm" variant="outline">
                 <Download className="size-4" />
-                下载导出视频
+                下载当前成片
               </Button>
             </a>
           )}
@@ -260,7 +290,7 @@ export default function SubtitleEditor() {
                         {formatMs(sentence.endTime)}
                       </span>
                       <span className="text-sm flex-1 truncate">{sentence.text}</span>
-                      {canEdit && (
+                      {canEditSentences && (
                         <div className="flex gap-1 shrink-0">
                           <button
                             type="button"
@@ -302,7 +332,7 @@ export default function SubtitleEditor() {
         {/* Right — Sentence Editor + Style Picker */}
         <div className="space-y-4">
           {/* Sentence Editor */}
-          {selectedSentenceIndex !== null && editingSentences[selectedSentenceIndex] && canEdit && (
+          {selectedSentenceIndex !== null && editingSentences[selectedSentenceIndex] && canEditSentences && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">
@@ -376,7 +406,7 @@ export default function SubtitleEditor() {
                       selectedPreset === preset.id ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
                     }`}
                     onClick={() => handlePresetChange(preset.id)}
-                    disabled={!canEdit}
+                    disabled={!canEditStyle}
                   >
                     {preset.name}
                   </button>
@@ -384,27 +414,63 @@ export default function SubtitleEditor() {
               </div>
 
               {/* Style Override Controls */}
-              {currentProject.styleConfig && canEdit && (
+              {currentStyle && canEditStyle && (
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">字号</label>
-                    <Input
-                      type="number"
-                      value={currentProject.styleConfig.fontSize}
-                      onChange={e => handleStyleOverride('fontSize', Number(e.target.value))}
+                  <div className="col-span-2 space-y-2 rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-medium">字幕大小</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min={FONT_SIZE_MIN}
+                          max={FONT_SIZE_MAX}
+                          step={FONT_SIZE_STEP}
+                          value={currentStyle.fontSize}
+                          onChange={e => handleFontSizeChange(Number(e.target.value))}
+                          className="h-8 w-20 text-right"
+                        />
+                        <span className="text-xs text-muted-foreground">px</span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min={FONT_SIZE_MIN}
+                      max={FONT_SIZE_MAX}
+                      step={FONT_SIZE_STEP}
+                      value={currentStyle.fontSize}
+                      onChange={e => handleFontSizeChange(Number(e.target.value))}
+                      className="w-full accent-primary"
+                      aria-label="字幕大小"
                     />
+                    <div className="grid grid-cols-4 gap-1">
+                      {FONT_SIZE_PRESETS.map(preset => (
+                        <Button
+                          key={preset.label}
+                          type="button"
+                          variant={currentStyle.fontSize === preset.value ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleFontSizeChange(preset.value)}
+                        >
+                          {preset.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      导出视频会使用这里的字号；1080p 推荐 38-48，短视频可用 48 以上。
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">字体颜色</label>
                     <div className="flex items-center gap-1">
                       <input
                         type="color"
-                        value={currentProject.styleConfig.fontColor}
+                        value={currentStyle.fontColor}
                         onChange={e => handleStyleOverride('fontColor', e.target.value)}
                         className="size-8 rounded cursor-pointer"
                       />
                       <Input
-                        value={currentProject.styleConfig.fontColor}
+                        value={currentStyle.fontColor}
                         onChange={e => handleStyleOverride('fontColor', e.target.value)}
                         className="flex-1"
                       />
@@ -414,7 +480,7 @@ export default function SubtitleEditor() {
                     <label className="text-xs text-muted-foreground">描边宽度</label>
                     <Input
                       type="number"
-                      value={currentProject.styleConfig.outlineWidth}
+                      value={currentStyle.outlineWidth}
                       onChange={e => handleStyleOverride('outlineWidth', Number(e.target.value))}
                     />
                   </div>
@@ -422,7 +488,7 @@ export default function SubtitleEditor() {
                     <label className="text-xs text-muted-foreground">位置</label>
                     <select
                       className="w-full rounded-md border p-2 text-sm"
-                      value={currentProject.styleConfig.position}
+                      value={currentStyle.position}
                       onChange={e => handleStyleOverride('position', e.target.value)}
                     >
                       <option value="top">顶部</option>

@@ -9,7 +9,7 @@ import { Button } from './ui/button'
 const NAV_ITEMS = [
   { to: '/', label: '工作台', icon: LayoutDashboard },
   { to: '/canvas', label: '画布', icon: Map },
-  { to: '/subtitle', label: '字幕', icon: ClosedCaption },
+  { to: '/subtitle', label: '加字幕', icon: ClosedCaption },
   { to: '/assets', label: '资产', icon: FolderOpen },
   { to: '/billing', label: '计费', icon: Receipt },
 ] as const

@@ -256,7 +256,7 @@ describe('getDefaultStyleConfig', () => {
   it('返回 cinema 预设的 config', () => {
     const config = getDefaultStyleConfig()
     expect(config.templateId).toBe('cinema')
-    expect(config.fontSize).toBe(24)
+    expect(config.fontSize).toBe(38)
     expect(config.fontColor).toBe('#FFFFFF')
     expect(config.outlineColor).toBe('#000000')
   })

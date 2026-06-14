@@ -23,6 +23,7 @@ const dbState = {
   succeededRecords: [] as Array<{ id: string, output: Record<string, unknown> }>,
   failedRecords: [] as Array<{ id: string, msg: string }>,
   updatedExports: [] as Array<{ id: string, recordId: string, videoUrl: string }>,
+  uploadedKeys: [] as string[],
   notifications: [] as Array<Record<string, unknown>>,
 }
 
@@ -53,7 +54,10 @@ mock.module('@excuse/provider', () => ({
   burnSubtitlesToVideo: async () => ({ outputPath: '/tmp/test-export.mp4', fileSize: 1024 }),
   AssetStorage: class MockAssetStorage {
     constructor(_config: any) {}
-    async uploadGenerated() { return 'https://cdn/export.mp4' }
+    async uploadGenerated(_buffer: Buffer, key: string) {
+      dbState.uploadedKeys.push(key)
+      return `https://cdn/${key}`
+    }
   },
 }))
 
@@ -70,6 +74,7 @@ function resetState() {
   dbState.succeededRecords = []
   dbState.failedRecords = []
   dbState.updatedExports = []
+  dbState.uploadedKeys = []
   dbState.notifications = []
 }
 
@@ -121,6 +126,22 @@ function makeRecord(overrides: Partial<GenerationRecordRow> = {}): GenerationRec
     updatedAt: new Date(),
     ...overrides,
   } as GenerationRecordRow
+}
+
+function makeUploadedFile(overrides: Partial<UploadedFileRow> = {}): UploadedFileRow {
+  return {
+    id: 'file-001',
+    accountId: 'acc-test',
+    fileName: 'input.mp4',
+    fileSize: 1024,
+    mimeType: 'video/mp4',
+    storagePath: 'uploads/input.mp4',
+    publicUrl: './input.mp4',
+    purpose: 'reference',
+    metadata: null,
+    createdAt: new Date(),
+    ...overrides,
+  } as UploadedFileRow
 }
 
 function makeMockASRClient(queryResult: ASRTaskStatus, parseResult?: Array<Record<string, unknown>>): ASRClient {
@@ -373,5 +394,43 @@ describe('processExportTask', () => {
     expect(failedUpdate).toBeDefined()
     expect(dbState.failedRecords.length).toBeGreaterThanOrEqual(1)
     expect(dbState.failedRecords.some(r => r.msg.includes('原始视频文件不存在'))).toBe(true)
+  })
+
+  it('导出成功时使用 exportRecordId 生成唯一文件路径，保留历史成片', async () => {
+    resetState()
+    const project = makeProject({
+      exportRecordId: 'rec-export-001',
+      sentences: [{ id: 's1', text: '你好', beginTime: 0, endTime: 2000 }],
+      status: 'exporting',
+    })
+    dbState.files.push(makeUploadedFile({ id: 'file-001', publicUrl: './input.mp4', storagePath: 'uploads/input.mp4' }))
+    dbState.records.push(makeRecord({ id: 'rec-export-001', taskId: 'task-export-001' }))
+
+    const originalBunFile = Bun.file
+    Bun.file = (() => ({
+      arrayBuffer: async () => new ArrayBuffer(4),
+      delete: async () => {},
+    })) as typeof Bun.file
+
+    try {
+      await processExportTask(project, makeWorkerConfig())
+    }
+    finally {
+      Bun.file = originalBunFile
+    }
+
+    expect(dbState.uploadedKeys).toEqual(['subtitle/proj-test/export_rec-export-001.mp4'])
+    expect(dbState.succeededRecords[0]).toEqual({
+      id: 'rec-export-001',
+      output: {
+        type: 'video',
+        savedUrls: ['https://cdn/subtitle/proj-test/export_rec-export-001.mp4'],
+      },
+    })
+    expect(dbState.updatedExports[0]).toEqual({
+      id: 'proj-test',
+      recordId: 'rec-export-001',
+      videoUrl: 'https://cdn/subtitle/proj-test/export_rec-export-001.mp4',
+    })
   })
 })
