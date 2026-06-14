@@ -4,7 +4,13 @@ import {
   createOpenAIError,
   createOpenAIModelsResponse,
   createOpenAIStreamChunk,
+  generationFailedError,
+  insufficientBalanceError,
+  invalidModelError,
+  invalidParametersError,
   isOpenAIGatewayError,
+  missingUserMessageError,
+  modelNotFoundError,
   normalizeOpenAIChatRequest,
   OPENAI_GATEWAY_ERROR_CODES,
   OPENAI_STREAM_DONE,
@@ -252,6 +258,93 @@ describe('@excuse/gateway', () => {
 
     it('OPENAI_STREAM_DONE 形如 data: [DONE]\\n\\n', () => {
       expect(OPENAI_STREAM_DONE).toBe('data: [DONE]\n\n')
+    })
+  })
+
+  describe('error factories', () => {
+    it('modelNotFoundError → 404 MODEL_NOT_FOUND，message 含 model 名，type=invalid_request_error', () => {
+      const err = modelNotFoundError('qwen-max')
+
+      expect(err.status).toBe(404)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND)
+      expect(err.response.error.message).toBe('Model \'qwen-max\' not found')
+      expect(err.response.error.type).toBe('invalid_request_error')
+    })
+
+    it('invalidModelError → 400 INVALID_MODEL，message 含 model 名', () => {
+      const err = invalidModelError('wanx-v1')
+
+      expect(err.status).toBe(400)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL)
+      expect(err.response.error.message).toBe('Model \'wanx-v1\' is not a text model')
+      expect(err.response.error.type).toBe('invalid_request_error')
+    })
+
+    it('invalidParametersError → 400 INVALID_PARAMETERS，message 用 "field: message; ..." 拼接', () => {
+      const err = invalidParametersError([
+        { field: 'temperature', message: 'must be >= 0' },
+        { field: 'max_tokens', message: 'must be <= 4096' },
+      ])
+
+      expect(err.status).toBe(400)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+      expect(err.response.error.message).toBe('temperature: must be >= 0; max_tokens: must be <= 4096')
+      expect(err.response.error.type).toBe('invalid_request_error')
+    })
+
+    it('invalidParametersError 空数组 → message 为空字符串但仍 400', () => {
+      const err = invalidParametersError([])
+
+      expect(err.status).toBe(400)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
+      expect(err.response.error.message).toBe('')
+    })
+
+    it('missingUserMessageError → 400 MISSING_USER_MESSAGE', () => {
+      const err = missingUserMessageError()
+
+      expect(err.status).toBe(400)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE)
+      expect(err.response.error.message).toBe('No user message provided')
+      expect(err.response.error.type).toBe('invalid_request_error')
+    })
+
+    it('insufficientBalanceError → 402 INSUFFICIENT_BALANCE，type=insufficient_quota', () => {
+      const err = insufficientBalanceError()
+
+      expect(err.status).toBe(402)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE)
+      expect(err.response.error.type).toBe('insufficient_quota')
+      expect(err.response.error.message).toBe('Insufficient balance to complete the request')
+    })
+
+    it('generationFailedError → 500 GENERATION_FAILED，message 透传上游错误', () => {
+      const err = generationFailedError('upstream timeout')
+
+      expect(err.status).toBe(500)
+      expect(err.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED)
+      expect(err.response.error.message).toBe('upstream timeout')
+      expect(err.response.error.type).toBe('server_error')
+    })
+
+    it('所有工厂返回值符合 OpenAIGatewayError 结构（response.error 形状）', () => {
+      const factories = [
+        modelNotFoundError('m'),
+        invalidModelError('m'),
+        invalidParametersError([{ field: 'f', message: 'msg' }]),
+        missingUserMessageError(),
+        insufficientBalanceError(),
+        generationFailedError('msg'),
+      ]
+
+      for (const err of factories) {
+        expect(isOpenAIGatewayError(err)).toBe(true)
+        expect(typeof err.status).toBe('number')
+        expect(err.response).toHaveProperty('error')
+        expect(err.response.error).toHaveProperty('message')
+        expect(err.response.error).toHaveProperty('type')
+        expect(err.response.error).toHaveProperty('code')
+      }
     })
   })
 })

@@ -1,7 +1,6 @@
 import type { OutputResult } from '@excuse/db'
-import type { ModelConfig } from '@excuse/shared'
-import type { OpenAIChatRequest } from '@excuse/shared'
 import type { ValidatedModelParameters } from '@excuse/provider'
+import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { calculateCost } from '@excuse/billing'
 import {
@@ -17,12 +16,15 @@ import {
 import {
   aggregateGatewayUsage,
   createOpenAIChatResponse,
-  createOpenAIError,
   createOpenAIModelsResponse,
   createOpenAIStreamChunk,
+  generationFailedError,
+  insufficientBalanceError,
+  invalidModelError,
+  invalidParametersError,
   isOpenAIGatewayError,
+  modelNotFoundError,
   normalizeOpenAIChatRequest,
-  OPENAI_GATEWAY_ERROR_CODES,
   OPENAI_STREAM_DONE,
   serializeOpenAIStreamChunk,
 } from '@excuse/gateway'
@@ -110,7 +112,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
         }
         await markGenerationFailed(record.id, message)
         recordGenerationStatus('failed')
-        const err = createOpenAIError(message, 'insufficient_quota', OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE, 402)
+        const err = insufficientBalanceError()
         return new Response(JSON.stringify(err.response), {
           status: err.status,
           headers: { 'Content-Type': 'application/json' },
@@ -259,14 +261,14 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       // 模型名解析（别名 → 内部 ID）
       const modelConfig = getModelById(normalized.internalModelId)
       if (!modelConfig) {
-        const err = createOpenAIError(`Model '${request.model}' not found`, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND, 404)
+        const err = modelNotFoundError(request.model)
         set.status = err.status
         return err.response
       }
 
       // 仅支持文本模型
       if (modelConfig.category !== 'text') {
-        const err = createOpenAIError(`Model '${request.model}' is not a text model`, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL, 400)
+        const err = invalidModelError(request.model)
         set.status = err.status
         return err.response
       }
@@ -274,8 +276,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
       const validationResult = validateAndMerge(modelConfig, normalized.parameters)
       if (!validationResult.ok) {
-        const details = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-        const err = createOpenAIError(details, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS, 400)
+        const err = invalidParametersError(validationResult.errors)
         set.status = err.status
         return err.response
       }
@@ -332,7 +333,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           }
           await markGenerationFailed(record.id, message)
           recordGenerationStatus('failed')
-          const err = createOpenAIError(message, 'insufficient_quota', OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE, 402)
+          const err = insufficientBalanceError()
           set.status = err.status
           return err.response
         }
@@ -361,7 +362,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           targetId: record.id,
           detail: { model: modelConfig.id, recordId: record.id, totalPriceCents: estimatedCost.totalPriceCents, status: 'failed', error: result.error },
         })
-        const err = createOpenAIError(result.error, 'server_error', OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED, 500)
+        const err = generationFailedError(result.error)
         set.status = err.status
         return err.response
       }

@@ -36,9 +36,7 @@
 
 ## P0：Canvas 可信赖创作工作台
 
-待办：
-
-- polling 模式可考虑更短节流或基于 `@tanstack/react-query` 的统一 cache invalidation。
+待办：（已全部完成 — 资产轮询已迁移到 react-query 统一 cache invalidation，见 `apps/client/src/hooks/use-canvas-assets-polling.ts`。）
 
 验收：
 
@@ -123,7 +121,6 @@
 
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。
-- Gateway 协议解析和响应映射继续下沉 `packages/gateway`（usage 聚合已下沉；chat 请求/响应、错误码已下沉；streaming helper 已下沉）。
 
 验收：
 

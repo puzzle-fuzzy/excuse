@@ -86,6 +86,79 @@ export function createOpenAIError(
   }
 }
 
+// ── 语义化错误工厂（v2）───────────────────────────────────────────────────────
+//
+// 这些工厂把 route 层重复的 (message, type, code, status) 四元组封装成语义清晰的
+// 一行调用。底层仍调 createOpenAIError；不替换原 API，作为更高层 helper。
+//
+// 设计约束：
+//   - 每个工厂对应一个具体的 OpenAIGatewayErrorCode，避免 route 层手填 code 出错。
+//   - 参数最小化：route 已经有上下文（model / errors），工厂只接必要信息。
+//   - 返回 OpenAIGatewayError，route 直接 `set.status = err.status; return err.response`。
+
+/** 模型不存在（别名解析后内部 ID 也找不到） */
+export function modelNotFoundError(model: string): OpenAIGatewayError {
+  return createOpenAIError(
+    `Model '${model}' not found`,
+    'invalid_request_error',
+    OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND,
+    404,
+  )
+}
+
+/** 模型存在但不支持当前操作（如非文本模型用于 chat completions） */
+export function invalidModelError(model: string): OpenAIGatewayError {
+  return createOpenAIError(
+    `Model '${model}' is not a text model`,
+    'invalid_request_error',
+    OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL,
+    400,
+  )
+}
+
+/** 参数校验失败 — 接收 ValidationResult.errors，拼成单条 message */
+export function invalidParametersError(
+  errors: Array<{ field: string, message: string }>,
+): OpenAIGatewayError {
+  const details = errors.map(e => `${e.field}: ${e.message}`).join('; ')
+  return createOpenAIError(
+    details,
+    'invalid_request_error',
+    OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS,
+    400,
+  )
+}
+
+/** 请求缺少有效的 user message */
+export function missingUserMessageError(): OpenAIGatewayError {
+  return createOpenAIError(
+    'No user message provided',
+    'invalid_request_error',
+    OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE,
+    400,
+  )
+}
+
+/** 用户余额不足以执行生成 */
+export function insufficientBalanceError(): OpenAIGatewayError {
+  return createOpenAIError(
+    'Insufficient balance to complete the request',
+    'insufficient_quota',
+    OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE,
+    402,
+  )
+}
+
+/** Provider 调用失败（DashScope / 上游模型错误） */
+export function generationFailedError(message: string): OpenAIGatewayError {
+  return createOpenAIError(
+    message,
+    'server_error',
+    OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED,
+    500,
+  )
+}
+
 /**
  * 把 OpenAI Chat Completions 请求归一化为内部参数。
  *
@@ -100,12 +173,12 @@ export function createOpenAIError(
 export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
   const userMessages = request.messages.filter(m => m.role === 'user')
   if (userMessages.length === 0) {
-    return createOpenAIError('No user message provided', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE, 400)
+    return missingUserMessageError()
   }
 
   const lastUserMessage = userMessages[userMessages.length - 1]
   if (!lastUserMessage) {
-    return createOpenAIError('No user message provided', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE, 400)
+    return missingUserMessageError()
   }
 
   const parameters: Record<string, unknown> = { prompt: lastUserMessage.content }
