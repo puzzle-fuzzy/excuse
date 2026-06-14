@@ -281,10 +281,12 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
           <ShotReferenceAssets
             shot={shot}
             projectId={project.id}
+            allShots={project.shots}
             onSave={async (assets) => {
               await updateCanvasShot(shot.id, { referenceAssetsJson: assets })
               onUpdate()
             }}
+            onUpdate={onUpdate}
           />
 
           {/* 镜头资产历史 — 视频 */}

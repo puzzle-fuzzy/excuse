@@ -393,6 +393,32 @@ export async function updateCanvasShot(shotId: string, patch: {
   )
 }
 
+/** 批量应用参考资产到多个镜头 */
+export interface ApplyShotReferenceAssetsResponse {
+  success: boolean
+  applied: Array<{
+    shotId: string
+    beforeCount: number
+    afterCount: number
+    addedCount: number
+    truncatedCount: number
+  }>
+}
+
+export async function applyShotReferenceAssets(
+  projectId: string,
+  params: {
+    sourceShotId?: string
+    targetShotIds: string[]
+    referenceAssetsJson: Array<{ assetId: string, url: string, role: 'character' | 'location' | 'style' | 'firstFrame' | 'other', label?: string, source?: 'asset_library' | 'uploaded_file' | 'manual' }>
+    mode: 'append' | 'replace'
+  },
+): Promise<ApplyShotReferenceAssetsResponse> {
+  return unwrapEden<ApplyShotReferenceAssetsResponse>(
+    await api.api.canvas.projects({ projectId }).shots['reference-assets'].apply.post(params),
+  )
+}
+
 export async function deleteCanvasCharacter(characterId: string): Promise<CanvasMutationOkResponse> {
   return unwrapEden<CanvasMutationOkResponse>(
     await api.api.canvas.characters({ characterId }).delete(),

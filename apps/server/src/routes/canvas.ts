@@ -51,6 +51,7 @@ import {
   getPipelineRunById,
   linkPipelineRunToTask,
   listCanvasAssetsByTarget,
+  listCanvasShotsByProject,
   listPipelineRunsByProject,
   markPipelineRunCancelled,
   setCanvasAssetActive,
@@ -632,6 +633,66 @@ export function createCanvasRoutes(config: ServerConfig) {
           ]),
           ),
         }), { maxItems: 8 })),
+      }),
+    })
+
+    // ===== 批量应用参考资产 =====
+    .post('/projects/:projectId/shots/reference-assets/apply', async ({ params: { projectId }, body, userId, set }) => {
+      const owned = await getCanvasProjectByIdForAccount(projectId, userId)
+      if (!owned)
+        return notFound(set, '项目不存在或无权访问')
+
+      // 校验所有 targetShotIds 属于该项目
+      const projectShots = await listCanvasShotsByProject(projectId)
+      const validShotIds = new Set(projectShots.map(s => s.id))
+      const invalidIds = body.targetShotIds.filter(id => !validShotIds.has(id))
+      if (invalidIds.length > 0)
+        return validationError(set, `镜头 ${invalidIds.join(', ')} 不属于该项目`)
+
+      // 校验 referenceAssetsJson 归属与 URL 可信度
+      let validatedAssets: CanvasShotReferenceAsset[]
+      try {
+        validatedAssets = await validateShotReferenceAssetsForAccount(userId, body.referenceAssetsJson) ?? []
+      }
+      catch (err) {
+        if (err instanceof ReferenceAssetValidationError)
+          return err.status === 403 ? forbidden(set, err.message) : validationError(set, err.message)
+        throw err
+      }
+
+      const applied = await svc.applyShotReferenceAssets(
+        projectId,
+        body.targetShotIds,
+        validatedAssets,
+        body.mode,
+      )
+
+      audit('canvas_apply_reference_assets', { accountId: userId, targetId: projectId, detail: { projectId, mode: body.mode, shotCount: body.targetShotIds.length, assetCount: validatedAssets.length } })
+
+      return { success: true, applied }
+    }, {
+      body: t.Object({
+        sourceShotId: t.Optional(t.String()),
+        targetShotIds: t.Array(t.String(), { minItems: 1 }),
+        referenceAssetsJson: t.Array(t.Object({
+          assetId: t.String(),
+          url: t.String(),
+          role: t.Union([
+            t.Literal('character'),
+            t.Literal('location'),
+            t.Literal('style'),
+            t.Literal('firstFrame'),
+            t.Literal('other'),
+          ]),
+          label: t.Optional(t.String({ maxLength: 100 })),
+          source: t.Optional(t.Union([
+            t.Literal('asset_library'),
+            t.Literal('uploaded_file'),
+            t.Literal('manual'),
+          ]),
+          ),
+        }), { maxItems: 8 }),
+        mode: t.Union([t.Literal('append'), t.Literal('replace')]),
       }),
     })
 

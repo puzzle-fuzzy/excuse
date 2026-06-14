@@ -55,13 +55,22 @@ const mockGetCanvasProjectDetail = mock<() => Promise<MockCanvasProjectDetail | 
 const mockUpdateCanvasProject = mock<(values?: Partial<CanvasProjectRow>) => Promise<CanvasProjectRow>>(() => Promise.resolve(makeProjectRow()))
 const mockDeleteCanvasLocationById = mock(() => Promise.resolve(undefined))
 const mockDeleteCanvasShotById = mock(() => Promise.resolve(undefined))
-const mockGetCanvasProjectByIdForAccount = mock(() => Promise.resolve(makeProjectRow()))
+const mockGetCanvasProjectByIdForAccount = mock<() => Promise<CanvasProjectRow | null>>(() => Promise.resolve(makeProjectRow()))
 const mockGetCanvasCharacterForAccount = mock(() => Promise.resolve({ id: 'char-001' }))
 const mockGetCanvasLocationForAccount = mock(() => Promise.resolve({ id: 'loc-001' }))
 const mockGetCanvasShotForAccount = mock(() => Promise.resolve({ id: 'shot-001', projectId: 'proj-001' }))
 const mockUpdateCanvasCharacter = mock(() => Promise.resolve({ id: 'char-001', name: '新名', updatedAt: new Date() }))
 const mockUpdateCanvasLocation = mock(() => Promise.resolve({ id: 'loc-001', updatedAt: new Date() }))
 const mockUpdateCanvasShot = mock(() => Promise.resolve({ id: 'shot-001', updatedAt: new Date() }))
+const mockListCanvasShotsByProject = mock(() => Promise.resolve([
+  { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+  { id: 'shot-002', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 2 },
+  { id: 'shot-003', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 3 },
+]))
+const mockApplyShotReferenceAssets = mock(() => Promise.resolve([
+  { shotId: 'shot-002', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+  { shotId: 'shot-003', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+]))
 
 // ── 参考资产归属校验（v0.3）：account-scoped 查询 mock ──
 // 默认返回 null（未找到 / 无权限），各用例按需 override
@@ -93,7 +102,7 @@ mock.module('@excuse/db', () => ({
   createCanvasShot: async () => ({ id: 'shot-001' }),
   batchCreateCanvasShots: async () => [],
   getCanvasShotById: async () => null,
-  listCanvasShotsByProject: async () => [],
+  listCanvasShotsByProject: mockListCanvasShotsByProject,
   updateCanvasShot: mockUpdateCanvasShot,
   deleteCanvasShotsByProject: async () => {},
   deleteCanvasShotById: mockDeleteCanvasShotById,
@@ -165,6 +174,7 @@ mock.module('../src/modules/canvas/service', () => ({
   generateVideos: async () => undefined,
   retryShotVideo: async () => undefined,
   retryFailedShots: async () => undefined,
+  applyShotReferenceAssets: mockApplyShotReferenceAssets,
 }))
 
 // eslint-disable-next-line import/first
@@ -223,6 +233,8 @@ describe('canvas routes — extended', () => {
       mockGetCanvasAssetByIdForAccount,
       mockGetGenerationRecordByIdForAccount,
       mockGetUploadedFileByIdForAccount,
+      mockListCanvasShotsByProject,
+      mockApplyShotReferenceAssets,
     ]) {
       m.mockClear()
     }
@@ -658,6 +670,68 @@ describe('canvas routes — extended', () => {
         headers: { Authorization: `Bearer ${token}` },
       })
       expect(data?.accepted).toBe(true)
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  POST /projects/:projectId/shots/reference-assets/apply
+  // ═══════════════════════════════════════════════════
+
+  describe('POST /projects/:projectId/shots/reference-assets/apply', () => {
+    it('未登录时返回错误', async () => {
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('项目不属于当前用户时拒绝', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(null)
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('targetShotIds 不属于该项目时拒绝', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(makeProjectRow())
+      mockListCanvasShotsByProject.mockResolvedValue([
+        { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+      ])
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-999'], // 不存在的 shot
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('当前用户可以批量应用到同项目多个镜头', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(makeProjectRow())
+      mockListCanvasShotsByProject.mockResolvedValue([
+        { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+        { id: 'shot-002', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 2 },
+        { id: 'shot-003', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 3 },
+      ])
+      // validateShotReferenceAssetsForAccount mock — 默认 pass through
+      mockGetCanvasAssetByIdForAccount.mockResolvedValue(null)
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue(null)
+      mockGetUploadedFileByIdForAccount.mockResolvedValue(null)
+
+      const { data } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002', 'shot-003'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character', source: 'manual' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      expect(data?.success).toBe(true)
+      expect(data?.applied).toHaveLength(2)
     })
   })
 })

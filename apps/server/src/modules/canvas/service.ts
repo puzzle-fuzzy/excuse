@@ -15,6 +15,7 @@ export { generateLocations } from './locations'
 export { generateCharacterRefs, generateLocationRefs } from './references'
 export { regenerateCharacter, regenerateLocation, regenerateShotVideo } from './regenerate'
 export {
+  applyShotReferenceAssets,
   createProject,
   deleteCharacter,
   deleteLocation,

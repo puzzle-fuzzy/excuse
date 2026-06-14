@@ -3,10 +3,11 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event'
 import { useCallback, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchAssetLibrary } from '../src/api/client'
+import { applyShotReferenceAssets, fetchAssetLibrary } from '../src/api/client'
 import { ShotReferenceAssets } from '../src/components/canvas/ShotReferenceAssets'
 
 vi.mock('../src/api/client', () => ({
+  applyShotReferenceAssets: vi.fn(),
   fetchAssetLibrary: vi.fn(),
 }))
 
@@ -14,6 +15,19 @@ vi.mock('../src/api/client', () => ({
 
 function makeShot(referenceAssets: CanvasShotReferenceAsset[] = []): ProjectDTO['shots'][number] {
   return { referenceAssets } as ProjectDTO['shots'][number]
+}
+
+/** 构造可批量应用的镜头（带 id + shotIndex） */
+function makeBatchableShot(
+  id: string,
+  shotIndex: number,
+  referenceAssets: CanvasShotReferenceAsset[] = [],
+): ProjectDTO['shots'][number] {
+  return {
+    id,
+    shotIndex,
+    referenceAssets,
+  } as ProjectDTO['shots'][number]
 }
 
 function makeAssetItem(overrides: Partial<AssetLibraryItem>): AssetLibraryItem {
@@ -171,5 +185,73 @@ describe('视频变体推荐提示', () => {
     render(<ShotReferenceAssets shot={makeShot(assets)} projectId="p1" onSave={vi.fn()} />)
     expect(screen.getByText(/当前推荐.*I2V/)).toBeInTheDocument()
     expect(screen.getByText(/图生视频/)).toBeInTheDocument()
+  })
+})
+
+describe('批量应用参考资产（P1-2 v0.5）', () => {
+  it('当前镜头有参考资产且存在其他镜头时显示「应用到...」', () => {
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const otherShot = makeBatchableShot('shot-2', 2, [])
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: '应用到...' })).toBeEnabled()
+  })
+
+  it('选择目标镜头并提交后调用 applyShotReferenceAssets 并触发 onUpdate', async () => {
+    vi.mocked(applyShotReferenceAssets).mockResolvedValue({
+      success: true,
+      applied: [
+        { shotId: 'shot-2', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+      ],
+    })
+
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const otherShot = makeBatchableShot('shot-2', 2, [])
+
+    const onUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={onUpdate}
+      />,
+    )
+
+    // 打开批量应用弹窗
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+
+    // 选择目标镜头 shot-2
+    const checkbox = screen.getByRole('checkbox')
+    await user.click(checkbox)
+
+    // 提交
+    const submitButton = screen.getByRole('button', { name: /应用到 1 个镜头/ })
+    await user.click(submitButton)
+
+    await waitFor(() => {
+      expect(applyShotReferenceAssets).toHaveBeenCalledTimes(1)
+    })
+    expect(applyShotReferenceAssets).toHaveBeenCalledWith('p1', expect.objectContaining({
+      sourceShotId: 'shot-1',
+      targetShotIds: ['shot-2'],
+      mode: 'append',
+    }))
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledTimes(1)
+    })
   })
 })

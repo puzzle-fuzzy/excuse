@@ -1,8 +1,8 @@
-import type { AssetLibraryItem, CanvasShotReferenceAsset, ProjectDTO } from '@excuse/shared'
+import type { ApplyReferenceAssetsMode, AssetLibraryItem, CanvasShotReferenceAsset, ProjectDTO, ReferenceAssetApplyTarget } from '@excuse/shared'
 import { recommendCanvasVideoVariant } from '@excuse/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { fetchAssetLibrary } from '../../api/client'
+import { applyShotReferenceAssets, fetchAssetLibrary } from '../../api/client'
 import {
   assetToShotReferenceAsset,
   isReferenceAssetAdded,
@@ -10,6 +10,7 @@ import {
   KIND_LABELS,
   MAX_SHOT_REFERENCE_ASSETS,
   mergeShotReferenceAssets,
+  previewApplyReferenceAssets,
   SOURCE_LABELS,
 } from '../../lib/asset-library'
 import { Badge } from '../ui/badge'
@@ -31,17 +32,27 @@ const ROLE_OPTIONS: CanvasShotReferenceAsset['role'][] = ['character', 'location
 interface ShotReferenceAssetsProps {
   shot: ProjectDTO['shots'][number]
   projectId: string
+  /** 项目内全部镜头 — 用于批量应用。可选，缺省时隐藏批量入口 */
+  allShots?: ProjectDTO['shots']
   onSave: (assets: CanvasShotReferenceAsset[]) => Promise<void>
+  /** 批量应用成功后回调刷新。可选 */
+  onUpdate?: () => void
 }
 
 /**
- * 镜头额外参考资产管理（P1-2 v0.2）
+ * 镜头额外参考资产管理（P1-2 v0.5）
  *
  * 主路径：从资产库选择图片资产（自动过滤可用候选、推断 role、去重保存）。
+ * 批量路径：应用到其他镜头（append/replace，预览 + toast）。
  * 兜底路径：手动输入 URL（高级入口）。
- * 已选参考资产支持调整 role，沿用 v0.1 的视频生成链路。
  */
-export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAssetsProps) {
+export function ShotReferenceAssets({
+  shot,
+  projectId,
+  allShots = [],
+  onSave,
+  onUpdate,
+}: ShotReferenceAssetsProps) {
   // ── 手动 URL 添加表单状态 ──────────────────────────
   const [addUrl, setAddUrl] = useState('')
   const [addRole, setAddRole] = useState<CanvasShotReferenceAsset['role']>('other')
@@ -56,6 +67,11 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
 
   const [saving, setSaving] = useState(false)
 
+  // ── 批量应用弹窗状态 ──────────────────────────
+  const [applyOpen, setApplyOpen] = useState(false)
+  const [applyMode, setApplyMode] = useState<ApplyReferenceAssetsMode>('append')
+  const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(() => new Set())
+
   const atLimit = shot.referenceAssets.length >= MAX_SHOT_REFERENCE_ASSETS
 
   const recommendation = useMemo(() =>
@@ -66,6 +82,28 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
     i2v: 'I2V 图生视频',
     r2v: 'R2V 参考生视频',
   }
+
+  // 批量应用：其他镜头（排除当前镜头）
+  const otherShots = useMemo(() =>
+    allShots.filter(s => s.id !== shot.id), [allShots, shot.id])
+
+  // 批量应用预览
+  const applyPreview = useMemo(() => {
+    if (selectedShotIds.size === 0)
+      return []
+    const targets: ReferenceAssetApplyTarget[] = otherShots
+      .filter(s => selectedShotIds.has(s.id))
+      .map(s => ({ shotId: s.id, title: `镜头 ${s.shotIndex}`, referenceAssets: s.referenceAssets }))
+    return previewApplyReferenceAssets(targets, shot.referenceAssets, applyMode)
+  }, [selectedShotIds, otherShots, shot.referenceAssets, applyMode])
+
+  // role 分布统计
+  const roleDistribution = useMemo(() => {
+    const dist: Record<string, number> = {}
+    for (const a of shot.referenceAssets)
+      dist[a.role] = (dist[a.role] ?? 0) + 1
+    return dist
+  }, [shot.referenceAssets])
 
   const handleAddManual = useCallback(async () => {
     const url = addUrl.trim()
@@ -148,6 +186,36 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
     }
   }, [atLimit, shot.referenceAssets, onSave])
 
+  // ── 批量应用提交 ──────────────────────────
+  const handleApplySubmit = useCallback(async () => {
+    if (selectedShotIds.size === 0)
+      return
+    setSaving(true)
+    try {
+      const result = await applyShotReferenceAssets(projectId, {
+        sourceShotId: shot.id,
+        targetShotIds: [...selectedShotIds],
+        referenceAssetsJson: shot.referenceAssets,
+        mode: applyMode,
+      })
+      const totalApplied = result.applied.length
+      const truncatedShots = result.applied.filter(r => r.truncatedCount > 0)
+      if (truncatedShots.length > 0)
+        toast.success(`已应用到 ${totalApplied} 个镜头，部分镜头因上限被截断`)
+      else
+        toast.success(`已应用到 ${totalApplied} 个镜头`)
+      setApplyOpen(false)
+      setSelectedShotIds(new Set())
+      onUpdate?.()
+    }
+    catch {
+      toast.error('批量应用参考资产失败')
+    }
+    finally {
+      setSaving(false)
+    }
+  }, [selectedShotIds, projectId, shot.id, shot.referenceAssets, applyMode, onUpdate])
+
   // 弹窗打开时 / 搜索 / 仅当前项目变化时拉取资产（300ms debounce）
   useEffect(() => {
     if (!pickerOpen)
@@ -183,12 +251,49 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
   // 前端过滤：只展示可作为参考资产的候选（注意不能只用 kind=image）
   const candidates = items.filter(isReferenceAssetCandidate)
 
+  // 切换镜头多选
+  const toggleShotSelection = useCallback((shotId: string) => {
+    setSelectedShotIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(shotId))
+        next.delete(shotId)
+      else
+        next.add(shotId)
+      return next
+    })
+  }, [])
+
+  // 全选/取消全选其他镜头
+  const toggleSelectAll = useCallback(() => {
+    if (selectedShotIds.size === otherShots.length)
+      setSelectedShotIds(new Set())
+    else
+      setSelectedShotIds(new Set(otherShots.map(s => s.id)))
+  }, [selectedShotIds.size, otherShots])
+
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium text-muted-foreground">
-        参考资产
-        {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
-      </label>
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-muted-foreground">
+          参考资产
+          {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
+        </label>
+        {shot.referenceAssets.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 px-2 text-[10px]"
+            disabled={saving || otherShots.length === 0}
+            onClick={() => {
+              setSelectedShotIds(new Set())
+              setApplyMode('append')
+              setApplyOpen(true)
+            }}
+          >
+            应用到...
+          </Button>
+        )}
+      </div>
 
       {/* 已有参考资产列表（每行支持 role 调整） */}
       {shot.referenceAssets.length > 0 && (
@@ -363,6 +468,128 @@ export function ShotReferenceAssets({ shot, projectId, onSave }: ShotReferenceAs
               )
             })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量应用弹窗 */}
+      <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>应用参考资产</DialogTitle>
+          </DialogHeader>
+
+          {/* 资产摘要 */}
+          <div className="text-xs bg-muted/40 rounded p-2 space-y-1">
+            <p>
+              当前镜头有
+              {' '}
+              <strong>{shot.referenceAssets.length}</strong>
+              {' '}
+              个参考资产：
+            </p>
+            <p className="text-muted-foreground">
+              {Object.entries(roleDistribution).map(([role, count]) => `${ROLE_LABELS[role as CanvasShotReferenceAsset['role']] ?? role} ${count}`).join('、')}
+            </p>
+          </div>
+
+          {/* 应用策略 */}
+          <div className="flex gap-2">
+            <Button
+              variant={applyMode === 'append' ? 'default' : 'outline'}
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => setApplyMode('append')}
+            >
+              追加到已有
+            </Button>
+            <Button
+              variant={applyMode === 'replace' ? 'default' : 'outline'}
+              size="sm"
+              className="flex-1 text-xs"
+              onClick={() => setApplyMode('replace')}
+            >
+              替换目标
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {applyMode === 'append' ? '追加：保留目标镜头已有参考资产，新增不重复的资产' : '替换：清除目标镜头已有参考资产，替换为当前镜头的参考资产'}
+          </p>
+
+          {/* 选择镜头 */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground">选择镜头</label>
+              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]" onClick={toggleSelectAll}>
+                {selectedShotIds.size === otherShots.length ? '取消全选' : '全选'}
+              </Button>
+            </div>
+            <div className="max-h-[30vh] overflow-y-auto space-y-1">
+              {otherShots.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-3">项目中没有其他镜头</p>
+              )}
+              {otherShots.map(s => (
+                <label key={s.id} className="flex items-center gap-2 text-xs p-1.5 rounded cursor-pointer hover:bg-muted/30">
+                  <input
+                    type="checkbox"
+                    checked={selectedShotIds.has(s.id)}
+                    onChange={() => toggleShotSelection(s.id)}
+                  />
+                  <span className="font-medium">
+                    镜头
+                    {s.shotIndex}
+                  </span>
+                  <span className="text-muted-foreground">
+                    (
+                    {s.referenceAssets.length}
+                    {' '}
+                    个参考资产)
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* 预览 */}
+          {applyPreview.length > 0 && (
+            <div className="text-xs bg-muted/40 rounded p-2 space-y-1">
+              <p>
+                将影响
+                {' '}
+                <strong>{applyPreview.length}</strong>
+                {' '}
+                个镜头
+              </p>
+              {applyPreview.some(p => p.truncatedCount > 0) && (
+                <p className="text-yellow-600">
+                  部分镜头因 8 个参考资产上限被截断
+                </p>
+              )}
+              <div className="mt-1 space-y-0.5">
+                {applyPreview.map(p => (
+                  <p key={p.shotId} className="text-muted-foreground">
+                    {p.shotId === shot.id ? '当前' : otherShots.find(s => s.id === p.shotId)?.shotIndex}
+                    ：
+                    {p.beforeCount}
+                    {' '}
+                    →
+                    {' '}
+                    {p.afterCount}
+                    {p.truncatedCount > 0 && `（截断 ${p.truncatedCount}）`}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 提交按钮 */}
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={selectedShotIds.size === 0 || saving}
+            onClick={handleApplySubmit}
+          >
+            {saving ? '应用中...' : `应用到 ${selectedShotIds.size} 个镜头`}
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

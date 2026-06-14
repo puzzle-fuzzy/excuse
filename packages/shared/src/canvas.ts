@@ -31,6 +31,28 @@ export type CanvasShotReferenceRole = CanvasShotReferenceRoleFromDB
 export type CanvasShotReferenceAsset = CanvasShotReferenceAssetFromDB
 export type CanvasLayoutDto = CanvasLayoutDtoFromDB
 
+// ===== 批量应用参考资产类型（client/server 共用） =====
+
+/** 批量应用策略 */
+export type ApplyReferenceAssetsMode = 'append' | 'replace'
+
+/** 批量应用的目标镜头信息 */
+export interface ReferenceAssetApplyTarget {
+  shotId: string
+  title?: string | null
+  referenceAssets: CanvasShotReferenceAsset[]
+}
+
+/** 批量应用预览 — 单个镜头的预览结果 */
+export interface ReferenceAssetApplyPreview {
+  shotId: string
+  beforeCount: number
+  afterCount: number
+  addedCount: number
+  truncatedCount: number
+  assets: CanvasShotReferenceAsset[]
+}
+
 // ===== 视频模型变体推荐（纯规则，client/server 共用） =====
 
 /** 视频生成变体：文生视频 / 图生视频 / 参考生视频 */
