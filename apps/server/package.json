@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "module": "src/index.ts",
   "scripts": {
-    "test": "bun test",
+    "test": "bun test --isolate",
     "dev": "bun --env-file ../../.env src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit && echo '✅ server typecheck passed'"

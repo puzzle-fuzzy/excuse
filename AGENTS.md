@@ -25,6 +25,7 @@ bun run typecheck
 
 # Testing
 bun run test            # bun test across server, worker, and all packages
+                          # (server suite runs in --isolate to avoid mock.module pollution)
 bun run test:client     # vitest (client)
 bun run test:all        # both
 bun run test:db         # packages/db test-db script (needs PG)
@@ -34,10 +35,14 @@ bun run test:coverage   # both with --coverage
 # Run a single package's tests
 bun test --cwd packages/workflow-engine
 bun test --cwd apps/worker
+# Server suite is mock.module-heavy, so it defaults to --isolate:
+bun run --cwd apps/server test
 
 # Run a single bun test file
 bun test apps/server/test/auth-routes.test.ts
 bun test packages/billing/test/calculate.test.ts
+# Mixing multiple server files that call mock.module needs --isolate:
+#   bun test --isolate apps/server/test/a.test.ts apps/server/test/b.test.ts
 
 # Run a single vitest test (from apps/client)
 cd apps/client && bun vitest src/__tests__/some.test.tsx
