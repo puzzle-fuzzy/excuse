@@ -16,6 +16,7 @@ vi.mock('../src/api/client', () => ({
 vi.mock('../src/api/asset-library', () => ({
   queryAssetLibrary: vi.fn(),
   hideAsset: vi.fn(),
+  toggleAssetFavorite: vi.fn(),
 }))
 
 vi.mock('sonner', () => ({
@@ -27,7 +28,7 @@ vi.mock('sonner', () => ({
 }))
 
 const { updateUploadedFile, listCanvasProjects } = await import('../src/api/client')
-const { queryAssetLibrary } = await import('../src/api/asset-library')
+const { queryAssetLibrary, toggleAssetFavorite } = await import('../src/api/asset-library')
 const { toast } = await import('sonner')
 
 // ── Fixtures ─────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ function makeItem(overrides: Partial<AssetLibraryItem>): AssetLibraryItem {
     prompt: null,
     costCents: null,
     createdAt: '2024-06-01T00:00:00.000Z',
+    isFavorite: false,
     ...overrides,
   }
 }
@@ -235,6 +237,79 @@ describe('assets 排序下拉', () => {
       expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
         filters: expect.objectContaining({ sort: 'title_desc' }),
       }))
+    })
+  })
+})
+
+describe('assets 收藏功能', () => {
+  it('「仅看收藏」复选框默认未勾', async () => {
+    renderAssets([])
+
+    const favoriteCheckbox = await screen.findByLabelText('仅看收藏')
+    expect(favoriteCheckbox).not.toBeChecked()
+  })
+
+  it('勾选「仅看收藏」后 filters.favorite=true 并刷新查询', async () => {
+    const user = userEvent.setup()
+    renderAssets([])
+
+    const favoriteCheckbox = await screen.findByLabelText('仅看收藏')
+    await user.click(favoriteCheckbox)
+
+    await waitFor(() => {
+      expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
+        filters: expect.objectContaining({ favorite: true }),
+      }))
+    })
+  })
+
+  it('卡片星标按钮在 isFavorite=true 时有黄色填充', async () => {
+    renderAssets([makeItem({ id: 'fav-1', title: '已收藏.png', isFavorite: true })])
+
+    const card = await screen.findByText('已收藏.png')
+    const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="取消收藏"]')!
+    expect(favBtn).toBeTruthy()
+    const svg = favBtn.querySelector('svg')!
+    // fill-yellow-400 → fill class present
+    expect(svg.className.baseVal ?? svg.className).toMatch(/fill-yellow-400/)
+  })
+
+  it('卡片星标按钮在 isFavorite=false 时无黄色填充', async () => {
+    renderAssets([makeItem({ id: 'nofav-1', title: '未收藏.png', isFavorite: false })])
+
+    const card = await screen.findByText('未收藏.png')
+    const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="收藏"]')!
+    expect(favBtn).toBeTruthy()
+    const svg = favBtn.querySelector('svg')!
+    // 没有 fill-yellow-400
+    expect(svg.className.baseVal ?? svg.className).not.toMatch(/fill-yellow-400/)
+  })
+
+  it('点击星标按钮（未收藏 → 收藏）调用 toggleAssetFavorite(source, id, true)', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleAssetFavorite).mockResolvedValue(true)
+    renderAssets([makeItem({ id: 'to-fav', title: '将收藏.png', isFavorite: false, source: 'generation_record' })])
+
+    const card = await screen.findByText('将收藏.png')
+    const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="收藏"]') as HTMLButtonElement
+    await user.click(favBtn)
+
+    await waitFor(() => {
+      expect(toggleAssetFavorite).toHaveBeenCalledWith('generation_record', 'to-fav', true)
+    })
+  })
+
+  it('点击星标按钮（已收藏 → 取消）调用 toggleAssetFavorite(source, id, false)', async () => {
+    const user = userEvent.setup()
+    vi.mocked(toggleAssetFavorite).mockResolvedValue(false)
+    renderAssets([makeItem({ id: 'to-unfav', title: '将取消.png', isFavorite: true, source: 'canvas_asset' })])
+
+    const card = await screen.findByText('将取消.png')
+    const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="取消收藏"]') as HTMLButtonElement
+    await user.click(favBtn)
+
+    await waitFor(() => {
+      expect(toggleAssetFavorite).toHaveBeenCalledWith('canvas_asset', 'to-unfav', false)
     })
   })
 })

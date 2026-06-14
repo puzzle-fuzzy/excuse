@@ -17,13 +17,16 @@ import type {
 } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
+  addAssetFavorite,
   getCanvasAssetByIdForAccount,
   getGenerationRecordByIdForAccount,
   hideCanvasAsset,
   hideGenerationRecord,
+  listAssetFavoriteKeys,
   listCanvasAssetsForLibrary,
   listGenerationRecords,
   listUploadedFilesForAccount,
+  removeAssetFavorite,
 } from '@excuse/db'
 import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
@@ -153,6 +156,8 @@ function mapGenerationRecord(record: GenerationRecordRow): AssetLibraryItem {
     prompt: readString(inputParams.prompt),
     costCents: record.totalPriceCents ?? null,
     createdAt: record.createdAt.toISOString(),
+    // route 在 favorite 注入阶段会用 favoriteSet 覆盖；这里给默认值满足类型。
+    isFavorite: false,
   }
 }
 
@@ -174,6 +179,7 @@ function mapCanvasAsset(asset: CanvasAssetRow): AssetLibraryItem {
     prompt: readString(inputJson.prompt),
     costCents: asset.totalPriceCents ?? null,
     createdAt: asset.createdAt.toISOString(),
+    isFavorite: false,
   }
 }
 
@@ -193,6 +199,7 @@ function mapUploadedFile(file: UploadedFileRow): AssetLibraryItem {
     prompt: null,
     costCents: null,
     createdAt: file.createdAt.toISOString(),
+    isFavorite: false,
   }
 }
 
@@ -304,14 +311,15 @@ export function createAssetsRoutes(config: ServerConfig) {
       const createdFrom = parseDateParam(query.createdFrom)
       const createdTo = parseDateParam(query.createdTo)
       const sort = resolveSort(typeof query.sort === 'string' ? query.sort : undefined)
+      const favorite = query.favorite === true
       // clamp：limit ∈ [1, 200]，offset ≥ 0
       const limit = clampInt(query.limit, 1, MAX_LIMIT, 100)
       const offset = clampInt(query.offset, 0, Number.MAX_SAFE_INTEGER, 0)
 
       const plan = resolveSourcePlan(source, kind, status, Boolean(model))
 
-      // 并行查询各来源（按 accountId 隔离，model/时间下推到 SQL）
-      const [genRows, canvasRows, uploadRows] = await Promise.all([
+      // 并行查询各来源 + 当前用户收藏 key 集合（按 accountId 隔离，model/时间下推到 SQL）
+      const [genRows, canvasRows, uploadRows, favoriteKeys] = await Promise.all([
         plan.gen
           ? listGenerationRecords({
               accountId: userId,
@@ -345,7 +353,11 @@ export function createAssetsRoutes(config: ServerConfig) {
         plan.upload
           ? listUploadedFilesForAccount(userId, { search, createdFrom, createdTo, limit, offset })
           : Promise.resolve([]),
+        // 一次性查回当前用户全部收藏 key，避免对每条资产发一次 SQL
+        listAssetFavoriteKeys(userId),
       ])
+
+      const favoriteSet = new Set(favoriteKeys.map(k => `${k.source}:${k.assetId}`))
 
       // 映射 + 合并
       const items: AssetLibraryItem[] = [
@@ -357,10 +369,20 @@ export function createAssetsRoutes(config: ServerConfig) {
       // 按 sort 参数统一排序（各来源已各自 createdAt desc，但合并后需按用户选择重排）
       sortAssetLibraryItems(items, sort)
 
+      // 注入 isFavorite + favorite 过滤（在排序之后、hasMore 计算之前）
+      const filtered = items.filter((item) => {
+        item.isFavorite = favoriteSet.has(`${item.source}:${item.id}`)
+        if (favorite && !item.isFavorite)
+          return false
+        return true
+      })
+
       // 轻量分页（Plan A）：返回条数 >= limit 时认为“可能有更多”，不做 SQL count。
+      // 注意：favorite=true 时，实际 items 可能少于 limit，但 hasMore 仍按原 limit 触发，
+      // 这是 v1 已知限制（避免为了 favorite 做 SQL JOIN）。
       const hasMore = items.length >= limit
 
-      return { success: true, items, total: items.length, hasMore } satisfies AssetLibraryListResponse
+      return { success: true, items: filtered, total: filtered.length, hasMore } satisfies AssetLibraryListResponse
     }, {
       query: t.Object({
         source: t.Optional(t.String()),
@@ -372,12 +394,13 @@ export function createAssetsRoutes(config: ServerConfig) {
         createdFrom: t.Optional(t.String()),
         createdTo: t.Optional(t.String()),
         sort: t.Optional(t.String({ description: '排序：created_desc（默认） / created_asc / title_asc / title_desc' })),
+        favorite: t.Optional(t.Boolean({ description: '仅返回当前用户已收藏的资产（默认 false）' })),
         limit: t.Optional(t.Numeric()),
         offset: t.Optional(t.Numeric()),
       }),
       detail: {
         summary: '获取统一资产列表',
-        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，sort 排序（created_desc / created_asc / title_asc / title_desc，默认 created_desc，非法值静默回落），limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
+        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，sort 排序（created_desc / created_asc / title_asc / title_desc，默认 created_desc，非法值静默回落），favorite=true 时仅返回当前用户已收藏的资产并在每条 item 上注入 isFavorite 字段，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true；favorite 过滤后可能少于 limit，但 hasMore 仍按原 limit 触发，v1 已知限制）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },
@@ -415,6 +438,53 @@ export function createAssetsRoutes(config: ServerConfig) {
       detail: {
         summary: '隐藏资产',
         description: '将 generation_record 或 canvas_asset 从资产中心隐藏（设置 hiddenAt），不删除 DB 记录或存储文件。canvas_asset 状态为 queued/running 时拒绝隐藏（返回 409）。uploaded_file 请使用独立的删除接口。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 收藏 toggle（用户级收藏标记，幂等） ─────────────────────────────────
+    //
+    // 不走 audit：audit_action 枚举当前不含 asset_favorite_add/remove，
+    // 扩枚举会触碰既有 schema 文件，与本轮边界冲突；favorite toggle 是用户对
+    // 个人资产的轻量标记，参照 notify/SSE 等高频内部操作也不进 audit 的做法。
+    // 如产品后续要求审计，下一轮单独扩 audit 枚举。
+    .post('/assets/:source/:id/favorite', async ({ params: { source, id }, userId }) => {
+      // source 校验已由 params schema 完成（t.Union Literal）。
+      await addAssetFavorite({ accountId: userId, source, assetId: id })
+      return { success: true as const, data: { isFavorite: true as const } }
+    }, {
+      params: t.Object({
+        source: t.Union([
+          t.Literal('generation_record'),
+          t.Literal('canvas_asset'),
+          t.Literal('uploaded_file'),
+        ]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '收藏资产',
+        description: '将 generation_record / canvas_asset / uploaded_file 三种来源的资产加入当前用户收藏（幂等，已收藏则保持）。返回 { success: true, data: { isFavorite: true } } 作为权威状态。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    .delete('/assets/:source/:id/favorite', async ({ params: { source, id }, userId }) => {
+      await removeAssetFavorite({ accountId: userId, source, assetId: id })
+      return { success: true as const, data: { isFavorite: false as const } }
+    }, {
+      params: t.Object({
+        source: t.Union([
+          t.Literal('generation_record'),
+          t.Literal('canvas_asset'),
+          t.Literal('uploaded_file'),
+        ]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '取消收藏资产',
+        description: '将资产从当前用户收藏中移除（幂等，未收藏则保持）。返回 { success: true, data: { isFavorite: false } } 作为权威状态。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

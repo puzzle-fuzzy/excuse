@@ -18,6 +18,7 @@ export function filtersToQueryParams(
     createdFrom: filters.createdFrom || undefined,
     createdTo: filters.createdTo || undefined,
     sort: filters.sort,
+    favorite: filters.favorite ? true : undefined,
     projectId: projectId ?? undefined,
     limit,
     offset,
@@ -54,4 +55,23 @@ export async function hideAsset(
     const body = await res.json().catch(() => ({ error: '隐藏资产失败' }))
     throw new Error(body.error ?? `隐藏失败 (${res.status})`)
   }
+}
+
+/** Toggle favorite — POST 收藏 / DELETE 取消收藏，返回权威 isFavorite 状态 */
+export async function toggleAssetFavorite(
+  source: AssetLibrarySource,
+  id: string,
+  favorite: boolean,
+): Promise<boolean> {
+  const baseUrl = ''
+  const res = await fetch(`${baseUrl}/api/assets/${source}/${id}/favorite`, {
+    method: favorite ? 'POST' : 'DELETE',
+    credentials: 'include',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: '收藏操作失败' }))
+    throw new Error(body.error ?? `收藏失败 (${res.status})`)
+  }
+  const json = (await res.json()) as { data?: { isFavorite?: boolean } }
+  return json.data?.isFavorite ?? favorite
 }

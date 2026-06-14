@@ -1,5 +1,6 @@
 export * from './accounts'
 export * from './api-keys'
+export * from './asset-favorites'
 export * from './audit-logs'
 export * from './canvas-assets'
 export * from './canvas-characters'

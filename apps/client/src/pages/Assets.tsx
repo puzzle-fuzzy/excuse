@@ -1,6 +1,6 @@
 import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AudioLines,
   Box,
@@ -16,6 +16,7 @@ import {
   Pencil,
   RotateCcw,
   Search,
+  Star,
   Trash2,
   Upload,
   User,
@@ -26,7 +27,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { hideAsset, queryAssetLibrary } from '@/api/asset-library'
+import { hideAsset, queryAssetLibrary, toggleAssetFavorite } from '@/api/asset-library'
 import { deleteUploadedFile, listCanvasProjects, updateUploadedFile } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -98,7 +99,7 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
 
 function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
   const url = new URL(window.location.href)
-  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'sort', 'project'])
+  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'sort', 'favorite', 'project'])
     url.searchParams.delete(key)
   if (filters.source !== 'all')
     url.searchParams.set('source', filters.source)
@@ -116,6 +117,8 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
     url.searchParams.set('createdTo', filters.createdTo)
   if (filters.sort !== 'created_desc')
     url.searchParams.set('sort', filters.sort)
+  if (filters.favorite)
+    url.searchParams.set('favorite', 'true')
   if (projectId)
     url.searchParams.set('project', projectId)
   window.history.replaceState({}, '', url.toString())
@@ -138,6 +141,7 @@ export default function Assets() {
   const [projectId, setProjectId] = useState<string | null>(readProjectIdFromUrl)
   const [previewItem, setPreviewItem] = useState<AssetLibraryItem | null>(null)
   const [projects, setProjects] = useState<ProjectDTO[]>([])
+  const queryClient = useQueryClient()
 
   // Debounce search term to avoid firing API on every keystroke
   const [debouncedSearch] = useDebounce(filters.search, 300)
@@ -204,7 +208,7 @@ export default function Assets() {
   const stats = useMemo(() => buildAssetLibraryStats(allItems), [allItems])
 
   const hasActiveFilters = filters.source !== 'all' || filters.kind !== 'all' || filters.status !== 'all'
-    || filters.search || filters.model || filters.createdFrom || filters.createdTo || projectId
+    || filters.search || filters.model || filters.createdFrom || filters.createdTo || filters.favorite || projectId
 
   function clearFilters() {
     setFilters(DEFAULT_FILTERS)
@@ -213,6 +217,34 @@ export default function Assets() {
 
   function updateFilter<K extends keyof AssetLibraryFilters>(key: K, value: AssetLibraryFilters[K]) {
     setFilters(f => ({ ...f, [key]: value }))
+  }
+
+  // 切换收藏状态：POST/DELETE 后失效当前 query，让 useQuery 重新拉取以拿到权威 isFavorite
+  async function toggleFavorite(source: AssetLibrarySource, id: string, currentFavorite: boolean) {
+    const next = !currentFavorite
+    // 乐观更新：直接 mutate 当前 query cache 的对应 item.isFavorite
+    const optimisticKey = createAssetLibraryQueryKey(debouncedFilters, projectId, 200)
+    queryClient.setQueriesData<{ items: AssetLibraryItem[] }>({ queryKey: optimisticKey }, (old) => {
+      if (!old)
+        return old
+      return {
+        ...old,
+        items: old.items.map(i =>
+          i.source === source && i.id === id ? { ...i, isFavorite: next } : i,
+        ),
+      }
+    })
+    try {
+      await toggleAssetFavorite(source, id, next)
+      // 服务端权威刷新（favorite=true 过滤下，取消收藏后该项应消失）
+      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+    }
+    catch (err) {
+      // 回滚：重新拉取覆盖乐观更新
+      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      const message = err instanceof Error ? err.message : '收藏操作失败'
+      toast.error(message)
+    }
   }
 
   return (
@@ -351,6 +383,15 @@ export default function Assets() {
             <option value="title_desc">标题 Z→A</option>
           </select>
         </div>
+        <label className="flex items-center gap-1 self-end pb-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={filters.favorite}
+            onChange={e => updateFilter('favorite', e.target.checked)}
+            aria-label="仅看收藏"
+          />
+          仅看收藏
+        </label>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
             <RotateCcw className="size-3" />
@@ -390,7 +431,12 @@ export default function Assets() {
       {!isLoading && !error && allItems.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {allItems.map(item => (
-            <AssetCard key={`${item.source}-${item.id}`} item={item} onClick={() => setPreviewItem(item)} />
+            <AssetCard
+              key={`${item.source}-${item.id}`}
+              item={item}
+              onClick={() => setPreviewItem(item)}
+              onToggleFavorite={toggleFavorite}
+            />
           ))}
         </div>
       )}
@@ -417,7 +463,15 @@ export default function Assets() {
   )
 }
 
-function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => void }) {
+function AssetCard({
+  item,
+  onClick,
+  onToggleFavorite,
+}: {
+  item: AssetLibraryItem
+  onClick: () => void
+  onToggleFavorite: (source: AssetLibrarySource, id: string, currentFavorite: boolean) => void
+}) {
   const previewKind = getAssetLibraryPreviewKind(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
 
@@ -450,6 +504,19 @@ function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => v
         <Badge variant="outline" className="absolute right-1.5 top-1.5 bg-background/80 text-[10px]">
           {SOURCE_LABELS[item.source]}
         </Badge>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onToggleFavorite(item.source, item.id, item.isFavorite)
+          }}
+          aria-label={item.isFavorite ? '取消收藏' : '收藏'}
+          aria-pressed={item.isFavorite}
+          className="absolute bottom-1.5 right-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+        >
+          <Star className={`size-3.5 ${item.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+        </button>
       </div>
       <CardContent className="p-2">
         <p className="text-xs font-medium truncate">{item.title}</p>

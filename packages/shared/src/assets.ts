@@ -99,6 +99,8 @@ export interface AssetLibraryItem {
   costCents: number | null
   /** 创建时间 ISO 字符串 */
   createdAt: string
+  /** 当前用户是否已收藏（route 注入，client 只读） */
+  isFavorite: boolean
 }
 
 /**
@@ -139,6 +141,8 @@ export interface AssetLibraryQuery {
   createdTo?: string
   /** 排序方式，缺省 created_desc */
   sort?: AssetLibrarySort
+  /** 仅返回当前用户已收藏的资产；缺省或 false = 不过滤 */
+  favorite?: boolean
   limit?: number
   offset?: number
 }

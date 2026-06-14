@@ -109,6 +109,8 @@ export interface AssetLibraryFilters {
   createdTo: string
   /** 排序方式 */
   sort: AssetLibrarySort
+  /** 仅看收藏（true=只返回当前用户已收藏的资产） */
+  favorite: boolean
 }
 
 export const DEFAULT_FILTERS: AssetLibraryFilters = {
@@ -120,6 +122,7 @@ export const DEFAULT_FILTERS: AssetLibraryFilters = {
   createdFrom: '',
   createdTo: '',
   sort: 'created_desc',
+  favorite: false,
 }
 
 /** 从 URLSearchParams 解析筛选条件，缺省值用 DEFAULT_FILTERS */
@@ -133,6 +136,7 @@ export function normalizeAssetLibraryFiltersFromSearchParams(params: URLSearchPa
     createdFrom: params.get('createdFrom') ?? DEFAULT_FILTERS.createdFrom,
     createdTo: params.get('createdTo') ?? DEFAULT_FILTERS.createdTo,
     sort: resolveSortParam(params.get('sort')),
+    favorite: params.get('favorite') === 'true',
   }
 }
 

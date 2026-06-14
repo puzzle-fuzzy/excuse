@@ -43,6 +43,7 @@ function makeItem(overrides: Partial<AssetLibraryItem>): AssetLibraryItem {
     prompt: 'a cat',
     costCents: 10,
     createdAt: '2024-06-01T00:00:00.000Z',
+    isFavorite: false,
     ...overrides,
   }
 }
@@ -104,34 +105,35 @@ describe('filterAssetLibraryItems', () => {
     makeItem({ id: 'upload', source: 'uploaded_file', kind: 'upload', status: 'succeeded' }),
     makeItem({ id: 'fail', source: 'generation_record', kind: 'video', status: 'failed' }),
   ]
+  const baseFilters = { search: '', model: '', createdFrom: '', createdTo: '', sort: 'created_desc' as const, favorite: false }
 
   it('source 过滤生效', () => {
-    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all', ...baseFilters })
     expect(canvas.map(i => i.id).sort()).toEqual(['char', 'shot'])
   })
 
   it('status 过滤生效（running 匹配 processing/running）', () => {
-    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running', search: '', model: '', createdFrom: '', createdTo: '' })
+    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running', ...baseFilters })
     expect(running.map(i => i.id)).toEqual(['shot'])
   })
 
   it('kind 过滤生效', () => {
-    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all', ...baseFilters })
     expect(chars.map(i => i.id)).toEqual(['char'])
   })
 
   it('组合过滤', () => {
-    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running', search: '', model: '', createdFrom: '', createdTo: '' })
+    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running', ...baseFilters })
     expect(result.map(i => i.id)).toEqual(['shot'])
   })
 
   it('all 过滤返回全部', () => {
-    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', ...baseFilters })
     expect(result).toHaveLength(5)
   })
 
   it('search 过滤：匹配 title/prompt/model', () => {
-    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: 'cat', model: '', createdFrom: '', createdTo: '' })
+    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: 'cat', model: '', createdFrom: '', createdTo: '', sort: 'created_desc', favorite: false })
     // makeItem defaults: title='test', prompt='a cat', model='qwen-max'
     // 'cat' matches prompt 'a cat'
     expect(searched).toHaveLength(5) // all items have prompt='a cat' from makeItem
@@ -140,13 +142,13 @@ describe('filterAssetLibraryItems', () => {
   it('search 过滤：精确匹配 model', () => {
     const searched = filterAssetLibraryItems(
       [makeItem({ id: 'gen1', model: 'wanx2.1' }), makeItem({ id: 'gen2', model: 'qwen-max' })],
-      { source: 'all', kind: 'all', status: 'all', search: 'wanx', model: '', createdFrom: '', createdTo: '' },
+      { source: 'all', kind: 'all', status: 'all', search: 'wanx', model: '', createdFrom: '', createdTo: '', sort: 'created_desc', favorite: false },
     )
     expect(searched.map(i => i.id)).toEqual(['gen1'])
   })
 
   it('search 过滤：空字符串不过滤', () => {
-    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '' })
+    const searched = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', search: '', model: '', createdFrom: '', createdTo: '', sort: 'created_desc', favorite: false })
     expect(searched).toHaveLength(5)
   })
 })
@@ -587,6 +589,10 @@ describe('default filters', () => {
     expect(DEFAULT_FILTERS.createdFrom).toBe('')
     expect(DEFAULT_FILTERS.createdTo).toBe('')
   })
+
+  it('favorite 默认为 false', () => {
+    expect(DEFAULT_FILTERS.favorite).toBe(false)
+  })
 })
 
 describe('normalizeAssetLibraryFiltersFromSearchParams', () => {
@@ -635,6 +641,21 @@ describe('normalizeAssetLibraryFiltersFromSearchParams', () => {
     expect(result.search).toBe('test')
     expect(result.model).toBe('qwen')
   })
+
+  it('favorite=true 解析为 favorite=true', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('favorite=true'))
+    expect(result.favorite).toBe(true)
+  })
+
+  it('favorite 缺省解析为 false', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams())
+    expect(result.favorite).toBe(false)
+  })
+
+  it('favorite 非 "true" 字符串解析为 false', () => {
+    const result = normalizeAssetLibraryFiltersFromSearchParams(new URLSearchParams('favorite=false'))
+    expect(result.favorite).toBe(false)
+  })
 })
 
 describe('createAssetLibraryQueryKey', () => {
@@ -652,6 +673,12 @@ describe('createAssetLibraryQueryKey', () => {
   it('不同 filters 生成的 key 不同', () => {
     const f1 = { ...DEFAULT_FILTERS }
     const f2 = { ...DEFAULT_FILTERS, kind: 'video' as const }
+    expect(createAssetLibraryQueryKey(f1, null, 200)).not.toEqual(createAssetLibraryQueryKey(f2, null, 200))
+  })
+
+  it('favorite 切换时 key 不同（filters 形状变化反映到 key）', () => {
+    const f1 = { ...DEFAULT_FILTERS, favorite: false }
+    const f2 = { ...DEFAULT_FILTERS, favorite: true }
     expect(createAssetLibraryQueryKey(f1, null, 200)).not.toEqual(createAssetLibraryQueryKey(f2, null, 200))
   })
 })
@@ -691,6 +718,17 @@ describe('filtersToQueryParams', () => {
     const filters = { ...DEFAULT_FILTERS, search: '  ' }
     const result = filtersToQueryParams(filters, null, 200, 0)
     expect(result.search).toBeUndefined()
+  })
+
+  it('favorite=false 映射为 undefined（不传到 API）', () => {
+    const result = filtersToQueryParams(DEFAULT_FILTERS, null, 200, 0)
+    expect(result.favorite).toBeUndefined()
+  })
+
+  it('favorite=true 映射为 true', () => {
+    const filters = { ...DEFAULT_FILTERS, favorite: true }
+    const result = filtersToQueryParams(filters, null, 200, 0)
+    expect(result.favorite).toBe(true)
   })
 })
 

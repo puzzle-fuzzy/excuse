@@ -25,6 +25,9 @@ const mockGetGenerationRecordByIdForAccount = mock<() => Promise<GenerationRecor
 const mockGetCanvasAssetByIdForAccount = mock<() => Promise<CanvasAssetRow | null>>(() => Promise.resolve(null))
 const mockHideGenerationRecord = mock<() => Promise<{ id: string, hiddenAt: Date } | null>>(() => Promise.resolve({ id: 'rec-1', hiddenAt: new Date() }))
 const mockHideCanvasAsset = mock<() => Promise<{ id: string, hiddenAt: Date } | null>>(() => Promise.resolve({ id: 'asset-1', hiddenAt: new Date() }))
+const mockListAssetFavoriteKeys = mock<(accountId: string) => Promise<Array<{ source: 'generation_record' | 'canvas_asset' | 'uploaded_file', assetId: string }>>>(() => Promise.resolve([]))
+const mockAddAssetFavorite = mock<() => Promise<{ id: 'fav-1', accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1', createdAt: Date }>>(() => Promise.resolve({ id: 'fav-1', accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1', createdAt: new Date() }))
+const mockRemoveAssetFavorite = mock<() => Promise<void>>(() => Promise.resolve())
 
 mock.module('@excuse/db', () => ({
   listGenerationRecords: mockListGenRecords,
@@ -34,6 +37,9 @@ mock.module('@excuse/db', () => ({
   getCanvasAssetByIdForAccount: mockGetCanvasAssetByIdForAccount,
   hideGenerationRecord: mockHideGenerationRecord,
   hideCanvasAsset: mockHideCanvasAsset,
+  listAssetFavoriteKeys: mockListAssetFavoriteKeys,
+  addAssetFavorite: mockAddAssetFavorite,
+  removeAssetFavorite: mockRemoveAssetFavorite,
 }))
 
 mock.module('../src/services/audit', () => ({
@@ -99,11 +105,15 @@ describe('assets routes', () => {
     mockGetCanvasAssetByIdForAccount.mockClear()
     mockHideGenerationRecord.mockClear()
     mockHideCanvasAsset.mockClear()
+    mockListAssetFavoriteKeys.mockClear()
+    mockAddAssetFavorite.mockClear()
+    mockRemoveAssetFavorite.mockClear()
 
     // 默认返回空，每个用例按需 mockResolvedValueOnce
     mockListGenRecords.mockResolvedValue([])
     mockListCanvasAssets.mockResolvedValue([])
     mockListUploadedFiles.mockResolvedValue([])
+    mockListAssetFavoriteKeys.mockResolvedValue([])
 
     app = createAssetsRoutes(testConfig)
     client = treaty(app)
@@ -593,6 +603,163 @@ describe('assets routes', () => {
       }))
       // Elysia validates params against t.Union([t.Literal(...)]), rejects 'uploaded_file'
       expect(res.status).toBe(422)
+    })
+  })
+
+  // ─── 收藏（GET /api/assets?favorite + POST/DELETE /api/assets/:source/:id/favorite）
+
+  describe('GET /api/assets favorite 过滤与 isFavorite 注入', () => {
+    it('favorite=true 时只返回当前用户已收藏的资产，isFavorite 全为 true', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-fav', accountId: 'acc-001' }),
+        makeRecord({ id: 'rec-other', accountId: 'acc-001' }),
+      ])
+      mockListAssetFavoriteKeys.mockResolvedValueOnce([
+        { source: 'generation_record', assetId: 'rec-fav' },
+      ])
+
+      const { data, error } = await client.api.assets.get({
+        query: { favorite: true },
+        ...AUTH(token),
+      })
+
+      expect(error).toBeNull()
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items).toHaveLength(1)
+      expect(items[0]!.id).toBe('rec-fav')
+      expect(items[0]!.isFavorite).toBe(true)
+    })
+
+    it('不传 favorite 时返回全部资产，isFavorite 字段反映实际状态', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-fav', accountId: 'acc-001' }),
+        makeRecord({ id: 'rec-other', accountId: 'acc-001' }),
+      ])
+      mockListAssetFavoriteKeys.mockResolvedValueOnce([
+        { source: 'generation_record', assetId: 'rec-fav' },
+      ])
+
+      const { data, error } = await client.api.assets.get({ ...AUTH(token) })
+
+      expect(error).toBeNull()
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items).toHaveLength(2)
+      const fav = items.find(i => i.id === 'rec-fav')
+      const other = items.find(i => i.id === 'rec-other')
+      expect(fav?.isFavorite).toBe(true)
+      expect(other?.isFavorite).toBe(false)
+    })
+
+    it('跨用户隔离：当前用户的 favoriteSet 不包含其他用户的收藏', async () => {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'rec-1', accountId: 'acc-001' }),
+      ])
+      // mockListAssetFavoriteKeys 应始终按 userId 查询 — 此处返回空集
+      mockListAssetFavoriteKeys.mockResolvedValueOnce([])
+
+      const { data } = await client.api.assets.get({ ...AUTH(token) })
+
+      const items = (data as { items: AssetLibraryItem[] }).items
+      expect(items[0]!.isFavorite).toBe(false)
+      // 确认 listAssetFavoriteKeys 以当前 userId 调用
+      expect(mockListAssetFavoriteKeys).toHaveBeenCalledWith('acc-001')
+    })
+
+    it('listAssetFavoriteKeys 与三个来源查询并行调用（同时下推）', async () => {
+      await client.api.assets.get({ ...AUTH(token) })
+
+      // favoriteKeys 应该只调用一次，不分多次
+      expect(mockListAssetFavoriteKeys).toHaveBeenCalledTimes(1)
+      expect(mockListAssetFavoriteKeys).toHaveBeenCalledWith('acc-001')
+    })
+  })
+
+  describe('POST /api/assets/:source/:id/favorite', () => {
+    it('POST generation_record 收藏 → 200，data.isFavorite=true', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(body.data.isFavorite).toBe(true)
+      expect(mockAddAssetFavorite).toHaveBeenCalledWith({ accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1' })
+    })
+
+    it('POST canvas_asset 收藏 → 200', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(200)
+      expect(mockAddAssetFavorite).toHaveBeenCalledWith({ accountId: 'acc-001', source: 'canvas_asset', assetId: 'asset-1' })
+    })
+
+    it('POST uploaded_file 收藏 → 200', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/uploaded_file/file-1/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(200)
+      expect(mockAddAssetFavorite).toHaveBeenCalledWith({ accountId: 'acc-001', source: 'uploaded_file', assetId: 'file-1' })
+    })
+
+    it('POST 幂等：再次调用仍返回 200，isFavorite=true', async () => {
+      const res1 = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const res2 = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res1.status).toBe(200)
+      expect(res2.status).toBe(200)
+      const body2 = await res2.json()
+      expect(body2.data.isFavorite).toBe(true)
+    })
+
+    it('POST 非法 source（如 invalid_source）→ 422 参数校验失败', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/invalid_source/x/favorite', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(422)
+      expect(mockAddAssetFavorite).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('DELETE /api/assets/:source/:id/favorite', () => {
+    it('DELETE generation_record 取消收藏 → 200，data.isFavorite=false', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/favorite', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(body.data.isFavorite).toBe(false)
+      expect(mockRemoveAssetFavorite).toHaveBeenCalledWith({ accountId: 'acc-001', source: 'generation_record', assetId: 'rec-1' })
+    })
+
+    it('DELETE 幂等：取消不存在的收藏仍返回 200', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/non-existent/favorite', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.data.isFavorite).toBe(false)
+    })
+
+    it('DELETE 非法 source → 422', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/invalid_source/x/favorite', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(422)
+      expect(mockRemoveAssetFavorite).not.toHaveBeenCalled()
     })
   })
 })
