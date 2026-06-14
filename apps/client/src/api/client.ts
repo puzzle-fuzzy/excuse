@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -61,6 +61,7 @@ export const api = treaty<App>(resolveApiBaseUrl())
 
 export type { ModelConfig, ModelParameter } from '@excuse/shared'
 export type { AcceptedResponse, GenerateResponse, GenerationRecord } from '@excuse/shared'
+export type { AssetLibraryItem, AssetLibraryKind, AssetLibraryListResponse, AssetLibraryQuery, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
 export type { BillingStatistics } from '@excuse/shared'
 export type CostDetail = GenerationRecord['cost']
 
@@ -213,6 +214,24 @@ export async function deleteUploadedFile(id: string): Promise<MutationOkResponse
 export async function fetchBillingStatistics(): Promise<BillingStatisticsResponse> {
   return unwrapEden<BillingStatisticsResponse>(
     await api.api.billing.statistics.get(),
+  )
+}
+
+// ===== 统一资产中心 API =====
+
+/** 拉取统一资产列表（generation_records + canvas_assets + uploaded_files） */
+export async function fetchAssetLibrary(params?: AssetLibraryQuery): Promise<AssetLibraryListResponse> {
+  return unwrapEden<AssetLibraryListResponse>(
+    await api.api.assets.get({
+      query: {
+        source: params?.source || undefined,
+        kind: params?.kind || undefined,
+        status: params?.status || undefined,
+        projectId: params?.projectId || undefined,
+        limit: params?.limit ?? 100,
+        offset: params?.offset ?? 0,
+      },
+    }),
   )
 }
 

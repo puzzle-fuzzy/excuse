@@ -270,12 +270,21 @@
 
 ### 1. 资产中心升级
 
-待办：
+当前状态：部分完成（统一资产列表 v1，commit 见本轮 `feat(assets)` 提交）。
 
-- 按图片、视频、上传文件、角色、场景、镜头、最终视频分类浏览。
-- 支持按项目、时间、模型、状态筛选。
-- 支持预览、下载、删除、复制链接。
-- 支持查看资产来源任务、prompt、模型、成本。
+已完成：
+
+- 统一资产列表 v1：`/api/assets` 合并 generation_records + canvas_assets + uploaded_files 三种来源，DTO 只暴露标量字段（不外泄 inputJson/outputJson）。
+- `/assets` 页面改用统一资产 DTO，支持 source（来源）/kind（类别）/status（状态）/projectId（URL `?project=`）基础筛选。
+- 资产卡片支持预览（图片/视频/图标）、下载、复制链接、回到 Canvas 项目（`projectId` → `/canvas/:projectId`）。
+- Canvas 资产（角色图/场景图/镜头视频/项目文档）进入资产中心；previewUrl 优先稳定 publicUrl。
+
+待办（未完成）：
+
+- 删除资产的统一产品策略（本轮只做 UI 预留，不破坏生成记录或 Canvas 历史）。
+- 查看资产来源任务详情、精确跳转到单个 shot/asset（目前只跳到项目）。
+- 更完整的项目选择器和高级筛选（按时间、模型筛选）。
+- uploaded_files 目前为轻量接入（kind=upload，无删除/管理产品闭环）。
 
 验收：
 
