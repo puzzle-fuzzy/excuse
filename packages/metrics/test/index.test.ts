@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { MetricsCollector } from '../src'
 
 describe('@excuse/metrics', () => {
-  it('records request counts, latency, and server errors', () => {
+  it('记录请求数、延迟与服务端错误', () => {
     const metrics = new MetricsCollector()
 
     metrics.recordRequest(200, 10)
@@ -35,7 +35,7 @@ describe('@excuse/metrics', () => {
     })
   })
 
-  it('keeps only the configured latency window', () => {
+  it('仅保留配置的延迟窗口', () => {
     const metrics = new MetricsCollector({ latencyWindowSize: 2 })
 
     metrics.recordRequest(200, 10)
@@ -45,7 +45,7 @@ describe('@excuse/metrics', () => {
     expect(metrics.snapshot(0, 0).latency.avgMs).toBe(40)
   })
 
-  it('can reset counters', () => {
+  it('能够重置计数器', () => {
     const metrics = new MetricsCollector()
 
     metrics.recordRequest(500, 10)
@@ -56,7 +56,7 @@ describe('@excuse/metrics', () => {
     expect(metrics.snapshot(0, 0).errors).toBe(0)
   })
 
-  it('records a generation status breakdown in the snapshot', () => {
+  it('在快照中记录生成任务状态分布', () => {
     const metrics = new MetricsCollector()
 
     metrics.recordGenerationStatus('processing')
@@ -70,7 +70,7 @@ describe('@excuse/metrics', () => {
       failed: 1,
     })
 
-    // reset clears the generation breakdown too
+    // reset 也会清空生成任务状态分布
     metrics.reset()
     expect(metrics.snapshot(0, 0).generation.byStatus).toEqual({})
   })

@@ -8,7 +8,7 @@ import {
 } from '../src'
 
 describe('@excuse/gateway', () => {
-  it('creates OpenAI-compatible error responses', () => {
+  it('构造 OpenAI 兼容的错误响应', () => {
     expect(createOpenAIError('bad model', 'invalid_request_error', 'model_not_found', 404)).toEqual({
       response: {
         error: {
@@ -21,7 +21,7 @@ describe('@excuse/gateway', () => {
     })
   })
 
-  it('normalizes chat requests using the last user message', () => {
+  it('使用最后一条 user 消息归一化 chat 请求', () => {
     const result = normalizeOpenAIChatRequest({
       model: 'gpt-4',
       messages: [
@@ -49,7 +49,7 @@ describe('@excuse/gateway', () => {
     })
   })
 
-  it('rejects streaming requests', () => {
+  it('拒绝流式请求', () => {
     const result = normalizeOpenAIChatRequest({
       model: 'qwen-max',
       messages: [{ role: 'user', content: 'hello' }],
@@ -60,7 +60,7 @@ describe('@excuse/gateway', () => {
     expect(result).toMatchObject({ status: 400 })
   })
 
-  it('rejects requests without user messages', () => {
+  it('拒绝缺少 user 消息的请求', () => {
     const result = normalizeOpenAIChatRequest({
       model: 'qwen-max',
       messages: [{ role: 'system', content: 'hello' }],
@@ -70,7 +70,7 @@ describe('@excuse/gateway', () => {
     expect(result).toMatchObject({ status: 400 })
   })
 
-  it('creates OpenAI chat completion responses', () => {
+  it('构造 OpenAI chat completion 响应', () => {
     expect(createOpenAIChatResponse({
       id: 'rec-1',
       createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -96,7 +96,7 @@ describe('@excuse/gateway', () => {
     })
   })
 
-  it('creates OpenAI model list responses', () => {
+  it('构造 OpenAI 模型列表响应', () => {
     const result = createOpenAIModelsResponse([{ id: 'qwen-max' }, { id: 'qwen-plus' }])
 
     expect(result.object).toBe('list')
