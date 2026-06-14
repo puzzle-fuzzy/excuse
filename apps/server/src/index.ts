@@ -19,6 +19,7 @@ import { createBillingRoutes } from './routes/billing'
 import { createCanvasRoutes } from './routes/canvas'
 import { createGenerateRoutes } from './routes/generate'
 import { createHealthRoutes } from './routes/health'
+import { createMetricsRoutes } from './routes/metrics'
 import { modelsRoutes } from './routes/models'
 import { createNotificationRoutes } from './routes/notifications'
 import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
@@ -121,6 +122,7 @@ const app = new Elysia()
   .use(createSSERoutes(config))
   .use(createBillingRoutes(config))
   .use(createOpenAIGatewayRoutes(config))
+  .use(createMetricsRoutes(config))
 
 /** 导出 App 类型，供客户端 eden treaty 进行端到端类型推导 */
 export type App = typeof app

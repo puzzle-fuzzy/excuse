@@ -17,6 +17,10 @@ export interface ServerConfig {
   jwtSecret: string
   jwtExpiresIn: string
   oss: OSSConfig | undefined
+  /** Prometheus `/metrics` 端点访问 token；未设置时仅允许回环地址访问 */
+  metricsAccessToken?: string
+  /** 允许访问 `/metrics` 的 IP CIDR 列表；默认 `['127.0.0.1/32', '::1/128']` */
+  metricsAllowedCidrs: string[]
 }
 
 /**
@@ -38,6 +42,11 @@ export function loadConfig(): ServerConfig {
     jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
     oss: loadOSSConfig(),
+    metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
+    metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean),
   }
 
   if (process.env.NODE_ENV === 'production') {

@@ -169,3 +169,5 @@ function percentile(sorted: number[], p: number): number {
   const idx = Math.ceil((p / 100) * sorted.length) - 1
   return sorted[Math.max(0, idx)]!
 }
+
+export * from './prometheus'
