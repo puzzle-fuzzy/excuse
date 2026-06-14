@@ -56,7 +56,7 @@
 
 ### 1. 资产中心升级
 
-当前状态：隐藏策略已完成，commit：本轮待提交。
+当前状态：隐藏策略已完成，commit：`1be3ce9`。
 
 已完成：
 
@@ -135,7 +135,7 @@ v0.5 已完成：
 
 - API Key 过期、额度不足、异常调用等系统风险通知。
 - 通知点击定位到具体资产/镜头，而不是只到项目或工作台。
-- Notification 查询已接入 `@tanstack/react-query`，SSE notification 事件触发 invalidate / 缓存更新，commit：本轮待提交。
+- Notification 查询已接入 `@tanstack/react-query`，SSE notification 事件触发 invalidate / 缓存更新，commit：`e44a8f1`。
 
 验收：
 
@@ -159,13 +159,15 @@ v0.5 已完成：
 
 ### 4. OpenAI Gateway
 
-当前状态：API 已暴露，产品决策未完成。
+当前状态：API 已暴露，开发者使用说明入口第一版已完成，正式开放策略仍未完成。
 
 待办：
 
-- 明确 Gateway 是正式开放、内测隐藏还是暂缓关闭。
-- 如果正式开放：补 API 文档、示例、错误码、限流、streaming、开发者中心、用量查询。
-- 如果隐藏或暂缓：确认前端、文档和部署入口都不误导用户。
+- streaming adapter。
+- 错误码更完整文档。
+- 用量查询。
+- scope / quota / rate limit。
+- 正式开放还是隐藏入口的最终产品决策。
 - Gateway 协议解析和响应映射优先放 `packages/gateway`，不要继续堆在 route。
 
 验收：
@@ -189,7 +191,7 @@ v0.5 已完成：
 
 ### 6. API Key 产品化
 
-当前状态：前端第一版入口已完成，commit：本轮待提交。
+当前状态：前端第一版入口已完成，commit：`b154a55`。
 
 待办：
 
@@ -245,20 +247,20 @@ v0.5 已完成：
 1. `lodash-es/debounce`、`lodash-es/throttle` 或 `use-debounce`
    - 用于资产搜索、项目选择器、参考资产选择弹窗、Canvas 刷新节流。
    - 前端不要引整个 `lodash`，优先按需引 `lodash-es` 或 hook 库。
-   - debounce / React Query 试点：资产中心已接入 `use-debounce` + `@tanstack/react-query`，commit：本轮待提交。
+   - debounce / React Query 试点：资产中心已接入 `use-debounce` + `@tanstack/react-query`，commit：`e44a8f1`。
 
 2. `@tanstack/react-query`
    - 用于资产中心、Canvas 项目详情、字幕项目、Billing、通知列表。
    - SSE 只做“有变化”通知，收到事件后 invalidate query。
    - 减少手写 loading/error/refetch/cache 状态。
    - 资产中心试点已完成，后续可迁移 Canvas 项目详情、字幕项目、Billing。
-   - React Query 第二个试点：通知列表和未读数已迁入 React Query，commit：本轮待提交。
-   - React Query 第三个试点：Billing 页面已迁入 React Query，commit：本轮待提交。
+   - React Query 第二个试点：通知列表和未读数已迁入 React Query，commit：`e44a8f1`。
+   - React Query 第三个试点：Billing 页面已迁入 React Query，commit：`e44a8f1`。
 
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。
-   - API Key 创建表单已作为第一批试点，commit：本轮待提交。
+   - API Key 创建表单已作为第一批试点，commit：`b154a55`。
 
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
@@ -371,7 +373,7 @@ v0.5 已完成：
 2. ~~并行完成测试覆盖率治理第一批：output-parser / model-validator~~ ✓ 已完成，commit：`b86c727`、`97bf1ca`（output-parser 20 pass / model-validator 28 pass，覆盖率 98.53% / 100%）。
 3. ~~P1-2 批量应用参考资产~~ ✓ 已完成（缺少撤销历史），v0.5：纯函数 + 服务端端点 + 前端弹窗 + 测试。
 4. 成熟库治理第一批：debounce + React Query 选型和最小接入。
-5. ~~资产中心删除/隐藏/回收站策略~~ ✓ 已完成（隐藏策略第一版），commit：本轮待提交。
+5. ~~资产中心删除/隐藏/回收站策略~~ ✓ 已完成（隐藏策略第一版），commit：`1be3ce9`。
 6. API Key 产品化与 Gateway 开放状态决策。
 7. Metrics / Health 生产级可观测性。
 8. Model Lab 内部实验页。

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { createApiKey, listApiKeys, revokeApiKey } from '@/api/api-keys'
 import { apiKeyQueryKeys } from '@/api/query-client'
@@ -105,6 +106,7 @@ export default function ApiKeys() {
         <KeyRound className="size-5" />
         <h1 className="text-lg font-semibold">API Keys</h1>
         <p className="text-xs text-muted-foreground">用于 OpenAI 兼容接口或未来开发者接口</p>
+        <Link to="/developers" className="text-xs text-primary underline underline-offset-2">查看 Gateway 使用说明</Link>
         <Button
           variant="outline"
           size="sm"
@@ -166,6 +168,11 @@ export default function ApiKeys() {
               前缀：
               {createdKey.prefix}
               ...
+            </p>
+            <p className="text-xs text-muted-foreground">
+              复制后可在
+              <Link to="/developers" className="mx-0.5 text-primary underline underline-offset-2">开发者接入</Link>
+              页查看调用示例。
             </p>
           </CardContent>
         </Card>

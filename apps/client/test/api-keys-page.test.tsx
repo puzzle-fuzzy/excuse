@@ -2,6 +2,7 @@ import type { ApiKeyDTO, CreatedApiKey } from '@excuse/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApiKey, listApiKeys, revokeApiKey } from '../src/api/api-keys'
 import { apiKeyQueryKeys } from '../src/api/query-client'
@@ -37,7 +38,9 @@ function renderApiKeys(queryClient?: QueryClient) {
   })
   return render(
     <QueryClientProvider client={client}>
-      <ApiKeys />
+      <MemoryRouter>
+        <ApiKeys />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -160,6 +163,13 @@ describe('api keys page', () => {
     mockListApiKeys.mockResolvedValue([makeKey({ lastUsedAt: null })])
     renderApiKeys()
     expect(await screen.findByText(/从未使用/)).toBeInTheDocument()
+  })
+
+  it('links to /developers for gateway docs', async () => {
+    mockListApiKeys.mockResolvedValue([])
+    renderApiKeys()
+    const link = (await screen.findByText('查看 Gateway 使用说明')).closest('a')
+    expect(link).toHaveAttribute('href', '/developers')
   })
 })
 

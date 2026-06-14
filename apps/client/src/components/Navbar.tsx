@@ -5,6 +5,7 @@ import {
   CheckCheck,
   Clapperboard,
   ClosedCaption,
+  Code2,
   Film,
   FolderOpen,
   KeyRound,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { to: '/assets', label: '资产', icon: FolderOpen },
   { to: '/billing', label: '计费', icon: Receipt },
   { to: '/api-keys', label: 'API Keys', icon: KeyRound },
+  { to: '/developers', label: '开发者', icon: Code2 },
 ] as const
 
 /** 通知类型 → 图标 + 主色 */
