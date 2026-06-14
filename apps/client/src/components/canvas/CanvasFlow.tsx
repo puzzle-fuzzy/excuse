@@ -13,6 +13,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef } from 'react'
+import { buildActiveImageTaskMaps } from '@/lib/canvas-poll'
 import AnalysisNode from './nodes/AnalysisNode'
 import CharacterNode from './nodes/CharacterNode'
 import ContinuityCheckNode from './nodes/ContinuityCheckNode'
@@ -80,19 +81,8 @@ export function buildNodesAndEdges(project: ProjectDTO, runningPhase: RunningPha
   const runningNodeType = runningPhase ? PHASE_NODE_TYPE[runningPhase.key] : null
   const isRunning = (type: string) => runningNodeType === type
 
-  // Build lookup maps for activeImageTaskIds from poll data
-  const characterActiveTaskIds = new Map<string, string[]>()
-  const locationActiveTaskIds = new Map<string, string[]>()
-  if (pollData) {
-    for (const c of pollData.characters) {
-      if (c.activeImageTaskIds.length > 0)
-        characterActiveTaskIds.set(c.characterId, c.activeImageTaskIds)
-    }
-    for (const l of pollData.locations) {
-      if (l.activeImageTaskIds.length > 0)
-        locationActiveTaskIds.set(l.locationId, l.activeImageTaskIds)
-    }
-  }
+  // 角色/场景 → 活跃图片任务 ID 映射（驱动节点「正在生成参考图」占位与「生成中」角标）
+  const { character: characterActiveTaskIds, location: locationActiveTaskIds } = buildActiveImageTaskMaps(pollData)
 
   nodes.push({
     id: 'story',
@@ -212,7 +202,9 @@ function CanvasFlowInner(props: {
 
     setNodes(final)
     setEdges(builtEdges)
-  }, [project, runningPhase, getNodes, setNodes, setEdges])
+    // pollData 携带 activeImageTaskIds（图片生成中的节点状态），必须作为依赖，
+    // 否则单次重新生成或在阶段内部图片开始/完成时，节点的「生成中」角标不会刷新（stale closure）。
+  }, [project, runningPhase, pollData, getNodes, setNodes, setEdges])
 
   // After render: capture measurements and re-layout new nodes once
   useEffect(() => {

@@ -10,6 +10,7 @@ import NodeDetailPanel from '../components/canvas/NodeDetailPanel'
 import PipelineController from '../components/canvas/PipelineController'
 import TaskQueuePanel from '../components/canvas/TaskQueuePanel'
 import { useCanvasAssetsPolling } from '../hooks/use-canvas-assets-polling'
+import { hasCanvasPollDelta } from '../lib/canvas-poll'
 import { useRealtimeSync } from '../stores/realtime-sync'
 
 export default function CanvasEditor() {
@@ -59,7 +60,7 @@ export default function CanvasEditor() {
     }
   }, [projectVersion, loadProject])
 
-  // 脉冲数据与项目状态差异检测 — SSE 降级时仍能发现状态变化
+  // 脉冲数据与项目状态差异检测 — SSE 降级（polling fallback）时仍能发现状态/资产变化
   // 防止频繁重载：5 秒内只允许一次差异触发的 reload
   useEffect(() => {
     if (!pollData || !project)
@@ -68,13 +69,9 @@ export default function CanvasEditor() {
     if (now - lastReloadRef.current < 5000)
       return
 
-    const needsReload = pollData.projectStatus !== project.status
-      || pollData.shots.some((ps) => {
-        const projectShot = project.shots.find(s => s.id === ps.shotId)
-        return projectShot?.status !== ps.status
-      })
-
-    if (needsReload) {
+    // 比对项目状态、镜头状态、角色/场景参考图 URL：SSE 断线时图片逐个完成
+    // 只能靠轮询快照的 URL 变化发现，否则要等到阶段结束才回显。
+    if (hasCanvasPollDelta(project, pollData)) {
       lastReloadRef.current = now
       loadProject()
     }
