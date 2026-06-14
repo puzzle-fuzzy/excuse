@@ -14,6 +14,15 @@ export function recordError() {
   metrics.recordError()
 }
 
+/**
+ * 记录一次生成任务状态变更（server 进程内可见的终态/中间态）。
+ * 仅 server 进程的指标快照（`GET /api/health/metrics`）会反映；
+ * worker 异步任务的终态发生在独立进程，无法聚合到此处。
+ */
+export function recordGenerationStatus(status: string) {
+  metrics.recordGenerationStatus(status)
+}
+
 // ===== 查询方法 =====
 
 /** 获取当前指标快照 */

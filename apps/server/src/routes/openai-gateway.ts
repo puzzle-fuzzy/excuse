@@ -23,6 +23,7 @@ import { extractBillingParams } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
+import { recordGenerationStatus } from '../services/metrics'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { notifyInsufficientBalance } from './notifications'
 
@@ -120,6 +121,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
             await notifyInsufficientBalance(userId).catch(() => {})
           }
           await markGenerationFailed(record.id, message)
+          recordGenerationStatus('failed')
           const err = createOpenAIError(message, 'insufficient_quota', 'insufficient_balance', 402)
           set.status = err.status
           return err.response
@@ -131,6 +133,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
 
       if (result.type === 'failed' || !result.success) {
         await markGenerationFailed(record.id, result.error)
+        recordGenerationStatus('failed')
         if (estimatedCost.totalPriceCents > 0) {
           await refundCredit({
             accountId: userId,
@@ -160,6 +163,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       // 更新记录为成功
       const textOutput: OutputResult = { type: 'text' as const, text }
       await markGenerationSucceeded(record.id, textOutput, actualCost)
+      recordGenerationStatus('succeeded')
       if (actualCost.totalPriceCents > 0) {
         await debitCredit({
           accountId: userId,

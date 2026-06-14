@@ -29,6 +29,7 @@ export class MetricsCollector {
   private latencySum = 0
   private totalRequests = 0
   private readonly statusCounts = new Map<number, number>()
+  private readonly generationStatusCounts = new Map<string, number>()
   private errorCount = 0
 
   constructor(options: MetricsCollectorOptions = {}) {
@@ -56,12 +57,29 @@ export class MetricsCollector {
     this.errorCount++
   }
 
+  /**
+   * 记录一次生成任务状态变更。
+   *
+   * 仅在调用方所在进程内生效。`MetricsCollector` 是 server 进程内存态单例，
+   * 因此 worker 异步任务（如视频轮询）的终态不会聚合到这里 —— 这是有意的架构边界，
+   * 而非实现缺陷。
+   */
+  recordGenerationStatus(status: string): void {
+    const current = this.generationStatusCounts.get(status) ?? 0
+    this.generationStatusCounts.set(status, current + 1)
+  }
+
   snapshot(onlineUsers: number, uptime: number): MetricsSnapshot {
     const sorted = [...this.latencyWindow].sort((a, b) => a - b)
 
     const byStatus: Record<number, number> = {}
     for (const [code, count] of this.statusCounts) {
       byStatus[code] = count
+    }
+
+    const generationByStatus: Record<string, number> = {}
+    for (const [status, count] of this.generationStatusCounts) {
+      generationByStatus[status] = count
     }
 
     return {
@@ -79,7 +97,7 @@ export class MetricsCollector {
         onlineUsers,
       },
       generation: {
-        byStatus: {},
+        byStatus: generationByStatus,
       },
       errors: this.errorCount,
       uptime,
@@ -89,6 +107,7 @@ export class MetricsCollector {
   reset(): void {
     this.totalRequests = 0
     this.statusCounts.clear()
+    this.generationStatusCounts.clear()
     this.errorCount = 0
     this.latencyWindow.length = 0
     this.latencySum = 0

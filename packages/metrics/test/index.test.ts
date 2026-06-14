@@ -55,4 +55,23 @@ describe('@excuse/metrics', () => {
     expect(metrics.snapshot(0, 0).requests.total).toBe(0)
     expect(metrics.snapshot(0, 0).errors).toBe(0)
   })
+
+  it('records a generation status breakdown in the snapshot', () => {
+    const metrics = new MetricsCollector()
+
+    metrics.recordGenerationStatus('processing')
+    metrics.recordGenerationStatus('succeeded')
+    metrics.recordGenerationStatus('succeeded')
+    metrics.recordGenerationStatus('failed')
+
+    expect(metrics.snapshot(0, 0).generation.byStatus).toEqual({
+      processing: 1,
+      succeeded: 2,
+      failed: 1,
+    })
+
+    // reset clears the generation breakdown too
+    metrics.reset()
+    expect(metrics.snapshot(0, 0).generation.byStatus).toEqual({})
+  })
 })

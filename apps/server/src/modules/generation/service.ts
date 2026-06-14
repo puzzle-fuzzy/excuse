@@ -29,6 +29,7 @@ import {
   refundCredit,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
+import { recordGenerationStatus } from '../../services/metrics'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
 // ===== 接口定义 =====
@@ -130,6 +131,7 @@ export async function executeGeneration(
   // === 分支 1: provider 调用失败 ===
   if (result.type === 'failed' || !result.success) {
     await markGenerationFailed(recordId, result.error)
+    recordGenerationStatus('failed')
     await refundReservedCredit({
       accountId,
       recordId,
@@ -156,6 +158,7 @@ export async function executeGeneration(
       taskId: result.taskId,
       outputResult: parseProviderOutput(result.output),
     })
+    recordGenerationStatus('processing')
     await notifyGenerationStatus({
       accountId,
       recordId,
@@ -182,6 +185,7 @@ export async function executeGeneration(
   const actualCost = { ...calculateCost(modelConfig, extractBillingParams(parameters), result.usage), billable: true, source: 'actual' as const }
 
   await markGenerationSucceeded(recordId, outputResult, actualCost)
+  recordGenerationStatus('succeeded')
   await debitReservedCredit({
     accountId,
     recordId,
@@ -224,6 +228,7 @@ export async function cancelGeneration(
   }
 
   await cancelGenerationRecord(recordId)
+  recordGenerationStatus('cancelled')
   await refundReservedCredit({
     accountId,
     recordId,
