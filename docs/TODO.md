@@ -172,9 +172,9 @@
 
 - 项目细粒度检索（全局只读概览已完成）。
 - 任务队列细粒度检索、失败重排和运行中取消已完成；后续补项目级检索和跨业务状态联动修复。
-- 用户余额明细、用户级用量和成本统计（全局用户 / 成本摘要已完成）。
+- ✅ 用户级用量和成本统计（admin 后台新增「用户」tab + 用户详情：余额 / 30 天成本趋势 / 模型分解 / 最近记录；commit: `<本轮 hash>`）。
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
-- provider 错误率和模型成本统计。
+- ✅ provider 错误率和模型成本统计（admin 后台新增「Provider」tab，DB 聚合 + server 进程内 metrics 合并 avg/p50/p95 latency；commit: `<本轮 hash>`）。
 - API Key 和 Gateway 客户管理。
 - 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
 

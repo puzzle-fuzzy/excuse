@@ -88,3 +88,95 @@ export interface AdminTaskMutationResponse {
   success: true
   data: AdminTaskItem
 }
+
+// ── 用户级运营统计 ──────────────────────────────────────────────────────────
+
+export interface AdminUserSummary {
+  id: string
+  username: string
+  email: string | null
+  isActive: boolean
+  createdAt: string
+  /** 最近一条 generation_records.createdAt（无活动则为 null） */
+  lastActivityAt: string | null
+  /** 当前可用余额（credit_accounts.availableCents） */
+  creditBalanceCents: number
+  /** 历史总成本（generation_records.totalPriceCents 累加） */
+  totalCostCents: number
+  /** 历史总调用次数（generation_records 计数） */
+  totalCalls: number
+}
+
+export interface AdminUserDailyCost {
+  /** YYYY-MM-DD */
+  date: string
+  costCents: number
+  calls: number
+}
+
+export interface AdminUserModelBreakdown {
+  model: string
+  calls: number
+  costCents: number
+}
+
+export interface AdminUserRecentRecord {
+  id: string
+  model: string
+  status: string
+  costCents: number
+  createdAt: string
+}
+
+export interface AdminUserDetail {
+  summary: AdminUserSummary
+  /** 最近 30 天每日成本 */
+  dailyCost: AdminUserDailyCost[]
+  /** 按模型分组的成本分解（取前 10） */
+  modelBreakdown: AdminUserModelBreakdown[]
+  /** 最近 10 条 generation_records 摘要 */
+  recentRecords: AdminUserRecentRecord[]
+}
+
+export interface AdminUserListQuery {
+  search?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface AdminUserListResponse {
+  success: true
+  items: AdminUserSummary[]
+  total: number
+}
+
+export interface AdminUserDetailResponse {
+  success: true
+  data: AdminUserDetail
+}
+
+// ── Provider 错误率 / 模型成本 ──────────────────────────────────────────────
+
+export interface AdminProviderStatsItem {
+  model: string
+  category: string
+  totalCalls: number
+  succeededCalls: number
+  failedCalls: number
+  /** 0~1 浮点（前端 ×100 显示百分比） */
+  failureRate: number
+  /** 进程内 provider 调用延迟均值；metricsCollector 刚启动未采样到时为 null */
+  avgLatencyMs: number | null
+  p50LatencyMs: number | null
+  p95LatencyMs: number | null
+  totalCostCents: number
+  totalInputTokens: number
+  totalOutputTokens: number
+}
+
+export interface AdminProviderStatsResponse {
+  success: true
+  windowHours: number
+  items: AdminProviderStatsItem[]
+}

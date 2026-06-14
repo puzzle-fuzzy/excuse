@@ -1,3 +1,4 @@
+import type { ProviderCallStats } from '@excuse/metrics'
 import { MetricsCollector } from '@excuse/metrics'
 
 const metrics = new MetricsCollector()
@@ -39,6 +40,17 @@ export function recordProviderCall(model: string, durationMs: number, success: b
 /** 获取当前指标快照 */
 export function getMetrics(onlineUsers: number, uptime: number) {
   return metrics.snapshot(onlineUsers, uptime)
+}
+
+/**
+ * 当前 server 进程内观察到的 provider 调用统计（按 model 分组）。
+ *
+ * 与 `getMetrics` 区别：本函数只读 `providerCalls` 字段（用于 admin 后台合并
+ * generation_records 聚合），不参与 Prometheus 输出。worker 进程的 provider
+ * 调用不会聚合到这里（跨进程聚合留给 Prometheus federation）。
+ */
+export function getProviderCallsSnapshot(): Record<string, ProviderCallStats> {
+  return metrics.snapshot(0, 0).providerCalls
 }
 
 /** 重置所有指标（测试用） */
