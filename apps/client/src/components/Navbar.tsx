@@ -7,6 +7,7 @@ import {
   ClosedCaption,
   Film,
   FolderOpen,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Map,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { to: '/subtitle', label: '加字幕', icon: ClosedCaption },
   { to: '/assets', label: '资产', icon: FolderOpen },
   { to: '/billing', label: '计费', icon: Receipt },
+  { to: '/api-keys', label: 'API Keys', icon: KeyRound },
 ] as const
 
 /** 通知类型 → 图标 + 主色 */

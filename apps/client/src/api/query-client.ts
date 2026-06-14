@@ -20,3 +20,8 @@ export const billingQueryKeys = {
   all: ['billing'] as const,
   statistics: ['billing', 'statistics'] as const,
 }
+
+export const apiKeyQueryKeys = {
+  all: ['api-keys'] as const,
+  list: ['api-keys', 'list'] as const,
+}

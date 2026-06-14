@@ -63,8 +63,8 @@
 - 删除资产的统一产品策略：`generation_records` / `canvas_assets` 的删除、隐藏、回收站策略。
 - uploaded_files 编辑产品流程：重命名、用途、metadata。
 - 高级筛选 UI 优化：排序、标签、收藏。
-- 前端资产查询建议迁入 `@tanstack/react-query`：资产列表、项目选择器、加载更多、筛选 query 同步统一管理。
-- 搜索输入建议使用 `use-debounce` 或 `lodash-es/debounce`，避免手写 debounce。
+- 资产中心查询已迁入 React Query 试点；后续可迁移 Canvas 项目详情、通知、Billing。
+- 搜索输入已接入 `use-debounce`，debounce / React Query 试点完成。
 
 验收：
 
@@ -74,7 +74,7 @@
 
 ### 2. 参考资产复用
 
-当前状态：部分完成（v0.1 + v0.2 + v0.3 + v0.4 已完成模型变体推荐），commit：`4fb64b3`、`e886876`、`5a3a74f`、本轮提交。
+当前状态：部分完成（缺少撤销历史），commit：`4fb64b3`、`e886876`、`5a3a74f`、`df5ad57`、本轮待提交。
 
 v0.4 已完成：
 
@@ -82,10 +82,16 @@ v0.4 已完成：
 - `retryShotVideo`、`retryFailedShots`、`regenerateShotVideo` 统一改用 `submitShotVideoEntity`。
 - 前端 `ShotReferenceAssets` 展示推荐原因（T2V/R2V/I2V），role 变化时实时更新。
 
+v0.5 已完成：
+
+- `previewApplyReferenceAssets` 纯函数（append/replace 去重 + max 8 截断）。
+- 服务端 `POST /api/canvas/projects/:projectId/shots/reference-assets/apply`（归属校验 + validateShotReferenceAssetsForAccount + 逐镜头更新）。
+- 前端 `ShotReferenceAssets` 增加"应用到..."入口 + 弹窗（多选镜头 + append/replace 切换 + 预览）。
+- 客户端 + 服务端单元测试已覆盖。
+
 待办：
 
-- 支持将资产应用到一个镜头、一组镜头或整个项目。
-- 批量应用前提供预览和撤销，避免一次性污染所有镜头。
+- 批量应用前提供撤销历史（第一版只有预览，没有持久化撤销）。
 - 参考资产选择器搜索建议使用成熟 debounce 工具，不再手写定时器。
 
 验收：
@@ -121,7 +127,7 @@ v0.4 已完成：
 
 - API Key 过期、额度不足、异常调用等系统风险通知。
 - 通知点击定位到具体资产/镜头，而不是只到项目或工作台。
-- Notification 查询建议后续接入 `@tanstack/react-query`，SSE 事件触发 invalidate。
+- Notification 查询已接入 `@tanstack/react-query`，SSE notification 事件触发 invalidate / 缓存更新，commit：本轮待提交。
 
 验收：
 
@@ -175,13 +181,12 @@ v0.4 已完成：
 
 ### 6. API Key 产品化
 
-当前状态：后端能力可用，前端产品化不足。
+当前状态：前端第一版入口已完成，commit：本轮待提交。
 
 待办：
 
-- 前端 API Key 管理入口。
-- 创建后 secret 只显示一次、复制、命名、撤销确认。
-- scope、rate limit、quota、lastUsedAt、使用统计。
+- 前端 API Key 管理入口第一版已完成：列表、创建（react-hook-form + secret 只显示一次 + 复制）、撤销确认。
+- scope、rate limit、quota、lastUsedAt 使用统计增强。
 - 决定是否随 OpenAI Gateway 一起开放。
 
 验收：
@@ -232,15 +237,20 @@ v0.4 已完成：
 1. `lodash-es/debounce`、`lodash-es/throttle` 或 `use-debounce`
    - 用于资产搜索、项目选择器、参考资产选择弹窗、Canvas 刷新节流。
    - 前端不要引整个 `lodash`，优先按需引 `lodash-es` 或 hook 库。
+   - debounce / React Query 试点：资产中心已接入 `use-debounce` + `@tanstack/react-query`，commit：本轮待提交。
 
 2. `@tanstack/react-query`
    - 用于资产中心、Canvas 项目详情、字幕项目、Billing、通知列表。
    - SSE 只做“有变化”通知，收到事件后 invalidate query。
    - 减少手写 loading/error/refetch/cache 状态。
+   - 资产中心试点已完成，后续可迁移 Canvas 项目详情、字幕项目、Billing。
+   - React Query 第二个试点：通知列表和未读数已迁入 React Query，commit：本轮待提交。
+   - React Query 第三个试点：Billing 页面已迁入 React Query，commit：本轮待提交。
 
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。
+   - API Key 创建表单已作为第一批试点，commit：本轮待提交。
 
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
@@ -303,18 +313,17 @@ v0.4 已完成：
 
 测试覆盖率分析已完成，报告见 `docs/测试覆盖率分析.md`。原则：不追 100%，只补高 ROI 路径。
 
+已完成：
+
+- `apps/server/src/modules/generation/output-parser.ts` 测试已补齐，commit：`b86c727`、`97bf1ca`。
+- `packages/provider/src/model-validator.ts` 边界测试已补齐，commit：`97bf1ca`。
+
 高 ROI 待补：
 
-1. `apps/server/src/modules/generation/output-parser.ts`
-   - 影响 billing 与 SSE 推送，纯函数易测。
-
-2. `packages/provider/src/model-validator.ts`
-   - 新模型上线高风险区，纯函数。
-
-3. `apps/server/src/modules/canvas/*` 阶段处理器 helper
+1. `apps/server/src/modules/canvas/*` 阶段处理器 helper
    - pipeline 改造时回归风险高，建议 helper 级单测。
 
-4. `apps/client/src/api/client.ts`
+2. `apps/client/src/api/client.ts`
    - Eden unwrap / auth 失效处理是客户端容错核心。
 
 不建议补：
@@ -350,9 +359,9 @@ v0.4 已完成：
 
 ## 推荐执行顺序
 
-1. ~~收口 P1-2 v0.4 模型变体推荐并提交~~ ✓ 本轮已完成。
-2. ~~并行完成测试覆盖率治理第一批：output-parser / model-validator~~ ✓ 已有测试覆盖（output-parser 20 pass / model-validator 28 pass，覆盖率 98.53% / 100%）。
-3. P1-2 批量应用参考资产。
+1. ~~收口 P1-2 v0.4 模型变体推荐并提交~~ ✓ 已完成，commit：`df5ad57`。
+2. ~~并行完成测试覆盖率治理第一批：output-parser / model-validator~~ ✓ 已完成，commit：`b86c727`、`97bf1ca`（output-parser 20 pass / model-validator 28 pass，覆盖率 98.53% / 100%）。
+3. ~~P1-2 批量应用参考资产~~ ✓ 已完成（缺少撤销历史），v0.5：纯函数 + 服务端端点 + 前端弹窗 + 测试。
 4. 成熟库治理第一批：debounce + React Query 选型和最小接入。
 5. 资产中心删除/隐藏/回收站策略。
 6. API Key 产品化与 Gateway 开放状态决策。
