@@ -386,6 +386,7 @@ export async function updateCanvasShot(shotId: string, patch: {
   cameraJson?: { shotSize: string, angle: string, movement: string, lens: string }
   environmentJson?: { backgroundMotion?: string, lighting?: string, mood?: string, style?: string }
   videoPrompt?: string
+  referenceAssetsJson?: Array<{ assetId: string, url: string, role: 'character' | 'location' | 'style' | 'firstFrame' | 'other', label?: string, source?: 'asset_library' | 'uploaded_file' | 'manual' }>
 }): Promise<CanvasShotResponse> {
   return unwrapEden<CanvasShotResponse>(
     await api.api.canvas.shots({ shotId }).patch(patch),

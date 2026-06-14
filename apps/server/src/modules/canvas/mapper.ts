@@ -84,6 +84,7 @@ export function mapShot(row: CanvasShotRow): ShotDTO {
     videoUrl: row.videoUrl ?? null,
     status: row.status,
     errorMessage: row.errorMessage ?? null,
+    referenceAssets: row.referenceAssetsJson ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

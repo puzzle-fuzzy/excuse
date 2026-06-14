@@ -205,6 +205,37 @@ export interface ContinuityIssue {
   suggestion?: string
 }
 
+// ===== Canvas Shot Reference Asset Types =====
+
+/**
+ * 镜头额外参考资产的语义角色 — 用户可理解的标签，本轮不强绑定 provider 参数
+ */
+export type CanvasShotReferenceRole
+  = | 'character'
+    | 'location'
+    | 'style'
+    | 'firstFrame'
+    | 'other'
+
+/**
+ * 镜头额外参考资产 — 保存到 canvas_shots.referenceAssetsJson JSONB 中
+ *
+ * 用户可以在某个镜头上选择多个额外参考资产，生成/重试/重新生成镜头视频时
+ * 合并到 referenceUrls（角色/场景自动引用在前，用户额外引用在后，去重）。
+ */
+export interface CanvasShotReferenceAsset {
+  /** 统一资产 ID。早期允许 uploaded_files.id 或 canvas_assets.id */
+  assetId: string
+  /** 生成时直接可用的稳定 URL，优先 publicUrl */
+  url: string
+  /** 语义标签：角色图 / 场景图 / 风格图 / 首帧图 / 其他 */
+  role: CanvasShotReferenceRole
+  /** UI 展示标签，避免只显示 URL。可选，最大 100 字符 */
+  label?: string
+  /** 来源：资产库 / 上传文件 / 手动输入 */
+  source?: 'asset_library' | 'uploaded_file' | 'manual'
+}
+
 // ===== Generation Domain Types =====
 
 /**

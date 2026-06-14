@@ -1,4 +1,4 @@
-import type { ShotCamera, ShotEnvironment } from '@excuse/db'
+import type { CanvasShotReferenceAsset, ShotCamera, ShotEnvironment } from '@excuse/db'
 import type { CanvasModelPreferences, CharacterDTO, LocationDTO, ShotDTO } from '@excuse/shared'
 import {
   batchGetProjectDetails,
@@ -118,6 +118,7 @@ export async function updateShotData(shotId: string, patch: {
   cameraJson?: ShotCamera
   environmentJson?: ShotEnvironment
   videoPrompt?: string
+  referenceAssetsJson?: CanvasShotReferenceAsset[]
 }): Promise<ShotDTO> {
   const updated = await updateCanvasShot(shotId, patch)
   if (!updated)

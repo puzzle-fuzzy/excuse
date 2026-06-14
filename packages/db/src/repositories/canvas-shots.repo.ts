@@ -55,7 +55,7 @@ export async function deleteCanvasShotsByProject(projectId: string) {
 /** 更新镜头属性（部分更新，自动刷新 updatedAt） */
 export async function updateCanvasShot(
   id: string,
-  values: Partial<Pick<CanvasShotInsert, 'shotIndex' | 'duration' | 'locationId' | 'characterIdsJson' | 'narrative' | 'cameraJson' | 'continuityJson' | 'timelineJson' | 'environmentJson' | 'videoPrompt' | 'negativePrompt' | 'videoTaskId' | 'videoUrl' | 'status' | 'errorMessage'>>,
+  values: Partial<Pick<CanvasShotInsert, 'shotIndex' | 'duration' | 'locationId' | 'characterIdsJson' | 'narrative' | 'cameraJson' | 'continuityJson' | 'timelineJson' | 'environmentJson' | 'videoPrompt' | 'negativePrompt' | 'videoTaskId' | 'videoUrl' | 'status' | 'errorMessage' | 'referenceAssetsJson'>>,
 ) {
   const [updated] = await getDb()
     .update(canvasShots)

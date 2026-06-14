@@ -1,4 +1,4 @@
-import type { ProjectDTO } from '@excuse/shared'
+import type { CanvasShotReferenceAsset, ProjectDTO } from '@excuse/shared'
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteCanvasCharacter, deleteCanvasLocation, deleteCanvasShot, regenerateCanvasCharacter, regenerateCanvasLocation, regenerateCanvasShot, retryCanvasShot, updateCanvasCharacter, updateCanvasLocation, updateCanvasProject, updateCanvasShot, uploadFile } from '../../api/client'
@@ -276,6 +276,15 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
             </div>
           )}
 
+          {/* 镜头额外参考资产 */}
+          <ShotReferenceAssets
+            shot={shot}
+            onSave={async (assets) => {
+              await updateCanvasShot(shot.id, { referenceAssetsJson: assets })
+              onUpdate()
+            }}
+          />
+
           {/* 镜头资产历史 — 视频 */}
           <AssetHistory
             targetEntityType="shot"
@@ -532,6 +541,153 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
         description={confirmState.description}
         onConfirm={confirmState.onConfirm}
       />
+    </div>
+  )
+}
+
+// ── 参考资产 role 中文标签 ────────────────────────────
+const ROLE_LABELS: Record<CanvasShotReferenceAsset['role'], string> = {
+  character: '角色图',
+  location: '场景图',
+  style: '风格图',
+  firstFrame: '首帧图',
+  other: '其他',
+}
+
+const ROLE_OPTIONS: CanvasShotReferenceAsset['role'][] = ['character', 'location', 'style', 'firstFrame', 'other']
+
+/** 镜头额外参考资产管理 — URL 输入 + role 选择 + label */
+function ShotReferenceAssets({
+  shot,
+  onSave,
+}: {
+  shot: ProjectDTO['shots'][number]
+  onSave: (assets: CanvasShotReferenceAsset[]) => Promise<void>
+}) {
+  const [addUrl, setAddUrl] = useState('')
+  const [addRole, setAddRole] = useState<CanvasShotReferenceAsset['role']>('other')
+  const [addLabel, setAddLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = useCallback(async () => {
+    const url = addUrl.trim()
+    if (!url)
+      return
+    if (shot.referenceAssets.length >= 8) {
+      toast.error('最多 8 个参考资产')
+      return
+    }
+    setSaving(true)
+    try {
+      const next: CanvasShotReferenceAsset[] = [
+        ...shot.referenceAssets,
+        { assetId: `manual-${Date.now()}`, url, role: addRole, label: addLabel.trim() || undefined, source: 'manual' },
+      ]
+      await onSave(next)
+      setAddUrl('')
+      setAddLabel('')
+    }
+    catch {
+      toast.error('添加参考资产失败')
+    }
+    finally {
+      setSaving(false)
+    }
+  }, [addUrl, addRole, addLabel, shot.referenceAssets, onSave])
+
+  const handleRemove = useCallback(async (index: number) => {
+    setSaving(true)
+    try {
+      const next = shot.referenceAssets.filter((_, i) => i !== index)
+      await onSave(next)
+    }
+    catch {
+      toast.error('删除参考资产失败')
+    }
+    finally {
+      setSaving(false)
+    }
+  }, [shot.referenceAssets, onSave])
+
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-muted-foreground">
+        参考资产
+        {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
+      </label>
+
+      {/* 已有参考资产列表 */}
+      {shot.referenceAssets.length > 0 && (
+        <div className="space-y-1.5">
+          {shot.referenceAssets.map((asset, i) => (
+            <div key={asset.assetId} className="flex items-center gap-2 text-xs bg-muted/50 rounded p-1.5">
+              {asset.url && (
+                <img
+                  src={asset.url}
+                  alt={asset.label || ROLE_LABELS[asset.role]}
+                  className="w-8 h-8 rounded object-cover bg-muted"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    {ROLE_LABELS[asset.role]}
+                  </span>
+                  {asset.label && (
+                    <span className="truncate">{asset.label}</span>
+                  )}
+                </div>
+                <p className="truncate text-muted-foreground mt-0.5">{asset.url}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1 text-muted-foreground hover:text-destructive"
+                onClick={() => handleRemove(i)}
+              >
+                ✕
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 添加新参考资产 */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-1.5">
+          <select
+            value={addRole}
+            onChange={e => setAddRole(e.target.value as CanvasShotReferenceAsset['role'])}
+            className="w-20 rounded-lg border border-input bg-background px-2 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {ROLE_OPTIONS.map(role => (
+              <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+            ))}
+          </select>
+          <Input
+            value={addUrl}
+            onChange={e => setAddUrl(e.target.value)}
+            placeholder="输入参考图 URL"
+            className="text-xs"
+          />
+        </div>
+        <div className="flex gap-1.5">
+          <Input
+            value={addLabel}
+            onChange={e => setAddLabel(e.target.value)}
+            placeholder="标签（可选）"
+            className="text-xs"
+          />
+          <Button
+            size="sm"
+            onClick={handleAdd}
+            disabled={!addUrl.trim() || saving || shot.referenceAssets.length >= 8}
+          >
+            添加
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

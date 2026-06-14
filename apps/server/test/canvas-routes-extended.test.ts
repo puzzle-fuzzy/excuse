@@ -370,6 +370,55 @@ describe('canvas routes — extended', () => {
   })
 
   // ═══════════════════════════════════════════════════
+  //  PATCH /shots/:shotId — referenceAssetsJson
+  // ═══════════════════════════════════════════════════
+
+  describe('PATCH /shots/:shotId — 参考资产', () => {
+    it('未登录时返回错误', async () => {
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: [{ assetId: 'a1', url: 'https://img.png', role: 'style' }] },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('登录后更新参考资产列表', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const referenceAssets = [
+        { assetId: 'a1', url: 'https://img1.png', role: 'style', label: '风格参考', source: 'asset_library' },
+        { assetId: 'a2', url: 'https://img2.png', role: 'character' },
+      ]
+      const { data } = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: referenceAssets },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      expect(data?.success).toBe(true)
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', { referenceAssetsJson: referenceAssets })
+    })
+
+    it('参考资产超过 8 个时被 schema 拒绝', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const nineAssets = Array.from({ length: 9 }, (_, i) => ({ assetId: `a${i}`, url: `https://img${i}.png`, role: 'other' as const }))
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: nineAssets },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('无效 role 值时被 schema 拒绝', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: [{ assetId: 'a1', url: 'https://img.png', role: 'invalid_role' }] },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
   //  POST /shots/:shotId/retry
   // ═══════════════════════════════════════════════════
 

@@ -7,6 +7,8 @@ import type {
   CanvasModelPreferences,
   CanvasPipelineRunRow,
   CanvasProjectStatus as CanvasProjectStatusFromDB,
+  CanvasShotReferenceAsset as CanvasShotReferenceAssetFromDB,
+  CanvasShotReferenceRole as CanvasShotReferenceRoleFromDB,
   CanvasShotStatus as CanvasShotStatusFromDB,
   CharacterProfile,
   ContinuityIssue,
@@ -25,6 +27,8 @@ import type { CanvasFailureKind } from './canvas-failure'
 export type { CanvasModelPreferences, CharacterProfile, ContinuityIssue, LocationProfile, NovelAnalysis }
 export type { ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry }
 export type { CanvasLayoutEdge, CanvasLayoutNode, CanvasLayoutPosition, CanvasLayoutViewport }
+export type CanvasShotReferenceRole = CanvasShotReferenceRoleFromDB
+export type CanvasShotReferenceAsset = CanvasShotReferenceAssetFromDB
 export type CanvasLayoutDto = CanvasLayoutDtoFromDB
 export type CanvasPipelineRunDTO = Serialize<CanvasPipelineRunRow>
 
@@ -124,6 +128,8 @@ export interface ShotDTO {
   videoUrl: string | null
   status: CanvasShotStatus
   errorMessage: string | null
+  /** 镜头额外参考资产列表 — 生成/重试时合并进 referenceUrls */
+  referenceAssets: CanvasShotReferenceAssetFromDB[]
   createdAt: string
   updatedAt: string
 }

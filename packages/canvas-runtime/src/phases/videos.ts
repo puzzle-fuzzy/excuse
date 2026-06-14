@@ -6,6 +6,17 @@ type ShotRow = CanvasProjectDetail['shots'][number]
 type CharacterRow = CanvasProjectDetail['characters'][number]
 type LocationRow = CanvasProjectDetail['locations'][number]
 
+/** URL 去重，保持首次出现顺序 */
+function dedupe(urls: string[]): string[] {
+  const seen = new Set<string>()
+  return urls.filter((url) => {
+    if (seen.has(url))
+      return false
+    seen.add(url)
+    return true
+  })
+}
+
 /**
  * 镜头视频提交核心（per-entity, async submit）：referenceUrls 解析 → model 重定后缀 → submit。
  * Host 保留 per-shot 循环、skip-guards（!videoPrompt）、资产行 createCanvasAsset / markRunning / markFailed、
@@ -43,7 +54,11 @@ export async function submitShotVideoEntity(input: ShotVideoEntityInput): Promis
   const locationReferenceUrl = input.shot.locationId
     ? locationMap.get(input.shot.locationId)?.referenceImageUrl ?? null
     : null
-  const referenceUrls = [...characterReferenceUrls, ...(locationReferenceUrl ? [locationReferenceUrl] : [])]
+  /** 镜头额外参考资产 URL（角色/场景在前，用户额外引用在后，去重） */
+  const extraReferenceUrls = input.shot.referenceAssetsJson
+    ?.map(asset => asset.url)
+    .filter((url): url is string => Boolean(url)) ?? []
+  const referenceUrls = dedupe([...characterReferenceUrls, ...(locationReferenceUrl ? [locationReferenceUrl] : []), ...extraReferenceUrls])
   const model = getCanvasVideoModel(input.modelPreferences, referenceUrls)
 
   const { taskId } = await submitCanvasShotVideo({

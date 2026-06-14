@@ -21,6 +21,17 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** URL 去重，保持首次出现顺序 */
+function dedupe(urls: string[]): string[] {
+  const seen = new Set<string>()
+  return urls.filter((url) => {
+    if (seen.has(url))
+      return false
+    seen.add(url)
+    return true
+  })
+}
+
 export async function generateVideos(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
@@ -128,7 +139,10 @@ export async function retryShotVideo(shotId: string, config: { dashscopeApiKey: 
   const locRefUrl = shot.locationId
     ? locationMap.get(shot.locationId)?.referenceImageUrl ?? null
     : null
-  const referenceUrls = [...charRefUrls, ...(locRefUrl ? [locRefUrl] : [])]
+  const extraRefUrls = shot.referenceAssetsJson
+    ?.map(asset => asset.url)
+    .filter(Boolean) as string[] ?? []
+  const referenceUrls = dedupe([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
 
   const model = getVideoModel(detail.project.modelPreferencesJson, referenceUrls)
   const shotVideoAsset = await createCanvasAsset({
@@ -190,7 +204,10 @@ export async function retryFailedShots(projectId: string, accountId: string, con
     const locRefUrl = shot.locationId
       ? locationMap.get(shot.locationId)?.referenceImageUrl ?? null
       : null
-    const referenceUrls = [...charRefUrls, ...(locRefUrl ? [locRefUrl] : [])]
+    const extraRefUrls = shot.referenceAssetsJson
+      ?.map(asset => asset.url)
+      .filter(Boolean) as string[] ?? []
+    const referenceUrls = dedupe([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
 
     const model = getVideoModel(detail.project.modelPreferencesJson, referenceUrls)
     const shotVideoAsset = await createCanvasAsset({

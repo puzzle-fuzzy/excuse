@@ -600,6 +600,24 @@ export function createCanvasRoutes(config: ServerConfig) {
           style: t.Optional(t.String()),
         })),
         videoPrompt: t.Optional(t.String()),
+        referenceAssetsJson: t.Optional(t.Array(t.Object({
+          assetId: t.String(),
+          url: t.String(),
+          role: t.Union([
+            t.Literal('character'),
+            t.Literal('location'),
+            t.Literal('style'),
+            t.Literal('firstFrame'),
+            t.Literal('other'),
+          ]),
+          label: t.Optional(t.String({ maxLength: 100 })),
+          source: t.Optional(t.Union([
+            t.Literal('asset_library'),
+            t.Literal('uploaded_file'),
+            t.Literal('manual'),
+          ]),
+          ),
+        }), { maxItems: 8 })),
       }),
     })
 

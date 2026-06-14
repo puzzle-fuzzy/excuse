@@ -29,6 +29,17 @@ import {
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
 import { createClient, getTextModel, getVideoModel, notifyNode } from './service-helpers'
 
+/** URL 去重，保持首次出现顺序 */
+function dedupeUrls(urls: string[]): string[] {
+  const seen = new Set<string>()
+  return urls.filter((url) => {
+    if (seen.has(url))
+      return false
+    seen.add(url)
+    return true
+  })
+}
+
 // ── 角色重新生成 ──────────────────────────────────────
 
 export async function regenerateCharacter(characterId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
@@ -210,6 +221,7 @@ export async function regenerateShotVideo(shotId: string, config: { dashscopeApi
     environmentJson: shot.environmentJson,
     videoPrompt: shot.videoPrompt,
     negativePrompt: shot.negativePrompt,
+    referenceAssetsJson: shot.referenceAssetsJson ?? [],
     status: 'draft',
   })
 
@@ -241,7 +253,10 @@ export async function regenerateShotVideo(shotId: string, config: { dashscopeApi
     const locRefUrl = newShot.locationId
       ? locationMap.get(newShot.locationId)?.referenceImageUrl ?? null
       : null
-    const referenceUrls = [...charRefUrls, ...(locRefUrl ? [locRefUrl] : [])]
+    const extraRefUrls = newShot.referenceAssetsJson
+      ?.map(asset => asset.url)
+      .filter(Boolean) as string[] ?? []
+    const referenceUrls = dedupeUrls([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
 
     const model = getVideoModel(project.modelPreferencesJson, referenceUrls)
     await submitCanvasShotVideo({
