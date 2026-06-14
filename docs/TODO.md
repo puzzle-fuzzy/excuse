@@ -90,6 +90,21 @@
 
 - `rg -n "\bas any\b|@ts-ignore|@ts-expect-error" apps packages` 中无实际类型逃逸，只剩注释说明。
 
+### 4. Server 测试 `mock.module` 隔离已完成
+
+状态：已完成，commit：`f16bc76`
+
+完成内容：
+
+- `canvas-videos-outcome.test.ts` 等大量使用 `mock.module` 的 server 测试在非 isolate 模式下互相污染（如 `jwt.sign` 变 undefined），导致 `bun test --cwd apps/server` 出现 72/279 失败并扩散到 auth/billing/upload/generate/notifications 等无关测试。
+- `apps/server` 的 `test` 脚本默认改为 `bun test --isolate`；root `test` 的 server 部分改为 `bun run --cwd apps/server test`，使 `bun run test` 也走 isolate 策略；AGENTS.md 同步更新测试命令说明。
+
+验证方式：
+
+- server 全量：`bun run --cwd apps/server test`（279 pass / 0 fail）。
+- 单文件：`bun test apps/server/test/canvas-videos-outcome.test.ts`。
+- 多个 `mock.module` 文件混跑：`bun test --isolate a.test.ts b.test.ts`。
+
 ## P0：Canvas 可信赖创作工作台
 
 目标：用户点击自动执行后，不刷新页面也能看到真实进度、图片、视频、失败项和最终状态。
