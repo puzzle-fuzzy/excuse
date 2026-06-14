@@ -35,6 +35,21 @@ export async function getGenerationRecordById(id: string) {
 }
 
 /**
+ * 按 ID + accountId 查询单条生成记录 — 镜头参考资产归属校验用
+ *
+ * 用于服务端校验镜头参考资产时确认 assetId 属于当前用户。
+ * canvas_assets 未命中时回退到 generation_records 查询。
+ */
+export async function getGenerationRecordByIdForAccount(id: string, accountId: string) {
+  const [record] = await getDb()
+    .select()
+    .from(generationRecords)
+    .where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId)))
+    .limit(1)
+  return record ?? null
+}
+
+/**
  * 分页查询生成记录，category/status 过滤推到 SQL 层
  *
  * statuses（多状态）提供时优先于 status（单状态）。

@@ -20,6 +20,21 @@ export async function getCanvasAssetById(id: string) {
   return asset ?? null
 }
 
+/**
+ * 按 ID + accountId 查询单条 Canvas 资产 — 镜头参考资产归属校验用
+ *
+ * 用于服务端校验镜头参考资产时确认 assetId 属于当前用户。
+ * 仓库层强制 accountId 约束，调用方无需再判断归属。
+ */
+export async function getCanvasAssetByIdForAccount(id: string, accountId: string) {
+  const [asset] = await getDb()
+    .select()
+    .from(canvasAssets)
+    .where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId)))
+    .limit(1)
+  return asset ?? null
+}
+
 /** 查询项目下所有资产记录 */
 export async function listCanvasAssetsByProject(projectId: string) {
   return getDb()

@@ -24,6 +24,21 @@ export async function getUploadedFileById(id: string) {
 }
 
 /**
+ * 按 ID + accountId 查询单条上传文件 — 镜头参考资产归属校验用
+ *
+ * 用于服务端校验镜头参考资产时确认 assetId 属于当前用户。
+ * 仓库层强制 accountId 约束，调用方无需再判断归属。
+ */
+export async function getUploadedFileByIdForAccount(id: string, accountId: string) {
+  const [record] = await getDb()
+    .select()
+    .from(uploadedFiles)
+    .where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId)))
+    .limit(1)
+  return record ?? null
+}
+
+/**
  * 按 ID 列表批量查询上传文件记录
  */
 export async function getUploadedFilesByIds(ids: string[]) {

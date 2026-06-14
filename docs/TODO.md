@@ -303,7 +303,7 @@
 
 ### 2. 参考资产复用
 
-当前状态：部分完成（镜头额外参考资产 v0.1 + 资产库选择 v0.2，commit：`4fb64b3`、`本轮新增待提交`）。
+当前状态：部分完成（镜头额外参考资产 v0.1 + 资产库选择 v0.2 + 服务端归属校验 v0.3，commit：`4fb64b3`、`e886876`、`本轮新增 commit`）。
 
 已完成：
 
@@ -312,12 +312,12 @@
 - v0.1：视频生成、重试、重新生成镜头变体时合并角色/场景自动引用与镜头额外参考资产，并去重后传给 provider（角色/场景在前，用户额外引用在后）。
 - v0.2：镜头详情支持从资产中心直接选择多个图片参考资产（选择器前端过滤 image/character/location/上传图片候选，自动推断 role、按 assetId/url 去重保存），手动输入 URL 降级为高级兜底入口。
 - v0.2：已选参考资产支持在镜头详情内调整基础 role（角色图/场景图/风格图/首帧图/其他）。
+- v0.3：服务端保存参考资产前按 assetId 回查真实记录做归属与 URL 可信度校验——`uploaded_file`/`asset_library` 必须属于当前账号且 URL 匹配记录中可信 URL（canvas_assets 先查、generation_records 回退），`manual` 仅校验合法 http(s) URL；统一归一化（label trim、source 缺省 manual）、按 assetId/url 去重、最多 8 个；不信任前端 source 字符串。
 
 待办：
 
 - 根据参考资产数量自动推荐 T2V/I2V/R2V 模型，并在 UI 上解释选择原因。
 - 支持将资产应用到一个镜头、一组镜头或整个项目。
-- 服务端严格校验 referenceAssetsJson 中 assetId/url 属于当前用户。
 
 验收：
 
