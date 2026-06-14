@@ -17,6 +17,7 @@ import {
   createOpenAIModelsResponse,
   isOpenAIGatewayError,
   normalizeOpenAIChatRequest,
+  OPENAI_GATEWAY_ERROR_CODES,
 } from '@excuse/gateway'
 import { DashScopeClient, getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
@@ -56,14 +57,14 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       // 模型名解析（别名 → 内部 ID）
       const modelConfig = getModelById(normalized.internalModelId)
       if (!modelConfig) {
-        const err = createOpenAIError(`Model '${request.model}' not found`, 'invalid_request_error', 'model_not_found', 404)
+        const err = createOpenAIError(`Model '${request.model}' not found`, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND, 404)
         set.status = err.status
         return err.response
       }
 
       // 仅支持文本模型
       if (modelConfig.category !== 'text') {
-        const err = createOpenAIError(`Model '${request.model}' is not a text model`, 'invalid_request_error', 'invalid_model', 400)
+        const err = createOpenAIError(`Model '${request.model}' is not a text model`, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL, 400)
         set.status = err.status
         return err.response
       }
@@ -72,7 +73,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       const validationResult = validateAndMerge(modelConfig, normalized.parameters)
       if (!validationResult.ok) {
         const details = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-        const err = createOpenAIError(details, 'invalid_request_error', 'invalid_parameters', 400)
+        const err = createOpenAIError(details, 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS, 400)
         set.status = err.status
         return err.response
       }
@@ -122,7 +123,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           }
           await markGenerationFailed(record.id, message)
           recordGenerationStatus('failed')
-          const err = createOpenAIError(message, 'insufficient_quota', 'insufficient_balance', 402)
+          const err = createOpenAIError(message, 'insufficient_quota', OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE, 402)
           set.status = err.status
           return err.response
         }
@@ -151,7 +152,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           targetId: record.id,
           detail: { model: modelConfig.id, recordId: record.id, totalPriceCents: estimatedCost.totalPriceCents, status: 'failed', error: result.error },
         })
-        const err = createOpenAIError(result.error, 'server_error', 'generation_failed', 500)
+        const err = createOpenAIError(result.error, 'server_error', OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED, 500)
         set.status = err.status
         return err.response
       }

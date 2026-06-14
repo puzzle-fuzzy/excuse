@@ -47,6 +47,11 @@ const mockChatCompletion = mock<(model: string, params: Record<string, unknown>)
   usage: { inputTokens: 10, outputTokens: 20 },
 }))
 
+const mockValidateAndMerge = mock<(_modelConfig: unknown, params: Record<string, unknown>) => { ok: boolean, params?: unknown, errors?: Array<{ field: string, message: string }> }>(() => ({
+  ok: true,
+  params: makeValidatedParams({}),
+}))
+
 mock.module('@excuse/db', () => ({
   createGenerationRecord: mockCreateGenerationRecord,
   markGenerationFailed: mockMarkGenerationFailed,
@@ -88,10 +93,7 @@ mock.module('@excuse/provider', () => ({
     return cat === 'text' ? all : []
   },
   validateModelParameters: () => ({ valid: true, errors: [] }),
-  validateAndMerge: (_modelConfig: unknown, params: Record<string, unknown>) => ({
-    ok: true,
-    params: makeValidatedParams(params),
-  }),
+  validateAndMerge: (modelConfig: unknown, params: Record<string, unknown>) => mockValidateAndMerge(modelConfig, params),
   MODELS: {},
 }))
 
@@ -134,6 +136,18 @@ function getErrorMessage(error: unknown): string {
   return String(val)
 }
 
+/** 从 Eden error 提取 OpenAI error.code（如 model_not_found / insufficient_balance） */
+function getErrorCode(error: unknown): string {
+  const edenErr = error as { value?: { error?: { code?: string } } } | null
+  const errObj = edenErr?.value as Record<string, unknown> | undefined
+  if (errObj && typeof errObj === 'object' && 'error' in errObj) {
+    const inner = (errObj as Record<string, unknown>).error
+    if (typeof inner === 'object' && inner !== null && 'code' in inner)
+      return (inner as { code?: string }).code ?? ''
+  }
+  return ''
+}
+
 // ─── 测试 ──────────────────────────────────────────
 
 describe('OpenAI 网关', () => {
@@ -141,9 +155,13 @@ describe('OpenAI 网关', () => {
     mockCreateGenerationRecord.mockImplementation(() => Promise.resolve(mockRecord))
     mockMarkGenerationFailed.mockImplementation(() => Promise.resolve(undefined))
     mockMarkGenerationSucceeded.mockImplementation(() => Promise.resolve(undefined))
-    mockReserveCredit.mockClear()
+    mockReserveCredit.mockImplementation(() => Promise.resolve(undefined))
     mockDebitCredit.mockClear()
     mockRefundCredit.mockClear()
+    mockValidateAndMerge.mockImplementation((_modelConfig, params) => ({
+      ok: true,
+      params: makeValidatedParams(params),
+    }))
     mockChatCompletion.mockImplementation(() => Promise.resolve({
       success: true,
       output: { text: 'Hello! How can I help you?' },
@@ -203,7 +221,7 @@ describe('OpenAI 网关', () => {
       expect(mockCreateGenerationRecord).toHaveBeenCalled()
     })
 
-    it('未知模型 → 404', async () => {
+    it('未知模型 → 404 + code=model_not_found', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
@@ -216,9 +234,10 @@ describe('OpenAI 网关', () => {
       expect(error).toBeTruthy()
       const errBody = getErrorMessage(error)
       expect(errBody).toContain('not found')
+      expect(getErrorCode(error)).toBe('model_not_found')
     })
 
-    it('非文本模型 → 400', async () => {
+    it('非文本模型 → 400 + code=invalid_model', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
@@ -231,9 +250,10 @@ describe('OpenAI 网关', () => {
       expect(error).toBeTruthy()
       const errBody = getErrorMessage(error)
       expect(errBody).toContain('not a text model')
+      expect(getErrorCode(error)).toBe('invalid_model')
     })
 
-    it('stream=true → 400', async () => {
+    it('stream=true → 400 + code=stream_not_supported', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
@@ -247,9 +267,10 @@ describe('OpenAI 网关', () => {
       expect(error).toBeTruthy()
       const errBody = getErrorMessage(error)
       expect(errBody).toContain('Streaming')
+      expect(getErrorCode(error)).toBe('stream_not_supported')
     })
 
-    it('缺少 user message → 400', async () => {
+    it('缺少 user message → 400 + code=missing_user_message', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
@@ -262,21 +283,31 @@ describe('OpenAI 网关', () => {
       expect(error).toBeTruthy()
       const errBody = getErrorMessage(error)
       expect(errBody).toContain('No user message')
+      expect(getErrorCode(error)).toBe('missing_user_message')
     })
 
-    it('未认证 → 401', async () => {
+    it('参数校验失败 → 400 + code=invalid_parameters', async () => {
+      mockValidateAndMerge.mockImplementation(() => ({
+        ok: false,
+        errors: [{ field: 'temperature', message: 'must be between 0 and 2' }],
+      }))
+
+      const headers = await getAuthHeaders()
       const app = createGatewayApp()
       const client = treaty(app)
 
       const { error } = await client.v1.chat.completions.post({
         model: 'qwen-max',
         messages: [{ role: 'user', content: 'Hello' }],
-      })
+        temperature: 99,
+      }, { headers })
 
       expect(error).toBeTruthy()
+      expect(getErrorCode(error)).toBe('invalid_parameters')
+      expect(getErrorMessage(error)).toContain('temperature')
     })
 
-    it('provider 失败 → 500 error', async () => {
+    it('provider 失败 → 500 + code=generation_failed + refund', async () => {
       mockChatCompletion.mockImplementation(() => Promise.resolve({
         success: false,
         error: 'DashScope error',
@@ -292,7 +323,42 @@ describe('OpenAI 网关', () => {
       }, { headers })
 
       expect(error).toBeTruthy()
+      expect(getErrorCode(error)).toBe('generation_failed')
       expect(mockMarkGenerationFailed).toHaveBeenCalled()
+      // 成本为 1 cent，预扣成功 → 失败后必须退款
+      expect(mockRefundCredit).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        generationRecordId: 'rec-gw-001',
+      }))
+    })
+
+    it('余额不足 → 402 + code=insufficient_balance', async () => {
+      mockReserveCredit.mockImplementation(() => Promise.reject(new Error('Insufficient balance')))
+
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { error } = await client.v1.chat.completions.post({
+        model: 'qwen-max',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }, { headers })
+
+      expect(error).toBeTruthy()
+      expect(getErrorCode(error)).toBe('insufficient_balance')
+      expect(mockMarkGenerationFailed).toHaveBeenCalled()
+    })
+
+    it('未认证 → 401', async () => {
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { error } = await client.v1.chat.completions.post({
+        model: 'qwen-max',
+        messages: [{ role: 'user', content: 'Hello' }],
+      })
+
+      expect(error).toBeTruthy()
     })
   })
 

@@ -13,6 +13,25 @@ import { resolveModelId } from '@excuse/shared'
  * 设计约束：本包不感知 HTTP / DB / provider，只做类型与字段映射，便于单测覆盖。
  */
 
+/**
+ * OpenAI 网关对外暴露的错误码常量。
+ *
+ * 用法：route 和 normalizeOpenAIChatRequest 在构造 createOpenAIError 时，
+ * 必须从本常量取 code，禁止散落魔法字符串。
+ */
+export const OPENAI_GATEWAY_ERROR_CODES = {
+  MODEL_NOT_FOUND: 'model_not_found',
+  INVALID_MODEL: 'invalid_model',
+  INVALID_PARAMETERS: 'invalid_parameters',
+  INSUFFICIENT_BALANCE: 'insufficient_balance',
+  GENERATION_FAILED: 'generation_failed',
+  STREAM_NOT_SUPPORTED: 'stream_not_supported',
+  MISSING_USER_MESSAGE: 'missing_user_message',
+} as const
+
+export type OpenAIGatewayErrorCode
+  = typeof OPENAI_GATEWAY_ERROR_CODES[keyof typeof OPENAI_GATEWAY_ERROR_CODES]
+
 /** 网关错误：包含 OpenAI 格式的错误体 + HTTP 状态码，调用方据此返回响应。 */
 export interface OpenAIGatewayError {
   response: OpenAIErrorResponse
@@ -55,7 +74,7 @@ export interface OpenAIChatResponseInput {
 export function createOpenAIError(
   message: string,
   type: string,
-  code: string,
+  code: OpenAIGatewayErrorCode | string,
   statusCode: number,
 ): OpenAIGatewayError {
   return {
@@ -77,17 +96,17 @@ export function createOpenAIError(
  */
 export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
   if (request.stream) {
-    return createOpenAIError('Streaming is not supported', 'invalid_request_error', 'stream_not_supported', 400)
+    return createOpenAIError('Streaming is not supported', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.STREAM_NOT_SUPPORTED, 400)
   }
 
   const userMessages = request.messages.filter(m => m.role === 'user')
   if (userMessages.length === 0) {
-    return createOpenAIError('No user message provided', 'invalid_request_error', 'missing_user_message', 400)
+    return createOpenAIError('No user message provided', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE, 400)
   }
 
   const lastUserMessage = userMessages[userMessages.length - 1]
   if (!lastUserMessage) {
-    return createOpenAIError('No user message provided', 'invalid_request_error', 'missing_user_message', 400)
+    return createOpenAIError('No user message provided', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE, 400)
   }
 
   const parameters: Record<string, unknown> = { prompt: lastUserMessage.content }

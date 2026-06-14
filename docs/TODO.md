@@ -36,12 +36,9 @@
 
 ## P0：Canvas 可信赖创作工作台
 
-当前状态：主链路已完成并复核，commit 摘要：`a2b4c9f`、`e3d6277`、`095d151`、`b123756`、`d73cd15`、`e3dbccb`、`633672c`、`0a79421`、`d783551`、`67f9548`、`cb0fd99`、`2416feb`、`d211790`。
-
 待办：
 
-- 暂无阻塞性待办。
-- 如后续继续优化：polling 模式可考虑更短节流或基于 `@tanstack/react-query` 的统一 cache invalidation。
+- polling 模式可考虑更短节流或基于 `@tanstack/react-query` 的统一 cache invalidation。
 
 验收：
 
@@ -56,23 +53,11 @@
 
 ### 1. 资产中心升级
 
-当前状态：隐藏策略已完成，commit：`1be3ce9`。
-
-已完成：
-
-- `generation_records` / `canvas_assets` 新增 `hiddenAt` 字段（软隐藏，不物理删除）。
-- `POST /api/assets/:source/:id/hide`：按 `source + id` 隐藏，校验 `accountId`，queued/running 的 canvas_asset 返回 409。
-- `/api/assets` 默认排除 `hiddenAt IS NULL`。
-- 前端 `移出资产中心` 按钮 + 确认弹窗（按 source 不同文案）。
-- `unhideGenerationRecord` / `unhideCanvasAsset` repository 层已保留，暂不做 UI。
-
 待办：
 
 - 回收站/恢复能力 UI（第一版只做隐藏，不做恢复 UI）。
 - uploaded_files 编辑产品流程：重命名、用途、metadata。
 - 高级筛选 UI 优化：排序、标签、收藏。
-- 资产中心查询已迁入 React Query 试点；后续可迁移 Canvas 项目详情、通知、Billing。
-- 搜索输入已接入 `use-debounce`，debounce / React Query 试点完成。
 
 验收：
 
@@ -81,21 +66,6 @@
 - 删除/隐藏策略不会误删仍被项目引用的资产。
 
 ### 2. 参考资产复用
-
-当前状态：部分完成（缺少撤销历史），commit：`4fb64b3`、`e886876`、`5a3a74f`、`df5ad57`、`c196f66`。
-
-v0.4 已完成：
-
-- 服务端 `recommendCanvasVideoModel` 带能力降级（i2v→r2v→t2v），`recommendCanvasVideoVariant` 纯规则供前端复用。
-- `retryShotVideo`、`retryFailedShots`、`regenerateShotVideo` 统一改用 `submitShotVideoEntity`。
-- 前端 `ShotReferenceAssets` 展示推荐原因（T2V/R2V/I2V），role 变化时实时更新。
-
-v0.5 已完成：
-
-- `previewApplyReferenceAssets` 纯函数（append/replace 去重 + max 8 截断）。
-- 服务端 `POST /api/canvas/projects/:projectId/shots/reference-assets/apply`（归属校验 + validateShotReferenceAssetsForAccount + 逐镜头更新）。
-- 前端 `ShotReferenceAssets` 增加"应用到..."入口 + 弹窗（多选镜头 + append/replace 切换 + 预览）。
-- 客户端 + 服务端单元测试已覆盖。
 
 待办：
 
@@ -129,13 +99,10 @@ v0.5 已完成：
 
 ### 2. Notification
 
-当前状态：第一批真实触发器已完成。
-
 待办：
 
 - API Key 过期、额度不足、异常调用等系统风险通知。
 - 通知点击定位到具体资产/镜头，而不是只到项目或工作台。
-- Notification 查询已接入 `@tanstack/react-query`，SSE notification 事件触发 invalidate / 缓存更新，commit：`e44a8f1`。
 
 验收：
 
@@ -143,8 +110,6 @@ v0.5 已完成：
 - 通知能定位到具体问题或产物。
 
 ### 3. Audit
-
-当前状态：大部分覆盖，commit：`06ee5f6`。
 
 待办：
 
@@ -159,12 +124,12 @@ v0.5 已完成：
 
 ### 4. OpenAI Gateway
 
-当前状态：API 已暴露，开发者使用说明入口第一版已完成，正式开放策略仍未完成。
+当前状态：开发者使用说明入口已完成，commit：`0bcd860`；错误码常量与测试矩阵已补第一版，commit：本轮待提交；正式开放策略仍未完成。
 
 待办：
 
 - streaming adapter。
-- 错误码更完整文档。
+- 错误码常量已收口在 `OPENAI_GATEWAY_ERROR_CODES`，对外文档（开发者页面、错误对照表）仍需整理。
 - 用量查询。
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。
@@ -191,11 +156,8 @@ v0.5 已完成：
 
 ### 6. API Key 产品化
 
-当前状态：前端第一版入口已完成，commit：`b154a55`。
-
 待办：
 
-- 前端 API Key 管理入口第一版已完成：列表、创建（react-hook-form + secret 只显示一次 + 复制）、撤销确认。
 - scope、rate limit、quota、lastUsedAt 使用统计增强。
 - 决定是否随 OpenAI Gateway 一起开放。
 
@@ -247,20 +209,15 @@ v0.5 已完成：
 1. `lodash-es/debounce`、`lodash-es/throttle` 或 `use-debounce`
    - 用于资产搜索、项目选择器、参考资产选择弹窗、Canvas 刷新节流。
    - 前端不要引整个 `lodash`，优先按需引 `lodash-es` 或 hook 库。
-   - debounce / React Query 试点：资产中心已接入 `use-debounce` + `@tanstack/react-query`，commit：`e44a8f1`。
 
 2. `@tanstack/react-query`
    - 用于资产中心、Canvas 项目详情、字幕项目、Billing、通知列表。
    - SSE 只做“有变化”通知，收到事件后 invalidate query。
    - 减少手写 loading/error/refetch/cache 状态。
-   - 资产中心试点已完成，后续可迁移 Canvas 项目详情、字幕项目、Billing。
-   - React Query 第二个试点：通知列表和未读数已迁入 React Query，commit：`e44a8f1`。
-   - React Query 第三个试点：Billing 页面已迁入 React Query，commit：`e44a8f1`。
 
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。
-   - API Key 创建表单已作为第一批试点，commit：`b154a55`。
 
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
@@ -294,17 +251,7 @@ v0.5 已完成：
 
 ### 2. Package 治理剩余事项
 
-已完成 package 摘要：
-
-- `packages/ffmpeg`：commit `65e775b`。
-- `packages/storage`：commit `8ac92b3`。
-- `packages/auth`：commit `de60178`。
-- `packages/rate-limit`：commit `b575959`。
-- `packages/metrics`：commit `a80936f`。
-- `packages/subtitle-engine`：commit `a269aa6`。
-- `packages/events`、`packages/task-engine`、`packages/workflow-engine`、`packages/prompt-engine`、`packages/canvas-engine`、`packages/canvas-runtime`、`packages/gateway` 已部分完成，后续只记录剩余动作。
-
-剩余待办：
+待办：
 
 - 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。
 - Storage 与 Asset 分层：`packages/storage` 只负责对象存取；资产记录、业务绑定、SSE 通知由 worker/service 完成。
@@ -322,11 +269,6 @@ v0.5 已完成：
 ## P5：测试体系与可注入设计
 
 测试覆盖率分析已完成，报告见 `docs/测试覆盖率分析.md`。原则：不追 100%，只补高 ROI 路径。
-
-已完成：
-
-- `apps/server/src/modules/generation/output-parser.ts` 测试已补齐，commit：`b86c727`、`97bf1ca`。
-- `packages/provider/src/model-validator.ts` 边界测试已补齐，commit：`97bf1ca`。
 
 高 ROI 待补：
 
@@ -369,16 +311,13 @@ v0.5 已完成：
 
 ## 推荐执行顺序
 
-1. ~~收口 P1-2 v0.4 模型变体推荐并提交~~ ✓ 已完成，commit：`df5ad57`。
-2. ~~并行完成测试覆盖率治理第一批：output-parser / model-validator~~ ✓ 已完成，commit：`b86c727`、`97bf1ca`（output-parser 20 pass / model-validator 28 pass，覆盖率 98.53% / 100%）。
-3. ~~P1-2 批量应用参考资产~~ ✓ 已完成（缺少撤销历史），v0.5：纯函数 + 服务端端点 + 前端弹窗 + 测试。
-4. 成熟库治理第一批：debounce + React Query 选型和最小接入。
-5. ~~资产中心删除/隐藏/回收站策略~~ ✓ 已完成（隐藏策略第一版），commit：`1be3ce9`。
-6. API Key 产品化与 Gateway 开放状态决策。
-7. Metrics / Health 生产级可观测性。
-8. Model Lab 内部实验页。
-9. 管理后台和运营统计。
-10. Package 治理剩余项：events、workflow command adapter、gateway streaming、Canvas domain service。
+1. 成熟库治理第一批：参考资产选择器 debounce 收口，继续推进 React Query 迁移边界。
+2. P1-2 批量应用参考资产补撤销历史。
+3. API Key 产品化与 Gateway 开放状态决策。
+4. Metrics / Health 生产级可观测性。
+5. Model Lab 内部实验页。
+6. 管理后台和运营统计。
+7. Package 治理剩余项：events、workflow command adapter、gateway streaming、Canvas domain service。
 
 ## 验收命令
 

@@ -5,11 +5,24 @@ import {
   createOpenAIModelsResponse,
   isOpenAIGatewayError,
   normalizeOpenAIChatRequest,
+  OPENAI_GATEWAY_ERROR_CODES,
 } from '../src'
 
 describe('@excuse/gateway', () => {
+  it('OPENAI_GATEWAY_ERROR_CODES 暴露所有公开错误码', () => {
+    expect(OPENAI_GATEWAY_ERROR_CODES).toEqual({
+      MODEL_NOT_FOUND: 'model_not_found',
+      INVALID_MODEL: 'invalid_model',
+      INVALID_PARAMETERS: 'invalid_parameters',
+      INSUFFICIENT_BALANCE: 'insufficient_balance',
+      GENERATION_FAILED: 'generation_failed',
+      STREAM_NOT_SUPPORTED: 'stream_not_supported',
+      MISSING_USER_MESSAGE: 'missing_user_message',
+    })
+  })
+
   it('构造 OpenAI 兼容的错误响应', () => {
-    expect(createOpenAIError('bad model', 'invalid_request_error', 'model_not_found', 404)).toEqual({
+    expect(createOpenAIError('bad model', 'invalid_request_error', OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND, 404)).toEqual({
       response: {
         error: {
           message: 'bad model',
@@ -57,7 +70,10 @@ describe('@excuse/gateway', () => {
     })
 
     expect(isOpenAIGatewayError(result)).toBe(true)
-    expect(result).toMatchObject({ status: 400 })
+    if (!isOpenAIGatewayError(result))
+      throw new Error('expected error')
+    expect(result.status).toBe(400)
+    expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.STREAM_NOT_SUPPORTED)
   })
 
   it('拒绝缺少 user 消息的请求', () => {
@@ -67,7 +83,43 @@ describe('@excuse/gateway', () => {
     })
 
     expect(isOpenAIGatewayError(result)).toBe(true)
-    expect(result).toMatchObject({ status: 400 })
+    if (!isOpenAIGatewayError(result))
+      throw new Error('expected error')
+    expect(result.status).toBe(400)
+    expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE)
+  })
+
+  it('多轮对话取最后一条 user 消息作为 prompt', () => {
+    const result = normalizeOpenAIChatRequest({
+      model: 'qwen-max',
+      messages: [
+        { role: 'user', content: 'first' },
+        { role: 'assistant', content: 'mid' },
+        { role: 'user', content: 'second' },
+        { role: 'user', content: 'third' },
+      ],
+    })
+
+    expect(isOpenAIGatewayError(result)).toBe(false)
+    if (isOpenAIGatewayError(result))
+      throw new Error('unexpected error')
+    expect(result.prompt).toBe('third')
+    expect(result.parameters.prompt).toBe('third')
+  })
+
+  it('未传入 temperature/max_tokens/top_p 时不进入 parameters', () => {
+    const result = normalizeOpenAIChatRequest({
+      model: 'qwen-max',
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+
+    expect(isOpenAIGatewayError(result)).toBe(false)
+    if (isOpenAIGatewayError(result))
+      throw new Error('unexpected error')
+    expect(result.parameters).toEqual({ prompt: 'hello' })
+    expect('temperature' in result.parameters).toBe(false)
+    expect('max_tokens' in result.parameters).toBe(false)
+    expect('top_p' in result.parameters).toBe(false)
   })
 
   it('构造 OpenAI chat completion 响应', () => {
