@@ -109,6 +109,30 @@
 
 目标：用户点击自动执行后，不刷新页面也能看到真实进度、图片、视频、失败项和最终状态。
 
+### P0 真实体验复核
+
+状态：已复核（2026-06-14，commit：`d211790`）
+
+复核依据：代码级走查 + 自动化测试（client 54 pass / server 279 pass / typecheck 3 端绿 / lint 0 错 0 警）。本轮未做本地 provider 端到端手工跑流，结论以代码路径和测试为准；如具备本地 DashScope 环境建议再补一次手工验收。
+
+复核结论：
+
+- 自动执行全部：经得起。`triggerPhase` fire-and-forget 立即返回，`running=true` 仅驱动 UI；恢复态由 mount/projectStatus 时的 `fetchCanvasPipelineRuns` 接管；阶段完成由 SSE `phaseDone` 主路径 + 3s 轮询兜底双通道推进。页面不会卡住。
+- SSE 实时刷新：经得起。`notifyNode(...)` 在每个节点完成时触发（`references.ts`/`videos.ts`/`regenerate.ts`/`storyboard.ts`），`handlePipelineNodeUpdate` 无条件 `projectVersion++` → `loadProject()`，所以**单个角色/场景/镜头资产完成即重载**，不限于阶段边界。
+- polling fallback：本轮修复后经得起（见下）。原差异检测只比 projectStatus + shot.status，SSE 断线时角色/场景图片逐个完成要到阶段结束才回显；现已扩展到比对 referenceImageUrl/turnaroundSheetUrl。
+- 图片回显：经得起。SSE 模式靠 `notifyNode` 重载；polling 模式靠 `hasCanvasPollDelta` 的 URL 差异触发重载。
+- 视频回显：经得起。shot.status 变化被差异检测捕获，且 `videos.ts` 单镜头完成即 `notifyNode`。
+- 终止后状态收敛：经得起。`handleCancelActive` → 后端取消活跃 run/task/assets → 前端 `setRunning(false)` + `loadProject()`，无需刷新。
+
+发现问题（已修复，commit：`d211790`）：
+
+1. **CanvasFlow pollData stale closure**（即本轮修复前唯一的 lint warning，`react/exhaustive-deps`）。节点构建 effect 使用了 `pollData`（驱动 `activeImageTaskIds` → 节点「生成中」角标与「正在生成参考图」占位），但依赖数组遗漏。阶段内图片开始/完成、或单次重新生成（无 running phase）时，节点 spinner 不会刷新。已把 `pollData` 加入依赖，并把映射逻辑抽成纯函数 `buildActiveImageTaskMaps` 便于单测。
+2. **polling fallback 差异检测遗漏角色/场景图片 URL**。SSE 断线（纯轮询）时，角色/场景参考图逐个完成只改变 `referenceImageUrl`，不改变 projectStatus/shot.status，旧逻辑不触发重载，要等到阶段结束才回显。已抽 `hasCanvasPollDelta` 并扩展比对维度。
+
+下一步修复：
+
+- 暂无阻塞性待办。如需进一步收敛，可考虑：polling 模式下节点级「生成中」spinner 也依赖 pollData（Fix #1 已覆盖主路径），以及可选地让差异检测在 polling 模式启用更短节流（当前固定 5s）。
+
 ### 1. 自动执行体验
 
 已完成：
@@ -163,6 +187,8 @@
 - 前端支持用户查看同一镜头的历史图片和历史视频（AssetHistory 组件），commit：`67f9548`
 - 前端支持用户锁定满意角色图或场景图，后续生成不自动覆盖，commit：`67f9548`
 - 暂停阶段（storyboard、videos）前端确认按钮已实现，commit：`d73cd15`
+- **（P0 真实体验复核修复，`d211790`）** CanvasFlow 节点构建 effect 补 `pollData` 依赖并抽取 `buildActiveImageTaskMaps`：阶段内图片开始/完成、单次重新生成时节点「生成中」角标与「正在生成参考图」占位能随轮询刷新，不再 stale。
+- **（P0 真实体验复核修复，`d211790`）** polling fallback 差异检测抽取为 `hasCanvasPollDelta` 并扩展到比对角色 referenceImageUrl/turnaroundSheetUrl 与场景 referenceImageUrl：SSE 断线时角色/场景图片逐个完成也能触发重载回显，不必等到阶段结束。
 
 待办：
 
