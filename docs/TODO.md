@@ -197,7 +197,7 @@
    - SSE 只做“有变化”通知，收到事件后 invalidate query。
    - 减少手写 loading/error/refetch/cache 状态。
    - ✅ Canvas 资产轮询、PipelineController 兜底轮询已迁移到 react-query。
-   - ✅ Canvas 资产轮询、PipelineController 兜底轮询已迁移到 react-query。
+
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。

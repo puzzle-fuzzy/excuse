@@ -17,6 +17,7 @@ import {
   retryFailedCanvasShots,
   updateCanvasModelPreferences,
 } from '../../api/client'
+import { useCanvasPipelineRunsPolling } from '../../hooks/use-canvas-pipeline-runs-polling'
 
 // ── RunningPhaseInfo: 管线阶段运行时的丰富信息 ──────────
 
@@ -361,52 +362,49 @@ export default function PipelineController({
   }, [phaseDone, projectId, running, currentPhase, onPhaseDoneConsumed, onPhaseComplete, advanceAfterPhase, onPhaseChange])
 
   // SSE 是主路径；polling 用作兜底，避免断线或漏事件时自动执行卡在 running。
+  const { runs: polledRuns } = useCanvasPipelineRunsPolling(projectId, {
+    enabled: running && currentPhase >= 0,
+  })
+
+  // watch polledRuns，命中 succeeded/failed 时推进状态（行为与原 setInterval 一致）。
+  // react-query 的 queryFn 抛错会进 query.error，不进 query.data（runs），等同于原 catch 静默兜底。
   useEffect(() => {
     if (!running || currentPhase < 0)
       return
 
-    let cancelled = false
-    const timer = window.setInterval(async () => {
-      try {
-        const runs = await fetchCanvasPipelineRuns(projectId)
-        const runId = activeRunIdRef.current
-        const phase = PHASES[currentPhase]
-        const run = runId
-          ? runs.find(r => r.id === runId)
-          : runs.find(r => r.phase === phase?.key && (r.status === 'succeeded' || r.status === 'failed'))
+    const phase = PHASES[currentPhase]
+    if (!phase || !polledRuns)
+      return
 
-        if (cancelled || !phase || !run)
-          return
+    const runId = activeRunIdRef.current
+    const run = runId
+      ? polledRuns.find(r => r.id === runId)
+      : polledRuns.find(r => r.phase === phase.key && (r.status === 'succeeded' || r.status === 'failed'))
 
-        if (run.status === 'succeeded' || run.status === 'failed') {
-          activeRunIdRef.current = null
-          onPhaseComplete()
+    if (!run)
+      return
 
-          if (run.status === 'failed') {
-            setError(`${phase.label} 失败: ${run.errorMessage || '未知错误'}`)
-            setRunning(false)
-            setCurrentPhase(-1)
-            setFailedPhaseIdx(currentPhase)
-            setElapsed(0)
-            phaseStartedAtRef.current = 0
-            onPhaseChange?.(null)
-            return
-          }
+    if (run.status !== 'succeeded' && run.status !== 'failed')
+      return
 
-          setFailedPhaseIdx(-1)
-          advanceAfterPhase(currentPhase)
-        }
-      }
-      catch {
-        // 静默兜底：下一轮或 SSE 事件会继续接管状态。
-      }
-    }, 3000)
+    activeRunIdRef.current = null
+    onPhaseComplete()
 
-    return () => {
-      cancelled = true
-      clearInterval(timer)
+    if (run.status === 'failed') {
+      setError(`${phase.label} 失败: ${run.errorMessage || '未知错误'}`)
+      setRunning(false)
+      setCurrentPhase(-1)
+      setFailedPhaseIdx(currentPhase)
+      setElapsed(0)
+      phaseStartedAtRef.current = 0
+      onPhaseChange?.(null)
+      return
     }
-  }, [running, currentPhase, projectId, onPhaseComplete, onPhaseChange, advanceAfterPhase])
+
+    setFailedPhaseIdx(-1)
+    advanceAfterPhase(currentPhase)
+    // eslint-disable-next-line react/exhaustive-deps
+  }, [polledRuns, running, currentPhase])
 
   // 暂停阶段确认 — 用户点击"确认继续"触发 PAUSE_BEFORE 阶段
   function handleConfirmPausePhase() {
