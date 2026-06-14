@@ -160,6 +160,36 @@ describe('shotReferenceAssets 资产库选择器', () => {
     })
     expect(onSaveCalls[0]![0]!.role).toBe('character')
   })
+
+  it('搜索词经 debounce 后再以最新值请求资产库', async () => {
+    vi.mocked(fetchAssetLibrary).mockResolvedValue({ success: true, items: [], total: 0 })
+    const user = userEvent.setup()
+    render(<ShotReferenceAssets shot={makeShot()} projectId="p1" onSave={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: '从资产库选择' }))
+    await waitFor(() => expect(fetchAssetLibrary).toHaveBeenCalled())
+    vi.mocked(fetchAssetLibrary).mockClear()
+
+    await user.type(screen.getByPlaceholderText('搜索资产、Prompt、文件名...'), 'cat')
+
+    // debounce 未到期前不应触发请求
+    expect(fetchAssetLibrary).not.toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(fetchAssetLibrary).toHaveBeenCalledWith(expect.objectContaining({
+        search: 'cat',
+      }))
+    })
+  })
+
+  it('弹窗未打开时不请求资产库', async () => {
+    vi.mocked(fetchAssetLibrary).mockResolvedValue({ success: true, items: [], total: 0 })
+    render(<ShotReferenceAssets shot={makeShot()} projectId="p1" onSave={vi.fn()} />)
+
+    // 弹窗未打开时，渲染后短暂等待仍不应触发资产请求
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(fetchAssetLibrary).not.toHaveBeenCalled()
+  })
 })
 
 describe('视频变体推荐提示', () => {

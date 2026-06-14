@@ -2,6 +2,7 @@ import type { ApplyReferenceAssetsMode, AssetLibraryItem, CanvasShotReferenceAss
 import { recommendCanvasVideoVariant } from '@excuse/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useDebounce } from 'use-debounce'
 import { applyShotReferenceAssets, fetchAssetLibrary } from '../../api/client'
 import {
   assetToShotReferenceAsset,
@@ -61,6 +62,7 @@ export function ShotReferenceAssets({
   // ── 资产库选择器弹窗状态 ──────────────────────────
   const [pickerOpen, setPickerOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [debouncedSearch] = useDebounce(search.trim(), 300)
   const [onlyCurrentProject, setOnlyCurrentProject] = useState(true)
   const [items, setItems] = useState<AssetLibraryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -216,17 +218,17 @@ export function ShotReferenceAssets({
     }
   }, [selectedShotIds, projectId, shot.id, shot.referenceAssets, applyMode, onUpdate])
 
-  // 弹窗打开时 / 搜索 / 仅当前项目变化时拉取资产（300ms debounce）
+  // 弹窗打开时 / 搜索 / 仅当前项目变化时拉取资产（debounce 由 use-debounce 提供）
   useEffect(() => {
     if (!pickerOpen)
       return
     let cancelled = false
-    const timer = setTimeout(async () => {
-      setLoading(true)
+    setLoading(true)
+    void (async () => {
       try {
         const data = await fetchAssetLibrary({
           status: 'succeeded',
-          search: search.trim() || undefined,
+          search: debouncedSearch || undefined,
           projectId: onlyCurrentProject ? projectId : undefined,
           limit: 80,
         })
@@ -241,12 +243,11 @@ export function ShotReferenceAssets({
         if (!cancelled)
           setLoading(false)
       }
-    }, 300)
+    })()
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
-  }, [pickerOpen, search, onlyCurrentProject, projectId])
+  }, [pickerOpen, debouncedSearch, onlyCurrentProject, projectId])
 
   // 前端过滤：只展示可作为参考资产的候选（注意不能只用 kind=image）
   const candidates = items.filter(isReferenceAssetCandidate)
