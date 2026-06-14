@@ -669,16 +669,16 @@
 
 ### 9. 新增 `packages/events` 或 `packages/realtime`
 
-状态：部分完成，事件常量、NOTIFY payload 解析、SSE 事件映射、用户连接 hub、NOTIFY dispatcher 已进入 `packages/events`（commit：`3d3c292`、`refactor(events): extract sse hub and notify dispatcher`）。剩余：PostgreSQL LISTEN 的具体连接仍由 server 注入，domain event 和 user notification 分层还需要继续推进。
+状态：部分完成，事件常量、NOTIFY payload 解析、SSE 事件映射、用户连接 hub、NOTIFY dispatcher 已进入 `packages/events`（commit：`3d3c292`、`refactor(events): extract sse hub and notify dispatcher`）。本轮新增 PostgreSQL `LISTEN` 频道注册 wiring（`NotifyListenerTransport` + `startNotifyListeners`，纯 adapter，不创建 DB 连接、不打 server logger、不吞错误），server `sse-manager` 改用该 helper 注册 `generation_status` / `notification` 两个频道，真实 `pgClient`、dispatcher、logger、错误处理仍由 server 注入，package 不依赖 DB runtime（commit：`refactor(events): share notify listener wiring`）。剩余：domain event 和 user notification 分层、业务发布事件改造、SSE 可替换性继续推进。
 
 当前迹象：
 
-- `apps/server/src/services/sse-manager.ts` 同时承担连接管理、PostgreSQL LISTEN、payload mapping、dispatch。
+- `apps/server/src/services/sse-manager.ts` 承担连接管理、dispatch、logger 与错误处理；`LISTEN` 的 channel 注册 wiring 已委托给 `@excuse/events` 的 `startNotifyListeners`，真实 `pgClient` 仍由 server 注入。
 - 通知 route 直接调用 `dispatchToUser()`。
 
 待办：
 
-- 将 domain event type、SSE event type、event bus、PostgreSQL NOTIFY/LISTEN adapter 抽成 package。基础 SSE event type、连接 hub、NOTIFY payload dispatcher 已完成，剩余 DB listen adapter 和 domain event 分层继续推进。
+- 将 domain event type、SSE event type、event bus、PostgreSQL NOTIFY/LISTEN adapter 抽成 package。基础 SSE event type、连接 hub、NOTIFY payload dispatcher、LISTEN 频道注册 wiring 已完成，剩余 domain event 分层、业务发布事件改造、SSE 可替换性继续推进。
 - server SSE route 只负责 HTTP SSE 连接。
 - notification、generation、canvas 只发布 domain event，不直接关心 SSE 连接。
 

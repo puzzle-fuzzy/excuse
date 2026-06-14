@@ -20,6 +20,7 @@ import {
   createNotificationDispatcher,
   GENERATION_STATUS_CHANNEL,
   NOTIFICATION_CHANNEL,
+  startNotifyListeners,
   UserEventHub,
 } from '@excuse/events'
 import { createLogger } from '@excuse/shared'
@@ -82,33 +83,37 @@ export async function startSSEListener() {
     },
   })
 
-  await pgClient.listen(GENERATION_STATUS_CHANNEL, (rawPayload) => {
-    const result = handleNotify(rawPayload)
-    if (result) {
-      const { payload } = result
-      logger.info(
-        { userId: payload.accountId, recordId: payload.recordId, traceId: payload.traceId, status: payload.status },
-        'SSE event dispatched',
-      )
-    }
-  })
-
   // P2-2：通知频道 — Worker/Server 通过 notifyNotification() 写入并 notify，
-  // 此处 LISTEN 接收后经 dispatcher 推送到对应用户的 SSE 连接（前端铃铛实时更新）。
+  // LISTEN 接收后经 dispatcher 推送到对应用户的 SSE 连接（前端铃铛实时更新）。
   const handleNotification = createNotificationDispatcher({
     dispatchToUser,
     onError: (err, rawPayload) => {
       logger.error({ err, rawPayload }, 'Failed to parse notification channel payload')
     },
   })
-  await pgClient.listen(NOTIFICATION_CHANNEL, (rawPayload) => {
-    const result = handleNotification(rawPayload)
-    if (result) {
-      logger.info(
-        { userId: result.payload.accountId, notificationId: result.payload.id, type: result.payload.type },
-        'Notification SSE event dispatched',
-      )
-    }
+
+  // channel 注册 wiring 委托给 @excuse/events；真实 pgClient、logger、错误处理留在 server 侧。
+  await startNotifyListeners({
+    transport: pgClient,
+    onGenerationStatus: (rawPayload) => {
+      const result = handleNotify(rawPayload)
+      if (result) {
+        const { payload } = result
+        logger.info(
+          { userId: payload.accountId, recordId: payload.recordId, traceId: payload.traceId, status: payload.status },
+          'SSE event dispatched',
+        )
+      }
+    },
+    onNotification: (rawPayload) => {
+      const result = handleNotification(rawPayload)
+      if (result) {
+        logger.info(
+          { userId: result.payload.accountId, notificationId: result.payload.id, type: result.payload.type },
+          'Notification SSE event dispatched',
+        )
+      }
+    },
   })
 
   logger.info(`SSE listener started on PostgreSQL channels "${GENERATION_STATUS_CHANNEL}", "${NOTIFICATION_CHANNEL}"`)

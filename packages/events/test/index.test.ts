@@ -11,6 +11,7 @@ import {
   SSE_GENERATION_STATUS_EVENT,
   SSE_NOTIFICATION_EVENT,
   SSE_PIPELINE_NODE_EVENT,
+  startNotifyListeners,
   UserEventHub,
 } from '../src'
 
@@ -260,5 +261,78 @@ describe('@excuse/events', () => {
     expect(handleNotification('{bad json')).toBeNull()
     expect(errors).toHaveLength(1)
     expect(errors[0]!.rawPayload).toBe('{bad json')
+  })
+
+  // ===== PostgreSQL LISTEN 频道注册 wiring =====
+
+  function createFakeTransport() {
+    const handlers = new Map<string, (payload: string) => void>()
+    const transport = {
+      listen(channel: string, handler: (payload: string) => void) {
+        handlers.set(channel, handler)
+      },
+    }
+    return { transport, handlers }
+  }
+
+  it('subscribes to the generation_status channel through the transport', async () => {
+    const { transport, handlers } = createFakeTransport()
+
+    await startNotifyListeners({
+      transport,
+      onGenerationStatus: () => {},
+      onNotification: () => {},
+    })
+
+    expect(handlers.has(GENERATION_STATUS_CHANNEL)).toBe(true)
+    expect(handlers.has(NOTIFICATION_CHANNEL)).toBe(true)
+  })
+
+  it('forwards raw payload as-is to the matching handler', async () => {
+    const { transport, handlers } = createFakeTransport()
+    const genPayloads: string[] = []
+    const notifPayloads: string[] = []
+
+    await startNotifyListeners({
+      transport,
+      onGenerationStatus: raw => genPayloads.push(raw),
+      onNotification: raw => notifPayloads.push(raw),
+    })
+
+    handlers.get(GENERATION_STATUS_CHANNEL)!('{"recordId":"rec-1"}')
+    handlers.get(NOTIFICATION_CHANNEL)!('{"id":"n-1"}')
+
+    expect(genPayloads).toEqual(['{"recordId":"rec-1"}'])
+    expect(notifPayloads).toEqual(['{"id":"n-1"}'])
+  })
+
+  it('awaits transport.listen when it returns a Promise', async () => {
+    let resolveListen: (() => void) | undefined
+    const listenPromise = new Promise<void>((resolve) => {
+      resolveListen = resolve
+    })
+    const transport = {
+      listen(_channel: string, _handler: (payload: string) => void) {
+        return listenPromise
+      },
+    }
+
+    let finished = false
+    const done = startNotifyListeners({
+      transport,
+      onGenerationStatus: () => {},
+      onNotification: () => {},
+    }).then(() => {
+      finished = true
+    })
+
+    // Promise 尚未 resolve 时 startNotifyListeners 不应完成
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(finished).toBe(false)
+
+    resolveListen!()
+    await done
+    expect(finished).toBe(true)
   })
 })

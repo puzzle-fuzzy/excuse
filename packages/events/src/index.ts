@@ -196,3 +196,30 @@ export function createNotificationDispatcher(options: NotificationDispatcherOpti
     }
   }
 }
+
+// ===== PostgreSQL LISTEN 频道注册 wiring =====
+// 把「订阅哪些 channel、把 raw payload 交给哪个 handler」沉淀到纯 package。
+// 不创建 DB 连接、不打 server logger、不吞错误 —— transport 与 handler/错误策略都由 server 注入。
+
+/** PG LISTEN transport 的最小形状。server 用真实 pgClient 满足它，测试用 fake。 */
+export interface NotifyListenerTransport {
+  listen: (channel: string, handler: (rawPayload: string) => void) => (Promise<unknown> | unknown)
+}
+
+/** startNotifyListeners 入参 —— 两个 channel 的 handler 由调用方提供 */
+export interface StartNotifyListenersInput {
+  transport: NotifyListenerTransport
+  onGenerationStatus: (rawPayload: string) => void
+  onNotification: (rawPayload: string) => void
+}
+
+/**
+ * 在给定 transport 上注册 `generation_status` 与 `notification` 两个 LISTEN 频道。
+ *
+ * 只负责 channel 注册 wiring；dispatcher 创建、logger、错误处理留在 server 侧。
+ * transport.listen 返回 Promise 时会 await 完成后再注册下一个 channel。
+ */
+export async function startNotifyListeners(input: StartNotifyListenersInput): Promise<void> {
+  await input.transport.listen(GENERATION_STATUS_CHANNEL, input.onGenerationStatus)
+  await input.transport.listen(NOTIFICATION_CHANNEL, input.onNotification)
+}
