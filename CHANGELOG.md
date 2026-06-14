@@ -26,7 +26,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - `ShotReferenceAssets` 参考资产选择器搜索改用 `use-debounce`（300ms）替代手写 `setTimeout`；保留弹窗打开守卫、并发保护与单次 trim 语义，新增 debounce 后再请求、弹窗未打开不请求两条测试覆盖（commit: `d128b59`）。
-- `packages/gateway` 新增 `mapGatewayUsageItem` / `aggregateGatewayUsage` 纯函数，OpenAI Gateway `/v1/usage` route 不再内联聚合 / 映射逻辑；新增 `packages/gateway/test/usage.test.ts` 覆盖状态分桶、token 部分缺失、价格回落、requestedModel 类型守卫（commit: `<本轮 hash>`）。
+- `packages/gateway` 新增 `mapGatewayUsageItem` / `aggregateGatewayUsage` 纯函数，OpenAI Gateway `/v1/usage` route 不再内联聚合 / 映射逻辑；新增 `packages/gateway/test/usage.test.ts` 覆盖状态分桶、token 部分缺失、价格回落、requestedModel 类型守卫（commit: `cb6804c`）。
 
 ## [0.0.1] - 2026-06-11
 
