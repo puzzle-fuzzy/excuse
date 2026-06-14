@@ -55,13 +55,32 @@ const mockGetCanvasProjectDetail = mock<() => Promise<MockCanvasProjectDetail | 
 const mockUpdateCanvasProject = mock<(values?: Partial<CanvasProjectRow>) => Promise<CanvasProjectRow>>(() => Promise.resolve(makeProjectRow()))
 const mockDeleteCanvasLocationById = mock(() => Promise.resolve(undefined))
 const mockDeleteCanvasShotById = mock(() => Promise.resolve(undefined))
-const mockGetCanvasProjectByIdForAccount = mock(() => Promise.resolve(makeProjectRow()))
+const mockGetCanvasProjectByIdForAccount = mock<() => Promise<CanvasProjectRow | null>>(() => Promise.resolve(makeProjectRow()))
 const mockGetCanvasCharacterForAccount = mock(() => Promise.resolve({ id: 'char-001' }))
 const mockGetCanvasLocationForAccount = mock(() => Promise.resolve({ id: 'loc-001' }))
 const mockGetCanvasShotForAccount = mock(() => Promise.resolve({ id: 'shot-001', projectId: 'proj-001' }))
 const mockUpdateCanvasCharacter = mock(() => Promise.resolve({ id: 'char-001', name: '新名', updatedAt: new Date() }))
 const mockUpdateCanvasLocation = mock(() => Promise.resolve({ id: 'loc-001', updatedAt: new Date() }))
 const mockUpdateCanvasShot = mock(() => Promise.resolve({ id: 'shot-001', updatedAt: new Date() }))
+const mockListCanvasShotsByProject = mock(() => Promise.resolve([
+  { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+  { id: 'shot-002', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 2 },
+  { id: 'shot-003', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 3 },
+]))
+const mockApplyShotReferenceAssets = mock(() => Promise.resolve([
+  { shotId: 'shot-002', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+  { shotId: 'shot-003', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+]))
+
+// ── 参考资产归属校验（v0.3）：account-scoped 查询 mock ──
+// 默认返回 null（未找到 / 无权限），各用例按需 override
+interface UploadedFileFixture { id: string, mimeType: string | null, publicUrl: string | null }
+interface CanvasAssetFixture { id: string, status: string, category: string, publicUrl: string, outputJson: unknown }
+interface GenerationRecordFixture { id: string, status: string, category: string, outputResult: unknown }
+
+const mockGetCanvasAssetByIdForAccount = mock<() => Promise<CanvasAssetFixture | null>>(() => Promise.resolve(null))
+const mockGetGenerationRecordByIdForAccount = mock<() => Promise<GenerationRecordFixture | null>>(() => Promise.resolve(null))
+const mockGetUploadedFileByIdForAccount = mock<() => Promise<UploadedFileFixture | null>>(() => Promise.resolve(null))
 
 mock.module('@excuse/db', () => ({
   createCanvasProject: async () => makeProjectRow(),
@@ -83,7 +102,7 @@ mock.module('@excuse/db', () => ({
   createCanvasShot: async () => ({ id: 'shot-001' }),
   batchCreateCanvasShots: async () => [],
   getCanvasShotById: async () => null,
-  listCanvasShotsByProject: async () => [],
+  listCanvasShotsByProject: mockListCanvasShotsByProject,
   updateCanvasShot: mockUpdateCanvasShot,
   deleteCanvasShotsByProject: async () => {},
   deleteCanvasShotById: mockDeleteCanvasShotById,
@@ -91,6 +110,9 @@ mock.module('@excuse/db', () => ({
   getCanvasCharacterForAccount: mockGetCanvasCharacterForAccount,
   getCanvasLocationForAccount: mockGetCanvasLocationForAccount,
   getCanvasShotForAccount: mockGetCanvasShotForAccount,
+  getCanvasAssetByIdForAccount: mockGetCanvasAssetByIdForAccount,
+  getGenerationRecordByIdForAccount: mockGetGenerationRecordByIdForAccount,
+  getUploadedFileByIdForAccount: mockGetUploadedFileByIdForAccount,
   resetCanvasShotToDraft: async () => {},
   listPendingVideoShots: async () => [],
   createContinuityReport: async () => ({ id: 'cont-001' }),
@@ -152,6 +174,7 @@ mock.module('../src/modules/canvas/service', () => ({
   generateVideos: async () => undefined,
   retryShotVideo: async () => undefined,
   retryFailedShots: async () => undefined,
+  applyShotReferenceAssets: mockApplyShotReferenceAssets,
 }))
 
 // eslint-disable-next-line import/first
@@ -170,6 +193,8 @@ const testConfig: ServerConfig = {
   jwtSecret: 'test-canvas-ext-secret',
   jwtExpiresIn: '1h',
   oss: undefined,
+  metricsAccessToken: undefined,
+  metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
 }
 
 async function getAuthToken(): Promise<string> {
@@ -207,6 +232,11 @@ describe('canvas routes — extended', () => {
       mockGetCanvasCharacterForAccount,
       mockGetCanvasLocationForAccount,
       mockGetCanvasShotForAccount,
+      mockGetCanvasAssetByIdForAccount,
+      mockGetGenerationRecordByIdForAccount,
+      mockGetUploadedFileByIdForAccount,
+      mockListCanvasShotsByProject,
+      mockApplyShotReferenceAssets,
     ]) {
       m.mockClear()
     }
@@ -370,6 +400,262 @@ describe('canvas routes — extended', () => {
   })
 
   // ═══════════════════════════════════════════════════
+  //  PATCH /shots/:shotId — referenceAssetsJson
+  // ═══════════════════════════════════════════════════
+
+  describe('PATCH /shots/:shotId — 参考资产', () => {
+    it('未登录时返回错误', async () => {
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: [{ assetId: 'a1', url: 'https://img.png', role: 'style' }] },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('登录后更新参考资产列表（manual URL 归一化后保存）', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const { data } = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        {
+          referenceAssetsJson: [
+            { assetId: 'a1', url: 'https://img1.png', role: 'style', label: '风格参考' },
+            { assetId: 'a2', url: 'https://img2.png', role: 'character' },
+          ],
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      expect(data?.success).toBe(true)
+      // source 缺省归一化为 manual，空 label 不输出键
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', {
+        referenceAssetsJson: [
+          { assetId: 'a1', url: 'https://img1.png', role: 'style', label: '风格参考', source: 'manual' },
+          { assetId: 'a2', url: 'https://img2.png', role: 'character', source: 'manual' },
+        ],
+      })
+    })
+
+    it('参考资产超过 8 个时被 schema 拒绝', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const nineAssets = Array.from({ length: 9 }, (_, i) => ({ assetId: `a${i}`, url: `https://img${i}.png`, role: 'other' as const }))
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: nineAssets },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('无效 role 值时被 schema 拒绝', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      const res = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson: [{ assetId: 'a1', url: 'https://img.png', role: 'invalid_role' }] },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  PATCH /shots/:shotId — 参考资产归属校验（v0.3）
+  // ═══════════════════════════════════════════════════
+
+  describe('PATCH /shots/:shotId — 参考资产归属校验', () => {
+    type RefRole = 'character' | 'location' | 'style' | 'firstFrame' | 'other'
+    type RefSource = 'asset_library' | 'uploaded_file' | 'manual'
+    interface RefAsset {
+      assetId: string
+      url: string
+      role: RefRole
+      label?: string
+      source?: RefSource
+    }
+
+    // mockUpdateCanvasShot 的工厂箭头无参 → .mock.calls 类型为 [][]，需断言调用参数时强转
+    function lastPatchArg(): Record<string, unknown> {
+      const calls = mockUpdateCanvasShot.mock.calls as unknown[][]
+      const lastCall = calls[calls.length - 1] ?? []
+      return lastCall[1] as Record<string, unknown>
+    }
+
+    async function patchReferenceAssets(referenceAssetsJson: RefAsset[]) {
+      return client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { referenceAssetsJson },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+    }
+
+    beforeEach(() => {
+      // 镜头归属通过；三个归属查询默认 null（未找到 / 无权限）
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001', projectId: 'proj-001' })
+      mockGetCanvasAssetByIdForAccount.mockResolvedValue(null)
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue(null)
+      mockGetUploadedFileByIdForAccount.mockResolvedValue(null)
+    })
+
+    it('当前用户的上传图片文件可作为 uploaded_file 保存', async () => {
+      mockGetUploadedFileByIdForAccount.mockResolvedValue({
+        id: 'uf-1',
+        mimeType: 'image/png',
+        publicUrl: 'https://cdn.local/upload.png',
+      })
+      const { data } = await patchReferenceAssets([
+        { assetId: 'uf-1', url: 'https://cdn.local/upload.png', role: 'other', source: 'uploaded_file' },
+      ])
+      expect(data?.success).toBe(true)
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', {
+        referenceAssetsJson: [{ assetId: 'uf-1', url: 'https://cdn.local/upload.png', role: 'other', source: 'uploaded_file' }],
+      })
+    })
+
+    it('其他用户的上传文件被拒绝（403）', async () => {
+      // getUploadedFileByIdForAccount 默认 null（账号隔离查不到）
+      const res = await patchReferenceAssets([
+        { assetId: 'uf-other', url: 'https://cdn.local/x.png', role: 'other', source: 'uploaded_file' },
+      ])
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+      expect(err!.error).toContain('不存在或无权限')
+      expect(mockUpdateCanvasShot).not.toHaveBeenCalled()
+    })
+
+    it('上传文件 URL 与记录不匹配被拒绝（403）', async () => {
+      mockGetUploadedFileByIdForAccount.mockResolvedValue({
+        id: 'uf-1',
+        mimeType: 'image/png',
+        publicUrl: 'https://cdn.local/real.png',
+      })
+      const res = await patchReferenceAssets([
+        { assetId: 'uf-1', url: 'https://cdn.local/fake.png', role: 'other', source: 'uploaded_file' },
+      ])
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+      expect(err!.error).toContain('不匹配')
+    })
+
+    it('当前用户的 Canvas 图片资产可作为 asset_library 保存', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValue({
+        id: 'ca-1',
+        status: 'succeeded',
+        category: 'characterPortrait',
+        publicUrl: 'https://cdn.local/canvas.png',
+        outputJson: null,
+      })
+      const { data } = await patchReferenceAssets([
+        { assetId: 'ca-1', url: 'https://cdn.local/canvas.png', role: 'character', source: 'asset_library' },
+      ])
+      expect(data?.success).toBe(true)
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', {
+        referenceAssetsJson: [{ assetId: 'ca-1', url: 'https://cdn.local/canvas.png', role: 'character', source: 'asset_library' }],
+      })
+    })
+
+    it('其他用户的 Canvas 资产被拒绝（canvas + gen 查询都 miss → 403）', async () => {
+      // 两个查询默认 null
+      const res = await patchReferenceAssets([
+        { assetId: 'ca-other', url: 'https://cdn.local/y.png', role: 'other', source: 'asset_library' },
+      ])
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+      expect(err!.error).toContain('不存在或无权限')
+      expect(mockUpdateCanvasShot).not.toHaveBeenCalled()
+    })
+
+    it('当前用户的成功图片生成记录可作为 asset_library 保存', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue({
+        id: 'gr-1',
+        status: 'succeeded',
+        category: 'image',
+        outputResult: { type: 'image', savedUrls: ['https://cdn.local/gen.png'], urls: [] },
+      })
+      const { data } = await patchReferenceAssets([
+        { assetId: 'gr-1', url: 'https://cdn.local/gen.png', role: 'other', source: 'asset_library' },
+      ])
+      expect(data?.success).toBe(true)
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', {
+        referenceAssetsJson: [{ assetId: 'gr-1', url: 'https://cdn.local/gen.png', role: 'other', source: 'asset_library' }],
+      })
+    })
+
+    it('失败状态的生成记录被拒绝', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue({
+        id: 'gr-2',
+        status: 'failed',
+        category: 'image',
+        outputResult: { type: 'image', savedUrls: ['https://cdn.local/gen.png'], urls: [] },
+      })
+      const res = await patchReferenceAssets([
+        { assetId: 'gr-2', url: 'https://cdn.local/gen.png', role: 'other', source: 'asset_library' },
+      ])
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('非图片类生成记录被拒绝', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue({
+        id: 'gr-3',
+        status: 'succeeded',
+        category: 'video',
+        outputResult: { type: 'video', savedUrls: [], originalUrl: 'https://cdn.local/v.mp4' },
+      })
+      const res = await patchReferenceAssets([
+        { assetId: 'gr-3', url: 'https://cdn.local/v.mp4', role: 'other', source: 'asset_library' },
+      ])
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+
+    it('manual https URL 可保存', async () => {
+      const { data } = await patchReferenceAssets([
+        { assetId: 'm-1', url: 'https://cdn.local/manual.png', role: 'style', source: 'manual' },
+      ])
+      expect(data?.success).toBe(true)
+      expect(mockUpdateCanvasShot).toHaveBeenCalledWith('shot-001', {
+        referenceAssetsJson: [{ assetId: 'm-1', url: 'https://cdn.local/manual.png', role: 'style', source: 'manual' }],
+      })
+    })
+
+    it('manual javascript:/file:/空 URL 被拒绝', async () => {
+      for (const badUrl of ['javascript:alert(1)', 'file:///etc/passwd', '']) {
+        const res = await patchReferenceAssets([
+          { assetId: `m-${badUrl.length}`, url: badUrl, role: 'other', source: 'manual' },
+        ])
+        const err = extractEdenError(res)
+        expect(err).toBeTruthy()
+        expect(err!.error).toContain('URL 不合法')
+      }
+    })
+
+    it('重复 assetId/url 被服务端去重', async () => {
+      // a1/a2 不同 assetId 同 url → url 去重；a3 唯一
+      await patchReferenceAssets([
+        { assetId: 'a1', url: 'https://cdn.local/dup.png', role: 'other' },
+        { assetId: 'a2', url: 'https://cdn.local/dup.png', role: 'other' },
+        { assetId: 'a3', url: 'https://cdn.local/uniq.png', role: 'other' },
+      ])
+      const patch = lastPatchArg()
+      const saved = patch.referenceAssetsJson as Array<{ assetId: string }>
+      expect(saved).toHaveLength(2)
+      expect(saved.map(a => a.assetId)).toEqual(['a1', 'a3'])
+    })
+
+    it('未传 referenceAssetsJson 时不影响已有参考资产', async () => {
+      const { data } = await client.api.canvas.shots({ shotId: 'shot-001' }).patch(
+        { duration: 8 },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      expect(data?.success).toBe(true)
+      // undefined → Drizzle .set() 跳过该列，保留原值（不清空）
+      expect(lastPatchArg().referenceAssetsJson).toBeUndefined()
+    })
+
+    it('传 referenceAssetsJson: [] 清空参考资产', async () => {
+      const { data } = await patchReferenceAssets([])
+      expect(data?.success).toBe(true)
+      expect(lastPatchArg().referenceAssetsJson).toEqual([])
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
   //  POST /shots/:shotId/retry
   // ═══════════════════════════════════════════════════
 
@@ -386,6 +672,68 @@ describe('canvas routes — extended', () => {
         headers: { Authorization: `Bearer ${token}` },
       })
       expect(data?.accepted).toBe(true)
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  POST /projects/:projectId/shots/reference-assets/apply
+  // ═══════════════════════════════════════════════════
+
+  describe('POST /projects/:projectId/shots/reference-assets/apply', () => {
+    it('未登录时返回错误', async () => {
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('项目不属于当前用户时拒绝', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(null)
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('targetShotIds 不属于该项目时拒绝', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(makeProjectRow())
+      mockListCanvasShotsByProject.mockResolvedValue([
+        { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+      ])
+      const { data, error } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-999'], // 不存在的 shot
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      const err = extractEdenError({ data, error })
+      expect(err).toBeTruthy()
+    })
+
+    it('当前用户可以批量应用到同项目多个镜头', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(makeProjectRow())
+      mockListCanvasShotsByProject.mockResolvedValue([
+        { id: 'shot-001', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 1 },
+        { id: 'shot-002', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 2 },
+        { id: 'shot-003', projectId: 'proj-001', referenceAssetsJson: [], characterIdsJson: [], shotIndex: 3 },
+      ])
+      // validateShotReferenceAssetsForAccount mock — 默认 pass through
+      mockGetCanvasAssetByIdForAccount.mockResolvedValue(null)
+      mockGetGenerationRecordByIdForAccount.mockResolvedValue(null)
+      mockGetUploadedFileByIdForAccount.mockResolvedValue(null)
+
+      const { data } = await client.api.canvas.projects({ projectId: 'proj-001' }).shots['reference-assets']['apply'].post({ // eslint-disable-line dot-notation
+        targetShotIds: ['shot-002', 'shot-003'],
+        referenceAssetsJson: [{ assetId: 'r1', url: 'https://x/r1.png', role: 'character', source: 'manual' }],
+        mode: 'append',
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      expect(data?.success).toBe(true)
+      expect(data?.applied).toHaveLength(2)
     })
   })
 })

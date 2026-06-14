@@ -1,4 +1,4 @@
-import type { ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry } from '../domain-types'
+import type { CanvasShotReferenceAsset, ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry } from '../domain-types'
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { canvasLocations } from './canvas-locations'
 import { canvasProjects } from './canvas-projects'
@@ -66,6 +66,8 @@ export const canvasShots = pgTable('canvas_shots', {
   status: canvasShotStatusEnum('status').default('draft').notNull(),
   /** 失败时的错误信息 */
   errorMessage: text('error_message'),
+  /** 镜头额外参考资产列表（用户可选择多个参考图，生成时合并进 referenceUrls） */
+  referenceAssetsJson: jsonb('reference_assets_json').$type<CanvasShotReferenceAsset[]>().default([]).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [

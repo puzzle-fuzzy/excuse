@@ -190,6 +190,9 @@ function parseNotificationMeta(raw: unknown): NotificationMeta | undefined {
   const recordId = str(raw, 'recordId')
   if (recordId)
     meta.recordId = recordId
+  const shotId = str(raw, 'shotId')
+  if (shotId)
+    meta.shotId = shotId
   const assetId = str(raw, 'assetId')
   if (assetId)
     meta.assetId = assetId

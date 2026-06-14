@@ -162,6 +162,41 @@
       "when": 1781377429462,
       "tag": "0022_chunky_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781418080141,
+      "tag": "0023_cloudy_mentallo",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781434545549,
+      "tag": "0024_petite_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1781440059646,
+      "tag": "0025_great_master_mold",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1781442806306,
+      "tag": "0026_fuzzy_baron_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1781444174658,
+      "tag": "0027_productive_exiles",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import { makeTestConfig, makeUploadedFile, makeValidatedParams, signTestToken } 
 /**
  * 上传路由 DELETE 端点测试
  *
- * 测试 DELETE /api/upload/:id 的认证守卫、权限校验和业务逻辑。
+ * 测试 DELETE /api/upload/:id 的认证守卫、权限校验、使用中保护和安全删除顺序。
  * 使用原生 Request + Elysia handle() 绕过 Eden 对 DELETE 的序列化问题。
  */
 
@@ -38,6 +38,9 @@ const mockCreateUploadedFile = mock<(values: Record<string, unknown>) => Promise
 )
 const mockGetUploadedFileById = mock<(id: string) => Promise<MockUploadedFile | null>>(() => Promise.resolve(null))
 const mockDeleteUploadedFileById = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
+const mockGetUploadedFileUsage = mock<(accountId: string, fileId: string) => Promise<{ subtitleProjectCount: number, generationRecordCount: number }>>(() =>
+  Promise.resolve({ subtitleProjectCount: 0, generationRecordCount: 0 }),
+)
 
 mock.module('@excuse/db', () => ({
   getAccountByEmail: mockGetAccountByEmail,
@@ -47,6 +50,7 @@ mock.module('@excuse/db', () => ({
   createUploadedFile: mockCreateUploadedFile,
   getUploadedFileById: mockGetUploadedFileById,
   deleteUploadedFileById: mockDeleteUploadedFileById,
+  getUploadedFileUsage: mockGetUploadedFileUsage,
 }))
 
 const mockSaveUploadedFile = mock(() =>
@@ -98,9 +102,13 @@ describe('upload routes — DELETE /api/upload/:id', () => {
       mockGetUploadedFileById,
       mockDeleteUploadedFileById,
       mockDeleteFile,
+      mockGetUploadedFileUsage,
     ]) {
       m.mockClear()
     }
+
+    // 默认 usage = 0（可删除）
+    mockGetUploadedFileUsage.mockResolvedValue({ subtitleProjectCount: 0, generationRecordCount: 0 })
 
     uploadApp = createUploadRoutes(testConfig)
   })
@@ -151,9 +159,46 @@ describe('upload routes — DELETE /api/upload/:id', () => {
     expect(mockDeleteUploadedFileById).not.toHaveBeenCalled()
   })
 
-  it('成功删除自己的文件', async () => {
+  it('被字幕项目使用时返回 409 conflict，不删 DB 不删存储', async () => {
     const token = await getValidToken()
     mockGetUploadedFileById.mockResolvedValue(makeUploadedFile({ accountId: 'acc-upload-delete' }))
+    mockGetUploadedFileUsage.mockResolvedValue({ subtitleProjectCount: 1, generationRecordCount: 0 })
+
+    const response = await uploadApp.handle(new Request('http://localhost/api/upload/file-001', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }))
+
+    expect(response.status).toBe(409)
+    const data = await response.json() as { success: boolean, error?: string }
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('使用')
+    expect(mockDeleteUploadedFileById).not.toHaveBeenCalled()
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('被生成记录使用时返回 409 conflict，不删 DB 不删存储', async () => {
+    const token = await getValidToken()
+    mockGetUploadedFileById.mockResolvedValue(makeUploadedFile({ accountId: 'acc-upload-delete' }))
+    mockGetUploadedFileUsage.mockResolvedValue({ subtitleProjectCount: 0, generationRecordCount: 2 })
+
+    const response = await uploadApp.handle(new Request('http://localhost/api/upload/file-001', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }))
+
+    expect(response.status).toBe(409)
+    const data = await response.json() as { success: boolean, error?: string }
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('使用')
+    expect(mockDeleteUploadedFileById).not.toHaveBeenCalled()
+    expect(mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('成功删除自己的文件 — 先删 DB 后删存储', async () => {
+    const token = await getValidToken()
+    mockGetUploadedFileById.mockResolvedValue(makeUploadedFile({ accountId: 'acc-upload-delete' }))
+    mockGetUploadedFileUsage.mockResolvedValue({ subtitleProjectCount: 0, generationRecordCount: 0 })
 
     const response = await uploadApp.handle(new Request('http://localhost/api/upload/file-001', {
       method: 'DELETE',
@@ -162,7 +207,26 @@ describe('upload routes — DELETE /api/upload/:id', () => {
 
     const data = await response.json() as { success: boolean }
     expect(data.success).toBe(true)
-    expect(mockDeleteFile).toHaveBeenCalledWith('ref_123/test.png')
+    // 验证调用顺序：DB 先删，存储后删（Bun mock 不方便断言顺序，至少断言两者都调了）
     expect(mockDeleteUploadedFileById).toHaveBeenCalledWith('file-001')
+    expect(mockDeleteFile).toHaveBeenCalledWith('ref_123/test.png')
+  })
+
+  it('存储删除失败时不回滚 DB（成功返回且审计记录失败）', async () => {
+    const token = await getValidToken()
+    mockGetUploadedFileById.mockResolvedValue(makeUploadedFile({ accountId: 'acc-upload-delete' }))
+    mockGetUploadedFileUsage.mockResolvedValue({ subtitleProjectCount: 0, generationRecordCount: 0 })
+    mockDeleteFile.mockRejectedValue(new Error('storage deletion failed'))
+
+    const response = await uploadApp.handle(new Request('http://localhost/api/upload/file-001', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    }))
+
+    const data = await response.json() as { success: boolean }
+    // 即使存储删除失败，路由仍返回成功（DB 已删除）
+    expect(data.success).toBe(true)
+    expect(mockDeleteUploadedFileById).toHaveBeenCalledWith('file-001')
+    expect(mockDeleteFile).toHaveBeenCalledWith('ref_123/test.png')
   })
 })

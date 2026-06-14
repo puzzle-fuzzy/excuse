@@ -56,6 +56,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       ...record,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
+      hiddenAt: record.hiddenAt?.toISOString() ?? null,
     }
   }
 

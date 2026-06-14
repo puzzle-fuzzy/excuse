@@ -8,6 +8,7 @@ import { Input } from '../ui/input'
 import AssetHistory from './AssetHistory'
 import { PromptEditor } from './PromptEditor'
 import { ReferenceUploadZone } from './ReferenceUploadZone'
+import { ShotReferenceAssets } from './ShotReferenceAssets'
 
 interface NodeDetailPanelProps {
   selectedNode: { id: string, type: string }
@@ -275,6 +276,18 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
               />
             </div>
           )}
+
+          {/* 镜头额外参考资产 */}
+          <ShotReferenceAssets
+            shot={shot}
+            projectId={project.id}
+            allShots={project.shots}
+            onSave={async (assets) => {
+              await updateCanvasShot(shot.id, { referenceAssetsJson: assets })
+              onUpdate()
+            }}
+            onUpdate={onUpdate}
+          />
 
           {/* 镜头资产历史 — 视频 */}
           <AssetHistory

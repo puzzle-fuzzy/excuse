@@ -123,6 +123,9 @@ export const canvasAssets = pgTable('canvas_assets', {
   /** 是否锁定 — locked=true 时后续生成不会自动覆盖此资产 */
   locked: boolean('locked').default(false).notNull(),
 
+  /** 从资产中心隐藏的时间（null = 未隐藏，仍出现在资产列表） */
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+
   // ── 时间追踪 ────────────────────────────────────
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

@@ -18,7 +18,7 @@ export const CATEGORY_CONFIG = {
   text: { label: '文本生成', color: 'bg-blue-500', icon: FileText, activeColor: 'bg-blue-500 text-white' },
   image: { label: '图像生成', color: 'bg-purple-500', icon: ImageIcon, activeColor: 'bg-purple-500 text-white' },
   video: { label: '视频生成', color: 'bg-pink-500', icon: Video, activeColor: 'bg-pink-500 text-white' },
-  subtitle: { label: '字幕生成', color: 'bg-teal-500', icon: AudioLines, activeColor: 'bg-teal-500 text-white' },
+  subtitle: { label: '视频加字幕', color: 'bg-teal-500', icon: AudioLines, activeColor: 'bg-teal-500 text-white' },
 } as const
 
 export type Category = keyof typeof CATEGORY_CONFIG

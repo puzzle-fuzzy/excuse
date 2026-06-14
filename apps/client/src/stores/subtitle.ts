@@ -89,8 +89,9 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       const { data } = await updateSubtitleStyle(project.id, styleConfig)
       set({ currentProject: data })
     }
-    catch {
+    catch (err) {
       toast.error('更新样式失败')
+      throw err
     }
   },
 
@@ -101,6 +102,16 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
     set({ exporting: true })
     try {
       await exportSubtitleProject(project.id)
+      const exportingProject: SubtitleProjectDTO = {
+        ...project,
+        status: 'exporting',
+        errorMessage: null,
+        updatedAt: new Date().toISOString(),
+      }
+      set(state => ({
+        currentProject: state.currentProject?.id === project.id ? exportingProject : state.currentProject,
+        projects: state.projects.map(p => p.id === project.id ? { ...p, ...exportingProject } : p),
+      }))
       toast.success('导出任务已提交，完成后将自动通知')
     }
     catch (err) {

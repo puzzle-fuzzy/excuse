@@ -28,6 +28,7 @@ import {
   extractAudioFromVideo,
   getMediaDurationMs,
 } from '@excuse/provider'
+import { getDefaultStyleConfig } from '@excuse/shared'
 
 /** 字幕项目依赖的外部服务 */
 export interface SubtitleDependencies {
@@ -67,6 +68,7 @@ export async function createAndStartProject(
     videoFileId,
     videoUrl: file.publicUrl,
     status: 'draft',
+    styleConfig: getDefaultStyleConfig(),
   })
 
   try {

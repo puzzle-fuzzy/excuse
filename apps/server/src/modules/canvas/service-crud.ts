@@ -1,4 +1,4 @@
-import type { ShotCamera, ShotEnvironment } from '@excuse/db'
+import type { CanvasShotReferenceAsset, ShotCamera, ShotEnvironment } from '@excuse/db'
 import type { CanvasModelPreferences, CharacterDTO, LocationDTO, ShotDTO } from '@excuse/shared'
 import {
   batchGetProjectDetails,
@@ -19,6 +19,95 @@ import {
 import { parseCanvasLayout } from './layout'
 import { mapCharacter, mapLocation, mapProjectDetail, mapShot } from './mapper'
 import { reconcileProjectShots } from './service-helpers'
+
+export interface ShotReferenceAssetApplyResult {
+  shotId: string
+  beforeCount: number
+  afterCount: number
+  addedCount: number
+  truncatedCount: number
+}
+
+export async function applyShotReferenceAssets(
+  projectId: string,
+  targetShotIds: string[],
+  referenceAssets: CanvasShotReferenceAsset[],
+  mode: 'append' | 'replace',
+): Promise<ShotReferenceAssetApplyResult[]> {
+  const MAX = 8
+  const projectShots = await listCanvasShotsByProject(projectId)
+  const results: ShotReferenceAssetApplyResult[] = []
+
+  for (const shotId of targetShotIds) {
+    const shot = projectShots.find(s => s.id === shotId)
+    if (!shot)
+      continue
+
+    const beforeCount = shot.referenceAssetsJson?.length ?? 0
+    let newAssets: CanvasShotReferenceAsset[]
+
+    if (mode === 'replace') {
+      newAssets = referenceAssets.slice(0, MAX)
+    }
+    else {
+      // append: merge with dedup, truncation to MAX
+      const seenAssetIds = new Set<string>()
+      const seenUrls = new Set<string>()
+      const merged: CanvasShotReferenceAsset[] = []
+      const push = (asset: CanvasShotReferenceAsset) => {
+        if (merged.length >= MAX)
+          return
+        if (seenAssetIds.has(asset.assetId) || seenUrls.has(asset.url))
+          return
+        seenAssetIds.add(asset.assetId)
+        seenUrls.add(asset.url)
+        merged.push(asset)
+      }
+      const existing: CanvasShotReferenceAsset[] = shot.referenceAssetsJson ?? []
+      for (const a of existing)
+        push(a)
+      for (const a of referenceAssets)
+        push(a)
+      newAssets = merged
+    }
+
+    await updateCanvasShot(shotId, { referenceAssetsJson: newAssets })
+
+    // count total unique before truncation for truncatedCount
+    let totalUnique: number
+    if (mode === 'replace') {
+      totalUnique = referenceAssets.length
+    }
+    else {
+      const existing: CanvasShotReferenceAsset[] = shot.referenceAssetsJson ?? []
+      const seen = new Set<string>()
+      let count = 0
+      for (const a of existing) {
+        const key = `${a.assetId}|${a.url}`
+        if (seen.has(key))
+          continue
+        seen.add(key)
+        count++
+      }
+      for (const a of referenceAssets) {
+        const key = `${a.assetId}|${a.url}`
+        if (seen.has(key))
+          continue
+        seen.add(key)
+        count++
+      }
+      totalUnique = count
+    }
+
+    const afterCount = newAssets.length
+    const addedCount = mode === 'replace' ? afterCount : Math.max(0, afterCount - beforeCount)
+    const truncatedCount = Math.max(0, totalUnique - MAX)
+
+    results.push({ shotId, beforeCount, afterCount, addedCount, truncatedCount })
+  }
+
+  return results
+}
 
 export async function createProject(accountId: string, input: { title?: string, storyText: string }) {
   const { createCanvasProject } = await import('@excuse/db')
@@ -118,6 +207,7 @@ export async function updateShotData(shotId: string, patch: {
   cameraJson?: ShotCamera
   environmentJson?: ShotEnvironment
   videoPrompt?: string
+  referenceAssetsJson?: CanvasShotReferenceAsset[]
 }): Promise<ShotDTO> {
   const updated = await updateCanvasShot(shotId, patch)
   if (!updated)

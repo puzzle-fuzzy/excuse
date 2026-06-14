@@ -13,11 +13,14 @@ import { loggerPlugin } from './plugins/logger'
 import { rateLimitPlugin } from './plugins/rate-limit'
 import { requestIdPlugin } from './plugins/request-id'
 import { createApiKeyRoutes } from './routes/api-keys'
+import { createAssetsRoutes } from './routes/assets'
+import { createAssetTagRoutes } from './routes/asset-tags'
 import { createAuthRoutes } from './routes/auth'
 import { createBillingRoutes } from './routes/billing'
 import { createCanvasRoutes } from './routes/canvas'
 import { createGenerateRoutes } from './routes/generate'
 import { createHealthRoutes } from './routes/health'
+import { createMetricsRoutes } from './routes/metrics'
 import { modelsRoutes } from './routes/models'
 import { createNotificationRoutes } from './routes/notifications'
 import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
@@ -63,9 +66,10 @@ const app = new Elysia()
         { name: '认证', description: '用户注册、登录、身份验证' },
         { name: '模型', description: '可用 AI 模型目录' },
         { name: '生成', description: 'AI 内容生成任务（文本/图片/视频）' },
+        { name: '资产', description: '统一资产中心 — 普通生成、Canvas 资产、上传文件' },
         { name: 'Canvas', description: 'AI 视频制作流水线 — 项目管理、阶段执行、资源编辑' },
         { name: '上传', description: '文件上传与管理' },
-        { name: '字幕', description: '视频字幕生成 — 上传视频、ASR 转录、样式编辑、导出' },
+        { name: '视频加字幕', description: '上传视频、ASR 转录、样式编辑、导出带字幕视频' },
         { name: '计费', description: '费用统计与查询' },
         { name: '实时推送', description: 'SSE 连接与事件推送' },
       ],
@@ -112,12 +116,15 @@ const app = new Elysia()
   .use(modelsRoutes)
   .use(createCanvasRoutes(config))
   .use(createGenerateRoutes(config))
+  .use(createAssetsRoutes(config))
+  .use(createAssetTagRoutes(config))
   .use(createUploadRoutes(config))
   .use(createSubtitleRoutes(config))
   .use(createNotificationRoutes(config))
   .use(createSSERoutes(config))
   .use(createBillingRoutes(config))
   .use(createOpenAIGatewayRoutes(config))
+  .use(createMetricsRoutes(config))
 
 /** 导出 App 类型，供客户端 eden treaty 进行端到端类型推导 */
 export type App = typeof app

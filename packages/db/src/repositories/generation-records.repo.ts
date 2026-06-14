@@ -1,6 +1,6 @@
 import type { CostDetail, OutputResult } from '../domain-types'
 import type { GenerationRecordInsert, ListGenerationRecordsFilter } from '../types'
-import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { generationRecords } from '../schema'
 
@@ -35,18 +35,60 @@ export async function getGenerationRecordById(id: string) {
 }
 
 /**
+ * 按 ID + accountId 查询单条生成记录 — 镜头参考资产归属校验用
+ *
+ * 用于服务端校验镜头参考资产时确认 assetId 属于当前用户。
+ * canvas_assets 未命中时回退到 generation_records 查询。
+ */
+export async function getGenerationRecordByIdForAccount(id: string, accountId: string) {
+  const [record] = await getDb()
+    .select()
+    .from(generationRecords)
+    .where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId)))
+    .limit(1)
+  return record ?? null
+}
+
+/**
  * 分页查询生成记录，category/status 过滤推到 SQL 层
+ *
+ * statuses（多状态）提供时优先于 status（单状态）。
+ * projectId 通过 JSONB 提取 input_params->>'projectId' 过滤（Canvas 视频遗留路径）。
+ * model/createdFrom/createdTo 为资产中心按模型与时间筛选（v1.1）。
  */
 export async function listGenerationRecords(filter: ListGenerationRecordsFilter = {}) {
-  const { accountId, category, status, limit = 50, offset = 0 } = filter
+  const { accountId, category, status, statuses, projectId, model, search, createdFrom, createdTo, excludeHidden, limit = 50, offset = 0 } = filter
 
   const conditions = []
   if (accountId)
     conditions.push(eq(generationRecords.accountId, accountId))
   if (category)
     conditions.push(eq(generationRecords.category, category))
-  if (status)
+  // statuses（多状态）优先于 status（单状态）
+  if (statuses && statuses.length > 0)
+    conditions.push(inArray(generationRecords.status, statuses))
+  else if (status)
     conditions.push(eq(generationRecords.status, status))
+  if (projectId)
+    conditions.push(sql`input_params->>'projectId' = ${projectId}`)
+  if (model)
+    conditions.push(eq(generationRecords.model, model))
+  // 关键词搜索：ilike model / inputParams::text / outputResult::text
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(sql`(
+      ${generationRecords.model} ILIKE ${pattern}
+      OR ${generationRecords.inputParams}::text ILIKE ${pattern}
+      OR ${generationRecords.outputResult}::text ILIKE ${pattern}
+    )`)
+  }
+  if (createdFrom)
+    conditions.push(gte(generationRecords.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(generationRecords.createdAt, createdTo))
+  // 资产中心默认排除已隐藏的记录
+  if (excludeHidden)
+    conditions.push(isNull(generationRecords.hiddenAt))
 
   return getDb()
     .select()
@@ -219,6 +261,26 @@ export async function getCostRecords(accountId: string, dateRange?: { from: Date
   return records.filter(r => r.cost && (typeof r.cost.totalPriceCents === 'number' || typeof r.cost.totalPrice === 'number'))
 }
 
+/** 隐藏生成记录（从资产中心移除，不删除 DB 记录） */
+export async function hideGenerationRecord(id: string) {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ hiddenAt: new Date(), updatedAt: new Date() })
+    .where(eq(generationRecords.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 恢复已隐藏的生成记录（repository 层，暂不做 UI） */
+export async function unhideGenerationRecord(id: string) {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ hiddenAt: null, updatedAt: new Date() })
+    .where(eq(generationRecords.id, id))
+    .returning()
+  return updated ?? null
+}
+
 /**
  * 查询 Canvas 项目关联的所有生成记录 — 用于资产轮询接口
  *
@@ -248,4 +310,43 @@ export async function listCanvasGenerationRecordsByProject(projectId: string) {
         sql`input_params->>'projectId' = ${projectId}`,
       ),
     )
+}
+
+/**
+ * Gateway 用量查询过滤条件 — 用于 OpenAI 兼容网关的 /v1/usage 路由
+ */
+export interface ListGatewayUsageRecordsFilter {
+  accountId: string
+  createdFrom?: Date
+  createdTo?: Date
+  limit?: number
+  offset?: number
+}
+
+/**
+ * 查询当前用户的 Gateway 调用记录 — 用于 /v1/usage 用量查询
+ *
+ * 通过 JSONB `input_params->>'source' = 'gateway'` 过滤，
+ * 与 Canvas 生成记录共用 generation_records 表，无需 migration。
+ * 按 createdAt desc 排序，limit 默认 50，调用方需自行 clamp 上限。
+ */
+export async function listGatewayUsageRecords(filter: ListGatewayUsageRecordsFilter) {
+  const { accountId, createdFrom, createdTo, limit = 50, offset = 0 } = filter
+
+  const conditions = [
+    eq(generationRecords.accountId, accountId),
+    sql`input_params->>'source' = 'gateway'`,
+  ]
+  if (createdFrom)
+    conditions.push(gte(generationRecords.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(generationRecords.createdAt, createdTo))
+
+  return getDb()
+    .select()
+    .from(generationRecords)
+    .where(and(...conditions))
+    .orderBy(desc(generationRecords.createdAt))
+    .limit(limit)
+    .offset(offset)
 }

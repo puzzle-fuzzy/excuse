@@ -44,6 +44,28 @@ export interface OpenAIModelsResponse {
   }>
 }
 
+/**
+ * OpenAI chat.completion.chunk 单个 SSE 数据帧
+ *
+ * 流式响应中每一帧的格式。usage 通常只在最后一帧带（OpenAI 习惯）。
+ */
+export interface OpenAIChatCompletionChunk {
+  id: string
+  object: 'chat.completion.chunk'
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    delta: { role?: 'assistant', content?: string }
+    finish_reason: 'stop' | 'length' | null
+  }>
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
 /** OpenAI 错误响应 */
 export interface OpenAIErrorResponse {
   error: {
@@ -51,6 +73,42 @@ export interface OpenAIErrorResponse {
     type: string
     code: string
   }
+}
+
+/** OpenAI 网关调用状态 — 与 generation_records.status 枚举对齐 */
+export type OpenAIGatewayUsageStatus
+  = | 'pending'
+    | 'submitting'
+    | 'processing'
+    | 'saving_output'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
+
+/** 单条 Gateway 调用记录 — GET /v1/usage 返回的 items 元素 */
+export interface OpenAIGatewayUsageItem {
+  id: string
+  /** 内部模型 ID（解析别名后），例如 qwen-max */
+  model: string
+  /** 用户传入的原始模型名（如 gpt-4o-mini）；旧数据可能为 null */
+  requestedModel: string | null
+  status: OpenAIGatewayUsageStatus
+  inputTokens: number | null
+  outputTokens: number | null
+  totalTokens: number | null
+  totalPriceCents: number
+  errorMessage: string | null
+  createdAt: string
+}
+
+/** GET /v1/usage 响应 — 聚合摘要 + 最近调用列表 */
+export interface OpenAIGatewayUsageResponse {
+  totalCalls: number
+  succeededCalls: number
+  failedCalls: number
+  totalTokens: number
+  totalPriceCents: number
+  items: OpenAIGatewayUsageItem[]
 }
 
 /** 模型别名映射（OpenAI 风格名 → 内部 model ID） */

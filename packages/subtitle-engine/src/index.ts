@@ -31,7 +31,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '白字底部居中，细黑描边，经典电影字幕风格',
     config: {
       templateId: 'cinema',
-      fontSize: 24,
+      fontSize: 38,
       fontColor: '#FFFFFF',
       outlineColor: '#000000',
       outlineWidth: 2,
@@ -46,7 +46,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '亮黄字底部居中，黑色描边，日式动漫字幕风格',
     config: {
       templateId: 'anime',
-      fontSize: 24,
+      fontSize: 38,
       fontColor: '#FFFF00',
       outlineColor: '#000000',
       outlineWidth: 2,
@@ -61,7 +61,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '大字底部居中，白色粗描边，综艺节目风格',
     config: {
       templateId: 'variety',
-      fontSize: 28,
+      fontSize: 44,
       fontColor: '#FFFFFF',
       outlineColor: '#333333',
       outlineWidth: 3,
@@ -76,7 +76,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '粉色字底部居中，白色描边，韩剧字幕风格',
     config: {
       templateId: 'korean',
-      fontSize: 22,
+      fontSize: 36,
       fontColor: '#FFB6C1',
       outlineColor: '#FFFFFF',
       outlineWidth: 2,
@@ -91,7 +91,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '大字底部居中，半透明底框，Vlog短视频风格',
     config: {
       templateId: 'vlog',
-      fontSize: 26,
+      fontSize: 42,
       fontColor: '#FFFFFF',
       outlineColor: '#000000',
       outlineWidth: 1,
@@ -106,7 +106,7 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
     description: '细字底部偏左，无描边，纪录片风格',
     config: {
       templateId: 'documentary',
-      fontSize: 18,
+      fontSize: 32,
       fontColor: '#CCCCCC',
       outlineColor: '#000000',
       outlineWidth: 0,

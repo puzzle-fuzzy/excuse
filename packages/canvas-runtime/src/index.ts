@@ -1,6 +1,6 @@
-import type { CanvasAssetOutput, GenerationInputParams } from '@excuse/db'
+import type { CanvasAssetOutput, CanvasShotReferenceAsset, GenerationInputParams } from '@excuse/db'
 import type { AssetStorage, DashScopeClient, ValidatedModelParameters } from '@excuse/provider'
-import type { ModelConfig } from '@excuse/shared'
+import type { CanvasVideoReference, CanvasVideoVariant, ModelConfig } from '@excuse/shared'
 import { calculateCost } from '@excuse/billing'
 import {
   bindCanvasAssetTaskId,
@@ -16,7 +16,7 @@ import {
   getModelById as getProviderModelById,
   validateAndMerge as validateProviderAndMerge,
 } from '@excuse/provider'
-import { extractBillingParams } from '@excuse/shared'
+import { extractBillingParams, recommendCanvasVideoVariant } from '@excuse/shared'
 
 type CreateCanvasAssetInput = Parameters<typeof createCanvasAsset>[0]
 type CanvasVideoResolution = '720P' | '1080P'
@@ -134,22 +134,133 @@ export async function generateCanvasImageAsset(
   }
 }
 
+// ===== 视频模型推荐与引用解析 =====
+
+/** 变体降级优先级：i2v → r2v → t2v；r2v → t2v；t2v 不降级 */
+const VARIANT_FALLBACK: Record<CanvasVideoVariant, CanvasVideoVariant[]> = {
+  i2v: ['i2v', 'r2v', 't2v'],
+  r2v: ['r2v', 't2v'],
+  t2v: ['t2v'],
+}
+
+/** recommendCanvasVideoModel 的完整输出：model id + 变体 + 中文原因 */
+export interface CanvasVideoModelRecommendation {
+  model: string
+  variant: CanvasVideoVariant
+  reason: string
+}
+
+/**
+ * 带能力降级的镜头视频模型推荐。
+ *
+ * 1. 调用 @excuse/shared 纯规则 `recommendCanvasVideoVariant(refs)` 确定目标变体。
+ * 2. 检查所选 base 模型是否真有该变体；若无，沿降级链回退。
+ * 3. 返回最终 model id + 实际变体 + 原因（降级时追加说明）。
+ */
+export function recommendCanvasVideoModel(
+  prefs: { videoModel?: string | null } | null | undefined,
+  references: ReadonlyArray<CanvasVideoReference>,
+): CanvasVideoModelRecommendation {
+  const base = (prefs?.videoModel || 'happyhorse-1.0').replace(/-r2v$|-t2v$|-i2v$/, '')
+  const desired = recommendCanvasVideoVariant(references)
+
+  const availableVariant = VARIANT_FALLBACK[desired.variant].find(
+    variant => getProviderModelById(`${base}-${variant}`),
+  ) ?? 't2v'
+
+  const downgraded = availableVariant !== desired.variant
+  const reason = downgraded
+    ? `${desired.reason}（当前模型无 ${desired.variant.toUpperCase()} 变体，已降级为 ${availableVariant.toUpperCase()}）`
+    : desired.reason
+
+  return {
+    model: `${base}-${availableVariant}`,
+    variant: availableVariant,
+    reason,
+  }
+}
+
+/** @deprecated 使用 recommendCanvasVideoModel 获取带原因的推荐；本函数仅按数量做 t2v/r2v 回退 */
 export function getCanvasVideoModel(
   prefs: { videoModel?: string | null } | null | undefined,
   referenceUrls: string[],
 ): string {
-  const base = prefs?.videoModel || 'happyhorse-1.0'
-  const strippedBase = base.replace(/-r2v$|-t2v$|-i2v$/, '')
-  return referenceUrls.length > 0 ? `${strippedBase}-r2v` : `${strippedBase}-t2v`
+  const base = (prefs?.videoModel || 'happyhorse-1.0').replace(/-r2v$|-t2v$|-i2v$/, '')
+  return referenceUrls.length > 0 ? `${base}-r2v` : `${base}-t2v`
+}
+
+// ===== 镜头视频引用解析（带 role） =====
+
+/**
+ * resolveShotVideoReferences 的输入——只需 shots/characters/locations 的关键字段。
+ * 结构化类型让调用方不必传入整个 CanvasProjectDetail。
+ */
+export interface ResolveShotVideoReferencesInput {
+  shot: {
+    characterIdsJson: string[]
+    locationId: string | null
+    referenceAssetsJson?: CanvasShotReferenceAsset[] | null
+  }
+  characters: ReadonlyArray<{ id: string, referenceImageUrl?: string | null }>
+  locations: ReadonlyArray<{ id: string, referenceImageUrl?: string | null }>
+}
+
+/**
+ * 解析镜头视频引用为带 role 的参考列表。
+ *
+ * 顺序：角色自动引用 → 场景自动引用 → 用户额外引用（referenceAssetsJson）。
+ * 按 URL 去重，保留首次出现。与历史 dedupe([...char, loc, ...extra]) 等价，
+ * 但保留 role 供推荐函数使用。
+ */
+export function resolveShotVideoReferences(
+  input: ResolveShotVideoReferencesInput,
+): CanvasVideoReference[] {
+  const characterMap = new Map(input.characters.map(c => [c.id, c]))
+  const locationMap = new Map(input.locations.map(l => [l.id, l]))
+
+  const refs: CanvasVideoReference[] = []
+
+  for (const id of input.shot.characterIdsJson) {
+    const url = characterMap.get(id)?.referenceImageUrl
+    if (url)
+      refs.push({ url, role: 'character' })
+  }
+
+  if (input.shot.locationId) {
+    const url = locationMap.get(input.shot.locationId)?.referenceImageUrl
+    if (url)
+      refs.push({ url, role: 'location' })
+  }
+
+  for (const asset of input.shot.referenceAssetsJson ?? []) {
+    if (asset.url)
+      refs.push({ url: asset.url, role: asset.role })
+  }
+
+  // 按 URL 去重，保留首次出现
+  const seen = new Set<string>()
+  return refs.filter((ref) => {
+    if (seen.has(ref.url))
+      return false
+    seen.add(ref.url)
+    return true
+  })
 }
 
 export async function submitCanvasShotVideo(
   input: CanvasVideoSubmitInput,
 ): Promise<CanvasVideoSubmitResult> {
+  // i2v 模型需要 first_frame_url 参数——取第一张参考图作为首帧。
+  // prepareCanvasVideoParams 只在模型声明 first_frame_url 时注入，r2v/t2v 不声明则自动忽略。
+  const firstFrameUrl = input.referenceUrls.length > 0
+    ? input.referenceUrls[0]
+    : undefined
+
   const { params: videoParams } = prepareCanvasVideoParams(input.model, {
     videoPrompt: input.videoPrompt,
     negativePrompt: input.negativePrompt,
     duration: input.duration,
+    firstFrameUrl,
   })
 
   const submitResult = await input.client.submitVideoTaskWithFallback(
@@ -193,7 +304,7 @@ export async function submitCanvasShotVideo(
 
 export function prepareCanvasVideoParams(
   model: string,
-  shot: { videoPrompt: string, negativePrompt?: string | null, duration: number },
+  shot: { videoPrompt: string, negativePrompt?: string | null, duration: number, firstFrameUrl?: string },
   deps: PrepareCanvasVideoParamDeps = providerParamDeps,
 ): { modelConfig: ReturnType<typeof deps.getModelById>, params: ValidatedModelParameters } {
   const modelConfig = deps.getModelById(model)
@@ -209,6 +320,10 @@ export function prepareCanvasVideoParams(
 
   if (declaredParams.has('negative_prompt') && shot.negativePrompt)
     rawParams.negative_prompt = shot.negativePrompt
+
+  // i2v 模型声明 first_frame_url 参数——注入首帧 URL（applyMappings 会映射到 media[first_frame]）
+  if (declaredParams.has('first_frame_url') && shot.firstFrameUrl)
+    rawParams.first_frame_url = shot.firstFrameUrl
 
   const validationResult = deps.validateAndMerge(modelConfig, rawParams)
   if (!validationResult.ok) {

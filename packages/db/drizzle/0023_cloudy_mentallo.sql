@@ -1,0 +1,2 @@
+ALTER TABLE "subtitle_projects" ALTER COLUMN "style_config" SET DEFAULT '{"templateId":"cinema","fontSize":38,"fontColor":"#FFFFFF","outlineColor":"#000000","outlineWidth":2,"position":"bottom","marginV":30,"bold":false}'::jsonb;--> statement-breakpoint
+ALTER TABLE "canvas_shots" ADD COLUMN "reference_assets_json" jsonb DEFAULT '[]'::jsonb NOT NULL;

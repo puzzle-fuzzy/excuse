@@ -65,7 +65,7 @@ export const subtitleProjects = pgTable('subtitle_projects', {
   /** 字幕样式配置 — 域类型 SubtitleStyleConfig */
   styleConfig: jsonb('style_config').$type<SubtitleStyleConfig>().default({
     templateId: 'cinema',
-    fontSize: 24,
+    fontSize: 38,
     fontColor: '#FFFFFF',
     outlineColor: '#000000',
     outlineWidth: 2,

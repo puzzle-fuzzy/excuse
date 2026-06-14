@@ -8,7 +8,9 @@ import { Toaster } from './components/ui/sonner'
 import { useRealtimeSync } from './stores/realtime-sync'
 
 const Assets = lazy(() => import('./pages/Assets'))
+const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const Billing = lazy(() => import('./pages/Billing'))
+const Developers = lazy(() => import('./pages/Developers'))
 const Canvas = lazy(() => import('./pages/Canvas'))
 const CanvasEditor = lazy(() => import('./pages/CanvasEditor'))
 const Layout = lazy(() => import('./pages/Layout'))
@@ -55,6 +57,8 @@ function App() {
                 <Route path="/subtitle/:id" element={<SubtitleEditor />} />
                 <Route path="/assets" element={<Assets />} />
                 <Route path="/billing" element={<Billing />} />
+                <Route path="/api-keys" element={<ApiKeys />} />
+                <Route path="/developers" element={<Developers />} />
               </Route>
             </Route>
           </Routes>

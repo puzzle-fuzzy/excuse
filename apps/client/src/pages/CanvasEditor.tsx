@@ -1,7 +1,7 @@
 import type { ProjectDTO } from '@excuse/shared'
 import type { RunningPhaseInfo } from '../components/canvas/PipelineController'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { getCanvasProject } from '../api/client'
 import CanvasFlow from '../components/canvas/CanvasFlow'
 import CanvasStatusBar from '../components/canvas/CanvasStatusBar'
@@ -10,11 +10,14 @@ import NodeDetailPanel from '../components/canvas/NodeDetailPanel'
 import PipelineController from '../components/canvas/PipelineController'
 import TaskQueuePanel from '../components/canvas/TaskQueuePanel'
 import { useCanvasAssetsPolling } from '../hooks/use-canvas-assets-polling'
+import { resolveFocusNodeWithProject } from '../lib/asset-library'
 import { hasCanvasPollDelta } from '../lib/canvas-poll'
 import { useRealtimeSync } from '../stores/realtime-sync'
 
 export default function CanvasEditor() {
   const { projectId } = useParams<{ projectId: string }>()
+  const [searchParams] = useSearchParams()
+  const focusParam = searchParams.get('focus')
   const [project, setProject] = useState<ProjectDTO | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -22,6 +25,10 @@ export default function CanvasEditor() {
   const [runningPhase, setRunningPhase] = useState<RunningPhaseInfo | null>(null)
   const [showTaskQueue, setShowTaskQueue] = useState(false)
   const [showCost, setShowCost] = useState(false)
+
+  // focus 消费 ref — 避免每次 project reload 都覆盖用户手动选择
+  // 只在 URL focus 参数变化时重新消费
+  const consumedFocusRef = useRef<string | null>(null)
 
   // 从 RealtimeSync 获取项目版本号和 pipeline 阶段完成信号
   const projectVersion = useRealtimeSync(s => projectId ? s.projectVersions[projectId] : 0)
@@ -59,6 +66,23 @@ export default function CanvasEditor() {
       return () => clearTimeout(timer)
     }
   }, [projectVersion, loadProject])
+
+  // URL focus 参数 → 自动选中节点（项目加载后消费一次）
+  // focus 变化时重新消费；project reload 但 focus 不变时不覆盖用户手动选择
+  useEffect(() => {
+    if (!project || !focusParam)
+      return
+    if (consumedFocusRef.current === focusParam)
+      return // 已消费，跳过
+    const resolved = resolveFocusNodeWithProject(focusParam, project)
+    if (resolved) {
+      // 选中节点时关闭任务队列和成本面板，避免和右侧节点详情重叠
+      setShowTaskQueue(false)
+      setShowCost(false)
+      setSelectedNode(resolved)
+      consumedFocusRef.current = focusParam
+    }
+  }, [project, focusParam])
 
   // 脉冲数据与项目状态差异检测 — SSE 降级（polling fallback）时仍能发现状态/资产变化
   // 防止频繁重载：5 秒内只允许一次差异触发的 reload

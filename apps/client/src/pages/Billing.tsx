@@ -1,8 +1,8 @@
-import type { BillingStatistics } from '@/api/client'
-import { Calendar, CalendarDays, DollarSign, TrendingUp } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { fetchBillingStatistics } from '@/api/client'
+import { useQuery } from '@tanstack/react-query'
+import { Calendar, CalendarDays, DollarSign, RefreshCw, TrendingUp } from 'lucide-react'
+import { getBillingStatistics } from '@/api/billing'
+import { billingQueryKeys } from '@/api/query-client'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCents } from '@/lib/generation-utils'
 
@@ -21,20 +21,33 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 export default function Billing() {
-  const [stats, setStats] = useState<BillingStatistics | null>(null)
+  const { data: stats, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: billingQueryKeys.statistics,
+    queryFn: getBillingStatistics,
+  })
 
-  useEffect(() => {
-    fetchBillingStatistics().then((data) => {
-      if (data.success)
-        setStats(data.data)
-    }).catch(() => { toast.error('加载费用统计失败') })
-  }, [])
-
-  if (!stats) {
+  // 加载态
+  if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl p-4">
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           加载中...
+        </div>
+      </div>
+    )
+  }
+
+  // 错误态
+  if (isError || !stats) {
+    return (
+      <div className="mx-auto max-w-7xl p-4">
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <DollarSign className="mb-2 size-10" />
+          <p>加载费用统计失败</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
+            <RefreshCw className="size-3" />
+            重试
+          </Button>
         </div>
       </div>
     )
@@ -49,10 +62,20 @@ export default function Billing() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 space-y-6">
-      {/* 标题 */}
+      {/* 标题 + 刷新 */}
       <div className="flex items-center gap-2">
         <DollarSign className="size-5" />
         <h1 className="text-lg font-semibold">费用统计</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto size-7"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="刷新"
+        >
+          <RefreshCw className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
 
       {/* 概览卡片 */}

@@ -172,11 +172,11 @@ export function createSubtitleRoutes(config: ServerConfig) {
       if (!project)
         return notFound(set, '字幕项目不存在或无权访问')
 
-      if (project.status !== 'subtitle_editing')
-        return notFound(set, '项目状态不是"字幕编辑"，无法导出')
-
       if (!project.sentences || project.sentences.length === 0)
         return notFound(set, '没有字幕内容，无法导出')
+
+      if (['draft', 'extracting_audio', 'asr_processing', 'exporting'].includes(project.status))
+        return notFound(set, '项目正在处理或尚未完成字幕识别，无法导出')
 
       // 创建导出 generation_record，Worker 通过 exportRecordId 关联
       const exportRecord = await createGenerationRecord({
@@ -186,7 +186,10 @@ export function createSubtitleRoutes(config: ServerConfig) {
         model: 'ffmpeg-burn',
         category: 'subtitle',
         status: 'processing',
-        inputParams: { projectId: project.id } as Record<string, unknown>,
+        inputParams: {
+          projectId: project.id,
+          styleConfig: project.styleConfig,
+        } as Record<string, unknown>,
       })
 
       // 设置 exportRecordId + 状态为 exporting → Worker 轮询处理

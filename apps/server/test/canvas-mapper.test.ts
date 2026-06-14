@@ -80,6 +80,7 @@ function makeShotRow(overrides: Partial<CanvasShotRow> = {}): CanvasShotRow {
     videoUrl: 'https://cdn.example.com/video.mp4',
     status: 'completed',
     errorMessage: null,
+    referenceAssetsJson: [],
     createdAt: new Date('2025-01-01T00:00:00Z'),
     updatedAt: new Date('2025-01-01T12:00:00Z'),
     ...overrides,
@@ -230,6 +231,7 @@ describe('mapShot', () => {
     expect(dto.videoUrl).toBe('https://cdn.example.com/video.mp4')
     expect(dto.status).toBe('completed')
     expect(dto.errorMessage).toBeNull()
+    expect(dto.referenceAssets).toEqual([])
     expect(dto.createdAt).toBe('2025-01-01T00:00:00.000Z')
     expect(dto.updatedAt).toBe('2025-01-01T12:00:00.000Z')
   })
@@ -256,6 +258,7 @@ describe('mapShot', () => {
     expect(dto.videoTaskId).toBeNull()
     expect(dto.videoUrl).toBeNull()
     expect(dto.errorMessage).toBeNull()
+    expect(dto.referenceAssets).toEqual([])
   })
 })
 

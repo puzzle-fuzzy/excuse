@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
-import type { CanvasAssetCategory, CanvasAssetInsert } from '../types'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import type { CanvasAssetCategory, CanvasAssetInsert, CanvasAssetStatus } from '../types'
+import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasAssets } from '../schema/canvas-assets'
 
@@ -20,12 +20,89 @@ export async function getCanvasAssetById(id: string) {
   return asset ?? null
 }
 
+/**
+ * 按 ID + accountId 查询单条 Canvas 资产 — 镜头参考资产归属校验用
+ *
+ * 用于服务端校验镜头参考资产时确认 assetId 属于当前用户。
+ * 仓库层强制 accountId 约束，调用方无需再判断归属。
+ */
+export async function getCanvasAssetByIdForAccount(id: string, accountId: string) {
+  const [asset] = await getDb()
+    .select()
+    .from(canvasAssets)
+    .where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId)))
+    .limit(1)
+  return asset ?? null
+}
+
 /** 查询项目下所有资产记录 */
 export async function listCanvasAssetsByProject(projectId: string) {
   return getDb()
     .select()
     .from(canvasAssets)
     .where(eq(canvasAssets.projectId, projectId))
+}
+
+/**
+ * 资产中心 — 按 account 查询 Canvas 资产列表
+ *
+ * 用于 `/api/assets` 统一资产中心。按 accountId 隔离权限（canvas_assets.accountId 已存在，
+ * 不需要 join project）。支持按 status（多值）、category（多值，用于 kind 预筛）、projectId、
+ * model、createdFrom/createdTo 过滤，默认按 createdAt desc。
+ */
+export async function listCanvasAssetsForLibrary(
+  accountId: string,
+  filter: {
+    statuses?: CanvasAssetStatus[]
+    categories?: CanvasAssetCategory[]
+    projectId?: string
+    model?: string
+    /** 关键词搜索（ilike model / category::text / inputJson::text / outputJson::text） */
+    search?: string
+    createdFrom?: Date
+    createdTo?: Date
+    /** 排除已隐藏的记录（资产中心默认排除） */
+    excludeHidden?: boolean
+    limit?: number
+    offset?: number
+  } = {},
+) {
+  const { statuses, categories, projectId, model, search, createdFrom, createdTo, excludeHidden, limit = 100, offset = 0 } = filter
+
+  const conditions = [eq(canvasAssets.accountId, accountId)]
+  if (statuses && statuses.length > 0)
+    conditions.push(inArray(canvasAssets.status, statuses))
+  if (categories && categories.length > 0)
+    conditions.push(inArray(canvasAssets.category, categories))
+  if (projectId)
+    conditions.push(eq(canvasAssets.projectId, projectId))
+  if (model)
+    conditions.push(eq(canvasAssets.model, model))
+  // 关键词搜索：ilike model / category::text / inputJson::text / outputJson::text
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(sql`(
+      ${canvasAssets.model} ILIKE ${pattern}
+      OR ${canvasAssets.category}::text ILIKE ${pattern}
+      OR ${canvasAssets.inputJson}::text ILIKE ${pattern}
+      OR ${canvasAssets.outputJson}::text ILIKE ${pattern}
+    )`)
+  }
+  if (createdFrom)
+    conditions.push(gte(canvasAssets.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(canvasAssets.createdAt, createdTo))
+  // 资产中心默认排除已隐藏的记录
+  if (excludeHidden)
+    conditions.push(isNull(canvasAssets.hiddenAt))
+
+  return getDb()
+    .select()
+    .from(canvasAssets)
+    .where(and(...conditions))
+    .orderBy(desc(canvasAssets.createdAt))
+    .limit(limit)
+    .offset(offset)
 }
 
 /**
@@ -279,6 +356,26 @@ export async function setCanvasAssetLocked(id: string, locked: boolean) {
   const [updated] = await getDb()
     .update(canvasAssets)
     .set({ locked, updatedAt: new Date() })
+    .where(eq(canvasAssets.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 隐藏 Canvas 资产（从资产中心移除，不改变 isActive/locked/status） */
+export async function hideCanvasAsset(id: string) {
+  const [updated] = await getDb()
+    .update(canvasAssets)
+    .set({ hiddenAt: new Date(), updatedAt: new Date() })
+    .where(eq(canvasAssets.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 恢复已隐藏的 Canvas 资产（repository 层，暂不做 UI） */
+export async function unhideCanvasAsset(id: string) {
+  const [updated] = await getDb()
+    .update(canvasAssets)
+    .set({ hiddenAt: null, updatedAt: new Date() })
     .where(eq(canvasAssets.id, id))
     .returning()
   return updated ?? null

@@ -185,6 +185,39 @@ describe('sSEClient', () => {
       expect(handler).toHaveBeenCalledWith(event)
     })
 
+    it('notification meta 透传 projectId + shotId + recordId（Canvas 锚点链路）', async () => {
+      vi.mocked(getAuthToken).mockReturnValue('token')
+      const handler = vi.fn()
+      sseClient.on('notification', handler)
+      sseClient.connect()
+      await respondOpen(200)
+
+      pushEvent('notification', JSON.stringify({
+        id: 'notif-canvas-1',
+        type: 'task_completed',
+        title: '视频生成完成',
+        meta: {
+          recordId: 'rec-1',
+          category: 'video',
+          projectId: 'proj-canvas-1',
+          shotId: 'shot-9',
+        },
+        read: false,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      }))
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'notif-canvas-1',
+        type: 'task_completed',
+        meta: {
+          recordId: 'rec-1',
+          category: 'video',
+          projectId: 'proj-canvas-1',
+          shotId: 'shot-9',
+        },
+      }))
+    })
+
     it('heartbeat 事件不触发 handler', async () => {
       vi.mocked(getAuthToken).mockReturnValue('token')
       const handler = vi.fn()

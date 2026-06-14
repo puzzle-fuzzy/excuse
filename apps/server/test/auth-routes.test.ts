@@ -70,6 +70,8 @@ const testConfig: ServerConfig = {
   jwtSecret: 'test-auth-routes-secret',
   jwtExpiresIn: '1h',
   oss: undefined,
+  metricsAccessToken: undefined,
+  metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
 }
 
 // ─── 辅助函数 ──────────────────────────────────────

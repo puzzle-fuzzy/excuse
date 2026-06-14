@@ -45,6 +45,29 @@ export interface DashScopeOpenaiChatResponse {
   message?: string
 }
 
+/**
+ * DashScope chat 协议（增量输出）SSE 单帧响应
+ *
+ * 与 OpenAI 兼容协议不同：
+ *   - 增量文本在 `output.text`，而不是 `choices[0].delta.content`。
+ *   - `finish_reason` 是字符串（`"null"` / `"stop"` / `"length"`），DashScope 用字符串 null 而非 JSON null。
+ *   - usage 字段名是 `total_tokens` / `input_tokens` / `output_tokens`，无 `prompt_tokens` 别名。
+ */
+export interface DashScopeChatStreamEvent {
+  output: {
+    /** 增量文本（每帧的 delta；非流式响应中的 output.choices[].message.content 数组形态不适用于流式） */
+    text?: string
+    /** 'null' 字符串 / 'stop' / 'length'（DashScope 用字符串 null 而非 JSON null） */
+    finish_reason?: string
+  }
+  usage?: {
+    total_tokens?: number
+    input_tokens?: number
+    output_tokens?: number
+  }
+  request_id?: string
+}
+
 // ── Image 响应 ──
 
 export interface DashScopeImageResponse {

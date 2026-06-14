@@ -22,6 +22,8 @@ const testConfig: ServerConfig = {
   jwtSecret: 'test-sse-token-secret',
   jwtExpiresIn: '1h',
   oss: undefined,
+  metricsAccessToken: undefined,
+  metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
 }
 
 function createTestApp() {

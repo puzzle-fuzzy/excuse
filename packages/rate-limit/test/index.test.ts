@@ -7,7 +7,7 @@ import {
 } from '../src'
 
 describe('@excuse/rate-limit', () => {
-  it('builds key from authorization header', () => {
+  it('从 authorization 头构造 key', () => {
     const request = new Request('http://local.test', {
       headers: { Authorization: 'Bearer abcdef' },
     })
@@ -15,7 +15,7 @@ describe('@excuse/rate-limit', () => {
     expect(buildRateLimitKey(request)).toBe('user:Bearer abcdef')
   })
 
-  it('builds key from forwarded ip when auth is missing', () => {
+  it('缺少 auth 时回退到 forwarded ip 构造 key', () => {
     const request = new Request('http://local.test', {
       headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' },
     })
@@ -23,7 +23,7 @@ describe('@excuse/rate-limit', () => {
     expect(buildRateLimitKey(request)).toBe('ip:1.2.3.4')
   })
 
-  it('creates consistent error body and response', async () => {
+  it('构造一致的错误响应体与 Response', async () => {
     expect(createRateLimitErrorBody(12)).toEqual({
       success: false,
       error: '请求过于频繁，请稍后再试',
@@ -36,7 +36,7 @@ describe('@excuse/rate-limit', () => {
     expect(await response.json()).toEqual(createRateLimitErrorBody(12))
   })
 
-  it('limits category requests in a sliding window', () => {
+  it('在滑动窗口内对分类请求限流', () => {
     const limiter = new SlidingWindowRateLimiter()
 
     expect(limiter.check({ userId: 'u1', category: 'video', maxRequests: 2, windowMs: 1000, now: 1000 }).allowed).toBe(true)

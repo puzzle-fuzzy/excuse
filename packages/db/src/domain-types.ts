@@ -205,6 +205,37 @@ export interface ContinuityIssue {
   suggestion?: string
 }
 
+// ===== Canvas Shot Reference Asset Types =====
+
+/**
+ * 镜头额外参考资产的语义角色 — 用户可理解的标签，本轮不强绑定 provider 参数
+ */
+export type CanvasShotReferenceRole
+  = | 'character'
+    | 'location'
+    | 'style'
+    | 'firstFrame'
+    | 'other'
+
+/**
+ * 镜头额外参考资产 — 保存到 canvas_shots.referenceAssetsJson JSONB 中
+ *
+ * 用户可以在某个镜头上选择多个额外参考资产，生成/重试/重新生成镜头视频时
+ * 合并到 referenceUrls（角色/场景自动引用在前，用户额外引用在后，去重）。
+ */
+export interface CanvasShotReferenceAsset {
+  /** 统一资产 ID。早期允许 uploaded_files.id 或 canvas_assets.id */
+  assetId: string
+  /** 生成时直接可用的稳定 URL，优先 publicUrl */
+  url: string
+  /** 语义标签：角色图 / 场景图 / 风格图 / 首帧图 / 其他 */
+  role: CanvasShotReferenceRole
+  /** UI 展示标签，避免只显示 URL。可选，最大 100 字符 */
+  label?: string
+  /** 来源：资产库 / 上传文件 / 手动输入 */
+  source?: 'asset_library' | 'uploaded_file' | 'manual'
+}
+
 // ===== Generation Domain Types =====
 
 /**
@@ -218,12 +249,14 @@ export interface ContinuityIssue {
  * 不应直接索引此信封的 unknown 字段。
  */
 export interface GenerationInputParams {
-  /** Canvas 来源标记（仅当 source === 'canvas' 时存在） */
-  source?: 'canvas'
+  /** 来源标记：'canvas' = Canvas 流水线，'gateway' = OpenAI 兼容网关 */
+  source?: 'canvas' | 'gateway'
   /** Canvas 项目 ID（仅 canvas 来源时存在） */
   projectId?: string
   /** Canvas 镜头 ID（仅 canvas 来源时存在） */
   shotId?: string
+  /** 用户传入的原始模型名（仅 gateway 来源时存在，如 gpt-4o-mini），用于 usage 列表展示 */
+  requestedModel?: string
   /** 参考文件 ID 列表（用户上传参考图时存在） */
   referenceFileIds?: string[]
   /**
@@ -349,7 +382,10 @@ export interface GenerationNotifyPayload {
  * 通知定位元数据 — 携带结构化引用，供前端「点击定位」跳转到对应资源。
  *
  * 存储在 notifications.meta JSONB 列。不同通知类型携带不同字段：
- *   - task_completed / task_failed：recordId + category（定位到工作台记录）
+ *   - task_completed / task_failed：
+ *       - recordId + category（定位到工作台记录）
+ *       - 如果来自 Canvas 链路：projectId + shotId（直接定位到 Canvas 镜头节点）
+ *       - assetId 可选二级定位（v2 镜头资产锚点用）
  *   - canvas_completed：projectId（定位到画布项目）
  *   - balance_warning：category 可选（定位到计费页）
  */
@@ -358,7 +394,9 @@ export interface NotificationMeta {
   projectId?: string
   /** 生成记录 id — 点击定位到工作台对应记录 */
   recordId?: string
-  /** Canvas 资产 id（镜头视频等）— 可选二级定位 */
+  /** Canvas 镜头 id — 与 projectId 一起定位到 /canvas/:projectId?focus=shot:<shotId> */
+  shotId?: string
+  /** Canvas 资产 id（镜头视频等）— 可选二级定位（v2 用） */
   assetId?: string
   /** 生成类别，辅助前端选择定位目标与图标 */
   category?: 'text' | 'image' | 'video' | 'subtitle'

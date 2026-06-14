@@ -185,6 +185,8 @@ function makeConfig(): ServerConfig {
     jwtSecret: 'test-secret',
     jwtExpiresIn: '1h',
     oss: undefined,
+    metricsAccessToken: undefined,
+    metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
   }
 }
 

@@ -263,4 +263,91 @@ describe('submitShotVideoEntity', () => {
     expect(referenceUrls).toEqual([])
     expect(model).toContain('-t2v')
   })
+
+  it('merges extra referenceAssetsJson URLs after char/loc auto refs, deduped', async () => {
+    const shotWithExtraRefs = {
+      ...baseShot,
+      referenceAssetsJson: [
+        { assetId: 'ext-1', url: 'https://cdn.example.com/style-ref.png', role: 'style' },
+        { assetId: 'ext-2', url: 'https://cdn.example.com/char-ref.png', role: 'character' },
+        { assetId: 'ext-3', url: '', role: 'other' },
+      ],
+    } as unknown as CanvasProjectDetail['shots'][number]
+    const client = makeVideoClient()
+
+    const { referenceUrls } = await submitShotVideoEntity({
+      projectId: 'p1',
+      accountId: 'a1',
+      shotId: 'shot-1',
+      assetId: 'asset-video',
+      shot: shotWithExtraRefs,
+      characters: [characterWithRef],
+      locations: [locationWithRef],
+      modelPreferences: null,
+      client,
+    })
+
+    // char-ref.png from character auto ref comes first;
+    // loc-ref.png from location auto ref next;
+    // style-ref.png from extra reference asset appended;
+    // duplicate char-ref.png from extra asset is deduped;
+    // empty URL is filtered out
+    expect(referenceUrls).toEqual([
+      'https://cdn.example.com/char-ref.png',
+      'https://cdn.example.com/loc-ref.png',
+      'https://cdn.example.com/style-ref.png',
+    ])
+  })
+
+  it('extra referenceAssetsJson works without auto char/loc refs', async () => {
+    const characterNoRef = { id: 'char-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['characters'][number]
+    const locationNoRef = { id: 'loc-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['locations'][number]
+    const shotWithExtraRefs = {
+      ...baseShot,
+      referenceAssetsJson: [
+        { assetId: 'ext-1', url: 'https://cdn.example.com/first-frame.png', role: 'firstFrame' },
+      ],
+    } as unknown as CanvasProjectDetail['shots'][number]
+    const client = makeVideoClient()
+
+    const { referenceUrls, model } = await submitShotVideoEntity({
+      projectId: 'p1',
+      accountId: 'a1',
+      shotId: 'shot-1',
+      assetId: 'asset-video',
+      shot: shotWithExtraRefs,
+      characters: [characterNoRef],
+      locations: [locationNoRef],
+      modelPreferences: null,
+      client,
+    })
+
+    // Only the extra ref URL, no char/loc auto refs
+    expect(referenceUrls).toEqual(['https://cdn.example.com/first-frame.png'])
+    // firstFrame role → -i2v model (图生视频)
+    expect(model).toContain('-i2v')
+  })
+
+  it('no extra referenceAssetsJson preserves old behavior', async () => {
+    const shotWithoutExtraRefs = {
+      ...baseShot,
+      referenceAssetsJson: [],
+    } as unknown as CanvasProjectDetail['shots'][number]
+    const client = makeVideoClient()
+
+    const { referenceUrls } = await submitShotVideoEntity({
+      projectId: 'p1',
+      accountId: 'a1',
+      shotId: 'shot-1',
+      assetId: 'asset-video',
+      shot: shotWithoutExtraRefs,
+      characters: [characterWithRef],
+      locations: [locationWithRef],
+      modelPreferences: null,
+      client,
+    })
+
+    // Same as the original test — only char + loc auto refs
+    expect(referenceUrls).toEqual(['https://cdn.example.com/char-ref.png', 'https://cdn.example.com/loc-ref.png'])
+  })
 })

@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -61,6 +61,7 @@ export const api = treaty<App>(resolveApiBaseUrl())
 
 export type { ModelConfig, ModelParameter } from '@excuse/shared'
 export type { AcceptedResponse, GenerateResponse, GenerationRecord } from '@excuse/shared'
+export type { AssetLibraryItem, AssetLibraryKind, AssetLibraryListResponse, AssetLibraryQuery, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
 export type { BillingStatistics } from '@excuse/shared'
 export type CostDetail = GenerationRecord['cost']
 
@@ -210,9 +211,41 @@ export async function deleteUploadedFile(id: string): Promise<MutationOkResponse
   )
 }
 
+/** 编辑上传文件（重命名/用途） — 返回更新后的 DTO */
+export async function updateUploadedFile(
+  id: string,
+  patch: { fileName?: string, purpose?: string },
+): Promise<UploadResponse> {
+  return unwrapEden<UploadResponse>(
+    await api.api.upload({ id }).patch(patch),
+  )
+}
+
 export async function fetchBillingStatistics(): Promise<BillingStatisticsResponse> {
   return unwrapEden<BillingStatisticsResponse>(
     await api.api.billing.statistics.get(),
+  )
+}
+
+// ===== 统一资产中心 API =====
+
+/** 拉取统一资产列表（generation_records + canvas_assets + uploaded_files） */
+export async function fetchAssetLibrary(params?: AssetLibraryQuery): Promise<AssetLibraryListResponse> {
+  return unwrapEden<AssetLibraryListResponse>(
+    await api.api.assets.get({
+      query: {
+        source: params?.source || undefined,
+        kind: params?.kind || undefined,
+        status: params?.status || undefined,
+        projectId: params?.projectId || undefined,
+        search: params?.search || undefined,
+        model: params?.model || undefined,
+        createdFrom: params?.createdFrom || undefined,
+        createdTo: params?.createdTo || undefined,
+        limit: params?.limit ?? 100,
+        offset: params?.offset ?? 0,
+      },
+    }),
   )
 }
 
@@ -363,9 +396,36 @@ export async function updateCanvasShot(shotId: string, patch: {
   cameraJson?: { shotSize: string, angle: string, movement: string, lens: string }
   environmentJson?: { backgroundMotion?: string, lighting?: string, mood?: string, style?: string }
   videoPrompt?: string
+  referenceAssetsJson?: Array<{ assetId: string, url: string, role: 'character' | 'location' | 'style' | 'firstFrame' | 'other', label?: string, source?: 'asset_library' | 'uploaded_file' | 'manual' }>
 }): Promise<CanvasShotResponse> {
   return unwrapEden<CanvasShotResponse>(
     await api.api.canvas.shots({ shotId }).patch(patch),
+  )
+}
+
+/** 批量应用参考资产到多个镜头 */
+export interface ApplyShotReferenceAssetsResponse {
+  success: boolean
+  applied: Array<{
+    shotId: string
+    beforeCount: number
+    afterCount: number
+    addedCount: number
+    truncatedCount: number
+  }>
+}
+
+export async function applyShotReferenceAssets(
+  projectId: string,
+  params: {
+    sourceShotId?: string
+    targetShotIds: string[]
+    referenceAssetsJson: Array<{ assetId: string, url: string, role: 'character' | 'location' | 'style' | 'firstFrame' | 'other', label?: string, source?: 'asset_library' | 'uploaded_file' | 'manual' }>
+    mode: 'append' | 'replace'
+  },
+): Promise<ApplyShotReferenceAssetsResponse> {
+  return unwrapEden<ApplyShotReferenceAssetsResponse>(
+    await api.api.canvas.projects({ projectId }).shots['reference-assets'].apply.post(params),
   )
 }
 

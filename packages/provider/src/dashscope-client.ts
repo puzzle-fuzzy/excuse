@@ -1,6 +1,7 @@
 import type { InputMapping, ModelConfig } from '@excuse/shared'
 import type {
   DashScopeChatResponse,
+  DashScopeChatStreamEvent,
   DashScopeImageResponse,
   DashScopeOpenaiChatResponse,
   DashScopeTaskQueryResponse,
@@ -16,6 +17,7 @@ import type {
   ProviderResult,
   TaskStatus,
   TextProviderResult,
+  TextStreamChunk,
   VideoTaskProviderResult,
 } from './types'
 import { parseDashScopeError } from './dashscope-errors'
@@ -357,6 +359,207 @@ export class DashScopeClient {
     catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+    }
+  }
+
+  /**
+   * 文本生成（流式） — 支持 requestType: 'openai-chat' 和 'chat' 两类文本模型
+   *
+   * - openai-chat：调用 compatible-mode/v1/chat/completions，body 顶层 `stream=true`，
+   *   按 OpenAI 兼容 SSE 格式解析（choices[0].delta.content + finish_reason）。
+   * - chat：调用 DashScope 原生文本生成端点，header 加 `X-DashScope-SSE: enable`，
+   *   body `parameters.incremental_output=true`，按 DashScope 原生 SSE 格式解析
+   *   （output.text + finish_reason 字符串 + usage.total_tokens）。
+   *
+   * 两协议都 yield 统一的 TextStreamChunk，调用方（route）无需感知协议差异。
+   *
+   * @throws Error 当模型不存在或 requestType 不是 'openai-chat' / 'chat'
+   */
+  async *chatCompletionStream(
+    model: string,
+    params: ValidatedModelParameters,
+  ): AsyncGenerator<TextStreamChunk> {
+    const modelConfig = getModelById(model)
+    if (!modelConfig)
+      throw new Error(`未知模型: ${model}`)
+
+    const isChat = modelConfig.requestType === 'chat'
+    const isOpenaiChat = modelConfig.requestType === 'openai-chat'
+    if (!isChat && !isOpenaiChat)
+      throw new Error(`模型 ${model} 不支持流式（仅文本生成模型支持）`)
+
+    const body = this.buildRequestBody(modelConfig, params) as Record<string, unknown>
+
+    if (isOpenaiChat) {
+      body.stream = true
+    }
+    else if (isChat) {
+      // DashScope chat 协议：incremental_output 在 parameters 嵌套层
+      const parameters = (body.parameters ?? {}) as Record<string, unknown>
+      parameters.incremental_output = true
+      body.parameters = parameters
+    }
+
+    const headers: Record<string, string> = {
+      ...this.headers,
+      Accept: 'text/event-stream',
+    }
+    if (isChat)
+      headers['X-DashScope-SSE'] = 'enable'
+
+    const response = await fetch(modelConfig.endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`DashScope stream 启动失败 (${response.status}): ${text}`)
+    }
+
+    if (isOpenaiChat)
+      yield* this.parseOpenAIChatSSE(response.body, model)
+    else
+      yield* this.parseDashScopeChatSSE(response.body, model)
+  }
+
+  /**
+   * OpenAI 兼容协议 SSE parser — 解析 `choices[0].delta.content` + `finish_reason`。
+   *
+   * SSE 按 `\n\n` 分块；每块形如 `data: {...}\n\n`；结束标记 `data: [DONE]`。
+   * 单行 JSON.parse 失败时跳过该行，不终止流。
+   */
+  private async *parseOpenAIChatSSE(
+    body: ReadableStream<Uint8Array>,
+    model: string,
+  ): AsyncGenerator<TextStreamChunk> {
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done)
+          break
+        buffer += decoder.decode(value, { stream: true })
+
+        let sep = buffer.indexOf('\n\n')
+        while (sep >= 0) {
+          const rawEvent = buffer.slice(0, sep)
+          buffer = buffer.slice(sep + 2)
+
+          for (const line of rawEvent.split('\n')) {
+            if (!line.startsWith('data:'))
+              continue
+            const data = line.slice(5).trim()
+            if (data === '[DONE]') {
+              yield { type: 'text-stream', model, delta: '', done: true }
+              return
+            }
+            try {
+              const parsed = JSON.parse(data) as {
+                choices?: Array<{ delta?: { content?: string }, finish_reason?: string | null }>
+                usage?: { prompt_tokens?: number, completion_tokens?: number }
+              }
+              const choice = parsed.choices?.[0]
+              const delta = choice?.delta?.content ?? ''
+              const finishReason = choice?.finish_reason ?? null
+              const parsedUsage = parsed.usage
+                ? {
+                    inputTokens: parsed.usage.prompt_tokens ?? 0,
+                    outputTokens: parsed.usage.completion_tokens ?? 0,
+                  }
+                : undefined
+              yield {
+                type: 'text-stream',
+                model,
+                delta,
+                usage: parsedUsage,
+                done: finishReason !== null,
+              }
+            }
+            catch {
+              // 单行解析失败时跳过，不终止流
+            }
+          }
+          sep = buffer.indexOf('\n\n')
+        }
+      }
+    }
+    finally {
+      reader.releaseLock()
+    }
+  }
+
+  /**
+   * DashScope chat 协议 SSE parser — 解析 `output.text` + `output.finish_reason`（字符串）。
+   *
+   * 与 OpenAI 兼容协议的差异：
+   *   - delta 在 `output.text`，而不是 `choices[0].delta.content`。
+   *   - `finish_reason` 是字符串 `"null"` / `"stop"` / `"length"`，DashScope 用字符串 null 而非 JSON null。
+   *   - usage 字段名是 `input_tokens` / `output_tokens`（DashScope 命名），无 `prompt_tokens` 别名。
+   *
+   * 流结束：`finish_reason === 'stop' | 'length'`，或收到 `data: [DONE]`。
+   */
+  private async *parseDashScopeChatSSE(
+    body: ReadableStream<Uint8Array>,
+    model: string,
+  ): AsyncGenerator<TextStreamChunk> {
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done)
+          break
+        buffer += decoder.decode(value, { stream: true })
+
+        let sep = buffer.indexOf('\n\n')
+        while (sep >= 0) {
+          const rawEvent = buffer.slice(0, sep)
+          buffer = buffer.slice(sep + 2)
+
+          for (const line of rawEvent.split('\n')) {
+            if (!line.startsWith('data:'))
+              continue
+            const data = line.slice(5).trim()
+            if (data === '[DONE]') {
+              yield { type: 'text-stream', model, delta: '', done: true }
+              return
+            }
+            try {
+              const parsed = JSON.parse(data) as DashScopeChatStreamEvent
+              const delta = parsed.output?.text ?? ''
+              const finishReason = parsed.output?.finish_reason
+              const isDone = finishReason === 'stop' || finishReason === 'length'
+              const parsedUsage = parsed.usage
+                && (parsed.usage.input_tokens !== undefined || parsed.usage.output_tokens !== undefined)
+                ? {
+                    inputTokens: parsed.usage.input_tokens ?? 0,
+                    outputTokens: parsed.usage.output_tokens ?? 0,
+                  }
+                : undefined
+
+              yield {
+                type: 'text-stream',
+                model,
+                delta,
+                usage: parsedUsage,
+                done: isDone,
+              }
+            }
+            catch {
+              // 单行解析失败时跳过，不终止流
+            }
+          }
+          sep = buffer.indexOf('\n\n')
+        }
+      }
+    }
+    finally {
+      reader.releaseLock()
     }
   }
 

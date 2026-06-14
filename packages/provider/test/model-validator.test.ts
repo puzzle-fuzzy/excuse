@@ -1,6 +1,6 @@
 import type { ModelConfig } from '@excuse/shared'
 import { describe, expect, it } from 'bun:test'
-import { mergeWithDefaults, validateModelParameters } from '../src/model-validator'
+import { mergeWithDefaults, validateAndMerge, validateModelParameters } from '../src/model-validator'
 
 // ── 测试用的模型配置 ──────────────────────────────────
 
@@ -226,6 +226,45 @@ describe('validateModelParameters', () => {
       // unknown_param 未知
       expect(result.errors.some(e => e.field === 'unknown_param')).toBe(true)
     })
+
+    it('多个未知参数时都返回错误，不只报第一个', () => {
+      const result = validateModelParameters(TEXT_MODEL, {
+        prompt: '你好',
+        foo: 1,
+        bar: 2,
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors.filter(e => e.message.includes('未知参数')).length).toBe(2)
+      expect(result.errors.some(e => e.field === 'foo')).toBe(true)
+      expect(result.errors.some(e => e.field === 'bar')).toBe(true)
+    })
+  })
+
+  describe('类型错误边界', () => {
+    it('select 参数非 string 时报错', () => {
+      const result = validateModelParameters(IMAGE_MODEL, {
+        prompt: '风景',
+        size: 42,
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors.some(e => e.field === 'size' && e.message.includes('字符串'))).toBe(true)
+    })
+
+    it('text 参数非 string 时报错', () => {
+      const result = validateModelParameters(TEXT_MODEL, {
+        prompt: 123,
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors.some(e => e.field === 'prompt' && e.message.includes('字符串'))).toBe(true)
+    })
+
+    it('null 可选参数不触发类型错误', () => {
+      const result = validateModelParameters(TEXT_MODEL, {
+        prompt: '你好',
+        temperature: null,
+      })
+      expect(result.valid).toBe(true)
+    })
   })
 })
 
@@ -257,5 +296,55 @@ describe('mergeWithDefaults', () => {
     expect(merged.size).toBe('2048*2048')
     expect(merged.n).toBe(1)
     expect(merged.watermark).toBe(false)
+  })
+})
+
+// ── validateAndMerge ─────────────────────────────────────
+
+describe('validateAndMerge', () => {
+  it('ok 分支：返回 params，补齐 optional defaultValue', () => {
+    const result = validateAndMerge(TEXT_MODEL, { prompt: '你好' })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.params.prompt).toBe('你好')
+      expect(result.params.temperature).toBe(0.7) // defaultValue
+      expect(result.params.top_p).toBe(0.9) // defaultValue
+    }
+  })
+
+  it('ok 分支：不覆盖用户显式传入值', () => {
+    const result = validateAndMerge(TEXT_MODEL, {
+      prompt: '你好',
+      temperature: 0.3,
+    })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.params.temperature).toBe(0.3) // 用户值，不是 defaultValue 0.7
+      expect(result.params.top_p).toBe(0.9) // 未提供 → defaultValue
+    }
+  })
+
+  it('error 分支：返回 errors，不返回 params', () => {
+    const result = validateAndMerge(TEXT_MODEL, {})
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.length).toBeGreaterThan(0)
+      expect(result.errors.some(e => e.field === 'prompt')).toBe(true)
+    }
+  })
+
+  it('error 分支：errors 为字段级错误', () => {
+    const result = validateAndMerge(TEXT_MODEL, {
+      temperature: 'hot',
+      unknown_param: 1,
+    })
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      // prompt 缺失、temperature 类型错误、unknown_param 未知
+      expect(result.errors.length).toBeGreaterThanOrEqual(3)
+      expect(result.errors.some(e => e.field === 'prompt')).toBe(true)
+      expect(result.errors.some(e => e.field === 'temperature')).toBe(true)
+      expect(result.errors.some(e => e.field === 'unknown_param')).toBe(true)
+    }
   })
 })
