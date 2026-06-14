@@ -132,7 +132,7 @@
 
 待办：
 
-- ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `<本轮 hash>`）。
+- ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `9b0a37a`）。
 - ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
 - 线上排障检查命令或文档。
 - Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
