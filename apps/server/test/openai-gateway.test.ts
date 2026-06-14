@@ -296,19 +296,23 @@ describe('OpenAI 网关', () => {
       expect(getErrorCode(error)).toBe('invalid_model')
     })
 
-    it('stream=true + chat 协议模型（qwen-max）→ 400 + code=streaming_model_not_supported', async () => {
+    it('stream=true + chat 协议模型（qwen-max）→ 不再 400（chat 协议现在也支持流式）', async () => {
       const headers = await getAuthHeaders()
       const app = createGatewayApp()
-      const client = treaty(app)
 
-      const { error } = await client.v1.chat.completions.post({
-        model: 'qwen-max',
-        messages: [{ role: 'user', content: 'Hello' }],
-        stream: true,
-      }, { headers })
+      const response = await app.handle(new Request('http://localhost/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({
+          model: 'qwen-max',
+          messages: [{ role: 'user', content: 'Hello' }],
+          stream: true,
+        }),
+      }))
 
-      expect(error).toBeTruthy()
-      expect(getErrorCode(error)).toBe('streaming_model_not_supported')
+      // chat 协议模型现在也支持流式 → 200 SSE
+      expect(response.status).toBe(200)
+      expect(response.headers.get('content-type')).toContain('text/event-stream')
     })
 
     it('缺少 user message → 400 + code=missing_user_message', async () => {
@@ -437,16 +441,20 @@ describe('OpenAI 网关', () => {
       expect(text).toContain('"role":"assistant"')
     })
 
-    it('stream=true + chat 协议模型（qwen-max）→ 400 + streaming_model_not_supported', async () => {
+    it('stream=true + chat 协议模型（qwen-max）→ 200 SSE（chat 协议现在也支持流式）', async () => {
       const headers = await getAuthHeaders()
-      const { status, text } = await postStream({
+      const { status, contentType, text } = await postStream({
         model: 'qwen-max',
         messages: [{ role: 'user', content: 'Hello' }],
         stream: true,
       }, headers)
 
-      expect(status).toBe(400)
-      expect(text).toContain('streaming_model_not_supported')
+      expect(status).toBe(200)
+      expect(contentType).toContain('text/event-stream')
+      // 至少 2 个 data: {...} 帧 + [DONE]
+      const dataFrames = text.match(/^data: \{.*\}$/gm) ?? []
+      expect(dataFrames.length).toBeGreaterThanOrEqual(2)
+      expect(text).toContain('data: [DONE]')
     })
 
     it('stream=true + 未认证 → 401', async () => {

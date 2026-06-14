@@ -281,18 +281,9 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       }
       const validatedParams = validationResult.params
 
-      // stream 分支 — 仅 openai-chat 协议模型支持，chat 协议模型 400
+      // stream 分支 — openai-chat 与 chat 协议文本模型都支持；image / video 模型
+      // 在上面的「非文本模型 → 400 invalid_model」校验已挡住，不再单独 400。
       if (normalized.stream) {
-        if (modelConfig.requestType !== 'openai-chat') {
-          const err = createOpenAIError(
-            `Model '${request.model}' does not support streaming`,
-            'invalid_request_error',
-            OPENAI_GATEWAY_ERROR_CODES.STREAMING_MODEL_NOT_SUPPORTED,
-            400,
-          )
-          set.status = err.status
-          return err.response
-        }
         return handleStreamChatCompletions({ userId, modelConfig, validatedParams, request })
       }
 

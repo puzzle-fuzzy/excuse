@@ -123,10 +123,9 @@
 
 待办：
 
-- streaming adapter（openai-chat 协议模型已支持；chat 原生格式模型待补）。
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。
-- Gateway 协议解析和响应映射继续下沉 `packages/gateway`（usage 聚合已下沉；chat 请求/响应、错误码已下沉；streaming adapter 路径待补）。
+- Gateway 协议解析和响应映射继续下沉 `packages/gateway`（usage 聚合已下沉；chat 请求/响应、错误码已下沉；streaming helper 已下沉）。
 
 验收：
 

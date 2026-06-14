@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - 资产中心支持编辑上传文件：新增 `PATCH /api/upload/:id`，支持重命名和用途更新，强制 accountId 隔离并写 `audit('file_update', ...)`；Assets 页面 PreviewModal 新增「编辑」入口（仅 uploaded_file 来源显示），编辑成功后刷新列表（commit: `a0e5c4f`）。`auditActionEnum` 追加 `file_update` 值（同时补齐 `asset_hide` 漏写的 migration 0025）。
 - 资产中心列表新增排序能力：`GET /api/assets` 支持 `sort` 查询参数（`created_desc` 默认 / `created_asc` / `title_asc` / `title_desc`），合并 generation_records / canvas_assets / uploaded_files 三来源后统一排序，非法值静默回落 created_desc；`packages/shared` 新增 `AssetLibrarySort` 联合类型并在 `AssetLibraryQuery` 追加 `sort` 字段；Assets 页面筛选区新增排序下拉，与既有 URL ↔ state 同步逻辑一致（commit: `dd888e5`）。
 - OpenAI Gateway `/v1/chat/completions` 支持流式响应（`stream: true`），第一版仅支持 openai-chat 协议模型（如 `qwen3.7-plus`）；新增 DashScope client `chatCompletionStream` async generator、`packages/gateway` 新增 `createOpenAIStreamChunk` / `serializeOpenAIStreamChunk` / `OPENAI_STREAM_DONE` helper 与 `STREAMING_MODEL_NOT_SUPPORTED` 错误码；`normalizeOpenAIChatRequest` 不再拒绝 stream=true，改为透传 stream 字段；route 流式分支保留 reserve / markSucceeded / debit / refund / audit / ownership 隔离（commit: `a3ab011`）。
+- OpenAI Gateway `/v1/chat/completions` 流式响应扩展到 chat 协议模型（qwen-max / qwen-plus / qwen-turbo / qwen-long）；DashScope client `chatCompletionStream` 自动按 `requestType` 分派 OpenAI 兼容 / DashScope 原生 SSE parser；route stream 分支不再限制模型协议，所有文本模型都支持 `stream=true`（commit: `<本轮 hash>`）。
 
 ### Testing
 
