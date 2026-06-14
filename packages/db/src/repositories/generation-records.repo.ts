@@ -311,3 +311,42 @@ export async function listCanvasGenerationRecordsByProject(projectId: string) {
       ),
     )
 }
+
+/**
+ * Gateway 用量查询过滤条件 — 用于 OpenAI 兼容网关的 /v1/usage 路由
+ */
+export interface ListGatewayUsageRecordsFilter {
+  accountId: string
+  createdFrom?: Date
+  createdTo?: Date
+  limit?: number
+  offset?: number
+}
+
+/**
+ * 查询当前用户的 Gateway 调用记录 — 用于 /v1/usage 用量查询
+ *
+ * 通过 JSONB `input_params->>'source' = 'gateway'` 过滤，
+ * 与 Canvas 生成记录共用 generation_records 表，无需 migration。
+ * 按 createdAt desc 排序，limit 默认 50，调用方需自行 clamp 上限。
+ */
+export async function listGatewayUsageRecords(filter: ListGatewayUsageRecordsFilter) {
+  const { accountId, createdFrom, createdTo, limit = 50, offset = 0 } = filter
+
+  const conditions = [
+    eq(generationRecords.accountId, accountId),
+    sql`input_params->>'source' = 'gateway'`,
+  ]
+  if (createdFrom)
+    conditions.push(gte(generationRecords.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(generationRecords.createdAt, createdTo))
+
+  return getDb()
+    .select()
+    .from(generationRecords)
+    .where(and(...conditions))
+    .orderBy(desc(generationRecords.createdAt))
+    .limit(limit)
+    .offset(offset)
+}

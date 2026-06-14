@@ -40,6 +40,7 @@ const mockRefundCredit = mock<(opts: Record<string, unknown>) => Promise<void>>(
 const mockFindApiKeyByHash = mock<(hash: string) => Promise<{ id: string, accountId: string } | null>>(() => Promise.resolve(null))
 const mockTouchApiKeyLastUsed = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetAccountById = mock<() => Promise<unknown>>(() => Promise.resolve(makeAccount()))
+const mockListGatewayUsageRecords = mock<(filter: Record<string, unknown>) => Promise<GenerationRecordRow[]>>(() => Promise.resolve([]))
 
 const mockChatCompletion = mock<(model: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>>(() => Promise.resolve({
   success: true,
@@ -62,6 +63,7 @@ mock.module('@excuse/db', () => ({
   findApiKeyByHash: mockFindApiKeyByHash,
   touchApiKeyLastUsed: mockTouchApiKeyLastUsed,
   getAccountById: mockGetAccountById,
+  listGatewayUsageRecords: mockListGatewayUsageRecords,
   pgClient: { listen: async () => {} },
 }))
 
@@ -158,6 +160,8 @@ describe('OpenAI 网关', () => {
     mockReserveCredit.mockImplementation(() => Promise.resolve(undefined))
     mockDebitCredit.mockClear()
     mockRefundCredit.mockClear()
+    mockListGatewayUsageRecords.mockClear()
+    mockListGatewayUsageRecords.mockImplementation(() => Promise.resolve([]))
     mockValidateAndMerge.mockImplementation((_modelConfig, params) => ({
       ok: true,
       params: makeValidatedParams(params),
@@ -219,6 +223,28 @@ describe('OpenAI 网关', () => {
       const response = data as { id: string, object: string, model: string }
       expect(response.model).toBe('gpt-4')
       expect(mockCreateGenerationRecord).toHaveBeenCalled()
+    })
+
+    it('创建记录时写入 source=gateway 和 requestedModel（用户原始模型名）', async () => {
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { error } = await client.v1.chat.completions.post({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }, { headers })
+
+      expect(error).toBeNull()
+      expect(mockCreateGenerationRecord).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        model: 'qwen-plus',
+        category: 'text',
+        inputParams: expect.objectContaining({
+          source: 'gateway',
+          requestedModel: 'gpt-4o-mini',
+        }),
+      }))
     })
 
     it('未知模型 → 404 + code=model_not_found', async () => {
@@ -375,6 +401,157 @@ describe('OpenAI 网关', () => {
       expect(data!.object).toBe('list')
       expect(data!.data.length).toBeGreaterThanOrEqual(1)
       expect(data!.data[0].object).toBe('model')
+    })
+  })
+
+  describe('GET /v1/usage', () => {
+    it('未认证 → 401', async () => {
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { error } = await client.v1.usage.get({})
+
+      expect(error).toBeTruthy()
+      expect(error?.status).toBe(401)
+    })
+
+    it('返回聚合摘要 + 最近调用列表（含 source=gateway + requestedModel）', async () => {
+      mockListGatewayUsageRecords.mockImplementation(() => Promise.resolve([
+        makeRecord({
+          id: 'rec-usage-1',
+          model: 'qwen-max',
+          status: 'succeeded',
+          cost: { unit: 'token', totalPriceCents: 12, totalPrice: 0.12, inputTokens: 100, outputTokens: 50 },
+          totalPriceCents: 12,
+          errorMessage: null,
+          inputParams: { source: 'gateway', requestedModel: 'gpt-4o' },
+          createdAt: new Date('2024-06-13T00:00:00Z'),
+        }),
+        makeRecord({
+          id: 'rec-usage-2',
+          model: 'qwen-plus',
+          status: 'failed',
+          cost: null,
+          totalPriceCents: 0,
+          errorMessage: 'DashScope error',
+          inputParams: { source: 'gateway', requestedModel: 'gpt-4o-mini' },
+          createdAt: new Date('2024-06-12T00:00:00Z'),
+        }),
+      ]))
+
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { data, error } = await client.v1.usage.get({ headers })
+
+      expect(error).toBeNull()
+      const result = data as {
+        totalCalls: number
+        succeededCalls: number
+        failedCalls: number
+        totalTokens: number
+        totalPriceCents: number
+        items: Array<{
+          id: string
+          model: string
+          requestedModel: string | null
+          status: string
+          inputTokens: number | null
+          outputTokens: number | null
+          totalTokens: number | null
+          totalPriceCents: number
+          errorMessage: string | null
+          createdAt: string
+        }>
+      }
+      expect(result.totalCalls).toBe(2)
+      expect(result.succeededCalls).toBe(1)
+      expect(result.failedCalls).toBe(1)
+      expect(result.totalTokens).toBe(150)
+      expect(result.totalPriceCents).toBe(12)
+      expect(result.items).toHaveLength(2)
+      const [first, second] = result.items
+      expect(first.id).toBe('rec-usage-1')
+      expect(first.model).toBe('qwen-max')
+      expect(first.requestedModel).toBe('gpt-4o')
+      expect(first.status).toBe('succeeded')
+      expect(first.inputTokens).toBe(100)
+      expect(first.outputTokens).toBe(50)
+      expect(first.totalTokens).toBe(150)
+      expect(first.totalPriceCents).toBe(12)
+      expect(first.errorMessage).toBeNull()
+      // Eden treaty 可能把 ISO 日期字符串反序列化成 Date，统一转 ISO 字符串比较
+      expect(new Date(first.createdAt).toISOString()).toBe('2024-06-13T00:00:00.000Z')
+      expect(second.id).toBe('rec-usage-2')
+      expect(second.status).toBe('failed')
+      expect(second.requestedModel).toBe('gpt-4o-mini')
+      expect(second.errorMessage).toBe('DashScope error')
+      expect(second.inputTokens).toBeNull()
+      expect(second.outputTokens).toBeNull()
+      expect(second.totalTokens).toBeNull()
+      expect(second.totalPriceCents).toBe(0)
+    })
+
+    it('默认参数 → days=30 / limit=50 / offset=0，并构造 30 天窗口', async () => {
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      await client.v1.usage.get({ headers })
+
+      expect(mockListGatewayUsageRecords).toHaveBeenCalledTimes(1)
+      const filter = mockListGatewayUsageRecords.mock.calls[0]?.[0] as {
+        accountId: string
+        createdFrom: Date
+        createdTo: Date
+        limit: number
+        offset: number
+      }
+      expect(filter.accountId).toBe('acc-001')
+      expect(filter.limit).toBe(50)
+      expect(filter.offset).toBe(0)
+      expect(filter.createdFrom).toBeInstanceOf(Date)
+      expect(filter.createdTo).toBeInstanceOf(Date)
+      const diffMs = filter.createdTo.getTime() - filter.createdFrom.getTime()
+      // 30 天 ±1 小时容忍时钟漂移
+      expect(diffMs).toBeGreaterThan(29 * 24 * 60 * 60 * 1000)
+      expect(diffMs).toBeLessThan(31 * 24 * 60 * 60 * 1000)
+    })
+
+    it('days=7 / limit=20 透传到 repository', async () => {
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      await client.v1.usage.get({ query: { days: 7, limit: 20 }, headers })
+
+      expect(mockListGatewayUsageRecords).toHaveBeenCalledTimes(1)
+      const filter = mockListGatewayUsageRecords.mock.calls[0]?.[0] as {
+        accountId: string
+        createdFrom: Date
+        createdTo: Date
+        limit: number
+        offset: number
+      }
+      expect(filter.accountId).toBe('acc-001')
+      expect(filter.limit).toBe(20)
+      const diffMs = filter.createdTo.getTime() - filter.createdFrom.getTime()
+      expect(diffMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000)
+      expect(diffMs).toBeLessThan(8 * 24 * 60 * 60 * 1000)
+    })
+
+    it('limit > 100 被 schema 拒绝 → 不调用 repository', async () => {
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      const { error } = await client.v1.usage.get({ query: { limit: 200 }, headers })
+
+      expect(error).toBeTruthy()
+      // Elysia schema 校验失败返回 422
+      expect(error?.status).toBe(422)
+      expect(mockListGatewayUsageRecords).not.toHaveBeenCalled()
     })
   })
 })

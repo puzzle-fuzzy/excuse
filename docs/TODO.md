@@ -124,7 +124,6 @@
 待办：
 
 - streaming adapter。
-- 用量查询。
 - scope / quota / rate limit。
 - 正式开放还是隐藏入口的最终产品决策。
 - Gateway 协议解析和响应映射优先放 `packages/gateway`，不要继续堆在 route。

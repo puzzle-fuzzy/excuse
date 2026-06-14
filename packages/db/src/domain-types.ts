@@ -249,12 +249,14 @@ export interface CanvasShotReferenceAsset {
  * 不应直接索引此信封的 unknown 字段。
  */
 export interface GenerationInputParams {
-  /** Canvas 来源标记（仅当 source === 'canvas' 时存在） */
-  source?: 'canvas'
+  /** 来源标记：'canvas' = Canvas 流水线，'gateway' = OpenAI 兼容网关 */
+  source?: 'canvas' | 'gateway'
   /** Canvas 项目 ID（仅 canvas 来源时存在） */
   projectId?: string
   /** Canvas 镜头 ID（仅 canvas 来源时存在） */
   shotId?: string
+  /** 用户传入的原始模型名（仅 gateway 来源时存在，如 gpt-4o-mini），用于 usage 列表展示 */
+  requestedModel?: string
   /** 参考文件 ID 列表（用户上传参考图时存在） */
   referenceFileIds?: string[]
   /**
