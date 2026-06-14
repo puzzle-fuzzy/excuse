@@ -1,7 +1,7 @@
 import type { UploadedFileInsert } from '../types'
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
 import { getDb } from '../db'
-import { uploadedFiles } from '../schema'
+import { generationRecords, subtitleProjects, uploadedFiles } from '../schema'
 
 /**
  * 创建上传文件记录
@@ -76,4 +76,48 @@ export async function listUploadedFilesForAccount(
 /** 按 ID 删除单个上传文件记录 */
 export async function deleteUploadedFileById(id: string) {
   await getDb().delete(uploadedFiles).where(eq(uploadedFiles.id, id))
+}
+
+// ── 使用中保护 ────────────────────────────────────────────────────────────
+
+/** 上传文件被引用的统计 — 决定是否允许安全删除 */
+export interface UploadedFileUsage {
+  /** subtitle_projects.videoFileId 引用数 */
+  subtitleProjectCount: number
+  /** generation_records.inputParams.referenceFileIds 引用数（JSONB containment 查询） */
+  generationRecordCount: number
+}
+
+/**
+ * 查询上传文件的使用引用数 — 删除前安全检查
+ *
+ * - subtitle_projects.videoFileId 是显式 FK，查询简单
+ * - generation_records.inputParams.referenceFileIds 是 JSONB 内嵌数组，
+ *   使用 PostgreSQL @> containment 运算符（`input_params @> '{"referenceFileIds":["<id>"]}'::jsonb`）
+ *   查不到引用时才允许删除
+ */
+export async function getUploadedFileUsage(accountId: string, fileId: string): Promise<UploadedFileUsage> {
+  const db = getDb()
+
+  // subtitle_projects 外键引用计数
+  const [subtitleRow] = await db
+    .select({ count: count() })
+    .from(subtitleProjects)
+    .where(and(eq(subtitleProjects.accountId, accountId), eq(subtitleProjects.videoFileId, fileId)))
+  const subtitleProjectCount = subtitleRow?.count ?? 0
+
+  // generation_records JSONB containment 引用计数
+  // inputParams 是 JSONB 列，referenceFileIds 是其内的 string[] 字段
+  // PostgreSQL `@>` 运算符检查顶层 key 是否包含指定值
+  const containmentFragment = sql`'{"referenceFileIds":["${sql.raw(fileId)}"]}'::jsonb`
+  const [genRow] = await db
+    .select({ count: count() })
+    .from(generationRecords)
+    .where(and(
+      eq(generationRecords.accountId, accountId),
+      sql`${generationRecords.inputParams} @> ${containmentFragment}`,
+    ))
+  const generationRecordCount = genRow?.count ?? 0
+
+  return { subtitleProjectCount, generationRecordCount }
 }

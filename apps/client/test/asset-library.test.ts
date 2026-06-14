@@ -3,6 +3,7 @@ import type { FocusProjectLike } from '../src/lib/asset-library'
 import { describe, expect, it } from 'vitest'
 import {
   buildAssetLibraryStats,
+  canDeleteAsset,
   filterAssetLibraryItems,
   getAssetLibraryPreviewKind,
   getCanvasAssetUrl,
@@ -323,5 +324,19 @@ describe('resolveFocusNodeWithProject', () => {
 
   it('null focus → null', () => {
     expect(resolveFocusNodeWithProject(null, project)).toBeNull()
+  })
+})
+
+describe('canDeleteAsset', () => {
+  it('source=uploaded_file → 可删除', () => {
+    expect(canDeleteAsset(makeItem({ source: 'uploaded_file', kind: 'upload' }))).toBe(true)
+  })
+
+  it('source=generation_record → 不可删除', () => {
+    expect(canDeleteAsset(makeItem({ source: 'generation_record' }))).toBe(false)
+  })
+
+  it('source=canvas_asset → 不可删除', () => {
+    expect(canDeleteAsset(makeItem({ source: 'canvas_asset' }))).toBe(false)
   })
 })

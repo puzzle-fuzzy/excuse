@@ -13,6 +13,7 @@ import {
   Link2,
   MapPin,
   RotateCcw,
+  Trash2,
   Upload,
   User,
   Video,
@@ -21,12 +22,14 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
-import { fetchAssetLibrary } from '@/api/client'
+import { deleteUploadedFile, fetchAssetLibrary } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   buildAssetLibraryStats,
+  canDeleteAsset,
   getAssetLibraryPreviewKind,
   getCanvasAssetUrl,
   getCanvasSourceLabel,
@@ -332,7 +335,14 @@ export default function Assets() {
 
       {/* 预览弹窗 */}
       {previewItem && (
-        <PreviewModal item={previewItem} onClose={() => setPreviewItem(null)} />
+        <PreviewModal
+          item={previewItem}
+          onClose={() => setPreviewItem(null)}
+          onDeleted={(deletedId) => {
+            setItems(prev => prev.filter(i => !(i.source === 'uploaded_file' && i.id === deletedId)))
+            setPreviewItem(null)
+          }}
+        />
       )}
     </div>
   )
@@ -383,11 +393,31 @@ function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => v
   )
 }
 
-function PreviewModal({ item, onClose }: { item: AssetLibraryItem, onClose: () => void }) {
+function PreviewModal({ item, onClose, onDeleted }: { item: AssetLibraryItem, onClose: () => void, onDeleted: (id: string) => void }) {
   const previewKind = getAssetLibraryPreviewKind(item)
   const canvasUrl = getCanvasAssetUrl(item)
   const sourceLabel = getCanvasSourceLabel(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
+  const deletable = canDeleteAsset(item)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+
+  async function handleDelete() {
+    setDeleteLoading(true)
+    try {
+      await deleteUploadedFile(item.id)
+      toast.success('已删除上传文件')
+      onDeleted(item.id)
+    }
+    catch (err) {
+      const message = err instanceof Error ? err.message : '删除失败'
+      toast.error(message)
+      setDeleteConfirmOpen(false)
+    }
+    finally {
+      setDeleteLoading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
@@ -473,7 +503,25 @@ function PreviewModal({ item, onClose }: { item: AssetLibraryItem, onClose: () =
               </Button>
             </Link>
           )}
+          {deletable && (
+            <Button variant="destructive" size="sm" disabled={deleteLoading} onClick={() => setDeleteConfirmOpen(true)}>
+              <Trash2 className="size-3" />
+              删除文件
+            </Button>
+          )}
         </div>
+
+        {/* 删除确认弹窗 */}
+        {deletable && (
+          <ConfirmDialog
+            open={deleteConfirmOpen}
+            onOpenChange={setDeleteConfirmOpen}
+            title="确认删除上传文件？"
+            description="删除后该文件将从资产中心移除，并从存储中删除。已被项目使用的文件不会被删除。"
+            confirmText="删除"
+            onConfirm={handleDelete}
+          />
+        )}
       </div>
     </div>
   )

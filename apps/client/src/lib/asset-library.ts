@@ -45,6 +45,16 @@ export const STATUS_LABELS: Record<string, string> = {
 }
 
 /**
+ * 判断资产卡片是否可显示删除按钮
+ *
+ * 只有 source=uploaded_file 的资产才允许删除。
+ * 其他来源（generation_record / canvas_asset）不走此删除路径。
+ */
+export function canDeleteAsset(item: AssetLibraryItem): boolean {
+  return item.source === 'uploaded_file'
+}
+
+/**
  * 根据资产 kind + previewUrl 决定卡片缩略区的渲染类别
  *
  * - image/character/location：图片预览（需要 previewUrl）

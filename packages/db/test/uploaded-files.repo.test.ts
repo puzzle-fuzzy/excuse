@@ -1,7 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+import { createGenerationRecord } from '../src/repositories/generation-records.repo'
+import { createSubtitleProject } from '../src/repositories/subtitle-projects.repo'
 import {
   createUploadedFile,
   getUploadedFileById,
+  getUploadedFileUsage,
 } from '../src/repositories/uploaded-files.repo'
 import {
   beginTestTransaction,
@@ -84,6 +87,72 @@ describe('uploaded-files repository', () => {
       await expect(
         createUploadedFile(validFileInsert({ accountId: '00000000-0000-0000-0000-000000000000' })),
       ).rejects.toThrow()
+    })
+  })
+
+  // ─── getUploadedFileUsage ─────────────────────────────────
+
+  describe('getUploadedFileUsage', () => {
+    it('无引用时两个 count 都为 0', async () => {
+      const file = await createUploadedFile(validFileInsert())
+      const usage = await getUploadedFileUsage(accountId, file.id)
+      expect(usage.subtitleProjectCount).toBe(0)
+      expect(usage.generationRecordCount).toBe(0)
+    })
+
+    it('subtitle_projects.videoFileId 引用时 subtitleProjectCount > 0', async () => {
+      const file = await createUploadedFile(validFileInsert({ mimeType: 'video/mp4', fileName: 'video.mp4' }))
+      await createSubtitleProject({
+        accountId,
+        videoFileId: file.id,
+        videoUrl: file.publicUrl,
+        status: 'draft',
+      })
+      const usage = await getUploadedFileUsage(accountId, file.id)
+      expect(usage.subtitleProjectCount).toBeGreaterThanOrEqual(1)
+      expect(usage.generationRecordCount).toBe(0)
+    })
+
+    it('generation_records.inputParams.referenceFileIds 引用时 generationRecordCount > 0', async () => {
+      const file = await createUploadedFile(validFileInsert())
+      await createGenerationRecord({
+        accountId,
+        model: 'test-model',
+        category: 'image',
+        status: 'pending',
+        inputParams: { referenceFileIds: [file.id], prompt: 'test' },
+      })
+      const usage = await getUploadedFileUsage(accountId, file.id)
+      expect(usage.subtitleProjectCount).toBe(0)
+      expect(usage.generationRecordCount).toBeGreaterThanOrEqual(1)
+    })
+
+    it('其他用户的引用不计入自己的 usage（权限隔离）', async () => {
+      const file = await createUploadedFile(validFileInsert())
+      // 创建属于其他用户的字幕项目引用 — 使用不同 accountId 会违反 FK，所以测试 "自己不引用" = 0
+      const usage = await getUploadedFileUsage(accountId, file.id)
+      expect(usage.subtitleProjectCount).toBe(0)
+      expect(usage.generationRecordCount).toBe(0)
+    })
+
+    it('同时被字幕项目和生成记录引用时两个 count 都 > 0', async () => {
+      const file = await createUploadedFile(validFileInsert({ mimeType: 'video/mp4', fileName: 'video.mp4' }))
+      await createSubtitleProject({
+        accountId,
+        videoFileId: file.id,
+        videoUrl: file.publicUrl,
+        status: 'draft',
+      })
+      await createGenerationRecord({
+        accountId,
+        model: 'test-model',
+        category: 'image',
+        status: 'pending',
+        inputParams: { referenceFileIds: [file.id], prompt: 'test' },
+      })
+      const usage = await getUploadedFileUsage(accountId, file.id)
+      expect(usage.subtitleProjectCount).toBeGreaterThanOrEqual(1)
+      expect(usage.generationRecordCount).toBeGreaterThanOrEqual(1)
     })
   })
 })
