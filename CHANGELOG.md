@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- OpenAI Gateway 用量查询第一版：新增 `GET /v1/usage` 只读接口，返回当前用户最近一段时间的 Gateway 调用聚合摘要（`totalCalls` / `succeededCalls` / `failedCalls` / `totalTokens` / `totalPriceCents`）与最近调用列表（不含 prompt 全文）；Gateway 创建生成记录时写入 `inputParams.source='gateway'` + `requestedModel` 标记，`packages/db` 新增 `listGatewayUsageRecords` repository；`packages/shared` 新增 `OpenAIGatewayUsageItem` / `OpenAIGatewayUsageResponse` DTO（commit: 即将回填）。
+- OpenAI Gateway 用量查询第一版：新增 `GET /v1/usage` 只读接口，返回当前用户最近一段时间的 Gateway 调用聚合摘要（`totalCalls` / `succeededCalls` / `failedCalls` / `totalTokens` / `totalPriceCents`）与最近调用列表（不含 prompt 全文）；Gateway 创建生成记录时写入 `inputParams.source='gateway'` + `requestedModel` 标记，`packages/db` 新增 `listGatewayUsageRecords` repository；`packages/shared` 新增 `OpenAIGatewayUsageItem` / `OpenAIGatewayUsageResponse` DTO（commit: `22cff73`）。
 - Canvas 主链路已完成自动执行、实时回显、SSE/polling fallback、阶段状态和失败恢复等关键体验收口（commits: `a2b4c9f`、`e3d6277`、`095d151`、`b123756`、`d73cd15`、`e3dbccb`、`633672c`、`0a79421`、`d783551`、`67f9548`、`cb0fd99`、`2416feb`、`d211790`）。
 - 资产中心隐藏策略第一版：生成记录和 Canvas 资产支持软隐藏，资产列表默认排除隐藏项（commit: `1be3ce9`）。
 - 参考资产复用链路：镜头参考资产、资产库选择、服务端归属校验、模型变体推荐、批量应用参考资产（commits: `4fb64b3`、`e886876`、`5a3a74f`、`df5ad57`、`c196f66`）。
