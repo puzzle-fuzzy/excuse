@@ -147,3 +147,29 @@ describe('shotReferenceAssets 资产库选择器', () => {
     expect(onSaveCalls[0]![0]!.role).toBe('character')
   })
 })
+
+describe('视频变体推荐提示', () => {
+  it('无参考资产 → T2V 提示', () => {
+    render(<ShotReferenceAssets shot={makeShot()} projectId="p1" onSave={vi.fn()} />)
+    expect(screen.getByText(/当前推荐.*T2V/)).toBeInTheDocument()
+    expect(screen.getByText(/文生视频/)).toBeInTheDocument()
+  })
+
+  it('角色参考资产 → R2V 提示', () => {
+    const assets: CanvasShotReferenceAsset[] = [
+      { assetId: 'c1', url: 'https://cdn.local/char.png', role: 'character', source: 'asset_library' },
+    ]
+    render(<ShotReferenceAssets shot={makeShot(assets)} projectId="p1" onSave={vi.fn()} />)
+    expect(screen.getByText(/当前推荐.*R2V/)).toBeInTheDocument()
+    expect(screen.getByText(/参考生视频/)).toBeInTheDocument()
+  })
+
+  it('firstFrame 参考 → I2V 提示', () => {
+    const assets: CanvasShotReferenceAsset[] = [
+      { assetId: 'ff1', url: 'https://cdn.local/frame.png', role: 'firstFrame', source: 'asset_library' },
+    ]
+    render(<ShotReferenceAssets shot={makeShot(assets)} projectId="p1" onSave={vi.fn()} />)
+    expect(screen.getByText(/当前推荐.*I2V/)).toBeInTheDocument()
+    expect(screen.getByText(/图生视频/)).toBeInTheDocument()
+  })
+})

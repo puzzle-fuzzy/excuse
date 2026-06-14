@@ -65,9 +65,13 @@ const mockUpdateCanvasShot = mock(() => Promise.resolve({ id: 'shot-001', update
 
 // ── 参考资产归属校验（v0.3）：account-scoped 查询 mock ──
 // 默认返回 null（未找到 / 无权限），各用例按需 override
-const mockGetCanvasAssetByIdForAccount = mock(() => Promise.resolve(null))
-const mockGetGenerationRecordByIdForAccount = mock(() => Promise.resolve(null))
-const mockGetUploadedFileByIdForAccount = mock(() => Promise.resolve(null))
+type UploadedFileFixture = { id: string; mimeType: string | null; publicUrl: string | null }
+type CanvasAssetFixture = { id: string; status: string; category: string; publicUrl: string; outputJson: unknown }
+type GenerationRecordFixture = { id: string; status: string; category: string; outputResult: unknown }
+
+const mockGetCanvasAssetByIdForAccount = mock<() => Promise<CanvasAssetFixture | null>>(() => Promise.resolve(null))
+const mockGetGenerationRecordByIdForAccount = mock<() => Promise<GenerationRecordFixture | null>>(() => Promise.resolve(null))
+const mockGetUploadedFileByIdForAccount = mock<() => Promise<UploadedFileFixture | null>>(() => Promise.resolve(null))
 
 mock.module('@excuse/db', () => ({
   createCanvasProject: async () => makeProjectRow(),
@@ -454,7 +458,9 @@ describe('canvas routes — extended', () => {
 
     // mockUpdateCanvasShot 的工厂箭头无参 → .mock.calls 类型为 [][]，需断言调用参数时强转
     function lastPatchArg(): Record<string, unknown> {
-      return ((mockUpdateCanvasShot.mock.calls as unknown[][]).at(-1) ?? [])[1] as Record<string, unknown>
+      const calls = mockUpdateCanvasShot.mock.calls as unknown[][]
+      const lastCall = calls[calls.length - 1] ?? []
+      return lastCall[1] as Record<string, unknown>
     }
 
     async function patchReferenceAssets(referenceAssetsJson: RefAsset[]) {

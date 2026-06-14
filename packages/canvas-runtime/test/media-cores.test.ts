@@ -324,8 +324,8 @@ describe('submitShotVideoEntity', () => {
 
     // Only the extra ref URL, no char/loc auto refs
     expect(referenceUrls).toEqual(['https://cdn.example.com/first-frame.png'])
-    // Has reference → -r2v model
-    expect(model).toContain('-r2v')
+    // firstFrame role → -i2v model (图生视频)
+    expect(model).toContain('-i2v')
   })
 
   it('no extra referenceAssetsJson preserves old behavior', async () => {

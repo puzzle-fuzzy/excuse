@@ -30,6 +30,65 @@ export type { CanvasLayoutEdge, CanvasLayoutNode, CanvasLayoutPosition, CanvasLa
 export type CanvasShotReferenceRole = CanvasShotReferenceRoleFromDB
 export type CanvasShotReferenceAsset = CanvasShotReferenceAssetFromDB
 export type CanvasLayoutDto = CanvasLayoutDtoFromDB
+
+// ===== 视频模型变体推荐（纯规则，client/server 共用） =====
+
+/** 视频生成变体：文生视频 / 图生视频 / 参考生视频 */
+export type CanvasVideoVariant = 't2v' | 'i2v' | 'r2v'
+
+/**
+ * 推荐镜头视频变体时所依据的参考引用——携带语义 role。
+ *
+ * role 决定变体：`firstFrame` → I2V（该图作为视频首帧）；
+ * 其余图片参考（character/location/style/other）→ R2V（多主体一致性）。
+ */
+export interface CanvasVideoReference {
+  url: string
+  role: CanvasShotReferenceRole
+}
+
+/** 纯规则推荐结果：变体 + 给用户看的中文原因 */
+export interface CanvasVideoVariantRecommendation {
+  variant: CanvasVideoVariant
+  reason: string
+}
+
+/**
+ * 纯规则：根据镜头参考引用推断视频生成变体（T2V/I2V/R2V）。
+ *
+ * 规则（与「按参考资产数量推荐」一致，并用 role 消除单图歧义）：
+ * - 存在 role=firstFrame 的参考 → I2V（用户明确指定该图为视频首帧）
+ * - 否则存在任意图片参考 → R2V（角色/场景一致性）
+ * - 无参考 → T2V
+ *
+ * 本函数不感知「所选 base 模型是否真有对应变体」；真实 model id 解析与
+ * 能力降级在 `@excuse/canvas-runtime` 的 `recommendCanvasVideoModel` 中完成。
+ * UI 可直接调用本函数展示推荐原因，无需依赖 provider/model-configs。
+ */
+export function recommendCanvasVideoVariant(
+  references: ReadonlyArray<CanvasVideoReference>,
+): CanvasVideoVariantRecommendation {
+  const imageRefs = references.filter(ref => Boolean(ref.url))
+
+  if (imageRefs.some(ref => ref.role === 'firstFrame')) {
+    return {
+      variant: 'i2v',
+      reason: '检测到首帧图，使用图生视频（I2V）以该图作为视频首帧',
+    }
+  }
+
+  if (imageRefs.length >= 1) {
+    return {
+      variant: 'r2v',
+      reason: `检测到 ${imageRefs.length} 张参考图，使用参考生视频（R2V）保证多主体一致`,
+    }
+  }
+
+  return {
+    variant: 't2v',
+    reason: '未检测到参考图，使用文生视频（T2V）',
+  }
+}
 export type CanvasPipelineRunDTO = Serialize<CanvasPipelineRunRow>
 
 // ===== 画布状态类型（从 DB pgEnum 推导，消除重复定义） =====

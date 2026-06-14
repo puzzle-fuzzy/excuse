@@ -1,5 +1,5 @@
 import type { BatchItemLike } from '@excuse/workflow-engine'
-import { submitCanvasShotVideo, submitShotVideoEntity } from '@excuse/canvas-runtime'
+import { submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,
   getCanvasProjectDetail,
@@ -19,17 +19,6 @@ import { createClient, getVideoModel, notifyNode } from './service-helpers'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-/** URL 去重，保持首次出现顺序 */
-function dedupe(urls: string[]): string[] {
-  const seen = new Set<string>()
-  return urls.filter((url) => {
-    if (seen.has(url))
-      return false
-    seen.add(url)
-    return true
-  })
 }
 
 export async function generateVideos(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
@@ -126,46 +115,31 @@ export async function retryShotVideo(shotId: string, config: { dashscopeApiKey: 
     throw new Error('项目不存在')
 
   const client = createClient(config)
-  const characterMap = new Map(detail.characters.map(c => [c.id, c]))
-  const locationMap = new Map(detail.locations.map(l => [l.id, l]))
 
   await updateCanvasProject(shot.projectId, { status: 'generating' })
 
   notifyNode(detail.project.accountId, shot.projectId, 'shot', shot.id, 'running')
 
-  const charRefUrls = shot.characterIdsJson
-    .map(id => characterMap.get(id)?.referenceImageUrl)
-    .filter(Boolean) as string[]
-  const locRefUrl = shot.locationId
-    ? locationMap.get(shot.locationId)?.referenceImageUrl ?? null
-    : null
-  const extraRefUrls = shot.referenceAssetsJson
-    ?.map(asset => asset.url)
-    .filter(Boolean) as string[] ?? []
-  const referenceUrls = dedupe([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
-
-  const model = getVideoModel(detail.project.modelPreferencesJson, referenceUrls)
   const shotVideoAsset = await createCanvasAsset({
     accountId: detail.project.accountId,
     projectId: shot.projectId,
     category: 'shotVideo',
     targetEntityType: 'shot',
     targetEntityId: shot.id,
-    model,
+    model: getVideoModel(detail.project.modelPreferencesJson, []),
   })
   await markCanvasAssetRunning(shotVideoAsset.id)
 
   try {
-    await submitCanvasShotVideo({
-      accountId: detail.project.accountId,
+    await submitShotVideoEntity({
       projectId: shot.projectId,
-      shotId,
+      accountId: detail.project.accountId,
+      shotId: shot.id,
       assetId: shotVideoAsset.id,
-      model,
-      videoPrompt: shot.videoPrompt!,
-      negativePrompt: shot.negativePrompt,
-      duration: shot.duration,
-      referenceUrls,
+      shot,
+      characters: detail.characters,
+      locations: detail.locations,
+      modelPreferences: detail.project.modelPreferencesJson,
       client,
       estimatedCost: true,
     })
@@ -191,46 +165,31 @@ export async function retryFailedShots(projectId: string, accountId: string, con
   await updateCanvasProject(projectId, { status: 'generating' })
 
   const client = createClient(config)
-  const characterMap = new Map(detail.characters.map(c => [c.id, c]))
-  const locationMap = new Map(detail.locations.map(l => [l.id, l]))
 
   for (const shot of failedShots) {
     await resetCanvasShotToDraft(shot.id)
     notifyNode(accountId, projectId, 'shot', shot.id, 'running')
 
-    const charRefUrls = shot.characterIdsJson
-      .map((id: string) => characterMap.get(id)?.referenceImageUrl)
-      .filter(Boolean) as string[]
-    const locRefUrl = shot.locationId
-      ? locationMap.get(shot.locationId)?.referenceImageUrl ?? null
-      : null
-    const extraRefUrls = shot.referenceAssetsJson
-      ?.map(asset => asset.url)
-      .filter(Boolean) as string[] ?? []
-    const referenceUrls = dedupe([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
-
-    const model = getVideoModel(detail.project.modelPreferencesJson, referenceUrls)
     const shotVideoAsset = await createCanvasAsset({
       accountId,
       projectId,
       category: 'shotVideo',
       targetEntityType: 'shot',
       targetEntityId: shot.id,
-      model,
+      model: getVideoModel(detail.project.modelPreferencesJson, []),
     })
     await markCanvasAssetRunning(shotVideoAsset.id)
 
     try {
-      await submitCanvasShotVideo({
-        accountId,
+      await submitShotVideoEntity({
         projectId,
+        accountId,
         shotId: shot.id,
         assetId: shotVideoAsset.id,
-        model,
-        videoPrompt: shot.videoPrompt!,
-        negativePrompt: shot.negativePrompt,
-        duration: shot.duration,
-        referenceUrls,
+        shot,
+        characters: detail.characters,
+        locations: detail.locations,
+        modelPreferences: detail.project.modelPreferencesJson,
         client,
         estimatedCost: true,
       })

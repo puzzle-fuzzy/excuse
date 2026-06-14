@@ -7,7 +7,7 @@
  */
 import type { CanvasAssetOutput } from '@excuse/db'
 import { validateCharacterProfile, validateLocationProfile } from '@excuse/canvas-engine'
-import { runCanvasAssetStep, submitCanvasShotVideo } from '@excuse/canvas-runtime'
+import { runCanvasAssetStep, submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,
   createCanvasCharacter,
@@ -28,17 +28,6 @@ import {
 } from '@excuse/prompt-engine'
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
 import { createClient, getTextModel, getVideoModel, notifyNode } from './service-helpers'
-
-/** URL 去重，保持首次出现顺序 */
-function dedupeUrls(urls: string[]): string[] {
-  const seen = new Set<string>()
-  return urls.filter((url) => {
-    if (seen.has(url))
-      return false
-    seen.add(url)
-    return true
-  })
-}
 
 // ── 角色重新生成 ──────────────────────────────────────
 
@@ -239,36 +228,19 @@ export async function regenerateShotVideo(shotId: string, config: { dashscopeApi
   await markCanvasAssetRunning(shotVideoAsset.id)
 
   try {
-    // 查找参考图
     const projectDetail = await getCanvasProjectDetail(shot.projectId)
     if (!projectDetail)
       throw new Error('项目详情不存在')
 
-    const characterMap = new Map(projectDetail.characters.map(c => [c.id, c]))
-    const locationMap = new Map(projectDetail.locations.map(l => [l.id, l]))
-
-    const charRefUrls = newShot.characterIdsJson
-      .map(id => characterMap.get(id)?.referenceImageUrl)
-      .filter(Boolean) as string[]
-    const locRefUrl = newShot.locationId
-      ? locationMap.get(newShot.locationId)?.referenceImageUrl ?? null
-      : null
-    const extraRefUrls = newShot.referenceAssetsJson
-      ?.map(asset => asset.url)
-      .filter(Boolean) as string[] ?? []
-    const referenceUrls = dedupeUrls([...charRefUrls, ...(locRefUrl ? [locRefUrl] : []), ...extraRefUrls])
-
-    const model = getVideoModel(project.modelPreferencesJson, referenceUrls)
-    await submitCanvasShotVideo({
-      accountId,
+    await submitShotVideoEntity({
       projectId: shot.projectId,
+      accountId,
       shotId: newShot.id,
       assetId: shotVideoAsset.id,
-      model,
-      videoPrompt: newShot.videoPrompt || '',
-      negativePrompt: newShot.negativePrompt || undefined,
-      duration: newShot.duration,
-      referenceUrls,
+      shot: newShot,
+      characters: projectDetail.characters,
+      locations: projectDetail.locations,
+      modelPreferences: project.modelPreferencesJson,
       client,
     })
 
