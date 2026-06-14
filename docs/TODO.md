@@ -203,6 +203,7 @@
 3. `react-hook-form`
    - 用于登录注册、模型偏好、字幕样式、上传表单、API Key 创建、Model Lab 参数表单。
    - 减少散落的 `useState`、校验、提交中状态和错误显示。
+   - ✅ Login、Register、Model Lab 参数表单已迁移到 react-hook-form + zod（commit: `<本轮 hash>`）。ApiKeys 创建表单上轮已用 `useForm`；Workspace 用 zustand store 管理、SubtitleEditor 是 patch-on-change 模式（非表单 submit），本轮均跳过。
 
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。

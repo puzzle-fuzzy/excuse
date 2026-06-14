@@ -1,6 +1,8 @@
 import type { GenerateResponse, GenerationRecord, ModelConfig, ModelParameter } from '@/api/client'
+import type { ModelLabFormValues } from '@/lib/form-schemas'
 import type { Category } from '@/lib/generation-utils'
 import { isImageOutput, isTextOutput, isVideoOutput } from '@excuse/shared'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Beaker,
   CheckCircle2,
@@ -27,6 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
 import {
   loadCanvasModelDefaults,
@@ -35,7 +38,6 @@ import {
 } from '@/lib/model-lab-presets'
 
 type LabValue = string | number | boolean
-type LabFormValues = Record<string, LabValue>
 
 interface LabReferenceFile {
   id: string
@@ -62,13 +64,13 @@ function defaultValueFor(param: ModelParameter): LabValue {
   return ''
 }
 
-function initialValuesFor(model: ModelConfig | undefined): LabFormValues {
+function initialValuesFor(model: ModelConfig | undefined): ModelLabFormValues {
   if (!model)
     return {}
   return Object.fromEntries(model.parameters.map(param => [param.name, defaultValueFor(param)]))
 }
 
-function hasRequiredValues(model: ModelConfig | undefined, values: LabFormValues): boolean {
+function hasRequiredValues(model: ModelConfig | undefined, values: ModelLabFormValues): boolean {
   if (!model)
     return false
   return model.parameters.every((param) => {
@@ -79,8 +81,8 @@ function hasRequiredValues(model: ModelConfig | undefined, values: LabFormValues
   })
 }
 
-function parametersForModel(model: ModelConfig, values: LabFormValues): LabFormValues {
-  const next: LabFormValues = {}
+function parametersForModel(model: ModelConfig, values: ModelLabFormValues): ModelLabFormValues {
+  const next: ModelLabFormValues = {}
   for (const param of model.parameters)
     next[param.name] = values[param.name] ?? defaultValueFor(param)
   return next
@@ -152,8 +154,14 @@ export default function ModelLab() {
     [models, selectedCategory],
   )
 
-  const form = useForm<LabFormValues>({
+  const resolverSchema = useMemo(
+    () => buildModelLabSchema(selectedModel?.parameters ?? []),
+    [selectedModel],
+  )
+
+  const form = useForm<ModelLabFormValues>({
     defaultValues: initialValuesFor(selectedModel),
+    resolver: zodResolver(resolverSchema as never),
   })
   const { reset } = form
   const values = form.watch()
@@ -274,8 +282,9 @@ export default function ModelLab() {
     }
   }
 
-  async function submit(values: LabFormValues) {
-    if (!selectedModel || !hasRequiredValues(selectedModel, values))
+  async function submit(values: ModelLabFormValues) {
+    // zodResolver 已做必填校验；这里只兜底 race condition（selectedModel 在异步过程中被清空）
+    if (!selectedModel)
       return
     setSubmitting(true)
     setResult(null)
@@ -335,7 +344,7 @@ export default function ModelLab() {
     toast.success('已应用 Canvas 默认模型')
   }
 
-  async function runComparison(values: LabFormValues) {
+  async function runComparison(values: ModelLabFormValues) {
     const selectedModels = compareModelIds
       .map(id => models.find(model => model.id === id))
       .filter((model): model is ModelConfig => Boolean(model))

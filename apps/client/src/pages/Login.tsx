@@ -1,43 +1,40 @@
-import type { FormEvent } from 'react'
+import type { LoginFormValues } from '../lib/form-schemas'
 import { getErrorMessage } from '@excuse/shared'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
+import { loginSchema } from '../lib/form-schemas'
 
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [serverError, setServerError] = useState('')
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  })
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    setError('')
-
-    if (!email.trim() || !password.trim()) {
-      setError('请填写邮箱和密码')
-      return
-    }
-
-    setLoading(true)
+  async function onSubmit(values: LoginFormValues) {
+    setServerError('')
     try {
-      await login(email.trim(), password)
+      await login(values.email.trim(), values.password)
       navigate('/')
     }
     catch (err: unknown) {
-      setError(getErrorMessage(err) || '登录失败，请重试')
-    }
-    finally {
-      setLoading(false)
+      setServerError(getErrorMessage(err) || '登录失败，请重试')
     }
   }
+
+  // 登录页只有一个统一 banner，不区分字段；schema 把必填错误集中到 email 字段
+  // （见 form-schemas.ts 注释），因此 banner 取 errors.email?.message。
+  const bannerError = errors.email?.message ?? serverError
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -47,10 +44,10 @@ export default function Login() {
           <CardDescription>登录你的账户</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {bannerError && (
               <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
+                {bannerError}
               </div>
             )}
 
@@ -62,10 +59,9 @@ export default function Login() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="email"
+                {...register('email')}
               />
             </div>
 
@@ -77,15 +73,14 @@ export default function Login() {
                 id="password"
                 type="password"
                 placeholder="••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="current-password"
+                {...register('password')}
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               登录
             </Button>
 
