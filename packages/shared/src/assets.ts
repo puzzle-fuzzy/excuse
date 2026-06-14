@@ -1,0 +1,110 @@
+// ===== 统一资产中心 DTO =====
+//
+// `/api/assets` 把 generation_records（普通生成）、canvas_assets（Canvas 流水线产物）、
+// uploaded_files（用户上传）三种来源的资产统一成同一份 AssetLibraryItem。
+//
+// 设计约束：
+//   - 不把 DB 的 inputJson / outputJson 原样暴露成裸 Record 给页面。
+//     只提取页面真正需要的标量字段（prompt、previewUrl、costCents 等）。
+//   - previewUrl / downloadUrl 优先使用稳定 publicUrl，不优先 provider 临时 URL。
+//   - kind 是“可浏览的资产类别”（图片/视频/角色/场景/镜头/项目文档/上传），
+//     source 是“来源表”（generation_record / canvas_asset / uploaded_file）。
+//     同一 kind 可来自不同 source，但映射规则集中在本模块对应的 server 路由中。
+
+/**
+ * 资产来源表 — 决定一条资产来自哪张 DB 表
+ */
+export type AssetLibrarySource = 'generation_record' | 'canvas_asset' | 'uploaded_file'
+
+/**
+ * 可浏览的资产类别 — 用于筛选/统计/缩略图样式
+ *
+ * image/video/text/subtitle：来自 generation_records.category
+ * character/location/shot/project：来自 canvas_assets.category 的集中映射
+ * upload：来自 uploaded_files
+ */
+export type AssetLibraryKind
+  = | 'image'
+    | 'video'
+    | 'text'
+    | 'subtitle'
+    | 'upload'
+    | 'character'
+    | 'location'
+    | 'shot'
+    | 'project'
+
+/**
+ * 统一资产状态过滤 — 跨来源归一后的“可筛选状态”
+ *
+ * 不同来源的原始状态枚举不同（generation_records 有 pending/submitting/...，
+ * canvas_assets 有 queued/running/...）。这里归并为面向用户的过滤语义：
+ *   - running：生成中（generation 的 submitting/processing/saving_output + canvas 的 running）
+ *   - queued：排队中（generation 的 pending + canvas 的 queued）
+ *   - succeeded/failed/cancelled：终态，直接对应
+ */
+export type AssetLibraryStatusFilter
+  = | 'all'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
+    | 'running'
+    | 'queued'
+
+/**
+ * 单条统一资产 — 页面渲染所需的最小标量集合
+ */
+export interface AssetLibraryItem {
+  /** 主键（来源表的主键），前端用作 React key */
+  id: string
+  /** 来源表 */
+  source: AssetLibrarySource
+  /** 可浏览类别（集中映射后） */
+  kind: AssetLibraryKind
+  /** 原始状态字符串（来源表的真实状态，如 'succeeded' / 'processing'） */
+  status: string
+  /** 卡片标题（model / 文件名 / 类别中文标签） */
+  title: string
+  /** 使用的 AI 模型（上传文件无） */
+  model: string | null
+  /** 预览 URL（图片/视频缩略，文本类为 null），优先稳定 publicUrl */
+  previewUrl: string | null
+  /** 下载 URL（与 previewUrl 同源，便于单独鉴权/CDN） */
+  downloadUrl: string | null
+  /** Canvas 项目 ID（普通生成记录可能从 inputParams 提取，上传文件无） */
+  projectId: string | null
+  /** Canvas 目标实体类型（character/location/shot/project） */
+  targetEntityType: string | null
+  /** Canvas 目标实体 ID */
+  targetEntityId: string | null
+  /** prompt 摘要（从 inputParams/inputJson 安全提取） */
+  prompt: string | null
+  /** 费用（整数分，无则 null） */
+  costCents: number | null
+  /** 创建时间 ISO 字符串 */
+  createdAt: string
+}
+
+/**
+ * 统一资产列表响应
+ *
+ * total 为当前查询条件（source/kind/status/projectId/limit/offset）下返回的条目数，
+ * 与现有 /api/records 的 total 语义一致（返回的 items 数量，非全量计数）。
+ */
+export interface AssetLibraryListResponse {
+  success: true
+  items: AssetLibraryItem[]
+  total: number
+}
+
+/**
+ * 资产中心列表查询参数 — 前端 API client 与 server query 共用
+ */
+export interface AssetLibraryQuery {
+  source?: 'all' | AssetLibrarySource
+  kind?: 'all' | AssetLibraryKind
+  status?: AssetLibraryStatusFilter
+  projectId?: string
+  limit?: number
+  offset?: number
+}

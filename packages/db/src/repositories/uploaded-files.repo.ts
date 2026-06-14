@@ -1,5 +1,5 @@
 import type { UploadedFileInsert } from '../types'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getDb } from '../db'
 import { uploadedFiles } from '../schema'
 
@@ -45,6 +45,25 @@ export async function getUploadedFilesByIdsForAccount(ids: string[], accountId: 
     .select()
     .from(uploadedFiles)
     .where(and(inArray(uploadedFiles.id, ids), eq(uploadedFiles.accountId, accountId)))
+}
+
+/**
+ * 资产中心 — 按 account 查询上传文件列表（分页，createdAt desc）
+ *
+ * 用于 `/api/assets` 统一资产中心。按 accountId 隔离权限。
+ */
+export async function listUploadedFilesForAccount(
+  accountId: string,
+  filter: { limit?: number, offset?: number } = {},
+) {
+  const { limit = 100, offset = 0 } = filter
+  return getDb()
+    .select()
+    .from(uploadedFiles)
+    .where(eq(uploadedFiles.accountId, accountId))
+    .orderBy(desc(uploadedFiles.createdAt))
+    .limit(limit)
+    .offset(offset)
 }
 
 /** 按 ID 删除单个上传文件记录 */

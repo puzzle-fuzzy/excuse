@@ -193,6 +193,10 @@ export interface ListGenerationRecordsFilter {
   accountId?: string
   category?: GenerationCategory
   status?: GenerationStatus
+  /** 多状态过滤（inArray）；提供时优先于 status，用于资产中心跨状态聚合 */
+  statuses?: GenerationStatus[]
+  /** 项目 ID 过滤（Canvas 视频遗留路径写入 inputParams.projectId），按 JSONB 提取 */
+  projectId?: string
   limit?: number
   offset?: number
 }

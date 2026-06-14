@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
-import type { CanvasAssetCategory, CanvasAssetInsert } from '../types'
-import { and, eq, inArray, ne } from 'drizzle-orm'
+import type { CanvasAssetCategory, CanvasAssetInsert, CanvasAssetStatus } from '../types'
+import { and, desc, eq, inArray, ne } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasAssets } from '../schema/canvas-assets'
 
@@ -26,6 +26,42 @@ export async function listCanvasAssetsByProject(projectId: string) {
     .select()
     .from(canvasAssets)
     .where(eq(canvasAssets.projectId, projectId))
+}
+
+/**
+ * 资产中心 — 按 account 查询 Canvas 资产列表
+ *
+ * 用于 `/api/assets` 统一资产中心。按 accountId 隔离权限（canvas_assets.accountId 已存在，
+ * 不需要 join project）。支持按 status（多值）、category（多值，用于 kind 预筛）、projectId 过滤，
+ * 默认按 createdAt desc。
+ */
+export async function listCanvasAssetsForLibrary(
+  accountId: string,
+  filter: {
+    statuses?: CanvasAssetStatus[]
+    categories?: CanvasAssetCategory[]
+    projectId?: string
+    limit?: number
+    offset?: number
+  } = {},
+) {
+  const { statuses, categories, projectId, limit = 100, offset = 0 } = filter
+
+  const conditions = [eq(canvasAssets.accountId, accountId)]
+  if (statuses && statuses.length > 0)
+    conditions.push(inArray(canvasAssets.status, statuses))
+  if (categories && categories.length > 0)
+    conditions.push(inArray(canvasAssets.category, categories))
+  if (projectId)
+    conditions.push(eq(canvasAssets.projectId, projectId))
+
+  return getDb()
+    .select()
+    .from(canvasAssets)
+    .where(and(...conditions))
+    .orderBy(desc(canvasAssets.createdAt))
+    .limit(limit)
+    .offset(offset)
 }
 
 /**

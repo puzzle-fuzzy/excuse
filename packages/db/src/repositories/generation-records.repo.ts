@@ -36,17 +36,25 @@ export async function getGenerationRecordById(id: string) {
 
 /**
  * 分页查询生成记录，category/status 过滤推到 SQL 层
+ *
+ * statuses（多状态）提供时优先于 status（单状态）。
+ * projectId 通过 JSONB 提取 input_params->>'projectId' 过滤（Canvas 视频遗留路径）。
  */
 export async function listGenerationRecords(filter: ListGenerationRecordsFilter = {}) {
-  const { accountId, category, status, limit = 50, offset = 0 } = filter
+  const { accountId, category, status, statuses, projectId, limit = 50, offset = 0 } = filter
 
   const conditions = []
   if (accountId)
     conditions.push(eq(generationRecords.accountId, accountId))
   if (category)
     conditions.push(eq(generationRecords.category, category))
-  if (status)
+  // statuses（多状态）优先于 status（单状态）
+  if (statuses && statuses.length > 0)
+    conditions.push(inArray(generationRecords.status, statuses))
+  else if (status)
     conditions.push(eq(generationRecords.status, status))
+  if (projectId)
+    conditions.push(sql`input_params->>'projectId' = ${projectId}`)
 
   return getDb()
     .select()
