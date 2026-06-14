@@ -243,4 +243,97 @@ describe('assets routes', () => {
     expect(items[0]!.id).toBe('new')
     expect(items[1]!.id).toBe('old')
   })
+
+  it('model 过滤透传到 generation/canvas 查询，且跳过 uploaded_files（无 model 列）', async () => {
+    await client.api.assets.get({
+      query: { model: 'wanx2.1-imgen3' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ model: 'wanx2.1-imgen3' }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ model: 'wanx2.1-imgen3' }))
+    expect(mockListUploadedFiles).not.toHaveBeenCalled()
+  })
+
+  it('createdFrom/createdTo 透传到三种来源查询（解析为 Date）', async () => {
+    await client.api.assets.get({
+      query: { createdFrom: '2026-06-01', createdTo: '2026-06-14' },
+      ...AUTH(token),
+    })
+
+    const from = new Date('2026-06-01')
+    const to = new Date('2026-06-14')
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ createdFrom: from, createdTo: to }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ createdFrom: from, createdTo: to }))
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ createdFrom: from, createdTo: to }))
+  })
+
+  it('非法 createdFrom 被忽略（不进入查询条件）', async () => {
+    await client.api.assets.get({
+      query: { createdFrom: 'not-a-date' },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.not.objectContaining({ createdFrom: expect.any(Date) }))
+  })
+
+  it('limit 超过上限被 clamp 到 200', async () => {
+    await client.api.assets.get({
+      query: { limit: 9999 },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ limit: 200 }))
+    expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ limit: 200 }))
+    expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ limit: 200 }))
+  })
+
+  it('offset 负数被 clamp 到 0', async () => {
+    await client.api.assets.get({
+      query: { offset: -50 },
+      ...AUTH(token),
+    })
+
+    expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ offset: 0 }))
+  })
+
+  it('source=uploaded_file&status=running 返回空且不查询任何来源（上传无 running 状态）', async () => {
+    const { data, error } = await client.api.assets.get({
+      query: { source: 'uploaded_file', status: 'running' },
+      ...AUTH(token),
+    })
+
+    expect(error).toBeNull()
+    expect((data as { items: AssetLibraryItem[] }).items).toHaveLength(0)
+    expect(mockListGenRecords).not.toHaveBeenCalled()
+    expect(mockListCanvasAssets).not.toHaveBeenCalled()
+    expect(mockListUploadedFiles).not.toHaveBeenCalled()
+  })
+
+  it('返回条数 >= limit 时 hasMore=true（轻量分页）', async () => {
+    mockListGenRecords.mockResolvedValueOnce([
+      makeRecord({ id: 'r1', accountId: 'acc-001' }),
+      makeRecord({ id: 'r2', accountId: 'acc-001' }),
+    ])
+
+    const { data } = await client.api.assets.get({
+      query: { limit: 2 },
+      ...AUTH(token),
+    })
+
+    expect((data as { hasMore: boolean }).hasMore).toBe(true)
+  })
+
+  it('返回条数 < limit 时 hasMore=false', async () => {
+    mockListGenRecords.mockResolvedValueOnce([
+      makeRecord({ id: 'r1', accountId: 'acc-001' }),
+    ])
+
+    const { data } = await client.api.assets.get({
+      query: { limit: 10 },
+      ...AUTH(token),
+    })
+
+    expect((data as { hasMore: boolean }).hasMore).toBe(false)
+  })
 })

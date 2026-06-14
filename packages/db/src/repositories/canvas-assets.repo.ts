@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
 import type { CanvasAssetCategory, CanvasAssetInsert, CanvasAssetStatus } from '../types'
-import { and, desc, eq, inArray, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasAssets } from '../schema/canvas-assets'
 
@@ -32,8 +32,8 @@ export async function listCanvasAssetsByProject(projectId: string) {
  * 资产中心 — 按 account 查询 Canvas 资产列表
  *
  * 用于 `/api/assets` 统一资产中心。按 accountId 隔离权限（canvas_assets.accountId 已存在，
- * 不需要 join project）。支持按 status（多值）、category（多值，用于 kind 预筛）、projectId 过滤，
- * 默认按 createdAt desc。
+ * 不需要 join project）。支持按 status（多值）、category（多值，用于 kind 预筛）、projectId、
+ * model、createdFrom/createdTo 过滤，默认按 createdAt desc。
  */
 export async function listCanvasAssetsForLibrary(
   accountId: string,
@@ -41,11 +41,14 @@ export async function listCanvasAssetsForLibrary(
     statuses?: CanvasAssetStatus[]
     categories?: CanvasAssetCategory[]
     projectId?: string
+    model?: string
+    createdFrom?: Date
+    createdTo?: Date
     limit?: number
     offset?: number
   } = {},
 ) {
-  const { statuses, categories, projectId, limit = 100, offset = 0 } = filter
+  const { statuses, categories, projectId, model, createdFrom, createdTo, limit = 100, offset = 0 } = filter
 
   const conditions = [eq(canvasAssets.accountId, accountId)]
   if (statuses && statuses.length > 0)
@@ -54,6 +57,12 @@ export async function listCanvasAssetsForLibrary(
     conditions.push(inArray(canvasAssets.category, categories))
   if (projectId)
     conditions.push(eq(canvasAssets.projectId, projectId))
+  if (model)
+    conditions.push(eq(canvasAssets.model, model))
+  if (createdFrom)
+    conditions.push(gte(canvasAssets.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(canvasAssets.createdAt, createdTo))
 
   return getDb()
     .select()

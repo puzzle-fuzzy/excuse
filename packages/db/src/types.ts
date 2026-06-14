@@ -197,6 +197,12 @@ export interface ListGenerationRecordsFilter {
   statuses?: GenerationStatus[]
   /** 项目 ID 过滤（Canvas 视频遗留路径写入 inputParams.projectId），按 JSONB 提取 */
   projectId?: string
+  /** 模型精确匹配（资产中心按模型筛选） */
+  model?: string
+  /** 创建时间下界（含） */
+  createdFrom?: Date
+  /** 创建时间上界（含） */
+  createdTo?: Date
   limit?: number
   offset?: number
 }

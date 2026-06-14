@@ -90,21 +90,35 @@ export interface AssetLibraryItem {
  *
  * total 为当前查询条件（source/kind/status/projectId/limit/offset）下返回的条目数，
  * 与现有 /api/records 的 total 语义一致（返回的 items 数量，非全量计数）。
+ *
+ * hasMore 为轻量分页标记（v1.1）：当返回条数 >= limit 时为 true，提示前端可继续
+ * 「加载更多」。由于三来源各自按 limit/offset 分页后合并，hasMore 是“可能有更多”
+ * 的启发式，不是精确全量计数（短期不做 SQL count）。
  */
 export interface AssetLibraryListResponse {
   success: true
   items: AssetLibraryItem[]
   total: number
+  hasMore?: boolean
 }
 
 /**
  * 资产中心列表查询参数 — 前端 API client 与 server query 共用
+ *
+ * model/createdFrom/createdTo 在服务端下推到 SQL（v1.1），不再只在前端本地过滤。
+ * createdFrom/createdTo 为 ISO 日期字符串，服务端解析为 Date 后用 createdAt 范围筛选。
  */
 export interface AssetLibraryQuery {
   source?: 'all' | AssetLibrarySource
   kind?: 'all' | AssetLibraryKind
   status?: AssetLibraryStatusFilter
   projectId?: string
+  /** 模型精确匹配（generation_records.model / canvas_assets.model；上传文件无 model，非空时跳过 uploads） */
+  model?: string
+  /** 创建时间下界（含），ISO 日期字符串 */
+  createdFrom?: string
+  /** 创建时间上界（含），ISO 日期字符串 */
+  createdTo?: string
   limit?: number
   offset?: number
 }

@@ -189,7 +189,7 @@ function mapUploadedFile(file: UploadedFileRow): AssetLibraryItem {
   }
 }
 
-// ── 来源解析：source + kind + status → 需要查询哪些表 ────────────────────────
+// ── 来源解析：source + kind + status + model → 需要查询哪些表 ─────────────────
 
 interface SourcePlan {
   gen: boolean
@@ -197,20 +197,27 @@ interface SourcePlan {
   upload: boolean
 }
 
-/** 根据查询条件决定需要查询哪些来源表 */
+/**
+ * 根据查询条件决定需要查询哪些来源表
+ *
+ * 跳过 uploaded_files 的两种情况：
+ *   - 非终态过滤（status=running/queued/failed/cancelled）：上传文件只有 succeeded。
+ *   - model 非空：uploaded_files 没有 model 列，按模型筛选时无意义。
+ */
 function resolveSourcePlan(
   source: 'all' | AssetLibrarySource,
   kind: 'all' | AssetLibraryKind,
   status: AssetLibraryStatusFilter | 'all',
+  hasModel: boolean,
 ): SourcePlan {
-  // 上传文件只有 succeeded 状态；非 succeeded/all 时跳过
   const uploadEligibleByStatus = status === 'all' || status === 'succeeded'
+  const uploadEligible = uploadEligibleByStatus && !hasModel
 
   if (source !== 'all') {
     return {
       gen: source === 'generation_record',
       canvas: source === 'canvas_asset',
-      upload: source === 'uploaded_file' && uploadEligibleByStatus,
+      upload: source === 'uploaded_file' && uploadEligible,
     }
   }
 
@@ -219,12 +226,31 @@ function resolveSourcePlan(
     if (kindIsGenCategory(kind))
       return { gen: true, canvas: false, upload: false }
     if (kind === 'upload')
-      return { gen: false, canvas: false, upload: uploadEligibleByStatus }
+      return { gen: false, canvas: false, upload: uploadEligible }
     // character/location/shot/project → canvas_assets
     return { gen: false, canvas: true, upload: false }
   }
 
-  return { gen: true, canvas: true, upload: uploadEligibleByStatus }
+  return { gen: true, canvas: true, upload: uploadEligible }
+}
+
+// ── 查询参数规整（clamp / 日期解析） ──────────────────────────────────────────
+
+const MAX_LIMIT = 200
+
+/** 把 query 里的 limit/offset 规整为安全整数（clamp 到合理区间） */
+function clampInt(value: number | undefined, min: number, max: number, fallback: number): number {
+  if (value == null || Number.isNaN(value))
+    return fallback
+  return Math.max(min, Math.min(max, Math.trunc(value)))
+}
+
+/** 解析 ISO 日期字符串为 Date；非法/空时返回 undefined（不过滤） */
+function parseDateParam(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || value.length === 0)
+    return undefined
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
 // ── 路由 ──────────────────────────────────────────────────────────────────────
@@ -237,12 +263,16 @@ export function createAssetsRoutes(config: ServerConfig) {
       const kind = (query.kind ?? 'all') as 'all' | AssetLibraryKind
       const status = (query.status ?? 'all') as AssetLibraryStatusFilter | 'all'
       const projectId = typeof query.projectId === 'string' && query.projectId.length > 0 ? query.projectId : undefined
-      const limit = query.limit ?? 100
-      const offset = query.offset ?? 0
+      const model = typeof query.model === 'string' && query.model.length > 0 ? query.model : undefined
+      const createdFrom = parseDateParam(query.createdFrom)
+      const createdTo = parseDateParam(query.createdTo)
+      // clamp：limit ∈ [1, 200]，offset ≥ 0
+      const limit = clampInt(query.limit, 1, MAX_LIMIT, 100)
+      const offset = clampInt(query.offset, 0, Number.MAX_SAFE_INTEGER, 0)
 
-      const plan = resolveSourcePlan(source, kind, status)
+      const plan = resolveSourcePlan(source, kind, status, Boolean(model))
 
-      // 并行查询各来源（按 accountId 隔离）
+      // 并行查询各来源（按 accountId 隔离，model/时间下推到 SQL）
       const [genRows, canvasRows, uploadRows] = await Promise.all([
         plan.gen
           ? listGenerationRecords({
@@ -250,6 +280,9 @@ export function createAssetsRoutes(config: ServerConfig) {
               statuses: genStatusesFor(status),
               category: kind !== 'all' && kindIsGenCategory(kind) ? kind as GenerationCategory : undefined,
               projectId,
+              model,
+              createdFrom,
+              createdTo,
               limit,
               offset,
             })
@@ -259,12 +292,16 @@ export function createAssetsRoutes(config: ServerConfig) {
               statuses: canvasStatusesFor(status),
               categories: kind !== 'all' ? canvasCategoriesForKind(kind) : undefined,
               projectId,
+              model,
+              createdFrom,
+              createdTo,
               limit,
               offset,
             })
           : Promise.resolve([]),
+        // uploaded_files 无 model 列；plan.upload 在 model 非空时已为 false
         plan.upload
-          ? listUploadedFilesForAccount(userId, { limit, offset })
+          ? listUploadedFilesForAccount(userId, { createdFrom, createdTo, limit, offset })
           : Promise.resolve([]),
       ])
 
@@ -278,19 +315,25 @@ export function createAssetsRoutes(config: ServerConfig) {
       // 按 createdAt desc 统一排序（各来源已各自 desc，但合并后需重排）
       items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-      return { success: true, items, total: items.length } satisfies AssetLibraryListResponse
+      // 轻量分页（Plan A）：返回条数 >= limit 时认为“可能有更多”，不做 SQL count。
+      const hasMore = items.length >= limit
+
+      return { success: true, items, total: items.length, hasMore } satisfies AssetLibraryListResponse
     }, {
       query: t.Object({
         source: t.Optional(t.String()),
         kind: t.Optional(t.String()),
         status: t.Optional(t.String()),
         projectId: t.Optional(t.String()),
+        model: t.Optional(t.String()),
+        createdFrom: t.Optional(t.String()),
+        createdTo: t.Optional(t.String()),
         limit: t.Optional(t.Numeric()),
         offset: t.Optional(t.Numeric()),
       }),
       detail: {
         summary: '获取统一资产列表',
-        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId 过滤。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。',
+        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、createdFrom/createdTo 过滤，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

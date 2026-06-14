@@ -1,5 +1,5 @@
 import type { UploadedFileInsert } from '../types'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { getDb } from '../db'
 import { uploadedFiles } from '../schema'
 
@@ -51,16 +51,23 @@ export async function getUploadedFilesByIdsForAccount(ids: string[], accountId: 
  * 资产中心 — 按 account 查询上传文件列表（分页，createdAt desc）
  *
  * 用于 `/api/assets` 统一资产中心。按 accountId 隔离权限。
+ * 上传文件无 model 列，因此只支持 createdFrom/createdTo 时间范围过滤（按模型筛选时
+ * 路由层直接跳过 uploaded_files，不会走到这里）。
  */
 export async function listUploadedFilesForAccount(
   accountId: string,
-  filter: { limit?: number, offset?: number } = {},
+  filter: { createdFrom?: Date, createdTo?: Date, limit?: number, offset?: number } = {},
 ) {
-  const { limit = 100, offset = 0 } = filter
+  const { createdFrom, createdTo, limit = 100, offset = 0 } = filter
+  const conditions = [eq(uploadedFiles.accountId, accountId)]
+  if (createdFrom)
+    conditions.push(gte(uploadedFiles.createdAt, createdFrom))
+  if (createdTo)
+    conditions.push(lte(uploadedFiles.createdAt, createdTo))
   return getDb()
     .select()
     .from(uploadedFiles)
-    .where(eq(uploadedFiles.accountId, accountId))
+    .where(and(...conditions))
     .orderBy(desc(uploadedFiles.createdAt))
     .limit(limit)
     .offset(offset)
