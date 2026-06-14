@@ -1,121 +1,166 @@
-# Claude A 下一轮执行计划：PipelineController pipeline-run 轮询迁移到 react-query
+# Claude A 下一轮执行计划：管理后台运营统计深化（用户级用量 + provider 错误率/成本统计）
 
-更新时间：2026-06-14
+更新时间：2026-06-15
 
-本文给 Claude A 执行。Claude B 当前在处理 **Canvas 阶段耗时 + 任务队列积压 Prometheus 指标**（`packages/metrics` 新增 DB 派生指标聚合 + `packages/db` 新增聚合 repository + `apps/server/src/routes/metrics.ts` 合并 in-process 与 DB-derived 输出），Claude A 本轮继续推进 P4.1「`@tanstack/react-query`」方向，把 `apps/client/src/components/canvas/PipelineController.tsx` 内手写的 3s `setInterval` 轮询逻辑（line 364-409）抽到 react-query 的 `useQuery` + `refetchInterval` + `invalidateQueries`，与上一轮 canvas 资产轮询改造保持一致的失效路径。不要碰 Gateway、Metrics、Provider、API Key 页面、worker、DB schema。
+本文给 Claude A 执行。Claude B 当前在处理 **P4.1 成熟库 zod runtime 校验迁移第一批**（`packages/gateway` + `packages/prompt-engine` 把外部输入边界的「裸 cast / 手写校验」改为 zod parse + 类型守卫），Claude A 本轮推进 P3.2「管理后台和运营能力」剩余的两条待办：用户级用量/成本统计 + provider 错误率/模型成本统计。让 admin 后台从「全局概览」升级为「可下钻的运营统计」。
+
+不要碰 packages/gateway、packages/prompt-engine、packages/metrics、packages/provider、packages/canvas-runtime、apps/worker、Canvas 客户端、表单页面、SSE 客户端。
 
 ## 上轮复核结论（已通过）
 
 上一轮 Claude A 完成并提交：
 
-- `b5f2c83 refactor(canvas): migrate assets polling to react-query`
-- `96b2cfc docs(changelog): backfill canvas polling react-query commit hash`
+- `7f587f2 refactor(client): migrate forms to react-hook-form with zod validation`
+- `f87ad1c docs(changelog): backfill react-hook-form migration commit hash`
 
 复核结果：
 
-- `apps/client/test/canvas-poll.test.ts`：1 file / 21 pass / 0 fail（含上一轮 9 条原 polling 行为 + 本轮新增 12 条 react-query 行为：`refetchIntervalFor` 4 种 connectionMode × activeTasks 组合、projectId 切换、disconnected enabled、projectVersion invalidate、placeholderData、返回 shape、refresh）。
+- `apps/client/src/pages/Login.tsx`、`Register.tsx`、`ModelLab.tsx`（参数表单区）从手写 `useState` + 内联校验替换为 `react-hook-form` + `zod` resolver。
+- `apps/client/src/lib/form-schemas.ts`：新建，统一定义 `loginSchema` / `registerSchema` / `apiKeyCreateSchema` + `buildModelLabSchema(parameters)` 动态 schema builder。
+- `apps/client/package.json`：新增 `@hookform/resolvers` + `zod@4.4.3` 依赖。
+- 补 `apps/client/test/form-schemas.test.ts`（18 条）+ `apps/client/test/model-lab-form.test.ts`（11 条），合计 29 条新测试。
 - `bun run typecheck`：server / client / worker 三端通过。
-- `apps/client/src/hooks/use-canvas-assets-polling.ts`：141 行重写为 `useQuery` + `refetchInterval` 回调（动态根据 `connectionMode` + `activeTasks` 计算）+ `useEffect` watch `projectVersion` 调 `invalidateQueries`；`refetchIntervalFor` 作为纯函数导出便于单测；返回 shape `{ pollData, connectionMode, isPolling, lastPollAt, refresh }` 向后兼容。
-- `apps/client/src/api/query-client.ts`：+7 行追加 `canvasAssetsPollingQueryKeys` 常量；既有 export 未破坏。
-- `docs/TODO.md` P0「Canvas 可信赖创作工作台」待办行已替换为「已全部完成」注释。
-- `CHANGELOG.md` Changed 区已记录并回填 commit `b5f2c83`。
-- 暂存区零跨界（未碰 `packages/` / `apps/server/` / `apps/worker/` / SSE 客户端 / `apps/client/src/api/client.ts`）。
+- 暂存区零跨界。
 
 保持上一轮的纪律。
 
 ## 本轮目标
 
-把 `PipelineController.tsx` 内 line 364-409 的 pipeline-run 兜底轮询抽到 react-query，与 canvas 资产轮询保持一致的数据失效路径。
+推进 P3.2「管理后台和运营能力」剩余两条：
+
+1. **用户级用量和成本统计**：admin 后台新增「用户列表」+「用户详情」，展示信用余额、月度生成量、成本明细；当前 admin 只有全局 `getAdminOverview`，无法回答「具体某个用户消耗多少」。
+2. **provider 错误率和模型成本统计**：admin 后台新增「Provider 指标」tab，复用既有 `excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`（commit: `9b0a37a`）和 `generation_records.cost` 聚合，让运营能定位「哪个模型失败率最高」「哪个模型最贵」。
 
 当前状态：
 
-- `apps/client/src/components/canvas/PipelineController.tsx` line 364-409 用 `useEffect` + `window.setInterval(..., 3000)` 每 3s 调 `fetchCanvasPipelineRuns(projectId)`；run 命中 succeeded/failed 时调 `onPhaseComplete` 或 `setError` 并 advance。
-- 上一轮 canvas 资产轮询已经迁移到 react-query（`useCanvasAssetsPolling`），`apps/client/src/api/query-client.ts` 已经有 `canvasAssetsPollingQueryKeys` 常量；本轮在同一文件追加 `canvasPipelineRunsQueryKeys`。
-- 项目里 `useRealtimeSync` 的 `projectVersion` + `phaseDone` 是 SSE 主路径，polling 是兜底，避免断线或漏事件时自动执行卡在 running；本轮保留这个语义。
-- `apps/client/src/api/client.ts` 的 `fetchCanvasPipelineRuns(projectId)` 直接复用，本轮不改。
+- `apps/server/src/routes/admin.ts`（117 行）：当前只有 `GET /api/admin/overview` + `GET /api/admin/tasks` + `POST /api/admin/tasks/:id/requeue` + `POST /api/admin/tasks/:id/cancel`。鉴权通过 `canAccessAdmin(config, userId)` + `ADMIN_USER_IDS` 配置限制；derive 注入 `adminAllowed` / `adminDenied` helper。
+- `packages/db/src/repositories/admin.repo.ts`（399 行）：当前导出 `getAdminOverview` / `listAdminTasks` / `requeueAdminTask` / `cancelAdminTask`。所有 SQL 用 Drizzle query builder + `sql<number>` 模板拼装，`numberValue()` / `iso()` helper 做类型转换。`AdminTaskItem` 等类型在本文件内**重复定义**（与 `packages/shared/src/admin.ts` 同名但独立），既有现状保持不变。
+- `packages/shared/src/admin.ts`（91 行）：barrel-exported via `packages/shared/src/index.ts`。定义 `AdminOverview` / `AdminTaskListResponse` / `AdminTaskMutationResponse` / `AdminOverviewResponse` 等 response DTO（route 用 `satisfies` 收窄）。本轮新增 DTO 追加到本文件。
+- `apps/client/src/pages/Admin.tsx`：当前是单页 admin，已展示概览卡片 + 任务诊断区（commit: `104fe2f`）。本轮扩 tab。具体结构需读源文件确认。
+- `credit_accounts` / `credit_transactions` / `usage_events` 表：credit/usage 查询基础已具备（schema 见 `packages/db/src/schema/`）。
+- 上一轮 Claude B 已完成 provider 指标 in-process 采集（`excuse_provider_calls_total` + `excuse_provider_latency_seconds`）+ DB-derived 聚合（`excuse_canvas_phase_total` 等），但**这些指标只在 `/metrics` Prometheus 端点暴露**，admin 后台 UI 看不到。本轮通过**直接查 `generation_records.cost` 表 + 在 server 进程内 `metricsCollector.snapshot()`** 给 admin 用，**不依赖 Prometheus scrape**。
 
 本轮要做的：
 
-1. **在 `apps/client/src/api/query-client.ts` 追加 `canvasPipelineRunsQueryKeys`**（不动既有常量）。
-2. **新建 `apps/client/src/hooks/use-canvas-pipeline-runs-polling.ts`**：用 `useQuery` 包裹 `fetchCanvasPipelineRuns`，`enabled` 由 `running && currentPhase >= 0 && projectId` 控制，`refetchInterval` 固定 3000ms（与原 polling 一致），`placeholderData: (prev) => prev` 保持上一份数据避免闪烁；暴露 `{ runs, isPolling }`，不暴露业务推进逻辑。
-3. **`PipelineController.tsx` 改造**：用新 hook 替换 line 364-409 的 `useEffect` + `setInterval`；业务推进逻辑（succeeded → advance / failed → setError）放到一个 watch `runs` 的 `useEffect` 里，**保留原行为**：
-   - 命中 succeeded/failed 时按 `activeRunIdRef.current` 优先匹配，否则按 `phase.key + status` 匹配。
-   - 命中后清 `activeRunIdRef.current`、调 `onPhaseComplete`、失败时 setRunning(false) + setFailedPhaseIdx。
-   - 命中失败时复用 `${phase.label} 失败: ${run.errorMessage || '未知错误'}` 文案。
-4. **SSE 主路径不变**：`phaseDone` 事件仍由 `useRealtimeSync` 接管并直接驱动 `onPhaseComplete`；polling hook 仅作为兜底。本轮**不要**把 phaseDone 也接到 `invalidateQueries`（避免和现有 SSE 路径重复触发）。
-5. **`PipelineController` 已有的 mount restore 逻辑（line 149-211 `fetchCanvasPipelineRuns` 单次拉取恢复 running state）保持不动**：那是一次性恢复，不是轮询，不需要迁移。如果新 hook 的 queryKey 与 restore 路径冲突，单独说明。
-6. **补 hook 单元测试**：覆盖 enabled 切换、refetchInterval、placeholderData、projectVersion invalidate、返回 shape。
-7. 在 `docs/TODO.md` 的 P4.1 第 2 条「`@tanstack/react-query`」下方追加一行勾选式说明「Canvas pipeline-run 兜底轮询已迁移」（不删条目，因为 P4.1 是持续推进项；仅追加完成说明）。
-8. 在 `CHANGELOG.md` `[Unreleased]` 的 Changed 区记录本轮完成内容和 commit。
+1. **`packages/shared/src/admin.ts` — 新增 DTO**：
+   - `AdminUserSummary`：用户列表项（id、username、email、isActive、createdAt、lastActivityAt、creditBalanceCents、totalCostCents、totalCalls）。
+   - `AdminUserDetail`：单用户下钻（summary 字段 + 最近 30 天每日 cost 趋势 + 按模型分组的成本分解 + 最近 10 条 generation_records 摘要）。
+   - `AdminProviderStatsItem`：单模型统计（model、category、totalCalls、succeededCalls、failedCalls、failureRate、avgLatencyMs、p50LatencyMs、p95LatencyMs、totalCostCents、totalInputTokens、totalOutputTokens）。
+   - 对应 response 类型：`AdminUserListResponse` / `AdminUserDetailResponse` / `AdminProviderStatsResponse`。
+2. **`packages/db/src/repositories/admin.repo.ts` — 新增 repository 函数**：
+   - `listAdminUsers(query: { search?, isActive?, limit?, offset? }): Promise<{ items: AdminUserSummary[], total: number }>`：join `accounts` + `credit_accounts`（取 balance）+ 子查询聚合 `generation_records`（count + sum cost），支持用户名/邮箱搜索 + 状态过滤 + 分页。
+   - `getAdminUserDetail(accountId: string): Promise<AdminUserDetail | null>`：单账户下钻。包含 30 天每日 cost（`GROUP BY date_trunc('day', created_at)`）+ 按模型分组（`GROUP BY model`）+ 最近 10 条 generation_records（id、model、status、cost、createdAt）。
+   - `getAdminProviderStats(windowHours: number = 24): Promise<AdminProviderStatsItem[]>`：从 `generation_records` 聚合 per-model 统计（近 N 小时内），输出 totalCalls/succeeded/failed/failureRate/totalCostCents/totalInputTokens/totalOutputTokens；avg/p50/p95 latency 从 server 进程内 `metricsCollector.snapshot().providerCalls` 拿（**这个字段在 repository 层无法访问**，因此拆为两段：repository 出 cost/count 部分，server route 合并 metrics 部分 — 见步骤 5 详述）。
+   - 复用既有 `numberValue()` / `iso()` helper。
+3. **`apps/server/src/routes/admin.ts` — 新增 endpoints**：
+   - `GET /api/admin/users?search=&isActive=&limit=&offset=` → `AdminUserListResponse`。
+   - `GET /api/admin/users/:id` → `AdminUserDetailResponse`（用户不存在 → 404）。
+   - `GET /api/admin/providers?windowHours=` → `AdminProviderStatsResponse`。这个 endpoint 内部调 `getAdminProviderStats(windowHours)` 拿 DB 部分（cost/count），再调 `metricsCollector.snapshot().providerCalls` 拿 latency 部分（in-process），**route 层做合并**（保持 packages/db 不依赖 server runtime 单例）。
+   - 所有 endpoint 复用既有 `adminAllowed` / `adminDenied` derive guard。
+   - 路由 detail 标签统一打 `tags: ['管理后台']`，security `[{ bearerAuth: [] }]`。
+4. **`apps/server/src/services/metrics.ts` — 暴露 snapshot() 给 route**：
+   - 检查现有 `metricsCollector` 是不是模块级单例 / 是否通过 `ServerConfig` 传递。
+   - 如果是单例：admin route 直接 `import { metricsCollector } from '../services/metrics'`。
+   - 如果通过 config：admin route 已经接收 `config: ServerConfig`，加 `config.metricsCollector` 引用。
+   - 推荐方案：**单例 import**（最小改动），与 `apps/server/src/index.ts` 注入 `registerProviderCallObserver` 时使用的 metricsCollector 引用一致。
+5. **`apps/client/src/pages/Admin.tsx` — 扩 tab UI**：
+   - 先读源文件，确认现有 tab 结构（如果是单页无 tab，加 tab；如果已有 tab，扩 tab）。
+   - 新增「用户」tab：
+     - 列表表格：username、email、状态、信用余额、总成本、总调用数、最近活动时间。
+     - 筛选：搜索框（username/email）+ 状态下拉（active/inactive/全部）。
+     - 分页：上一页 / 下一页 + 总数显示（默认 limit=20）。
+     - 行点击 → 展开「用户详情」面板（dialog 或 inline drawer）：30 天成本趋势（简单 bar/sparkline 或纯文本表格，不引图表库）+ 模型成本分解表格 + 最近 10 条生成记录表格。
+   - 新增「Provider」tab：
+     - 表格：model、category、totalCalls、succeededCalls、failedCalls、failureRate（百分比）、avgLatencyMs、p50LatencyMs、p95LatencyMs、totalCostCents、totalInputTokens、totalOutputTokens。
+     - 筛选：windowHours 下拉（1h / 6h / 24h / 7d）。
+     - 排序：默认按 totalCalls desc，支持点击列头排序（最小实现 — 不引表格库；如果不引表格库代价过高，先按 totalCalls desc 固定排序，列头排序留 TODO 注释）。
+   - 复用既有 `useQuery` + 30s 刷新（admin overview 现有 polling 模式）。
+   - 信用余额/成本展示统一用既有 `formatCents()` / `formatYuan()` helper（在 `apps/client/src/lib/` 找现有 helper；如无，inline `Intl.NumberFormat`）。
+   - 不引图表库。30 天趋势用纯 CSS bar（每行一条 bar，宽度按比例）或简单 sparkline（`<svg>` 内联）。如果实现复杂，fallback 为表格（day / costCents 两列）。
+6. **补 `packages/db` 测试**（如果有 admin.repo 测试基础）：
+   - 如果 `packages/db/test/admin.repo.test.ts` 已存在：扩 `listAdminUsers` / `getAdminUserDetail` / `getAdminProviderStats` 测试。
+   - 如果不存在：新建 `packages/db/test/admin-users-providers.repo.test.ts`（DB 集成测试，复用既有 transaction-scoped fixture）。
+   - 覆盖：空表 → 空数组、单用户、搜索匹配、状态过滤、分页边界、windowHours 过滤、failureRate 计算。
+7. **补 `apps/server/test/admin-routes.test.ts`**：
+   - 既有 admin route 测试覆盖 overview + tasks；本轮扩 users list / user detail / providers。
+   - 覆盖：非 admin 用户 403、不存在的 userId → 404、providers latency merge（mock `metricsCollector.snapshot` 返回 fixture providerCalls）。
+8. **补 `apps/client` admin page 测试**：
+   - 扩既有 admin-page 测试。
+   - 覆盖：用户列表渲染、搜索触发 query、用户详情展开、provider 表格渲染、windowHours 切换。
+9. **更新 `docs/TODO.md`**：
+   - P3.2 第 2 条「用户余额明细、用户级用量和成本统计」：把括号「(全局用户 / 成本摘要已完成)」改为「(全局概览 + 用户级下钻已完成)」。
+   - P3.2 第 5 条「provider 错误率和模型成本统计」：整条删除（本轮完成）。
+   - 不动其他章节。
+10. **更新 `CHANGELOG.md`**：
+    - 在 `[Unreleased]` 的 Added 区追加本轮完成内容和 commit。
 
 本轮不要处理：
 
-- 改造 `useRealtimeSync` 或 `phaseDone` SSE 路径。
-- 改造 CanvasEditor.tsx（消费方零改动；hook 接口向后兼容）。
-- 改造 `apps/client/src/api/client.ts` 的 `fetchCanvasPipelineRuns` 实现。
-- 改造其他页面的 polling（Workspace / Subtitle / Assets 等）— 仅 PipelineController。
-- 改造 SSE 客户端（`apps/client/src/api/sse.ts`）。
-- 资产中心、API Key 页面、开发者页、Metrics、Gateway、Provider、worker。
-- DB schema / migration。
+- packages/gateway / packages/prompt-engine 的 zod 迁移（Claude B 在动）。
+- packages/metrics 内部 collector 改动（上轮已完成，本轮只**消费** snapshot）。
+- packages/provider 的 DashScopeClient 改动。
+- API Key scope / rate limit / quota（独立任务，本轮不做）。
+- OpenAI Gateway scope / rate limit（独立任务，本轮不做）。
+- 失败任务深度诊断的 generation record / Canvas pipeline run 级联部分（独立任务，本轮不做；用户级 + provider 级已经足够）。
+- 项目级任务检索（独立任务）。
+- Worker、Canvas 客户端、Subtitle、Billing 客户端、Model Lab、表单页面。
+- DB schema / migration（本轮零 schema 改动）。
+- 引入图表库 / 表格库（除非复杂度过高，否则手写）。
 
 ## 重要规则：完成后必须 commit
 
 - 本轮 1 个 commit（hash 回填可以追一个 docs commit）。
 - commit 前必须运行 `git status --short` 和 `git diff --name-only --cached`。
-- 暂存区只能包含本任务文件，**绝对不要**混入 Claude B 的 packages/metrics / metrics.ts / db repository 文件。
-- 完成说明写入 `docs/TODO.md` P4.1 第 2 条下方（追加一行，不删条目）。
+- 暂存区只能包含本任务文件，**绝对不要**混入 Claude B 的 packages/gateway / packages/prompt-engine 文件。
+- 完成事项从 `docs/TODO.md` 删除（P3.2 第 5 条整条删除；P3.2 第 2 条括号说明更新）。
 - 完成记录和 commit 写入根目录 `CHANGELOG.md`。
 - 如果 `docs/TODO.md` / `CHANGELOG.md` 与 Claude B 并行修改冲突，优先提交代码；文档冲突在最终回复里说明。
 - commit 成功后，在最终回复里写出 commit hash。
 
 **强制检查**：commit 前必须确认 `git diff --name-only --cached` 输出**不包含**：
 
-- `packages/`（任何路径，本轮零 package 改动）
-- `apps/server/`（任何路径，本轮零 server 改动）
-- `apps/worker/`（任何路径，本轮零 worker 改动）
-- `apps/client/src/api/sse.ts`
-- `apps/client/src/api/client.ts`（`fetchCanvasPipelineRuns` 已存在，不需要改）
-- `apps/client/src/api/asset-library.ts`
-- `apps/client/src/api/notifications.ts`
-- `apps/client/src/api/api-keys.ts`
-- `apps/client/src/api/billing.ts`
-- `apps/client/src/lib/asset-library.ts`
-- `apps/client/src/lib/notification-target.ts`
-- `apps/client/src/lib/generation-utils.ts`
-- `apps/client/src/lib/canvas-poll.ts`（hasCanvasPollDelta 不动）
-- `apps/client/src/pages/Assets.tsx`
-- `apps/client/src/pages/Canvas.tsx`（列表页；本轮不动）
-- `apps/client/src/pages/CanvasEditor.tsx`（消费方零改动；如必须改，先停止说明）
-- `apps/client/src/pages/Workspace.tsx`
-- `apps/client/src/pages/Subtitle.tsx`
-- `apps/client/src/pages/SubtitleEditor.tsx`
-- `apps/client/src/pages/Billing.tsx`
-- `apps/client/src/pages/ApiKeys.tsx`
-- `apps/client/src/pages/Developers.tsx`
-- `apps/client/src/components/canvas/`（除 `PipelineController.tsx`）
-- `apps/client/src/components/Navbar.tsx`
-- `apps/client/src/components/ui/`
-- `apps/client/src/stores/realtime-sync.ts`（仅消费其 `projectVersion` / `phaseDone`，不重写 store）
-- `apps/client/src/stores/workspace.ts`
-- `apps/client/src/stores/generation.ts`
-- `apps/client/src/stores/subtitle.ts`
-- `apps/client/src/stores/notifications.ts`
-- `apps/client/src/hooks/use-canvas-assets-polling.ts`（上一轮已动；本轮不动）
-- `apps/client/src/App.tsx`
-- `apps/client/src/main.tsx`
-- `apps/client/src/auth/`
-- `apps/client/src/test-setup.ts`
+- `packages/gateway/`（任何路径，Claude B 在动）
+- `packages/prompt-engine/`（任何路径，Claude B 在动）
+- `packages/metrics/`（任何路径，本轮零 metrics 改动，只消费 snapshot）
+- `packages/provider/`（任何路径）
+- `packages/canvas-engine/` / `packages/canvas-runtime/`（任何路径）
+- `packages/events/` / `packages/workflow-engine/` / `packages/task-engine/`（任何路径）
+- `packages/rate-limit/` / `packages/subtitle-engine/` / `packages/auth/`（任何路径）
+- `packages/billing/` / `packages/ffmpeg/` / `packages/storage/`（任何路径）
+- `packages/db/src/schema/`（**本轮绝对零 schema 改动**）
+- `packages/db/src/repositories/`（除 `admin.repo.ts`）
+- `packages/db/src/services/`
+- `apps/worker/`（任何路径）
+- `apps/client/src/api/`（除新增 admin api helper 文件）
+- `apps/client/src/stores/`（任何 store 文件）
+- `apps/client/src/hooks/`（除新增 admin hook）
+- `apps/client/src/components/`（除新增 admin 组件）
+- `apps/client/src/pages/`（除 `Admin.tsx`）
+- `apps/client/src/lib/`（除新增的 admin helper 或 format helper 复用）
+- `apps/server/src/modules/`（任何路径）
+- `apps/server/src/plugins/`（任何路径）
+- `apps/server/src/services/`（除 `metrics.ts` 暴露 snapshot 的最小 diff）
+- `apps/server/src/routes/`（除 `admin.ts`）
+- `apps/server/src/utils/`（任何路径）
+- `apps/server/src/config.ts`（除非要扩 `ServerConfig.metricsCollector` 引用；如改动需说明）
+- `apps/server/src/index.ts`（任何路径）
+- `apps/server/test/`（除 `admin-routes.test.ts`）
 
 ## 文件边界
 
 Claude A 可以修改：
 
 ```txt
-apps/client/src/components/canvas/PipelineController.tsx      (line 364-409 polling 改用新 hook)
-apps/client/src/hooks/use-canvas-pipeline-runs-polling.ts     (新建 hook)
-apps/client/src/hooks/use-canvas-pipeline-runs-polling.test.ts (新建 hook 单元测试)
-apps/client/src/api/query-client.ts                          (追加 canvasPipelineRunsQueryKeys 常量；不破坏既有 export)
-apps/client/test/canvas-pipeline-runs-polling.test.ts         (如 vitest 配置要求 test 在 test/ 目录，则放这里；与 hook test 二选一即可)
+packages/shared/src/admin.ts                                  (新增用户/Provider stats DTO)
+packages/db/src/repositories/admin.repo.ts                    (新增 listAdminUsers / getAdminUserDetail / getAdminProviderStats)
+packages/db/test/admin-users-providers.repo.test.ts           (新建，或追加到既有 admin.repo.test.ts)
+apps/server/src/routes/admin.ts                               (新增 GET /api/admin/users, /users/:id, /providers)
+apps/server/src/services/metrics.ts                           (仅当需要 export snapshot() 给 route；最小 diff)
+apps/server/test/admin-routes.test.ts                         (扩 users/providers 测试)
+apps/client/src/pages/Admin.tsx                               (扩 用户 tab + Provider tab)
+apps/client/src/__tests__/admin-page.test.tsx                 (扩 用户列表 + provider 表格测试，或同级 admin-*.test.tsx)
+apps/client/src/api/admin.ts                                  (新建或扩：admin users/providers treaty 类型化 client，仅在需要时)
+apps/client/src/lib/admin-format.ts                           (新建：formatCents / formatLatencyMs helper，仅在需要时)
 docs/TODO.md
 CHANGELOG.md
 ```
@@ -124,312 +169,522 @@ Claude A 不要修改：
 
 ```txt
 docs/claude-parallel-plan.md
-packages/**                                     (本轮零 package 改动)
-apps/server/**                                  (本轮零 server 改动)
-apps/worker/**                                  (本轮零 worker 改动)
-apps/client/src/api/sse.ts                      (SSE 客户端不动)
-apps/client/src/api/client.ts                   (fetchCanvasPipelineRuns 已存在)
-apps/client/src/api/asset-library.ts
-apps/client/src/api/notifications.ts
-apps/client/src/api/api-keys.ts
-apps/client/src/api/billing.ts
-apps/client/src/lib/asset-library.ts
-apps/client/src/lib/notification-target.ts
-apps/client/src/lib/generation-utils.ts
-apps/client/src/lib/canvas-poll.ts
-apps/client/src/pages/**                        (本轮不动；CanvasEditor 仅消费 PipelineController，零改动)
-apps/client/src/components/canvas/**            (除 PipelineController.tsx；如必须改 CanvasFlow 等，先停止说明)
-apps/client/src/components/Navbar.tsx
-apps/client/src/components/ui/**
-apps/client/src/stores/**                       (本轮不动 store)
-apps/client/src/hooks/use-canvas-assets-polling.ts  (上一轮已动)
-apps/client/src/App.tsx
-apps/client/src/main.tsx
+packages/gateway/**                                           (Claude B 在动)
+packages/prompt-engine/**                                     (Claude B 在动)
+packages/metrics/**                                           (本轮零 metrics 改动)
+packages/provider/**
+packages/canvas-engine/**
+packages/canvas-runtime/**
+packages/events/**
+packages/workflow-engine/**
+packages/task-engine/**
+packages/rate-limit/**
+packages/subtitle-engine/**
+packages/auth/**
+packages/billing/**
+packages/ffmpeg/**
+packages/storage/**
+packages/db/src/schema/**                                     (本轮绝对零 schema 改动)
+packages/db/src/repositories/**（除 admin.repo.ts）
+packages/db/src/services/**
+apps/worker/**
+apps/server/src/modules/**
+apps/server/src/plugins/**
+apps/server/src/services/**（除 metrics.ts 最小 diff）
+apps/server/src/routes/**（除 admin.ts）
+apps/server/src/utils/**
+apps/server/src/config.ts                                     (除非要扩 ServerConfig；如改动需说明)
+apps/server/src/index.ts
+apps/server/test/**（除 admin-routes.test.ts）
+apps/client/src/api/client.ts
+apps/client/src/api/sse.ts
+apps/client/src/api/query-client.ts
+apps/client/src/stores/**
+apps/client/src/hooks/**（除新增 admin hook）
+apps/client/src/components/**（除新增 admin 组件）
+apps/client/src/pages/**（除 Admin.tsx）
+apps/client/src/lib/**（除新增 admin helper）
 apps/client/src/auth/**
-apps/client/src/test-setup.ts
+apps/client/src/main.tsx
+apps/client/src/App.tsx
+apps/client/package.json                                       (本轮零依赖新增；图表库 / 表格库不引)
+apps/client/bun.lockb
 ```
 
 如果必须修改边界外文件，**先停止并在最终回复说明原因**。
 
-## 第一步：调研 PipelineController 现有 polling 逻辑
+## 第一步：调研现有 admin 实现 + DB schema
 
-阅读 `apps/client/src/components/canvas/PipelineController.tsx` line 364-409 全文，确认：
+阅读以下文件，记录调用链和扩展点：
 
-1. 当前 polling 是怎么发起的（`fetchCanvasPipelineRuns(projectId)` + `setInterval(..., 3000)`）。
-2. `running` / `currentPhase` 状态切换时 polling 的启停行为（`useEffect` 依赖 + `cancelled` 标志 + `clearInterval`）。
-3. run 匹配规则：`activeRunIdRef.current` 优先精确匹配；缺省按 `phase.key + (succeeded|failed)` 模糊匹配。
-4. 命中 succeeded 时：`activeRunIdRef.current = null` → `onPhaseComplete()` → `setFailedPhaseIdx(-1)` → `advanceAfterPhase(currentPhase)`。
-5. 命中 failed 时：`setError(\`${phase.label} 失败: ${run.errorMessage || '未知错误'}\`)` + `setRunning(false)` + `setCurrentPhase(-1)` + `setFailedPhaseIdx(currentPhase)` + `setElapsed(0)` + `phaseStartedAtRef.current = 0` + `onPhaseChange?.(null)`，**不**调 `onPhaseComplete`。
-6. catch 块是静默兜底（`// 静默兜底：下一轮或 SSE 事件会继续接管状态。`）。
-7. `useEffect` 依赖数组：`[running, currentPhase, projectId, onPhaseComplete, onPhaseChange, advanceAfterPhase]`。
+1. `apps/client/src/pages/Admin.tsx` — 完整记录：当前 tab 结构（如果有）、useQuery 用法、过滤 / 排序 / 分页模式、与 `api.admin` treaty 调用方式、format helper 用法（formatCents / formatYuan 在哪里）。
+2. `apps/client/src/__tests__/admin-page.test.tsx`（或同级文件）— 记录既有测试模式（mock api 模式、query client mock、render 等待策略）。
+3. `apps/server/src/routes/admin.ts` — 已读：确认 derive 注入 `adminAllowed` / `adminDenied` + canAccessAdmin guard 模式。
+4. `apps/server/test/admin-routes.test.ts` — 记录既有测试结构（treaty<App>、makeAccount + signTestToken、admin user 模拟方式）。
+5. `packages/db/src/repositories/admin.repo.ts` — 已读：确认 `numberValue` / `iso` / `buildAdminTaskFilters` 模式。
+6. `packages/db/src/schema/credit.ts`（或 credit_accounts / credit_transactions / usage_events 所在 schema 文件）— 确认字段名（balanceCents / amountCents / category / model / costCents 等）。
+7. `packages/db/src/schema/generation-records.ts` — 确认 `cost` JSONB 字段结构（`inputTokens` / `outputTokens` / `totalPriceCents`）、`model` 字段、`status` 字段、`inputParams` JSONB（含 `requestedModel` / `source`）。
+8. `apps/server/src/services/metrics.ts` — 确认 `metricsCollector` 是模块级单例还是通过 config 传递；如果是单例，确认 export 方式（`export const metricsCollector` vs `export function getMetricsCollector()`）。
+9. `apps/client/src/api/` 下既有 admin api 调用（grep `api.admin`）— 确认 client 端调用方式（treaty `api.admin.overview.get()` 等）。
 
-把 polling 完整逻辑理清后再动手。**本轮目标是行为零变化**（同样的命中规则、同样的状态推进、同样的错误文案），只是把数据来源从 `setInterval` 改为 react-query。
+调研结论写入最终回复。
 
-## 第二步：在 query-client.ts 追加 query key 常量
+## 第二步：扩 packages/shared/src/admin.ts
 
-修改：
-
-```txt
-apps/client/src/api/query-client.ts
-```
-
-在 `canvasAssetsPollingQueryKeys` 之后追加：
+在既有文件末尾追加 DTO（不动既有 DTO）：
 
 ```ts
-export const canvasPipelineRunsQueryKeys = {
-  /** 单个项目的 pipeline-run 兜底轮询 query key；refetchInterval 由 hook 固定 3000ms */
-  poll: (projectId: string) => ['canvas-pipeline-runs-poll', projectId] as const,
-  /** 全部项目的 pipeline-run（用于全局 invalidate） */
-  all: ['canvas-pipeline-runs-poll'] as const,
+// ── 用户级运营统计 ──────────────────────────────────────────────────────────
+
+export interface AdminUserSummary {
+  id: string
+  username: string
+  email: string | null
+  isActive: boolean
+  createdAt: string
+  lastActivityAt: string | null  // 最近一条 generation_records.createdAt
+  creditBalanceCents: number     // 当前信用余额（从 credit_accounts.balanceCents 取）
+  totalCostCents: number         // 历史总成本
+  totalCalls: number             // 历史总调用次数（generation_records 计数）
+}
+
+export interface AdminUserDailyCost {
+  date: string        // YYYY-MM-DD
+  costCents: number
+  calls: number
+}
+
+export interface AdminUserModelBreakdown {
+  model: string
+  calls: number
+  costCents: number
+}
+
+export interface AdminUserRecentRecord {
+  id: string
+  model: string
+  status: string
+  costCents: number
+  createdAt: string
+}
+
+export interface AdminUserDetail {
+  summary: AdminUserSummary
+  dailyCost: AdminUserDailyCost[]      // 最近 30 天
+  modelBreakdown: AdminUserModelBreakdown[]  // 按模型分组（取前 10）
+  recentRecords: AdminUserRecentRecord[]     // 最近 10 条
+}
+
+export interface AdminUserListQuery {
+  search?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface AdminUserListResponse {
+  success: true
+  items: AdminUserSummary[]
+  total: number
+}
+
+export interface AdminUserDetailResponse {
+  success: true
+  data: AdminUserDetail
+}
+
+// ── Provider 错误率 / 模型成本 ──────────────────────────────────────────────
+
+export interface AdminProviderStatsItem {
+  model: string
+  category: string                 // text/image/video/subtitle
+  totalCalls: number
+  succeededCalls: number
+  failedCalls: number
+  failureRate: number              // 0~1
+  avgLatencyMs: number | null      // 来自 metricsCollector.snapshot.providerCalls；进程内重启归零
+  p50LatencyMs: number | null
+  p95LatencyMs: number | null
+  totalCostCents: number
+  totalInputTokens: number
+  totalOutputTokens: number
+}
+
+export interface AdminProviderStatsResponse {
+  success: true
+  windowHours: number
+  items: AdminProviderStatsItem[]
 }
 ```
 
 注意：
+- 所有时间字段 `toISOString()`，不允许 Date 对象泄露到 API 响应。
+- `failureRate` 是 0~1 浮点（前端 ×100 显示百分比）。
+- `avgLatencyMs` 等可能为 null（metricsCollector 进程刚启动未采样到该 model）。
 
-- 不要改既有 query keys 常量（包括上一轮加的 `canvasAssetsPollingQueryKeys`）。
-- 不要 import 任何业务模块；query-client.ts 应保持纯常量 + queryClient 实例。
+## 第三步：扩 packages/db/src/repositories/admin.repo.ts
 
-## 第三步：新建 useCanvasPipelineRunsPolling hook
+新增三个函数。所有 SQL 用 Drizzle query builder + `sql<number>` 模板，沿用既有 `numberValue()` / `iso()` helper：
 
-新建：
-
-```txt
-apps/client/src/hooks/use-canvas-pipeline-runs-polling.ts
-```
-
-骨架（最终实现可能略有差异）：
+### 3a. `listAdminUsers(query)`
 
 ```ts
-import type { CanvasPipelineRun } from '@excuse/shared'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import { fetchCanvasPipelineRuns } from '@/api/client'
-import { canvasPipelineRunsQueryKeys } from '@/api/query-client'
-import { useRealtimeSync } from '@/stores/realtime-sync'
-
-/** Pipeline-run 兜底轮询间隔（ms），与原 PipelineController 内 setInterval 一致 */
-const PIPELINE_RUNS_POLL_INTERVAL_MS = 3000
-
-export interface UseCanvasPipelineRunsPollingOptions {
-  /** 是否启用轮询；通常 = `running && currentPhase >= 0` */
-  enabled: boolean
+export interface AdminUserListQuery {
+  search?: string
+  isActive?: boolean
+  limit?: number
+  offset?: number
 }
 
-/**
- * 兜底轮询 Canvas pipeline runs。
- *
- * 设计约束：
- * - SSE 主路径（`phaseDone` 事件）由 `useRealtimeSync` 接管并直接驱动 onPhaseComplete；
- *   本 hook 仅作为 SSE 断线 / 漏事件时的兜底，避免自动执行卡在 running。
- * - 不暴露业务推进逻辑（advance / setError）：消费方在 useEffect 里 watch `runs`，
- *   按 `activeRunId` 或 `phase.key + status` 命中规则推进，行为与原 setInterval 实现一致。
- * - `projectVersion` 变化时主动 invalidate，让 SSE 事件也能立刻触发一次 fetch（与 canvas 资产轮询一致）。
- */
-export function useCanvasPipelineRunsPolling(
-  projectId: string | undefined,
-  options: UseCanvasPipelineRunsPollingOptions,
-) {
-  const queryClient = useQueryClient()
-  const projectVersion = useRealtimeSync(s => projectId ? s.projectVersions[projectId] : 0)
+export async function listAdminUsers(
+  query: AdminUserListQuery = {},
+): Promise<{ items: AdminUserSummaryRow[], total: number }> {
+  const limit = Math.min(Math.max(query.limit ?? 20, 1), 100)
+  const offset = Math.max(query.offset ?? 0, 0)
 
-  const enabled = Boolean(projectId) && options.enabled
+  const conditions: SQL[] = []
+  if (query.isActive !== undefined) conditions.push(eq(accounts.isActive, query.isActive))
+  const search = query.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    conditions.push(or(ilike(accounts.username, pattern), ilike(accounts.email, pattern))!)
+  }
+  const where = conditions.length > 0 ? and(...conditions) : undefined
 
-  const queryKey = projectId
-    ? canvasPipelineRunsQueryKeys.poll(projectId)
-    : ['canvas-pipeline-runs-poll', 'disabled'] as const
-
-  const query = useQuery<CanvasPipelineRun[]>({
-    queryKey,
-    queryFn: () => fetchCanvasPipelineRuns(projectId!),
-    enabled,
-    refetchInterval: enabled ? PIPELINE_RUNS_POLL_INTERVAL_MS : false,
-    placeholderData: prev => prev, // 保持上一份数据，避免轮询时 UI 闪烁
-    staleTime: 0, // 每次都重新请求（与原 polling 行为一致）
-    gcTime: 30_000, // 项目切换后保留 30s，便于回切时秒显
-  })
-
-  // projectVersion 变化时（SSE 事件触发）→ invalidateQueries
-  useEffect(() => {
-    if (!projectId || projectVersion === 0)
-      return
-    queryClient.invalidateQueries({ queryKey: canvasPipelineRunsQueryKeys.poll(projectId) })
-  }, [projectVersion, projectId, queryClient])
+  // 一次 join 查询：accounts LEFT JOIN credit_accounts + 子查询聚合 generation_records
+  const [rows, totalRows] = await Promise.all([
+    getDb()
+      .select({
+        id: accounts.id,
+        username: accounts.username,
+        email: accounts.email,
+        isActive: accounts.isActive,
+        createdAt: accounts.createdAt,
+        creditBalanceCents: sql<number>`coalesce(${creditAccounts.balanceCents}, 0)::int`,
+        totalCostCents: sql<number>`coalesce(agg.total_cost, 0)::int`,
+        totalCalls: sql<number>`coalesce(agg.total_calls, 0)::int`,
+        lastActivityAt: sql<Date | null>`agg.last_activity`,
+      })
+      .from(accounts)
+      .leftJoin(creditAccounts, eq(creditAccounts.accountId, accounts.id))
+      .leftJoin(sql`(SELECT account_id, sum(total_price_cents)::int AS total_cost, count(*)::int AS total_calls, max(created_at) AS last_activity FROM generation_records GROUP BY account_id) AS agg`, sql`agg.account_id = ${accounts.id}`)
+      .where(where)
+      .orderBy(desc(accounts.createdAt))
+      .limit(limit)
+      .offset(offset),
+    getDb()
+      .select({ count: sql<number>`count(*)::int` })
+      .from(accounts)
+      .where(where),
+  ])
 
   return {
-    /** 最新一次轮询拿到的 runs；首轮未完成时为 undefined */
-    runs: query.data,
-    /** 是否正在拉取（含初次 + refetch），等价于原 polling 的"正在轮询"语义 */
-    isPolling: query.isFetching,
+    items: rows.map(row => ({
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      isActive: row.isActive,
+      createdAt: iso(row.createdAt)!,
+      creditBalanceCents: numberValue(row.creditBalanceCents),
+      totalCostCents: numberValue(row.totalCostCents),
+      totalCalls: numberValue(row.totalCalls),
+      lastActivityAt: iso(row.lastActivityAt),
+    })),
+    total: numberValue(totalRows[0]?.count),
   }
 }
 ```
 
-实现要点：
+注意：实际 column 名以 schema 为准（`balanceCents` / `balance_cents`、`accountId` / `account_id`），调研后调整。如果不熟悉 Drizzle 的 LATERAL join 语法，可改为先查 accounts、再 Promise.all 批量查 credit + generation 聚合，JavaScript 层做 join（更简单但 SQL 数多一些）。
 
-- **返回 shape 极简**：只暴露 `{ runs, isPolling }`；业务推进逻辑留在消费方。
-- `enabled` 由调用方传入（`running && currentPhase >= 0`）；hook 内部加 `projectId` 守卫。
-- `refetchInterval` 用 `enabled ? 3000 : false` 切换；不需要根据 activeTasks 动态计算（pipeline-run 不是 idle/polling 双语义）。
-- `placeholderData: prev => prev` 保持上一份数据，等价于原 setInterval 的"轮询时不清空"。
-- 不要在 hook 内部直接订阅 phaseDone（保持职责单一；phaseDone 由 PipelineController 自己消费 useRealtimeSync）。
-
-注意：
-
-- 如果原 polling 还有「组件卸载时停止」逻辑，react-query 自动处理（useQuery 卸载即停止 refetch）。
-- 如果原 polling 有「projectId 变化时立即重新拉」语义，react-query 通过 queryKey 变化自动触发新 query。
-- 不要新增其他 hook / store；本轮只新建 useCanvasPipelineRunsPolling。
-
-## 第四步：改造 PipelineController.tsx 用新 hook
-
-修改：
-
-```txt
-apps/client/src/components/canvas/PipelineController.tsx
-```
-
-**删除** line 363-409 的整个 `useEffect`（SSE 兜底 polling），替换为：
+### 3b. `getAdminUserDetail(accountId)`
 
 ```ts
-// SSE 是主路径；polling 用作兜底，避免断线或漏事件时自动执行卡在 running。
-const { runs: polledRuns } = useCanvasPipelineRunsPolling(projectId, {
-  enabled: running && currentPhase >= 0,
-})
-
-// watch polledRuns，命中 succeeded/failed 时推进状态（行为与原 setInterval 一致）
-useEffect(() => {
-  if (!running || currentPhase < 0)
-    return
-  const phase = PHASES[currentPhase]
-  if (!phase || !polledRuns)
-    return
-
-  const runId = activeRunIdRef.current
-  const run = runId
-    ? polledRuns.find(r => r.id === runId)
-    : polledRuns.find(r => r.phase === phase.key && (r.status === 'succeeded' || r.status === 'failed'))
-
-  if (!run)
-    return
-
-  if (run.status !== 'succeeded' && run.status !== 'failed')
-    return
-
-  activeRunIdRef.current = null
-  onPhaseComplete()
-
-  if (run.status === 'failed') {
-    setError(`${phase.label} 失败: ${run.errorMessage || '未知错误'}`)
-    setRunning(false)
-    setCurrentPhase(-1)
-    setFailedPhaseIdx(currentPhase)
-    setElapsed(0)
-    phaseStartedAtRef.current = 0
-    onPhaseChange?.(null)
-    return
-  }
-
-  setFailedPhaseIdx(-1)
-  advanceAfterPhase(currentPhase)
-}, [polledRuns, running, currentPhase, onPhaseComplete, onPhaseChange, advanceAfterPhase])
+export async function getAdminUserDetail(
+  accountId: string,
+): Promise<AdminUserDetailRow | null> {
+  // 1. 单用户 summary（与 listAdminUsers 单条同 shape）
+  // 2. 30 天 daily cost：GROUP BY date_trunc('day', created_at), 表产出 { date, costCents, calls }
+  // 3. 模型分组：GROUP BY model, 按 costCents desc 取前 10
+  // 4. 最近 10 条 generation_records：id / model / status / totalPriceCents / createdAt
+  // 全部 Promise.all 并发
+}
 ```
 
-实现要点：
+如果用户不存在，返回 null（route 层 404）。
 
-- **保留原命中规则**：`activeRunIdRef.current` 优先精确匹配，否则按 `phase.key + (succeeded|failed)` 模糊匹配。
-- **保留原错误文案**：`${phase.label} 失败: ${run.errorMessage || '未知错误'}`。
-- **保留原状态推进**：失败时 setRunning(false) + setCurrentPhase(-1) + setFailedPhaseIdx(currentPhase) + setElapsed(0) + phaseStartedAtRef.current = 0 + onPhaseChange?.(null)，不调 onPhaseComplete；成功时 setFailedPhaseIdx(-1) + advanceAfterPhase。
-- **保留 catch 静默语义**：react-query 的 queryFn 抛错会进 `query.error`，不进 `query.data`；消费方仅看 `runs`，等同于原 catch 静默兜底。**不需要额外处理**。
-- **依赖数组**：与原 useEffect 一致（`[running, currentPhase, projectId, onPhaseComplete, onPhaseChange, advanceAfterPhase]` 替换为 `[polledRuns, running, currentPhase, onPhaseComplete, onPhaseChange, advanceAfterPhase]`；`projectId` 由 hook 内部处理）。
+### 3c. `getAdminProviderStats(windowHours)`
+
+**重要**：repository 层只出 DB 部分（per-model count + cost + tokens），latency 部分由 server route 从 `metricsCollector.snapshot().providerCalls` 注入并合并。
+
+```ts
+export interface AdminProviderStatsDbRow {
+  model: string
+  category: string                  // 从 generation_records.category 取
+  totalCalls: number
+  succeededCalls: number
+  failedCalls: number
+  totalCostCents: number
+  totalInputTokens: number
+  totalOutputTokens: number
+}
+
+export async function getAdminProviderStats(
+  windowHours: number = 24,
+): Promise<AdminProviderStatsDbRow[]> {
+  return getDb()
+    .select({
+      model: generationRecords.model,
+      category: generationRecords.category,
+      totalCalls: sql<number>`count(*)::int`,
+      succeededCalls: sql<number>`count(*) filter (where ${generationRecords.status} = 'succeeded')::int`,
+      failedCalls: sql<number>`count(*) filter (where ${generationRecords.status} = 'failed')::int`,
+      totalCostCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+      totalInputTokens: sql<number>`coalesce(sum((${generationRecords.cost}->>'inputTokens')::numeric), 0)::int`,
+      totalOutputTokens: sql<number>`coalesce(sum((${generationRecords.cost}->>'outputTokens')::numeric), 0)::int`,
+    })
+    .from(generationRecords)
+    .where(sql`${generationRecords.createdAt} > now() - interval '${sql.raw(String(windowHours))} hours'`)
+    .groupBy(generationRecords.model, generationRecords.category)
+    .orderBy(desc(sql`count(*)`))
+}
+```
 
 注意：
+- `interval '${windowHours} hours'` 必须用 `sql.raw(String(windowHours))` 防 SQL 注入；windowHours 已被 route 层 normalize 到整数。
+- `cost->>'inputTokens'` 是 JSONB 字段访问；用 `::numeric` cast 才能 sum。
+- 如果 schema 中 cost 字段名不是 `cost`（可能是 `costJson` 或在 `inputParams`），调研后调整。
 
-- 不要改 line 149-211 的 mount restore 逻辑（一次性恢复，不是轮询）。
-- 不要改 line 411-446 的 PAUSE_BEFORE / elapsed timer 逻辑（不是轮询）。
-- 不要改 line 232-269 的 triggerPhase 逻辑（不是轮询）。
-- 不要改 PHASES 元数据 / getPhaseIndex / RunningPhaseInfo 类型。
+## 第四步：扩 apps/server/src/routes/admin.ts
 
-## 第五步：检查 CanvasEditor 等消费方
+新增三个 endpoint：
 
-确认 PipelineController 的 props 接口不变（`projectId / project / modelPreferences / onPhaseComplete / onPhaseChange / phaseDone / onPhaseDoneConsumed`），消费方 CanvasEditor 不需要改：
-
-```bash
-grep -rn "PipelineController" apps/client/src/
+```ts
+.get('/users', async ({ adminAllowed, adminDenied, query }) => {
+  if (!adminAllowed) return adminDenied()
+  const result = await listAdminUsers({
+    search: query.search,
+    isActive: query.isActive,
+    limit: query.limit,
+    offset: query.offset,
+  })
+  return { success: true, items: result.items, total: result.total } satisfies AdminUserListResponse
+}, {
+  query: t.Object({
+    search: t.Optional(t.String()),
+    isActive: t.Optional(t.Boolean()),
+    limit: t.Optional(t.Numeric()),
+    offset: t.Optional(t.Numeric()),
+  }),
+  detail: { summary: '查询用户列表', tags: ['管理后台'], security: [{ bearerAuth: [] }] },
+})
+.get('/users/:id', async ({ adminAllowed, adminDenied, params, set }) => {
+  if (!adminAllowed) return adminDenied()
+  const detail = await getAdminUserDetail(params.id)
+  if (!detail) return notFound(set, '用户不存在')
+  return { success: true, data: detail } satisfies AdminUserDetailResponse
+}, {
+  params: t.Object({ id: t.String() }),
+  detail: { summary: '查询用户详情', tags: ['管理后台'], security: [{ bearerAuth: [] }] },
+})
+.get('/providers', async ({ adminAllowed, adminDenied, query }) => {
+  if (!adminAllowed) return adminDenied()
+  const windowHours = Math.min(Math.max(Number(query.windowHours ?? 24), 1), 24 * 30)  // 1h ~ 30d
+  const dbRows = await getAdminProviderStats(windowHours)
+  const providerCalls = metricsCollector.snapshot(0, 0).providerCalls  // 单例 import
+  // 合并：DB 出 cost/count + metrics 出 latency
+  const items: AdminProviderStatsItem[] = dbRows.map((row) => {
+    const stats = providerCalls[row.model]
+    return {
+      model: row.model,
+      category: row.category,
+      totalCalls: row.totalCalls,
+      succeededCalls: row.succeededCalls,
+      failedCalls: row.failedCalls,
+      failureRate: row.totalCalls > 0 ? row.failedCalls / row.totalCalls : 0,
+      avgLatencyMs: stats ? average(stats.durations) : null,
+      p50LatencyMs: stats ? percentile(stats.durations, 0.5) : null,
+      p95LatencyMs: stats ? percentile(stats.durations, 0.95) : null,
+      totalCostCents: row.totalCostCents,
+      totalInputTokens: row.totalInputTokens,
+      totalOutputTokens: row.totalOutputTokens,
+    }
+  })
+  return { success: true, windowHours, items } satisfies AdminProviderStatsResponse
+}, {
+  query: t.Object({
+    windowHours: t.Optional(t.Numeric()),
+  }),
+  detail: { summary: '查询 provider 错误率与模型成本统计', tags: ['管理后台'], security: [{ bearerAuth: [] }] },
+})
 ```
 
-如果消费方仅通过 props 传递数据，**不需要修改消费方**。
+注意：
+- `notFound` helper 在 `apps/server/src/utils/errors.ts`，已有 import 模式参考 `forbidden` / `conflict`。
+- `average` / `percentile` helper：如果 `packages/metrics` 已导出（`aggregateProviderMetrics` 用过），优先 import；否则在 route 文件内 inline 两个小函数。
+- `metricsCollector.snapshot(0, 0)` 的参数是 `(onlineUsers, uptime)`；这两个字段在 admin route 中无意义，传 0 即可，只取 `providerCalls` 字段。
+- 检查 `metricsCollector` 是否 export：如果是 `export const metricsCollector = ...`，直接 import；如果是 `class MetricsCollector` + 模块内 `const metricsCollector = new MetricsCollector()`，也直接 import。如果 `metrics.ts` 不 export 单例，本步骤需要 minimal 扩 export（这一改动算在允许范围内）。
 
-如果发现 PipelineController 暴露的 API 必须扩（如新增 ref / imperative handle），**先停止并在最终回复说明**，列出额外字段，决定是否扩 props 或调整。
+## 第五步：扩 apps/client/src/pages/Admin.tsx
 
-**本轮目标是消费方零改动**；如果做不到，最小化消费方 diff（仅调整字段名 / 类型）。
+调研 `Admin.tsx` 当前结构（第一步已调研），按以下原则扩：
 
-## 第六步：补 hook 单元测试
+### 5a. tab 结构
 
-新建：
+如果当前是单页无 tab：在最外层加 shadcn `Tabs`，三个 tab：概览 / 用户 / Provider。
+如果当前已经有 tab：扩两个 tab。
 
-```txt
-apps/client/src/hooks/use-canvas-pipeline-runs-polling.test.ts
-（或 apps/client/test/canvas-pipeline-runs-polling.test.ts，按 vitest config 现有约定）
+### 5b. 用户 tab
+
+```tsx
+function AdminUsersTab() {
+  const [search, setSearch] = useState('')
+  const [isActive, setIsActive] = useState<boolean | undefined>(undefined)
+  const [page, setPage] = useState(0)
+  const debouncedSearch = useDebounce(search, 300)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin', 'users', { debouncedSearch, isActive, page }],
+    queryFn: () => api.admin.users.get({ query: { search: debouncedSearch, isActive, limit: 20, offset: page * 20 } }),
+    refetchInterval: 30_000,
+  })
+
+  // 表格：username / email / 状态 / 余额 / 总成本 / 总调用 / 最近活动
+  // 行点击 → setSelectedUserId → 打开 detail dialog 或 drawer
+}
+
+function AdminUserDetailDialog({ userId, onClose }) {
+  const { data } = useQuery({
+    queryKey: ['admin', 'users', userId],
+    queryFn: () => api.admin.users({ id: userId }).get(),
+    enabled: !!userId,
+  })
+  // daily cost 趋势：30 个 bar，宽度按 costCents / max
+  // model breakdown 表格
+  // recent records 表格
+}
 ```
+
+### 5c. Provider tab
+
+```tsx
+function AdminProvidersTab() {
+  const [windowHours, setWindowHours] = useState(24)
+  const { data } = useQuery({
+    queryKey: ['admin', 'providers', windowHours],
+    queryFn: () => api.admin.providers.get({ query: { windowHours } }),
+    refetchInterval: 30_000,
+  })
+  // 表格：model / category / totalCalls / succeeded / failed / failureRate(%) / avg/p50/p95 latency / totalCost / tokens
+  // 默认按 totalCalls desc（DB 已 ORDER BY）；列头排序留 TODO
+}
+```
+
+### 5d. format helper
+
+如果 `apps/client/src/lib/` 已有 `formatCents` / `formatYuan` / `formatMs`，复用；否则 inline：
+
+```ts
+function formatCents(cents: number): string {
+  return `¥${(cents / 100).toFixed(2)}`
+}
+function formatMs(ms: number | null): string {
+  if (ms === null) return '—'
+  return ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`
+}
+function formatPercent(rate: number): string {
+  return `${(rate * 100).toFixed(1)}%`
+}
+```
+
+## 第六步：补测试
+
+### 6a. packages/db/test/admin-users-providers.repo.test.ts（新建）
 
 至少覆盖：
+1. `listAdminUsers` 空表 → items=[], total=0。
+2. `listAdminUsers` 单用户 + 单 generation_record → totalCostCents / totalCalls 正确。
+3. `listAdminUsers` search 匹配 username / email。
+4. `listAdminUsers` isActive 过滤。
+5. `listAdminUsers` 分页：limit=2 + offset=0/2。
+6. `getAdminUserDetail` 不存在的 accountId → null。
+7. `getAdminUserDetail` daily cost 30 天聚合（构造跨日 record）。
+8. `getAdminProviderStats` 多 model 分组、succeeded/failed count 正确、windowHours 过滤。
 
-1. **enabled=true** → useQuery 启动 + `refetchInterval=3000`（用 `vi.useFakeTimers` 推进 + `mockFetchCanvasPipelineRuns` 断言调用次数）。
-2. **enabled=false**（如 `running=false`）→ useQuery 不启动 + `runs=undefined`。
-3. **projectId 切换** → queryKey 切换，触发新 fetch（mock 返回不同 runs）。
-4. **projectVersion 变化** → `invalidateQueries` 被调用（用 `queryClient.invalidateQueries` spy）。
-5. **placeholderData**：第一次 fetch 完成前 `runs=undefined`；fetch 完成后变为数据；refetch 时 `runs` 不会回退到 undefined。
-6. **返回 shape**：`{ runs, isPolling }` 2 个字段都存在；`isPolling` 在 fetch 期间为 true。
-7. **mock fetchCanvasPipelineRuns 抛错** → `runs` 保持 undefined（兜底静默，不抛到消费方）。
+测试用 transaction-scoped fixture（既有 packages/db/test 模式）。
 
-测试注意：
+### 6b. apps/server/test/admin-routes.test.ts（扩）
 
-- 用 `@testing-library/react` 的 `renderHook` + `waitFor` 测异步行为。
-- mock `fetchCanvasPipelineRuns`（vitest mock）。
-- 用 `QueryClientProvider` 包裹 hook，配置 `staleTime: 0` 等测试友好参数。
-- mock `useRealtimeSync` 的 `projectVersion`（不要测真实 SSE）。
-- 用 `vi.useFakeTimers` + `vi.advanceTimersByTime(3000)` 推进 refetchInterval；或用 `waitFor` 等真实 setTimeout。
+至少覆盖：
+1. `GET /api/admin/users` 非 admin 用户 → 403。
+2. `GET /api/admin/users` admin 用户 → 200 + items shape。
+3. `GET /api/admin/users/:id` 不存在 → 404。
+4. `GET /api/admin/users/:id` 存在 → 200 + detail shape。
+5. `GET /api/admin/providers` mock metricsCollector.snapshot 返回 fixture providerCalls → 200 + items 含 avgLatencyMs。
+6. `GET /api/admin/providers` windowHours 越界（< 1 / > 720）→ 自动 clamp。
+
+mock metricsCollector：在 `apps/server/test/helpers/test-factory.ts` 已有 mock 模式，参考既有 metrics.test.ts mock 方式。
+
+### 6c. apps/client admin-page test（扩）
+
+至少覆盖：
+1. 用户 tab 渲染 → 表格头部 + 数据行。
+2. 搜索输入 → debouncedSearch 触发 query（用 `waitFor`）。
+3. 行点击 → detail dialog 打开。
+4. Provider tab 渲染 → 表格行 + windowHours 切换触发 query。
+5. 余额 / 成本 / 延迟格式化正确。
 
 ## 第七步：更新 TODO 和 CHANGELOG
 
 修改 `docs/TODO.md`：
 
-- 在 P4.1 第 2 条「`@tanstack/react-query`」下方追加一行（不删条目）：
+- P3.2 第 2 条「用户余额明细、用户级用量和成本统计」：
 
-```txt
-   - ✅ Canvas 资产轮询、CanvasEditor 项目刷新、PipelineController 兜底轮询已迁移到 react-query（commit: `<本轮 hash>`）。
-```
+  原：
+  ```txt
+  - 用户余额明细、用户级用量和成本统计（全局用户 / 成本摘要已完成）。
+  ```
+  改为：
+  ```txt
+  - ✅ 用户级用量和成本统计（admin 后台新增「用户」tab + 用户详情：余额 / 30 天成本趋势 / 模型分解 / 最近记录；commit: `<本轮 hash>`）。
+  ```
 
-- 不要碰 P0 / P1 / P2 / P3 / P4 其他章节，避免与 Claude B 在 metrics 区域的修改撞行。
-- 不要碰 P2.5 Metrics 章节（Claude B 当前在动）。
+- P3.2 第 5 条「provider 错误率和模型成本统计」：**整条删除**（本轮完成）。
+
+- 不要碰 P0 / P1 / P2 / P3.1 / P4 / P5 章节，避免与 Claude B 在 P4.1 zod 章节的修改撞行。
+- 不要碰 P4.1 zod 章节（Claude B 当前在动）。
 
 修改根目录 `CHANGELOG.md`：
 
-- 在 `[Unreleased]` 的 Changed 区追加：
+- 在 `[Unreleased]` 的 Added 区追加：
 
 ```txt
-- Canvas pipeline-run 兜底轮询改造为 react-query：`apps/client/src/components/canvas/PipelineController.tsx` line 364-409 手写 `setInterval` + `useEffect` 重写为消费新建 hook `useCanvasPipelineRunsPolling`（`apps/client/src/hooks/use-canvas-pipeline-runs-polling.ts`），hook 用 `useQuery` + `refetchInterval=3000` + `placeholderData` 保持上一份数据；命中 succeeded/failed 的状态推进逻辑（按 `activeRunIdRef` 精确 / `phase.key + status` 模糊匹配 + 失败文案 `${phase.label} 失败: ${errorMessage || '未知错误'}`）迁移到消费方 watch `runs` 的 useEffect，行为零变化；`apps/client/src/api/query-client.ts` 追加 `canvasPipelineRunsQueryKeys` 常量；`projectVersion` 变化通过 `queryClient.invalidateQueries` 走 react-query 统一失效路径；补 hook 单元测试覆盖 enabled 切换 / projectId 切换 / projectVersion invalidate / placeholderData / 错误兜底（commit: `<本轮 hash>`）。
+- 管理后台运营统计深化（用户级用量 + provider 错误率/成本统计）：`packages/shared/src/admin.ts` 新增 `AdminUserSummary` / `AdminUserDetail` / `AdminProviderStatsItem` 等 DTO；`packages/db/src/repositories/admin.repo.ts` 新增 `listAdminUsers`（join accounts + credit_accounts + 子查询聚合 generation_records，支持 search/isActive/分页）/ `getAdminUserDetail`（30 天 daily cost + 模型分解 + 最近 10 条 record）/ `getAdminProviderStats(windowHours)`（DB 部分：per-model count/cost/tokens）；`apps/server/src/routes/admin.ts` 新增 `GET /api/admin/users` + `GET /api/admin/users/:id` + `GET /api/admin/providers`，providers 端点在 route 层合并 DB 数据与 `metricsCollector.snapshot().providerCalls`（avgLatencyMs / p50LatencyMs / p95LatencyMs）；`apps/client/src/pages/Admin.tsx` 扩「用户」tab（表格 + 搜索 + 状态过滤 + 分页 + 用户详情 dialog）+「Provider」tab（表格 + windowHours 切换），复用既有 useQuery + 30s 刷新，零图表库依赖（30 天趋势用纯 CSS bar）；补 packages/db admin-users-providers repo 测试 + apps/server admin-routes 测试 + apps/client admin-page 测试（commit: `<本轮 hash>`）。
 ```
 
 - 写入本轮 commit 短 hash（commit 完成后回填）。
 
 如果文档与 Claude B 冲突：
 
-- 不要覆盖 Claude B 的 metrics 记录。
+- 不要覆盖 Claude B 的 zod 迁移记录。
 - 可以先提交代码，文档冲突在最终回复里说明。
 
 ## 验证命令
 
-至少运行：
+至少运行（**server test 必须加 `--isolate`**）：
 
 ```bash
-bun run --cwd apps/client test -- use-canvas-pipeline-runs-polling
-bun run --cwd apps/client typecheck
+bun test packages/db/test/admin-users-providers.repo.test.ts   # 如有 PG
+bun test --isolate apps/server/test/admin-routes.test.ts
+bun run --cwd apps/client vitest src/__tests__/admin-page.test.tsx
+bun run typecheck
 ```
 
 如时间允许，再运行：
 
 ```bash
-bun run typecheck
 bun run lint
+bun run --cwd apps/server test --isolate
 bun run --cwd apps/client test
 ```
 
@@ -438,43 +693,49 @@ bun run --cwd apps/client test
 ## 推荐 commit
 
 ```bash
-git add apps/client/src/components/canvas/PipelineController.tsx \
-  apps/client/src/hooks/use-canvas-pipeline-runs-polling.ts \
-  apps/client/src/hooks/use-canvas-pipeline-runs-polling.test.ts \
-  apps/client/src/api/query-client.ts \
+git add packages/shared/src/admin.ts \
+  packages/db/src/repositories/admin.repo.ts \
+  packages/db/test/admin-users-providers.repo.test.ts \
+  apps/server/src/routes/admin.ts \
+  apps/server/src/services/metrics.ts \
+  apps/server/test/admin-routes.test.ts \
+  apps/client/src/pages/Admin.tsx \
+  apps/client/src/__tests__/admin-page.test.tsx \
+  apps/client/src/api/admin.ts \
+  apps/client/src/lib/admin-format.ts \
   docs/TODO.md \
   CHANGELOG.md
 
 git diff --name-only --cached
 ```
 
-⚠️ 如果第五步发现必须改 `CanvasEditor.tsx` 或其他边界外文件，把该文件加入 add 列表；但**仅限最小 diff**，并在最终回复说明原因。
+⚠️ 如果 client 端 admin api helper / format helper 不需要新建（已有同等 helper），从 add 列表删除对应文件。如果 `apps/server/src/services/metrics.ts` 不需要扩 export，从 add 列表删除。**仅限最小 diff**。
 
 **强制检查**：commit 前必须确认 `git diff --name-only --cached` 输出**不包含**：
 
-- `packages/`（任何路径）
-- `apps/server/`（任何路径）
+- `packages/gateway/`（任何路径）
+- `packages/prompt-engine/`（任何路径）
+- `packages/metrics/src/`（任何路径，本轮零 metrics 内部改动）
+- `packages/provider/`（任何路径）
+- `packages/db/src/schema/`（任何路径）
 - `apps/worker/`（任何路径）
-- `apps/client/src/api/sse.ts`
-- `apps/client/src/api/client.ts`
-- `apps/client/src/stores/realtime-sync.ts`（如未修改，不要 add）
-- `apps/client/src/pages/Assets.tsx`
-- `apps/client/src/pages/CanvasEditor.tsx`（如未修改，不要 add）
-- `apps/client/src/components/canvas/`（除 `PipelineController.tsx`）
-- `apps/client/src/hooks/use-canvas-assets-polling.ts`
+- `apps/server/src/modules/` / `plugins/` / `routes/`（除 `admin.ts`）/ `utils/`（任何路径）
+- `apps/client/src/pages/`（除 `Admin.tsx`）
+- `apps/client/src/stores/` / `hooks/`（除新增 admin hook）/ `components/`（除新增 admin 组件）
+- `apps/client/package.json` / `bun.lockb`（本轮零新增依赖）
 
 确认无误后提交：
 
 ```bash
-git commit -m "refactor(canvas): migrate pipeline-run fallback polling to react-query"
+git commit -m "feat(admin): add user-level usage and provider stats endpoints and UI"
 ```
 
 最终回复必须包含：
 
 - 本轮 commit hash。
-- 实际运行的验证命令（特别是 client typecheck 输出）。
+- 实际运行的验证命令（特别是 admin-routes test + client admin-page test 输出）。
 - `git diff --name-only --cached` 的最终输出（证明未跨界）。
-- 第一步「调研」结果：原 polling 的关键命中规则（activeRunId 精确 vs phase.key 模糊）、错误文案、状态推进顺序。
-- 第五步「消费方」结果：CanvasEditor 等消费方是否需要改动，原因。
-- 一个真实的命中示例（来自不同 currentPhase + run.status 组合），便于后续维护。
+- 第一步「调研」结果：Admin.tsx 当前 tab 结构、metricsCollector export 方式、credit_accounts / generation_records 字段名。
+- 第三步 repository 实现：`listAdminUsers` 的 join 策略（单 SQL vs 多 SQL JS-join）、`getAdminProviderStats` 的 interval 注入方式。
+- 第四步 route 层 provider metrics 合并的真实输出示例（含一条 fixture 模型的 cost + latency）。
 - 与 Claude B 是否有冲突（特别是 `docs/TODO.md` / `CHANGELOG.md`）。

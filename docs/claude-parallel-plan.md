@@ -1,128 +1,148 @@
-# Claude B 下一轮执行计划：Canvas 阶段耗时 + 任务队列积压 Prometheus 指标
+# Claude B 下一轮执行计划：成熟库 zod runtime 校验迁移第一批（packages/gateway + packages/prompt-engine）
 
-更新时间：2026-06-14
+更新时间：2026-06-15
 
-本文给 Claude B 执行。Claude A 当前在处理 **Canvas PipelineController 兜底轮询迁移到 react-query**（`apps/client/src/components/canvas/PipelineController.tsx` line 364-409 的 `setInterval` 抽到新建 hook `useCanvasPipelineRunsPolling` + `apps/client/src/api/query-client.ts` 追加 `canvasPipelineRunsQueryKeys` 常量），Claude B 本轮收口 P2.5「Metrics / Health」第一条待办中两个子项「任务队列积压」+「Canvas 阶段耗时」：把这两个 DB 派生指标接到 Prometheus 输出，让 `/metrics` 能回答「队列有多少 pending/running/retrying 任务」「Canvas 各阶段 p50/p95/avg 耗时与成功失败计数」。不要碰资产中心、Canvas 客户端、API Key 页面、worker 运行时、Gateway、Provider。
+本文给 Claude B 执行。Claude A 当前在处理 **P3.2 管理后台运营统计深化**（`packages/shared/src/admin.ts` + `packages/db/src/repositories/admin.repo.ts` + `apps/server/src/routes/admin.ts` + `apps/client/src/pages/Admin.tsx` 扩用户列表 + provider 指标 tab），Claude B 本轮推进 P4.1「成熟库优先使用」第 4 条「`zod` / `valibot` / `arktype`」第一批：把 `packages/gateway` 和 `packages/prompt-engine` 这两个「外部输入 → 类型化对象」边界从「裸 cast / 手写校验」改为 zod parse + 类型守卫。
+
+不要碰 apps/client、apps/server、apps/worker、packages/metrics、packages/provider、packages/db、packages/shared、packages/canvas-runtime、Canvas 客户端、表单页面。
 
 ## 上轮复核结论（已通过）
 
 上一轮 Claude B 完成并提交：
 
-- `63c6e9f refactor(gateway): extract error factories for openai gateway route`
-- `6e231e3 docs(changelog): backfill gateway error factory commit hash`
+- `9b0a37a feat(metrics): add provider error rate + model latency metrics`
+- `b3f5795 docs(changelog): backfill provider metrics commit hash`
 
 复核结果：
 
-- `packages/gateway/test/index.test.ts` + `apps/server/test/openai-gateway.test.ts`：48 pass / 0 fail / 209 expect() calls（含 7 个新工厂单元测试 + 既有 7 条错误码响应矩阵继续通过）。
+- `packages/metrics/src/index.ts`：`MetricsCollector` 新增 `recordProviderCall(model, durationMs, success)`；`MetricsSnapshot` 新增 `providerCalls` 字段；durations 数组限 1000 样本 FIFO 截断。
+- `packages/metrics/src/provider-derived.ts`：新建纯聚合函数 `aggregateProviderMetrics`（接 providerCalls → Prometheus metric family `excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`）。
+- `packages/metrics/src/prometheus.ts`：`snapshotToPrometheus` 内部合并 provider metrics。
+- `packages/provider/src/dashscope-client.ts`：新增 module-level `registerProviderCallObserver` hook 机制（不依赖 `@excuse/metrics`，由 app 注入回调），三类 public 方法（chatCompletion / generateImage / submitVideoTask）在成功 / HTTP 错误 / 网络异常 / 业务失败路径埋点。
+- `apps/server/src/services/metrics.ts` + `apps/server/src/index.ts`：启动时一次注册 observer。
+- 补 packages/metrics provider-derived 单元测试 + packages/provider DashScopeClient observer hook 测试 + apps/server metrics-routes 测试。
 - `bun run typecheck`：server / client / worker 三端通过。
-- `packages/gateway/src/index.ts`：+77 行追加 6 个语义化错误工厂（`modelNotFoundError` / `invalidModelError` / `invalidParametersError` / `missingUserMessageError` / `insufficientBalanceError` / `generationFailedError`），全部 pure 调 `createOpenAIError`；`createOpenAIError` 保留为低层 API。
-- `apps/server/src/routes/openai-gateway.ts`：6 处 `createOpenAIError` 内联调用替换为对应工厂；`normalizeOpenAIChatRequest` 内 MISSING_USER_MESSAGE 检测也改用 `missingUserMessageError()`；顺手合并顶部 4 行重复 `@excuse/shared` type import 修掉 baseline lint 报错。
-- route 的 status / response / 审计 / 余额逻辑零行为变化（既有错误码测试矩阵全绿）。
-- `docs/TODO.md` P2.4 第三条「Gateway 协议解析和响应映射继续下沉」整条删除；保留 P2.4 第一条「scope / quota / rate limit」与第二条「正式开放还是隐藏入口的最终产品决策」。
-- `CHANGELOG.md` Changed 区已记录并回填 commit `63c6e9f`。
-- 暂存区零跨界（未碰 `packages/db` / `packages/metrics` / `apps/client` / `apps/worker` / 其他 server route）。
+- 暂存区零跨界。
 
 保持上一轮的纪律。
 
 ## 本轮目标
 
-收口 P2.5 第一条待办中「任务队列积压」+「Canvas 阶段耗时」两个子项。
+推进 P4.1 第 4 条「`zod` / `valibot` / `arktype`」第一批：把 `packages/gateway` + `packages/prompt-engine` 的外部输入边界改为 zod parse。
 
 当前状态：
 
-- `packages/metrics/src/index.ts` 的 `MetricsSnapshot` 是进程内 in-memory 指标（HTTP 请求、延迟、SSE 在线、generation 状态、errors、uptime）；`MetricsCollector` 不依赖 DB。
-- `packages/metrics/src/prometheus.ts` 的 `snapshotToPrometheus(snapshot)` 把 in-memory snapshot 映射为 6 个 metric family（`excuse_http_requests_total` / `excuse_http_latency_seconds` / `excuse_sse_online_users` / `excuse_generation_total` / `excuse_errors_total` / `excuse_uptime_seconds`）。
-- `apps/server/src/routes/metrics.ts` 的 `GET /metrics` 端点：调 `getMetrics(onlineUsers, uptime)` → `snapshotToPrometheus` → `serializePrometheus` → text exposition；带 IP 白名单 + Bearer token 鉴权。
-- `packages/db/src/schema/canvas-pipeline-runs.ts` 有 `phase` / `status` / `startedAt` / `finishedAt` / `errorMessage` 字段；`tasks` 表有 `domain` / `status` 字段。
-- `docs/TODO.md` P2.5 第一条：「补 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时。」（4 个子项；本轮收口 2 个）
+- `packages/gateway/src/index.ts`（401 行）：是 OpenAI 兼容网关的纯规则包。关键函数：
+  - `normalizeOpenAIChatRequest(request: OpenAIChatRequest)`：手写 `request.messages.filter(m => m.role === 'user')` + 内联取 `lastUserMessage.content` + 手写参数构造；类型信任 OpenAIChatRequest 接口（来自 `@excuse/shared`），但**route 层传入的是 Elysia 解析的 JSON，运行时可能是任意 shape**。
+  - `aggregateGatewayUsage(records)` / `mapGatewayUsageItem(record)`：手写字段访问 `record.cost?.inputTokens ?? null`，类型信任 `GatewayUsageRecordInput`；route 层传入的是 `generation_records` 行的 JSON 字段反序列化结果，运行时同样可能是任意 shape。
+  - `createOpenAIStreamChunk` / `createOpenAIChatResponse` / `createOpenAIModelsResponse`：内部构造已知 shape，输出端，本轮**不改**（输出构造不涉及外部输入 parse）。
+  - `createOpenAIError` / `modelNotFoundError` 等 6 个工厂函数：纯字符串构造，本轮**不改**。
+- `packages/prompt-engine/src/json-helper.ts`（49 行）：
+  - `parseLLMJson<T>(raw: string): T`：去 markdown 包裹 + 尝试 JSON.parse + 正则提取 + **裸 `as T` 强转**（注释明确：「LLM 输出不可靠，对关键数据建议在调用处做字段校验」）。
+  - 3 个调用方：
+    - `apps/server/test/canvas-json-helper.test.ts`（测试，不影响）
+    - `apps/server/src/modules/canvas/regenerate.ts`（runtime，2 处：`parseLLMJson + validateCharacterProfile` / `parseLLMJson + validateLocationProfile`）
+  - 既有模式：调用方 `parseLLMJson` 拿到 `T` 后**手动调 `validateX`** 做字段校验（`validateCharacterProfile` / `validateLocationProfile` 在 `packages/canvas-runtime` 里）。
+- `packages/gateway/test/index.test.ts` + `usage.test.ts`：既有测试覆盖工厂函数 + mapGatewayUsageItem + aggregateGatewayUsage，本轮扩 normalizeOpenAIChatRequest + zod schema 测试。
+- `packages/prompt-engine/test/json-helper.test.ts`：既有测试覆盖 `parseLLMJson` 解析逻辑（11 条，commit: `9b0a37a` 之前的 baseline）。本轮扩 `parseLLMJsonWithSchema` 测试。
 
 本轮要做的：
 
-1. **`packages/metrics` 新增 DB 派生指标聚合纯函数**（不依赖 DB，只接 SQL 查询结果做聚合）：
-   - `aggregateCanvasPhaseMetrics(rows)` → `PrometheusMetric[]`：把 `canvas_pipeline_runs` 聚合结果（per-phase succeeded/failed 计数 + per-phase duration 量化）映射为 `excuse_canvas_phase_total{phase,status}` counter + `excuse_canvas_phase_duration_seconds{phase,quantile}` gauge。
-   - `aggregateTaskQueueMetrics(rows)` → `PrometheusMetric[]`：把 `tasks` 聚合结果（per-domain per-status 计数）映射为 `excuse_task_queue_depth{domain,status}` gauge。
-2. **`packages/db` 新增两个聚合 repository 函数**：
-   - `getCanvasPhaseStats(windowHours: number = 24)`：返回 per-phase 数组，每项 `{ phase, status, count, durationP50, durationP95, durationAvgMs }`；只统计 `finishedAt IS NOT NULL` 且 `finishedAt > now() - windowHours` 的行。
-   - `getTaskQueueStats()`：返回 per-domain per-status 数组 `{ domain, status, count }`；不限制时间窗（队列深度是即时的）。
-3. **`apps/server/src/routes/metrics.ts` 合并 in-process 与 DB-derived 输出**：在 `/metrics` route 内调两个新 repository 函数 → 用新聚合函数映射为 metric family → 与 `snapshotToPrometheus(snapshot)` 合并 → `serializePrometheus` 输出。
-4. **`apps/server/src/services/metrics.ts` 不动**：in-memory `MetricsCollector` 接口不变；DB 派生指标在 route 层直接调 repository，不走 service。
-5. **补 `packages/metrics` 单元测试**：聚合函数的边界（空数组、单条、p95 计算、缺失 duration）。
-6. **`apps/server/test/metrics.test.ts` 既有用例不能破坏**：本轮新增 DB-derived 输出，既有 6 个 in-memory metric family 测试必须继续通过；新增 2-3 个 DB-derived 测试（mock repository）。
-7. 在 `docs/TODO.md` 把 P2.5 第一条「补 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时」**部分删除**：保留「补 provider 错误率、模型耗时」（剩余 2 个子项）；「任务队列积压、Canvas 阶段耗时」整段删除。
-8. 在 `CHANGELOG.md` `[Unreleased]` 的 Added 区记录本轮完成内容和 commit。
+1. **`packages/gateway` — 引入 zod schema + 重构 normalizeOpenAIChatRequest**：
+   - `zod` 已是 `apps/client` 依赖（Claude A 上轮引入）；本轮在 `packages/gateway` 添加 zod 依赖（`packages/gateway/package.json` 加 `zod` 到 dependencies）。
+   - 新建 `packages/gateway/src/schemas.ts`：定义 `openaiChatRequestSchema`（messages 数组 + 可选 temperature/max_tokens/top_p/stream/model）+ `gatewayUsageRecordSchema`（mapGatewayUsageItem 输入校验）。
+   - `normalizeOpenAIChatRequest` 改为先 `openaiChatRequestSchema.safeParse(request)`，失败则构造 `invalidParametersError(zodError.issues)`；成功后基于 parsed value 取 lastUserMessage.content 构造 `parameters`。
+   - `mapGatewayUsageItem` 改为先 `gatewayUsageRecordSchema.safeParse(record)`，失败的字段降级到 null/0（不抛错，保持向后兼容；route 层传的是 DB 行反序列化，字段缺失应兜底）。
+   - **保留对外 API 签名**：`normalizeOpenAIChatRequest(request: OpenAIChatRequest)` 参数类型不变，仍是 OpenAIChatRequest（来自 @excuse/shared），但内部用 zod 做运行时校验。
+2. **`packages/prompt-engine` — 新增 `parseLLMJsonWithSchema`**：
+   - 在 `packages/prompt-engine/package.json` 加 `zod` 依赖。
+   - 新建 `packages/prompt-engine/src/schemas.ts`：声明 `canvasCharacterSchema` / `canvasLocationSchema`（如果时间允许，覆盖更多 Canvas 输出 schema），便于后续 `parseLLMJsonWithSchema(raw, canvasCharacterSchema)` 调用。
+   - 在 `json-helper.ts` 新增 `parseLLMJsonWithSchema<T>(raw: string, schema: ZodSchema<T>): T`：
+     - 内部先调既有 `parseLLMJson<unknown>(raw)` 拿到任意 JSON（沿用既有去 markdown / 正则提取逻辑）。
+     - 再调 `schema.parse(unknown)`，失败抛 `LLMSchemaValidationError`（新建），含原始 raw 前 200 字符 + zod issues。
+   - **保留既有 `parseLLMJson<T>` 原签名**（向后兼容现有调用方 + 测试）；新增 `parseLLMJsonWithSchema` 作为推荐 API。
+3. **迁移 `apps/server/src/modules/canvas/regenerate.ts` 的 2 处调用**（**仅当 Claude A 没有同时改 regenerate.ts** — 边界检查；如果 Claude A 不动 modules/，则本步骤安全）：
+   - 把 `validateCharacterProfile(parseLLMJson(result.output.text as string))` 改为 `parseLLMJsonWithSchema(result.output.text as string, canvasCharacterSchema)`。
+   - 同理替换 `validateLocationProfile(parseLLMJson(...))`。
+   - **但是 `validateCharacterProfile` / `validateLocationProfile` 来自 `packages/canvas-runtime`**，不能让 `packages/prompt-engine` 反向依赖 `packages/canvas-runtime`（这会破坏 dependency direction：prompt-engine 是 BASE 层，canvas-runtime 是 runtime 层）。
+   - **解决方案**：本轮**不迁移 regenerate.ts 调用**，仅提供 `parseLLMJsonWithSchema` 工具；调用方迁移留给独立任务（需要 `canvas-runtime` 内置 zod schema，是另一个 PR）。regenerate.ts 维持现状。
+   - 因此本步骤**仅做 packages/prompt-engine 内部**：新增 schema 文件 + 新增 helper + 单测。不动 apps/。
+4. **补 packages/gateway 测试**：
+   - 新建 `packages/gateway/test/schemas.test.ts`：覆盖 `openaiChatRequestSchema` + `gatewayUsageRecordSchema` 各种输入（合法 / 缺字段 / 类型错误 / 多余字段）。
+   - 扩 `packages/gateway/test/index.test.ts`：覆盖 `normalizeOpenAIChatRequest` 在以下场景的行为：
+     - 合法请求（messages 含 user）→ 返回 NormalizedOpenAIChatRequest。
+     - messages 是 string（非数组）→ safeParse 失败 → invalidParametersError。
+     - messages 数组但元素缺 role → safeParse 失败 → invalidParametersError。
+     - 多余字段（如 unknown_param='foo'）→ 安全 strip。
+     - temperature 是字符串而非数字 → safeParse 失败（OpenAI 规范要 number）。
+   - 扩 `packages/gateway/test/usage.test.ts`：覆盖 `mapGatewayUsageItem` 在以下场景：
+     - cost 字段为 null → inputTokens/outputTokens 兜底 null。
+     - cost.inputTokens 是字符串 → safeParse 失败时降级到 null。
+5. **补 packages/prompt-engine 测试**：
+   - 扩 `packages/prompt-engine/test/json-helper.test.ts`：覆盖 `parseLLMJsonWithSchema`：
+     - 合法 JSON + schema 通过 → 返回 typed value。
+     - 合法 JSON + schema 失败 → 抛 LLMSchemaValidationError（含 issues + 原始 raw 前 200 字）。
+     - 非 JSON 输入 → 抛既有「Failed to extract JSON」错误（沿用 parseLLMJson 行为）。
+     - markdown 包裹 + schema 通过 → 返回 typed value。
+   - 新建 `packages/prompt-engine/test/schemas.test.ts`：覆盖 `canvasCharacterSchema` / `canvasLocationSchema` 字段校验。
+6. **更新 `docs/TODO.md`**：
+   - P4.1 第 4 条「`zod` / `valibot` / `arktype`」下方追加完成说明（不删条目，P4.1 是持续推进项）。
+7. **更新 `CHANGELOG.md`**：
+   - 在 `[Unreleased]` 的 Changed 区追加本轮完成内容和 commit。
 
 本轮不要处理：
 
-- P2.5 第二条「线上排障检查命令或文档」— 独立任务，本轮不做。
-- P2.5 第三条「Prometheus 指标跨 worker 进程聚合」— 架构级，需要 worker → server push 通道，独立任务。
-- P2.5 第一条剩余「provider 错误率、模型耗时」— 需要在 generation service / openai-gateway 调用点埋 in-process 计数，独立任务，本轮不做。
-- Worker 运行时改动：本轮所有指标都从 DB 派生，不需要 worker 配合。
-- 资产中心、Canvas 客户端、API Key 页面、开发者页、Gateway、Provider。
-- DB schema / migration（仅新增查询函数，不改表结构）。
+- `packages/canvas-runtime` 的 LLM JSON parser（`validateCharacterProfile` / `validateLocationProfile` 等）的 zod 化 — 独立任务，需要先有 canvas-runtime 内的 schema；本轮只**在 prompt-engine 提供 schema + 工具**，不动 canvas-runtime。
+- `apps/server/src/modules/canvas/regenerate.ts` 的调用迁移（依赖 canvas-runtime schema）。
+- `apps/server/src/routes/openai-gateway.ts` route 层（除了间接经过 normalizeOpenAIChatRequest 的行为变化，不动 route 代码）。
+- `packages/gateway` 之外的 packages。
+- `packages/gateway` 内部输出构造函数（`createOpenAIStreamChunk` / `createOpenAIChatResponse` 等）— 输出端不需要 zod 校验。
+- 错误工厂函数（`modelNotFoundError` 等）— 纯字符串构造，不需要 zod。
+- Canvas 客户端、表单页面、Admin 后台（Claude A 在动）。
+- Worker 运行时改动。
+- DB schema / migration。
 
 ## 重要规则：完成后必须 commit
 
 - 本轮 1 个 commit（hash 回填可以追一个 docs commit）。
 - commit 前必须运行 `git status --short` 和 `git diff --name-only --cached`。
-- 暂存区只能包含本任务文件，**绝对不要**混入 Claude A 的 client / hooks 文件。
-- 完成事项从 `docs/TODO.md` 删除（P2.5 第一条部分删除）。
+- 暂存区只能包含本任务文件，**绝对不要**混入 Claude A 的 apps/server/src/routes/admin.ts / apps/client/src/pages/Admin.tsx / packages/db/src/repositories/admin.repo.ts / packages/shared/src/admin.ts 文件。
+- 完成说明写入 `docs/TODO.md` P4.1 第 4 条下方（追加一行，不删条目）。
 - 完成记录和 commit 写入根目录 `CHANGELOG.md`。
 - 如果 `docs/TODO.md` / `CHANGELOG.md` 与 Claude A 并行修改冲突，优先提交代码；文档冲突在最终回复里说明。
 - commit 成功后，在最终回复里写出 commit hash。
 
 **强制检查**：commit 前必须确认 `git diff --name-only --cached` 输出**不包含**：
 
-- `packages/shared/`
-- `packages/gateway/`（除 `packages/gateway/test/` 仅当本轮不动；本轮零 gateway 改动）
-- `packages/provider/`
-- `packages/auth/`
-- `packages/events/`
-- `packages/workflow-engine/`
-- `packages/task-engine/`
-- `packages/rate-limit/`
-- `packages/subtitle-engine/`
-- `packages/canvas-engine/`
-- `packages/canvas-runtime/`
-- `packages/prompt-engine/`
-- `packages/billing/`
-- `packages/ffmpeg/`
-- `packages/storage/`
 - `apps/client/`（任何路径，本轮零 client 改动）
+- `apps/server/`（任何路径，本轮零 server 改动）
 - `apps/worker/`（任何路径，本轮零 worker 改动）
-- `apps/server/src/routes/assets.ts`
-- `apps/server/src/routes/asset-tags.ts`
-- `apps/server/src/routes/openai-gateway.ts`（上一轮已动；本轮不动）
-- `apps/server/src/routes/notifications.ts`
-- `apps/server/src/routes/api-keys.ts`
-- `apps/server/src/routes/upload.ts`
-- `apps/server/src/routes/canvas.ts`
-- `apps/server/src/routes/generate.ts`
-- `apps/server/src/routes/billing.ts`
-- `apps/server/src/routes/subtitle.ts`
-- `apps/server/src/routes/sse.ts`
-- `apps/server/src/routes/auth.ts`
-- `apps/server/src/routes/models.ts`
-- `apps/server/src/routes/health.ts`（health 的 `/api/health/metrics` 仍走 in-memory snapshot；本轮不扩 health 端点，DB 派生仅 Prometheus 端点暴露）
-- `apps/server/src/services/audit.ts`
-- `apps/server/src/services/sse-manager.ts`
-- `apps/server/src/services/metrics.ts`（in-memory 收集器接口不变）
-- `apps/server/src/index.ts`
-- `apps/server/src/config.ts`
+- `packages/shared/`（任何路径，Claude A 在动 admin DTO）
+- `packages/db/`（任何路径，Claude A 在动 admin repo）
+- `packages/metrics/`（任何路径）
+- `packages/provider/`（任何路径）
+- `packages/canvas-engine/` / `packages/canvas-runtime/`（任何路径）
+- `packages/events/` / `packages/workflow-engine/` / `packages/task-engine/`（任何路径）
+- `packages/rate-limit/` / `packages/subtitle-engine/` / `packages/auth/`（任何路径）
+- `packages/billing/` / `packages/ffmpeg/` / `packages/storage/`（任何路径）
 
 ## 文件边界
 
 Claude B 可以修改：
 
 ```txt
-packages/metrics/src/index.ts                                (导出新的聚合结果类型；不改 MetricsSnapshot / MetricsCollector)
-packages/metrics/src/db-derived.ts                           (新建：aggregateCanvasPhaseMetrics + aggregateTaskQueueMetrics 纯函数)
-packages/metrics/src/prometheus.ts                           (仅在需要复用 helper 时改动；优先不动)
-packages/metrics/test/db-derived.test.ts                     (新建：聚合函数单元测试)
-packages/metrics/test/index.test.ts                          (如需要补 helper export 断言；优先不动)
-packages/db/src/repositories/metrics.repo.ts                 (新建：getCanvasPhaseStats + getTaskQueueStats)
-packages/db/src/index.ts                                     (barrel export 新 repository；不动既有 export)
-apps/server/src/routes/metrics.ts                            (/metrics 合并 in-memory + DB-derived 输出)
-apps/server/test/metrics.test.ts                             (扩 DB-derived 测试；既有 in-memory 测试不破坏)
+packages/gateway/package.json                                  (新增 zod 依赖)
+packages/gateway/src/schemas.ts                                (新建：openaiChatRequestSchema + gatewayUsageRecordSchema)
+packages/gateway/src/index.ts                                  (normalizeOpenAIChatRequest + mapGatewayUsageItem 改用 zod safeParse)
+packages/gateway/test/schemas.test.ts                          (新建：schema 单元测试)
+packages/gateway/test/index.test.ts                            (扩 normalizeOpenAIChatRequest zod 行为测试)
+packages/gateway/test/usage.test.ts                            (扩 mapGatewayUsageItem 兜底测试)
+packages/prompt-engine/package.json                            (新增 zod 依赖)
+packages/prompt-engine/src/schemas.ts                          (新建：canvasCharacterSchema + canvasLocationSchema + 其他 LLM JSON schema)
+packages/prompt-engine/src/json-helper.ts                      (新增 parseLLMJsonWithSchema + LLMSchemaValidationError；保留 parseLLMJson 原签名)
+packages/prompt-engine/test/json-helper.test.ts                (扩 parseLLMJsonWithSchema 测试)
+packages/prompt-engine/test/schemas.test.ts                    (新建：canvasCharacterSchema / canvasLocationSchema 测试)
+bun.lock                                                      (依赖锁文件自然变更)
 docs/TODO.md
 CHANGELOG.md
 ```
@@ -131,469 +151,529 @@ Claude B 不要修改：
 
 ```txt
 docs/claude-next-plan.md
-packages/db/src/schema/**                                    (本轮绝对不动 schema / migration)
-packages/db/src/repositories/**（除新建 metrics.repo.ts）    (不动既有 repository)
-packages/db/src/services/**                                  (本轮不动 service)
-packages/db/test/**                                          (本轮不动既有 DB 测试)
-packages/shared/**                                           (本轮绝对不动)
-packages/gateway/**                                          (上一轮已动；本轮不动)
-packages/auth/**
+apps/client/**                                                (本轮零 client 改动)
+apps/server/**                                                (本轮零 server 改动，含 openai-gateway.ts route 文件)
+apps/worker/**                                                (本轮零 worker 改动)
+packages/shared/**                                            (Claude A 在动 admin DTO)
+packages/db/**                                                (Claude A 在动 admin repo)
+packages/metrics/**                                           (本轮零 metrics 改动)
+packages/provider/**                                          (本轮零 provider 改动)
+packages/canvas-engine/**                                     (本轮零 canvas-engine 改动)
+packages/canvas-runtime/**                                    (本轮零 canvas-runtime 改动；schema 化留给独立任务)
 packages/events/**
 packages/workflow-engine/**
 packages/task-engine/**
 packages/rate-limit/**
 packages/subtitle-engine/**
-packages/canvas-engine/**
-packages/canvas-runtime/**
-packages/prompt-engine/**
+packages/auth/**
 packages/billing/**
 packages/ffmpeg/**
 packages/storage/**
-apps/server/src/services/**                                  (in-memory metrics.ts 接口不变)
-apps/server/src/plugins/**
-apps/server/src/modules/**
-apps/server/src/utils/**
-apps/server/src/config.ts
-apps/server/src/index.ts
-apps/server/src/routes/**（除 metrics.ts）
-apps/server/test/**（除 metrics.test.ts）
-apps/client/**
-apps/worker/**
+packages/gateway/src/streaming*                              (本轮不动 streaming 相关)
+packages/prompt-engine/src/index.ts                           (barrel export 仅在新增 schema 文件时追加 export 一行)
+packages/prompt-engine/src/prompts.ts                         (本轮不动)
+packages/prompt-engine/src/prompt-builder.ts                  (本轮不动)
 ```
 
 如果必须修改边界外文件，**先停止并在最终回复说明原因**。
 
-## 第一步：调研 metrics 现状 + DB 派生数据源
+## 第一步：调研现有 zod 用法 + 边界
 
-阅读以下文件：
+阅读以下文件，记录现有结构和扩展点：
 
-1. `packages/metrics/src/index.ts` — 确认 `MetricsSnapshot` / `MetricsCollector` 接口；本轮**不动这两个**，只在同包新建 `db-derived.ts`。
-2. `packages/metrics/src/prometheus.ts` — 确认 `PrometheusMetric` / `serializePrometheus` / `snapshotToPrometheus`；本轮可复用 `serializePrometheus`，但 `snapshotToPrometheus` 输出的 6 个 metric family 不变。
-3. `apps/server/src/routes/metrics.ts` — 确认 `/metrics` 端点拼装流程；本轮在 `snapshotToPrometheus(snapshot)` 输出后追加 DB-derived metric family。
-4. `packages/db/src/schema/canvas-pipeline-runs.ts` — 确认 `phase` / `status` / `startedAt` / `finishedAt` 字段名；9 个 phase 枚举值；4 个终态（succeeded / failed / cancelled）+ 2 个中间态（pending / running）。
-5. `packages/db/src/schema/tasks.ts` 或 `unified-tasks.ts` — 确认 `domain`（canvas / generate / subtitle / gateway）+ `status`（queued / running / retrying / succeeded / failed / cancelled）字段名。
-6. `apps/server/test/metrics.test.ts` — 确认既有 in-memory 测试覆盖范围；本轮新增 DB-derived 测试用 mock repository（不真打 DB）。
+1. `packages/gateway/src/index.ts`（已读 401 行）— 重点关注：
+   - `normalizeOpenAIChatRequest` 的 messages filter + lastUserMessage.content 取值逻辑。
+   - `mapGatewayUsageItem` 的 cost / inputParams 访问模式。
+   - `aggregateGatewayUsage` 的累加逻辑（可能也用 zod，但本身只是 reduction，不改）。
+   - 工厂函数（`modelNotFoundError` 等）— 不动。
+2. `packages/prompt-engine/src/json-helper.ts`（已读 49 行）— `parseLLMJson<T>` 完整实现 + 既有注释。
+3. `packages/gateway/test/index.test.ts` — 既有测试结构（mock 模式、describe 组织）。
+4. `packages/prompt-engine/test/json-helper.test.ts` — 既有测试结构。
+5. `apps/client/package.json` — 确认 zod 版本（上轮 Claude A 装的是 `zod@4.4.3`）；本轮 packages/gateway 和 packages/prompt-engine 也用同版本。
+6. `packages/canvas-runtime/src/`（grep `validateCharacterProfile` / `validateLocationProfile`）— 确认这两个 validate 函数的入参 shape（作为本轮 `canvasCharacterSchema` / `canvasLocationSchema` 的字段参考）。
+7. `packages/shared/src/openai-gateway.ts` — 确认 `OpenAIChatRequest` / `OpenAIErrorResponse` 等 type 的字段定义（作为 `openaiChatRequestSchema` 的字段参考）。
 
-把字段名 / 枚举值 / 既有 metric family 命名约定（`excuse_*` 前缀 + snake_case）记下来。
+调研结论写入最终回复。
 
-## 第二步：在 packages/db 新增聚合 repository
+## 第二步：在 packages/gateway 引入 zod schema
 
-新建：
-
-```txt
-packages/db/src/repositories/metrics.repo.ts
-```
-
-骨架（最终实现按 Drizzle query builder 风格）：
-
-```ts
-import { db, canvasPipelineRuns, tasks } from '../index' // 或对应 schema 入口
-import { eq, gt, isNotNull, sql } from 'drizzle-orm'
-
-/** Canvas 阶段聚合行 — 每行对应一个 (phase, status) 组合 */
-export interface CanvasPhaseStatRow {
-  phase: string
-  status: string
-  count: number
-  /** 该 (phase, status) 下 duration 的 p50（ms）；仅 succeeded/failed/cancelled 有 finishedAt */
-  durationP50Ms: number
-  durationP95Ms: number
-  durationAvgMs: number
-}
-
-/** 任务队列聚合行 — 每行对应一个 (domain, status) 组合 */
-export interface TaskQueueStatRow {
-  domain: string
-  status: string
-  count: number
-}
-
-/**
- * 查询最近 windowHours 内 Canvas 各 (phase, status) 的计数 + duration 量化。
- *
- * - 仅统计 `finishedAt IS NOT NULL` 且 `finishedAt > now() - window` 的行。
- * - duration = finishedAt - startedAt（毫秒）；未 started 的行排除。
- * - 窗口默认 24 小时，避免历史数据稀释当前性能画像。
- * - 用 PostgreSQL 原生 percentile_cont 而非 JS 计算，保证准确性。
- */
-export async function getCanvasPhaseStats(windowHours = 24): Promise<CanvasPhaseStatRow[]> {
-  const windowMs = windowHours * 60 * 60 * 1000
-  const cutoff = new Date(Date.now() - windowMs)
-
-  const rows = await db
-    .select({
-      phase: canvasPipelineRuns.phase,
-      status: canvasPipelineRuns.status,
-      count: sql<number>`count(*)::int`,
-      durationP50Ms: sql<number>`coalesce(percentile_cont(0.5) within group (order by extract(epoch from (${canvasPipelineRuns.finishedAt} - ${canvasPipelineRuns.startedAt})) * 1000), 0)::float8`,
-      durationP95Ms: sql<number>`coalesce(percentile_cont(0.95) within group (order by extract(epoch from (${canvasPipelineRuns.finishedAt} - ${canvasPipelineRuns.startedAt})) * 1000), 0)::float8`,
-      durationAvgMs: sql<number>`coalesce(avg(extract(epoch from (${canvasPipelineRuns.finishedAt} - ${canvasPipelineRuns.startedAt})) * 1000), 0)::float8`,
-    })
-    .from(canvasPipelineRuns)
-    .where(sql`${canvasPipelineRuns.finishedAt} IS NOT NULL AND ${canvasPipelineRuns.startedAt} IS NOT NULL AND ${canvasPipelineRuns.finishedAt} > ${cutoff}`)
-    .groupBy(canvasPipelineRuns.phase, canvasPipelineRuns.status)
-
-  return rows.map(row => ({
-    phase: String(row.phase),
-    status: String(row.status),
-    count: Number(row.count),
-    durationP50Ms: Number(row.durationP50Ms),
-    durationP95Ms: Number(row.durationP95Ms),
-    durationAvgMs: Number(row.durationAvgMs),
-  }))
-}
-
-/**
- * 查询当前任务队列深度（per domain × status 计数）。
- *
- * - 不限制时间窗：队列深度是即时的。
- * - 含 queued / running / retrying（活跃）+ succeeded / failed / cancelled（累计）。
- * - 如果只想看积压，调用方可在 Prometheus 端用 `{status=~"queued|running|retrying"}` 过滤。
- */
-export async function getTaskQueueStats(): Promise<TaskQueueStatRow[]> {
-  const rows = await db
-    .select({
-      domain: tasks.domain,
-      status: tasks.status,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(tasks)
-    .groupBy(tasks.domain, tasks.status)
-
-  return rows.map(row => ({
-    domain: String(row.domain),
-    status: String(row.status),
-    count: Number(row.count),
-  }))
-}
-```
-
-实现要点：
-
-- 用 PostgreSQL 原生 `percentile_cont` 计算 p50/p95，保证准确性（JS 端排序在大数据集上慢）。
-- `coalesce(..., 0)` 兜底空值（如某 (phase, status) 全是 cancelled 但无 finishedAt）。
-- 类型断言：Drizzle 的 `sql<number>` 返回 unknown，需 `Number()` 强转；用 `String()` 同理。
-- 不引入 N+1：单条 GROUP BY 查询，O(1) round trip。
-- **不要**新建 service 层封装：repository 直接被 route 调用，符合既有 `*.repo.ts` 模式。
-
-在 `packages/db/src/index.ts` 追加 barrel export：
+### 2a. 新建 packages/gateway/src/schemas.ts
 
 ```ts
-export * from './repositories/metrics.repo'
+import { z } from 'zod'
+
+/**
+ * OpenAI Chat Completions 请求的 zod schema。
+ *
+ * 用于 normalizeOpenAIChatRequest 的运行时校验：route 层传入的是 Elysia
+ * 解析的 JSON，可能是任意 shape（比如客户端把 messages 传成 string、把
+ * temperature 传成字符串）。zod safeParse 失败时，构造 invalidParametersError。
+ *
+ * 字段定义参考 @excuse/shared 的 OpenAIChatRequest type；zod schema 是
+ * 运行时镜像，保持与 type 同步。
+ */
+export const openaiChatMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant', 'tool']),
+  content: z.string(),
+})
+
+export const openaiChatRequestSchema = z.object({
+  model: z.string(),
+  messages: z.array(openaiChatMessageSchema).min(1),
+  temperature: z.number().optional(),
+  max_tokens: z.number().int().positive().optional(),
+  top_p: z.number().optional(),
+  stream: z.boolean().optional(),
+  // 其他 OpenAI 标准字段透传不报错（zod 默认 strip 多余字段）
+}).passthrough()  // 允许透传 n / presence_penalty 等未声明字段给后续 mapping
+
+export type OpenAIChatRequestParsed = z.infer<typeof openaiChatRequestSchema>
+
+/**
+ * mapGatewayUsageItem 输入记录的 zod schema。
+ *
+ * route 层从 generation_records 抽出 cost / inputParams 等字段后传给 gateway，
+ * 但这些字段来自 DB JSONB，运行时可能是任意 shape（旧 record 可能字段缺失、
+ * 字段类型可能错误）。zod safeParse 失败时，mapGatewayUsageItem 降级到 null/0
+ * 而不是抛错（保持向后兼容）。
+ */
+export const gatewayUsageRecordSchema = z.object({
+  id: z.string(),
+  model: z.string(),
+  status: z.enum(['pending', 'submitting', 'processing', 'saving_output', 'succeeded', 'failed', 'cancelled']),
+  inputParams: z.object({
+    requestedModel: z.unknown().optional(),
+  }).nullable(),
+  cost: z.object({
+    inputTokens: z.number().nullable().optional(),
+    outputTokens: z.number().nullable().optional(),
+    totalPriceCents: z.number().nullable().optional(),
+  }).nullable(),
+  totalPriceCents: z.number().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.date(),  // route 层传 Date 对象
+})
+
+export type GatewayUsageRecordParsed = z.infer<typeof gatewayUsageRecordSchema>
 ```
 
 注意：
+- `.passthrough()` 让 OpenAI 请求里的 `n` / `presence_penalty` 等额外字段透传，不强制 strip；后续 normalize 后内部 mapping 只取已声明字段。
+- zod 4.x 的 API（`z.string().email()` 等可能略有变化），调研时确认上轮 Claude A 用的 `zod@4.4.3` API；如果 `z.enum` / `z.object().passthrough()` 在 v4 改名（v4 把 `.passthrough()` 改成 `.loose({})` 或类似），调整写法。
+- 不要 export schema 给外部包（schema 是 gateway 内部实现细节）。
 
-- 不要改既有 repository 文件。
-- 不要改 schema / migration。
-- 如果 Drizzle 的 `sql` 模板对 `extract(epoch from (ts1 - ts2))` 支持不佳，回退用 `EXTRACT(EPOCH FROM (finished_at - started_at)) * 1000` 字符串拼接，并在最终回复说明。
+### 2b. 重构 normalizeOpenAIChatRequest
 
-## 第三步：在 packages/metrics 新增 db-derived 聚合函数
-
-新建：
-
-```txt
-packages/metrics/src/db-derived.ts
-```
-
-骨架：
+修改 `packages/gateway/src/index.ts` 的 `normalizeOpenAIChatRequest`：
 
 ```ts
-import type { PrometheusMetric } from './prometheus'
+import { openaiChatRequestSchema } from './schemas'
 
-/** Canvas 阶段聚合行 — 与 packages/db 的 CanvasPhaseStatRow 对齐（避免循环依赖，本包重新声明） */
-export interface CanvasPhaseStatInput {
-  phase: string
-  status: string
-  count: number
-  durationP50Ms: number
-  durationP95Ms: number
-  durationAvgMs: number
+export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
+  const parsed = openaiChatRequestSchema.safeParse(request)
+  if (!parsed.success) {
+    // zod issues → invalidParametersError
+    const errors = parsed.error.issues.map(issue => ({
+      field: issue.path.join('.') || '(root)',
+      message: issue.message,
+    }))
+    return invalidParametersError(errors)
+  }
+
+  const value = parsed.data
+  const userMessages = value.messages.filter(m => m.role === 'user')
+  if (userMessages.length === 0) {
+    return missingUserMessageError()
+  }
+
+  const lastUserMessage = userMessages[userMessages.length - 1]!
+  const parameters: Record<string, unknown> = { prompt: lastUserMessage.content }
+  if (value.temperature !== undefined) parameters.temperature = value.temperature
+  if (value.max_tokens !== undefined) parameters.max_tokens = value.max_tokens
+  if (value.top_p !== undefined) parameters.top_p = value.top_p
+
+  return {
+    request,  // 保留原始 request 供 route 引用（向后兼容）
+    internalModelId: resolveModelId(value.model),
+    prompt: lastUserMessage.content,
+    parameters,
+    stream: value.stream ?? false,
+  }
 }
+```
 
-/** 任务队列聚合行 */
-export interface TaskQueueStatInput {
-  domain: string
-  status: string
-  count: number
+注意：
+- 返回值仍包含 `request: OpenAIChatRequest`（原始未 parse 的对象），保持向后兼容（route 可能访问 request 的其他字段）。
+- 如果 zod parse 失败，构造 `invalidParametersError`，与既有 missing_user_message 行为一致（route 层已经处理 OpenAIGatewayError 联合类型）。
+- 类型签名 `request: OpenAIChatRequest` 不变；zod 是运行时校验，type 是编译期约束。
+
+### 2c. 重构 mapGatewayUsageItem（轻量）
+
+修改 `mapGatewayUsageItem`，内部对 cost / inputParams 用 zod safeParse 做兜底：
+
+```ts
+import { gatewayUsageRecordSchema } from './schemas'
+
+export function mapGatewayUsageItem(record: GatewayUsageRecordInput): OpenAIGatewayUsageItem {
+  // 用 zod 做字段兜底（不抛错，仅 strip 非法字段）
+  const parsed = gatewayUsageRecordSchema.safeParse(record)
+  // 即使 parse 失败也继续：用 parsed.data ?? record fallback；让 mapGatewayUsageItem 永远返回有效 item
+  const value = parsed.success ? parsed.data : record
+
+  const cost = value.cost ?? null
+  // ... 既有逻辑不变
+}
+```
+
+注意：
+- 这里不抛错；如果 record 字段缺失，沿用既有兜底逻辑（null / 0）。
+- zod 的作用是**字段类型守卫**（防止 `cost.inputTokens` 是字符串让后续累加出错），不是请求拒绝。
+
+## 第三步：在 packages/prompt-engine 引入 zod schema
+
+### 3a. 新建 packages/prompt-engine/src/schemas.ts
+
+```ts
+import { z } from 'zod'
+
+/**
+ * Canvas 角色 schema。
+ *
+ * 字段参考 packages/canvas-runtime 的 validateCharacterProfile（grep 找）。
+ * 与 validateCharacterProfile 的字段集保持一致；本轮**不删除** validateCharacterProfile，
+ * 仅提供 zod schema 作为更严格的 runtime 校验入口。
+ */
+export const canvasCharacterSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.string(),
+  appearance: z.string(),
+  personality: z.string().optional(),
+  // ... 其他字段按 validateCharacterProfile 调研后补齐
+})
+
+export type CanvasCharacter = z.infer<typeof canvasCharacterSchema>
+
+export const canvasLocationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  // ... 其他字段
+})
+
+export type CanvasLocation = z.infer<typeof canvasLocationSchema>
+```
+
+注意：
+- 调研 `validateCharacterProfile` 实际字段后补齐；如果字段过多（10+），先做核心字段（id/name/role/appearance），其余 `.passthrough()`。
+- schema 名要与 caller 期望一致；本轮不强制 caller（regenerate.ts）迁移，所以 schema 字段集只要能 cover 当前 Canvas analyze phase 输出即可。
+
+### 3b. 在 json-helper.ts 新增 parseLLMJsonWithSchema
+
+```ts
+import type { ZodSchema } from 'zod'
+
+export class LLMSchemaValidationError extends Error {
+  constructor(
+    public readonly zodError: unknown,  // ZodError
+    public readonly rawPreview: string,
+    message?: string,
+  ) {
+    super(message ?? `LLM output failed schema validation: ${rawPreview}`)
+    this.name = 'LLMSchemaValidationError'
+  }
 }
 
 /**
- * 把 Canvas 阶段聚合行映射为 Prometheus metric family：
- * - counter `excuse_canvas_phase_total{phase, status}`：每个 (phase, status) 一条样本。
- * - gauge `excuse_canvas_phase_duration_seconds{phase, quantile}`：每个 phase 输出 p50/p95/avg 3 条样本（取 status='succeeded' 的 duration，因为只有成功完成才有意义；如果输入缺 succeeded 则跳过 duration 输出）。
+ * 从 LLM 输出中解析 JSON 并用 zod schema 校验。
  *
- * 命名约定：与既有 `excuse_*` 前缀 + snake_case 对齐。
- * 单位：duration 输出秒（Prometheus 约定 base unit 是秒），输入毫秒。
- */
-export function aggregateCanvasPhaseMetrics(rows: CanvasPhaseStatInput[]): PrometheusMetric[] {
-  const phaseTotalSamples: PrometheusMetric['samples'] = rows.map(row => ({
-    labels: { phase: row.phase, status: row.status },
-    value: row.count,
-  }))
-
-  // duration 只取 succeeded（cancelled / failed 的 duration 不反映模型性能）
-  const succeededByPhase = new Map<string, CanvasPhaseStatInput>()
-  for (const row of rows) {
-    if (row.status === 'succeeded')
-      succeededByPhase.set(row.phase, row)
-  }
-
-  const durationSamples: PrometheusMetric['samples'] = []
-  for (const [phase, row] of succeededByPhase) {
-    durationSamples.push({ labels: { phase, quantile: '0.5' }, value: msToSeconds(row.durationP50Ms) })
-    durationSamples.push({ labels: { phase, quantile: '0.95' }, value: msToSeconds(row.durationP95Ms) })
-    durationSamples.push({ labels: { phase, quantile: 'avg' }, value: msToSeconds(row.durationAvgMs) })
-  }
-
-  return [
-    {
-      name: 'excuse_canvas_phase_total',
-      help: 'Canvas pipeline run counts by phase and status within the query window.',
-      type: 'counter',
-      samples: phaseTotalSamples,
-    },
-    {
-      name: 'excuse_canvas_phase_duration_seconds',
-      help: 'Canvas pipeline phase duration in seconds (p50/p95/avg), succeeded runs only.',
-      type: 'gauge',
-      samples: durationSamples,
-    },
-  ]
-}
-
-/**
- * 把任务队列聚合行映射为 Prometheus metric family：
- * - gauge `excuse_task_queue_depth{domain, status}`：每个 (domain, status) 一条样本。
+ * 与 parseLLMJson<T> 的区别：
+ *   - parseLLMJson 用裸 as T 强转，调用方需手动调 validateX；
+ *   - parseLLMJsonWithSchema 内部调 schema.parse，失败抛 LLMSchemaValidationError。
  *
- * gauge 而非 counter：队列深度是即时的（每次 scrape 都重新查 DB），
- * 但 Prometheus 端把同 (domain, status) 的时间序列视为单调累积也无妨（数值只会增长，因为 status 终态后不再回退）。
+ * 推荐所有 Canvas / Generation 等 LLM 输出 parse 用本函数。
+ * 既有 parseLLMJson 保留，向后兼容。
  */
-export function aggregateTaskQueueMetrics(rows: TaskQueueStatInput[]): PrometheusMetric[] {
-  const samples: PrometheusMetric['samples'] = rows.map(row => ({
-    labels: { domain: row.domain, status: row.status },
-    value: row.count,
-  }))
-
-  return [
-    {
-      name: 'excuse_task_queue_depth',
-      help: 'Unified task queue depth by domain and status (instantaneous count, all-time cumulative per status).',
-      type: 'gauge',
-      samples,
-    },
-  ]
-}
-
-function msToSeconds(ms: number): number {
-  return ms / 1000
+export function parseLLMJsonWithSchema<T>(raw: string, schema: ZodSchema<T>): T {
+  const json = parseLLMJson<unknown>(raw)
+  const result = schema.safeParse(json)
+  if (!result.success) {
+    throw new LLMSchemaValidationError(
+      result.error,
+      raw.slice(0, 200),
+    )
+  }
+  return result.data
 }
 ```
 
-实现要点：
+注意：
+- `parseLLMJson` 完全不动（既有 caller + 测试不变）。
+- 新函数返回类型 `T` 来自 `ZodSchema<T>`，不需要 `<T>` 显式标注。
+- `LLMSchemaValidationError` 是新 error class；route / worker 层 catch 时可 instanceof 判断。
+- import 用 `import type { ZodSchema }`（避免打包运行时依赖；类型擦除）。
 
-- **本包不依赖 `@excuse/db`**：重新声明 `CanvasPhaseStatInput` / `TaskQueueStatInput` 接口，与 DB 层结构对齐（字段名一致）。route 层负责把 DB 行映射到 input 类型，避免 `@excuse/metrics → @excuse/db` 依赖（违反 pure 包纪律）。
-- duration 仅取 `status='succeeded'`：failed/cancelled 的耗时反映失败路径（重试 + 错误处理），不反映模型本身性能。如果未来需要 failed duration，可加 `quantile='failed-p95'` 或第二个 metric family。
-- 空输入：返回 `[metric family with empty samples]`，`serializePrometheus` 仍输出 `# HELP` + `# TYPE` 头部（既有行为）。
+## 第四步：扩 packages/gateway 测试
 
-## 第四步：apps/server/src/routes/metrics.ts 合并输出
-
-修改：
-
-```txt
-apps/server/src/routes/metrics.ts
-```
-
-在 `/metrics` route 内，IP/token 鉴权通过后：
+### 4a. 新建 packages/gateway/test/schemas.test.ts
 
 ```ts
-import { serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
-import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics } from '@excuse/metrics' // 新增
-import { getCanvasPhaseStats, getTaskQueueStats } from '@excuse/db' // 新增
+import { describe, it, expect } from 'bun:test'
+import { openaiChatRequestSchema, gatewayUsageRecordSchema } from '../src/schemas'
 
-// ...（既有鉴权代码不变）
+describe('openaiChatRequestSchema', () => {
+  it('accepts valid request', () => {
+    const valid = {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'hi' }],
+    }
+    expect(openaiChatRequestSchema.safeParse(valid).success).toBe(true)
+  })
+  it('rejects non-array messages', () => {
+    const invalid = { model: 'gpt-4', messages: 'foo' }
+    expect(openaiChatRequestSchema.safeParse(invalid).success).toBe(false)
+  })
+  it('rejects message missing role', () => {
+    const invalid = { model: 'gpt-4', messages: [{ content: 'hi' }] }
+    expect(openaiChatRequestSchema.safeParse(invalid).success).toBe(false)
+  })
+  it('rejects string temperature', () => {
+    const invalid = {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'hi' }],
+      temperature: '0.5',
+    }
+    expect(openaiChatRequestSchema.safeParse(invalid).success).toBe(false)
+  })
+  it('allows unknown fields via passthrough', () => {
+    const valid = {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: 'hi' }],
+      unknown_param: 'foo',
+    }
+    const result = openaiChatRequestSchema.safeParse(valid)
+    expect(result.success).toBe(true)
+    if (result.success) expect((result.data as Record<string, unknown>).unknown_param).toBe('foo')
+  })
+  it('rejects empty messages array', () => {
+    const invalid = { model: 'gpt-4', messages: [] }
+    expect(openaiChatRequestSchema.safeParse(invalid).success).toBe(false)
+  })
+})
 
-// 3. 序列化为 prometheus exposition format
-const uptime = Math.floor((Date.now() - startTime) / 1000)
-const snapshot = getMetrics(getOnlineUserCount(), uptime)
-const inProcessMetrics = snapshotToPrometheus(snapshot)
-
-// DB 派生指标（每 scrape 一次查询；PostgreSQL 默认 15-30s scrape 频率下负载可忽略）
-const [phaseStats, queueStats] = await Promise.all([
-  getCanvasPhaseStats(24).catch(() => []), // DB 异常时不阻塞 in-memory 输出
-  getTaskQueueStats().catch(() => []),
-])
-const dbDerivedMetrics = [
-  ...aggregateCanvasPhaseMetrics(phaseStats),
-  ...aggregateTaskQueueMetrics(queueStats),
-]
-
-const body = serializePrometheus([...inProcessMetrics, ...dbDerivedMetrics])
+describe('gatewayUsageRecordSchema', () => {
+  it('accepts record with null cost', () => { /* ... */ })
+  it('accepts record with partial cost', () => { /* ... */ })
+  it('rejects record with string totalPriceCents', () => { /* ... */ })
+})
 ```
 
-实现要点：
+### 4b. 扩 packages/gateway/test/index.test.ts — normalizeOpenAIChatRequest
 
-- **DB 查询异常兜底**：`getCanvasPhaseStats().catch(() => [])` 返回空数组，让聚合函数输出空 samples（仅 `# HELP` + `# TYPE` 头部）；不阻塞 in-memory 输出。这与既有 `pgClient` 健康检查的 silent fallback 模式一致。
-- **并发查询**：用 `Promise.all`，避免串行让 scrape latency 翻倍。
-- **不加缓存**：每 scrape 一次查询是可接受的（PostgreSQL GROUP BY 索引覆盖即 < 10ms）；如未来 scrape 频率提升或数据量爆炸，可在 service 层加 5-15s TTL 缓存（独立任务）。
-- **不修改 in-memory 输出顺序**：DB 派生追加到 in-memory 之后，保持既有测试断言稳定。
+追加 describe：
 
-## 第五步：补 packages/metrics 单元测试
-
-新建：
-
-```txt
-packages/metrics/test/db-derived.test.ts
+```ts
+describe('normalizeOpenAIChatRequest with zod', () => {
+  it('returns NormalizedOpenAIChatRequest on valid input', () => { /* ... */ })
+  it('returns invalidParametersError when messages is string', () => {
+    const result = normalizeOpenAIChatRequest({ model: 'gpt-4', messages: 'foo' } as unknown as OpenAIChatRequest)
+    expect(isOpenAIGatewayError(result)).toBe(true)
+    if (isOpenAIGatewayError(result)) {
+      expect(result.status).toBe(400)
+      expect(result.response.error.code).toBe('invalid_parameters')
+    }
+  })
+  it('returns invalidParametersError when message missing role', () => { /* ... */ })
+  it('returns missing_user_message when no user role in valid messages', () => { /* ... */ })
+  it('strips invalid temperature type via zod (returns invalid_parameters)', () => { /* ... */ })
+  it('preserves unknown params via passthrough on success path', () => { /* ... */ })
+})
 ```
 
-至少覆盖：
+注意：
+- 测试需 `as unknown as OpenAIChatRequest` cast 才能传非法 shape（绕过 TS 编译期类型）。
+- 既有 normalizeOpenAIChatRequest 测试（missing_user_message / 多 user / stream=true）保持通过；本轮扩边界场景。
 
-1. **空输入**：`aggregateCanvasPhaseMetrics([])` 返回 2 个 metric family，每个 samples=[]，name/help/type 字段正确。
-2. **单条 succeeded**：`aggregateCanvasPhaseMetrics([{ phase: 'analyze', status: 'succeeded', count: 5, durationP50Ms: 1000, durationP95Ms: 2000, durationAvgMs: 1200 }])` → `excuse_canvas_phase_total{phase='analyze',status='succeeded'}=5` + 3 条 duration 样本（p50=1s, p95=2s, avg=1.2s）。
-3. **succeeded + failed 混合**：duration 仅取 succeeded；failed 行只出现在 `excuse_canvas_phase_total`，不出现在 `excuse_canvas_phase_duration_seconds`。
-4. **缺失 succeeded 的 phase**：仅 failed/cancelled 行时，duration metric family 的 samples 为空（保留 HELP/TYPE 头部）。
-5. **task queue 空输入**：`aggregateTaskQueueMetrics([])` 返回 1 个 metric family，samples=[]。
-6. **task queue 多 domain × status**：每行一条样本，labels 字典序输出（与既有 `serializePrometheus` 约定一致）。
-7. **单位转换**：duration 输入毫秒，metric value 是秒（1000ms → 1.0）。
-8. **`PrometheusMetric` 类型守卫**：每个返回的 metric 都有 `name` / `help` / `type` / `samples` 字段；`type ∈ ['counter', 'gauge']`。
+### 4c. 扩 packages/gateway/test/usage.test.ts — mapGatewayUsageItem 兜底
 
-测试注意：
+追加：
 
-- 用 `bun test` 直接运行（pure 包，无 jsdom 需求）。
-- 用 `expect(metric).toMatchObject({ name: 'excuse_canvas_phase_total', type: 'counter' })` + 精确 samples 数组断言。
-- 不要 import `@excuse/db`（pure 包纪律）；input 类型在本测试内构造 fixture。
-
-## 第六步：补 apps/server/test/metrics.test.ts DB-derived 测试
-
-修改：
-
-```txt
-apps/server/test/metrics.test.ts
+```ts
+describe('mapGatewayUsageItem with malformed input', () => {
+  it('returns null tokens when cost.inputTokens is string', () => {
+    const malformed = { /* record with cost.inputTokens='foo' */ } as unknown as GatewayUsageRecordInput
+    const item = mapGatewayUsageItem(malformed)
+    expect(item.inputTokens).toBe(null)
+  })
+  it('preserves id even when cost is wrong shape', () => { /* ... */ })
+})
 ```
 
-既有 in-memory 测试**不能破坏**。新增 describe('DB-derived metrics', ...)：
+## 第五步：扩 packages/prompt-engine 测试
 
-1. **mock `getCanvasPhaseStats` + `getTaskQueueStats`** 返回 fixture → /metrics 输出含 `excuse_canvas_phase_total{phase="analyze",status="succeeded"} 5` + `excuse_canvas_phase_duration_seconds{phase="analyze",quantile="0.5"} 1` + `excuse_task_queue_depth{domain="canvas",status="queued"} 3`。
-2. **mock 抛错** → /metrics 输出仍含既有 6 个 in-memory metric family；DB 派生 family 有 HELP/TYPE 头部但 samples=[]（兜底生效）。
-3. **既有 in-memory metric**：`excuse_http_requests_total` / `excuse_uptime_seconds` 等仍正常输出（既有测试断言不破坏）。
+### 5a. 扩 packages/prompt-engine/test/json-helper.test.ts — parseLLMJsonWithSchema
 
-测试注意：
+追加 describe：
 
-- 用 `mock.module('@excuse/db', ...)` 替换 `getCanvasPhaseStats` / `getTaskQueueStats`（Bun 自动 hoist；既有 server test 都用这个模式）。
-- 测试文件如果与既有 `metrics.test.ts` 其他 describe 共用 `mock.module`，需要 `--isolate`（参考 CLAUDE.md 关于 server test 的说明）。
+```ts
+import { z } from 'zod'
+import { parseLLMJsonWithSchema, LLMSchemaValidationError } from '../src/json-helper'
 
-## 第七步：更新 TODO 和 CHANGELOG
+describe('parseLLMJsonWithSchema', () => {
+  const schema = z.object({ name: z.string(), value: z.number() })
+
+  it('returns typed value on valid JSON', () => {
+    const result = parseLLMJsonWithSchema('{"name":"foo","value":42}', schema)
+    expect(result.name).toBe('foo')
+    expect(result.value).toBe(42)
+  })
+  it('parses JSON wrapped in markdown fence', () => {
+    const result = parseLLMJsonWithSchema('```json\n{"name":"foo","value":42}\n```', schema)
+    expect(result.name).toBe('foo')
+  })
+  it('throws LLMSchemaValidationError on schema mismatch', () => {
+    expect(() => parseLLMJsonWithSchema('{"name":"foo","value":"not a number"}', schema)).toThrow(LLMSchemaValidationError)
+  })
+  it('includes raw preview in error message', () => {
+    const raw = '{"name":"foo","value":"x"} extra text'.repeat(10)
+    try {
+      parseLLMJsonWithSchema(raw, schema)
+      expect.fail('should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(LLMSchemaValidationError)
+      expect((err as LLMSchemaValidationError).rawPreview.length).toBeLessThanOrEqual(200)
+    }
+  })
+  it('throws base Error on non-JSON input (parseLLMJson behavior preserved)', () => {
+    expect(() => parseLLMJsonWithSchema('no json here', schema)).toThrow('Failed to extract JSON')
+  })
+})
+```
+
+注意：
+- 既有 `parseLLMJson` 测试全部保留（不动）；本 describe 是新增。
+- 错误类型断言：`instanceof LLMSchemaValidationError` 而不是基类 Error。
+
+### 5b. 新建 packages/prompt-engine/test/schemas.test.ts
+
+```ts
+import { describe, it, expect } from 'bun:test'
+import { canvasCharacterSchema, canvasLocationSchema } from '../src/schemas'
+
+describe('canvasCharacterSchema', () => {
+  it('accepts full character', () => { /* ... */ })
+  it('rejects missing id', () => { /* ... */ })
+  it('rejects non-string name', () => { /* ... */ })
+})
+
+describe('canvasLocationSchema', () => {
+  it('accepts full location', () => { /* ... */ })
+  it('rejects missing name', () => { /* ... */ })
+})
+```
+
+## 第六步：更新 TODO 和 CHANGELOG
 
 修改 `docs/TODO.md`：
 
-- 把 P2.5「Metrics / Health」第一条：
+- P4.1 第 4 条「`zod` / `valibot` / `arktype`」下方追加一行（不删条目）：
 
 ```txt
-- 补 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时。
+   - ✅ packages/gateway（`normalizeOpenAIChatRequest` / `mapGatewayUsageItem` 引入 zod safeParse + 新建 `packages/gateway/src/schemas.ts`）+ packages/prompt-engine（新建 `parseLLMJsonWithSchema` + `LLMSchemaValidationError` + `packages/prompt-engine/src/schemas.ts`，保留 `parseLLMJson` 原签名）已完成第一批迁移（commit: `<本轮 hash>`）。canvas-runtime / regenerate.ts 调用迁移留待独立任务。
 ```
 
-**改为**：
-
-```txt
-- 补 provider 错误率、模型耗时。
-```
-
-（删除「任务队列积压」「Canvas 阶段耗时」两个已完成子项）
-
-- 保留 P2.5 第二条「线上排障检查命令或文档」与第三条「Prometheus 跨 worker 进程聚合」。
-- 不要碰 P0 / P1 / P2.1-2.4 / P2.6 / P3 章节，避免与 Claude A 在 client 改动撞行。
-- 不要碰 P0 Canvas 章节、P4.1 react-query 章节（Claude A 当前在动）。
+- 不要碰 P0 / P1 / P2 / P3 章节，避免与 Claude A 在 P3.2 admin 章节的修改撞行。
+- 不要碰 P3.2 管理后台章节（Claude A 当前在动）。
 
 修改根目录 `CHANGELOG.md`：
 
-- 在 `[Unreleased]` 的 Added 区追加：
+- 在 `[Unreleased]` 的 Changed 区追加：
 
 ```txt
-- Prometheus 指标扩展（DB 派生）：`packages/metrics` 新增纯聚合函数 `aggregateCanvasPhaseMetrics` + `aggregateTaskQueueMetrics`（接 SQL 聚合行 → Prometheus metric family，pure 无 DB 依赖）；`packages/db` 新增 `metrics.repo.ts` 提供 `getCanvasPhaseStats(windowHours=24)`（用 PostgreSQL 原生 `percentile_cont` 算 per-(phase, status) p50/p95/avg duration + count，仅统计 finishedAt IS NOT NULL）+ `getTaskQueueStats()`（per-(domain, status) 即时计数）；`apps/server/src/routes/metrics.ts` `/metrics` 端点并发查两个新 repository 并合并 in-memory snapshot + DB-derived family 输出，新增 metric family `excuse_canvas_phase_total{phase,status}` / `excuse_canvas_phase_duration_seconds{phase,quantile}` / `excuse_task_queue_depth{domain,status}`；DB 查询异常兜底空数组，不阻塞 in-memory 输出；补 packages/metrics db-derived 单元测试（空输入 / succeeded-only duration / 单位转换 / 类型守卫）+ apps/server metrics.test.ts DB-derived mock 测试（commit: `<本轮 hash>`）。
+- 客户端表单 + 外部输入边界 zod runtime 校验迁移第一批：`packages/gateway` 新增 `zod` 依赖（`zod@4.4.3`，与 apps/client 同版本），新建 `packages/gateway/src/schemas.ts` 提供 `openaiChatRequestSchema` + `gatewayUsageRecordSchema` 两个 zod schema；`normalizeOpenAIChatRequest` 改为先 `safeParse` 再走原 user-messages filter，parse 失败时构造 `invalidParametersError(zodError.issues)`，保留 `.passthrough()` 让未知 OpenAI 字段透传；`mapGatewayUsageItem` 对 cost/inputParams 做 zod safeParse 兜底（不抛错，仅类型守卫）；`packages/prompt-engine` 新增 `zod` 依赖，新建 `packages/prompt-engine/src/schemas.ts`（`canvasCharacterSchema` / `canvasLocationSchema`），`json-helper.ts` 新增 `parseLLMJsonWithSchema<T>(raw, schema): T` + `LLMSchemaValidationError`（保留 `parseLLMJson` 原签名与所有既有 caller / 测试不变，新 API 用于后续 canvas-runtime / regenerate.ts 迁移）；补 packages/gateway schemas + normalizeOpenAIChatRequest zod 行为 + usage 兜底测试 + packages/prompt-engine parseLLMJsonWithSchema + schemas 测试（commit: `<本轮 hash>`）。
 ```
 
 - 写入本轮 commit 短 hash（commit 完成后回填）。
 
 如果文档与 Claude A 冲突：
 
-- 不要覆盖 Claude A 的 Canvas polling 改造记录。
+- 不要覆盖 Claude A 的 admin 后台记录。
 - 可以先提交代码，文档冲突在最终回复里说明。
 
 ## 验证命令
 
-至少运行（**server test 必须加 `--isolate`**）：
+至少运行：
 
 ```bash
-bun test packages/metrics/test/db-derived.test.ts
-bun test --isolate apps/server/test/metrics.test.ts
-bun run --cwd apps/server typecheck
+bun test packages/gateway/test/schemas.test.ts
+bun test packages/gateway/test/index.test.ts
+bun test packages/gateway/test/usage.test.ts
+bun test packages/prompt-engine/test/json-helper.test.ts
+bun test packages/prompt-engine/test/schemas.test.ts
+bun run --cwd packages/gateway typecheck
+bun run --cwd packages/prompt-engine typecheck
 ```
 
 如时间允许，再运行：
 
 ```bash
-bun run typecheck
+bun run typecheck  # 全仓三端 typecheck
 bun run lint
-bun test packages/metrics
+bun test packages/gateway packages/prompt-engine
 ```
 
-如果 lint 因 Claude A 并行未提交文件失败，不要修改 Claude A 文件；最终回复说明。
+如果 server test 因 Claude A 并行未提交文件失败（`apps/server/test/admin-routes.test.ts` 等），不要修改 Claude A 文件；只跑 packages/ 内的测试即可。
 
 ## 推荐 commit
 
 ```bash
-git add packages/metrics/src/db-derived.ts \
-  packages/metrics/src/index.ts \
-  packages/metrics/test/db-derived.test.ts \
-  packages/db/src/repositories/metrics.repo.ts \
-  packages/db/src/index.ts \
-  apps/server/src/routes/metrics.ts \
-  apps/server/test/metrics.test.ts \
+git add packages/gateway/package.json \
+  packages/gateway/src/schemas.ts \
+  packages/gateway/src/index.ts \
+  packages/gateway/test/schemas.test.ts \
+  packages/gateway/test/index.test.ts \
+  packages/gateway/test/usage.test.ts \
+  packages/prompt-engine/package.json \
+  packages/prompt-engine/src/schemas.ts \
+  packages/prompt-engine/src/json-helper.ts \
+  packages/prompt-engine/test/json-helper.test.ts \
+  packages/prompt-engine/test/schemas.test.ts \
+  bun.lock \
   docs/TODO.md \
   CHANGELOG.md
 
 git diff --name-only --cached
 ```
 
+⚠️ 如果 `packages/prompt-engine/src/index.ts` barrel export 需要追加 `export * from './schemas'`，把该文件加入 add 列表；**仅限 export 一行追加**，不动其他 export。
+
 **强制检查**：commit 前必须确认 `git diff --name-only --cached` 输出**不包含**：
 
-- `packages/db/src/schema/`
-- `packages/db/src/repositories/`（除新建 `metrics.repo.ts`）
-- `packages/shared/`
-- `packages/gateway/`
-- `packages/provider/`
-- `packages/auth/`
-- `packages/events/`
-- `packages/workflow-engine/`
-- `packages/task-engine/`
-- `packages/rate-limit/`
-- `packages/subtitle-engine/`
-- `packages/canvas-engine/`
-- `packages/canvas-runtime/`
-- `packages/prompt-engine/`
-- `packages/billing/`
-- `packages/ffmpeg/`
-- `packages/storage/`
-- `apps/client/`
-- `apps/worker/`
-- `apps/server/src/services/`
-- `apps/server/src/routes/`（除 `metrics.ts`）
-- `apps/server/src/index.ts`
-- `apps/server/src/config.ts`
+- `apps/client/`（任何路径）
+- `apps/server/`（任何路径，含 `routes/openai-gateway.ts`）
+- `apps/worker/`（任何路径）
+- `packages/shared/`（任何路径）
+- `packages/db/`（任何路径）
+- `packages/metrics/`（任何路径）
+- `packages/provider/`（任何路径）
+- `packages/canvas-engine/` / `packages/canvas-runtime/`（任何路径）
+- `packages/events/` / `packages/workflow-engine/` / `packages/task-engine/`（任何路径）
+- `packages/rate-limit/` / `packages/subtitle-engine/` / `packages/auth/`（任何路径）
+- `packages/billing/` / `packages/ffmpeg/` / `packages/storage/`（任何路径）
 
 确认无误后提交：
 
 ```bash
-git commit -m "feat(metrics): expose canvas phase timing and task queue depth"
+git commit -m "refactor(gateway,prompt-engine): introduce zod runtime schemas for external input"
 ```
 
 最终回复必须包含：
 
 - 本轮 commit hash。
-- 实际运行的验证命令（特别是 metrics + db-derived 测试输出）。
+- 实际运行的验证命令（特别是 packages/gateway + packages/prompt-engine test 输出）。
 - `git diff --name-only --cached` 的最终输出（证明未跨界）。
-- 第一步「调研」结果：`canvas_pipeline_runs` / `tasks` 表的关键字段名 + 枚举值。
-- 第二步「PostgreSQL percentile_cont」结果：Drizzle `sql` 模板对 `extract(epoch from (...))` 的支持情况；如回退字符串拼接，说明原因。
-- 第四步「route 合并」结果：DB 异常兜底是否生效（mock 抛错测试输出）。
-- 一个真实的 `/metrics` 输出片段（含新 3 个 metric family 各一条样本），便于后续维护。
+- 第一步「调研」结果：zod 版本、OpenAIChatRequest 字段集、validateCharacterProfile 字段集（用于 canvasCharacterSchema）。
+- 第二步 zod schema 设计：`.passthrough()` 用法 / safeParse 兜底策略。
+- 第三步 `parseLLMJsonWithSchema` 设计：与既有 `parseLLMJson` 共存模式、LLMSchemaValidationError 字段。
+- 一个真实测试 case 输出示例（如 normalizeOpenAIChatRequest 收到 `messages: 'foo'` 时返回 invalidParametersError 的完整 response shape）。
 - 与 Claude A 是否有冲突（特别是 `docs/TODO.md` / `CHANGELOG.md`）。
