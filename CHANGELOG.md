@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Canvas 主链路已完成自动执行、实时回显、SSE/polling fallback、阶段状态和失败恢复等关键体验收口（commits: `a2b4c9f`、`e3d6277`、`095d151`、`b123756`、`d73cd15`、`e3dbccb`、`633672c`、`0a79421`、`d783551`、`67f9548`、`cb0fd99`、`2416feb`、`d211790`）。
+- 资产中心隐藏策略第一版：生成记录和 Canvas 资产支持软隐藏，资产列表默认排除隐藏项（commit: `1be3ce9`）。
+- 参考资产复用链路：镜头参考资产、资产库选择、服务端归属校验、模型变体推荐、批量应用参考资产（commits: `4fb64b3`、`e886876`、`5a3a74f`、`df5ad57`、`c196f66`）。
+- API Key 管理入口第一版：列表、创建、secret 只显示一次、复制和撤销确认（commit: `b154a55`）。
+- OpenAI Gateway 开发者使用说明入口第一版（commit: `0bcd860`）。
+- 资产中心、通知和 Billing 已完成 React Query 试点接入（commit: `e44a8f1`）。
+- `packages/ffmpeg`、`packages/storage`、`packages/auth`、`packages/rate-limit`、`packages/metrics`、`packages/subtitle-engine` 等通用能力已完成第一批拆包（commits: `65e775b`、`8ac92b3`、`de60178`、`b575959`、`a80936f`、`a269aa6`）。
+
+### Testing
+
+- 补齐 `apps/server/src/modules/generation/output-parser.ts` 测试（commits: `b86c727`、`97bf1ca`）。
+- 补齐 `packages/provider/src/model-validator.ts` 边界测试（commit: `97bf1ca`）。
+- OpenAI Gateway 错误码常量与测试矩阵：`packages/gateway` 新增 `OPENAI_GATEWAY_ERROR_CODES`，route 与 `normalizeOpenAIChatRequest` 全部替换为常量；route 层补未知模型 / 非文本模型 / stream / 缺 user message / 参数校验失败 / provider 失败（含 refund 断言）/ 余额不足七条错误码响应测试（commit: `6b1026f`）。
+
 ## [0.0.1] - 2026-06-11
 
 ### Added
