@@ -16,6 +16,8 @@ export const auditActionEnum = pgEnum('audit_action', [
   'canvas_phase_run',
   'canvas_cancel',
   'canvas_asset_regenerate',
+  'canvas_apply_reference_assets',
+  'asset_hide',
   'gateway_call',
   'generation_retry',
   'generation_cancel',

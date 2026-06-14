@@ -205,6 +205,8 @@ export interface ListGenerationRecordsFilter {
   createdFrom?: Date
   /** 创建时间上界（含） */
   createdTo?: Date
+  /** 排除已隐藏的记录（资产中心默认排除） */
+  excludeHidden?: boolean
   limit?: number
   offset?: number
 }

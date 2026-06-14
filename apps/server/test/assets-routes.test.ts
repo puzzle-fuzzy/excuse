@@ -21,11 +21,23 @@ import { extractEdenError, makeRecord, makeTestConfig, makeUploadedFile, signTes
 const mockListGenRecords = mock<(filter: Record<string, unknown>) => Promise<GenerationRecordRow[]>>(() => Promise.resolve([]))
 const mockListCanvasAssets = mock<(accountId: string, filter: Record<string, unknown>) => Promise<CanvasAssetRow[]>>(() => Promise.resolve([]))
 const mockListUploadedFiles = mock<(accountId: string, filter: Record<string, unknown>) => Promise<UploadedFileRow[]>>(() => Promise.resolve([]))
+const mockGetGenerationRecordByIdForAccount = mock<() => Promise<GenerationRecordRow | null>>(() => Promise.resolve(null))
+const mockGetCanvasAssetByIdForAccount = mock<() => Promise<CanvasAssetRow | null>>(() => Promise.resolve(null))
+const mockHideGenerationRecord = mock<() => Promise<{ id: string, hiddenAt: Date } | null>>(() => Promise.resolve({ id: 'rec-1', hiddenAt: new Date() }))
+const mockHideCanvasAsset = mock<() => Promise<{ id: string, hiddenAt: Date } | null>>(() => Promise.resolve({ id: 'asset-1', hiddenAt: new Date() }))
 
 mock.module('@excuse/db', () => ({
   listGenerationRecords: mockListGenRecords,
   listCanvasAssetsForLibrary: mockListCanvasAssets,
   listUploadedFilesForAccount: mockListUploadedFiles,
+  getGenerationRecordByIdForAccount: mockGetGenerationRecordByIdForAccount,
+  getCanvasAssetByIdForAccount: mockGetCanvasAssetByIdForAccount,
+  hideGenerationRecord: mockHideGenerationRecord,
+  hideCanvasAsset: mockHideCanvasAsset,
+}))
+
+mock.module('../src/services/audit', () => ({
+  audit: () => {},
 }))
 
 // ─── 测试配置 ────────────────────────────────────────────
@@ -72,6 +84,7 @@ const AUTH = (token: string) => ({ headers: { Authorization: `Bearer ${token}` }
 
 describe('assets routes', () => {
   let client: ReturnType<typeof treaty>
+  let app: ReturnType<typeof createAssetsRoutes>
   let token: string
 
   beforeAll(async () => {
@@ -82,13 +95,17 @@ describe('assets routes', () => {
     mockListGenRecords.mockClear()
     mockListCanvasAssets.mockClear()
     mockListUploadedFiles.mockClear()
+    mockGetGenerationRecordByIdForAccount.mockClear()
+    mockGetCanvasAssetByIdForAccount.mockClear()
+    mockHideGenerationRecord.mockClear()
+    mockHideCanvasAsset.mockClear()
 
     // 默认返回空，每个用例按需 mockResolvedValueOnce
     mockListGenRecords.mockResolvedValue([])
     mockListCanvasAssets.mockResolvedValue([])
     mockListUploadedFiles.mockResolvedValue([])
 
-    const app = createAssetsRoutes(testConfig)
+    app = createAssetsRoutes(testConfig)
     client = treaty(app)
   })
 
@@ -406,5 +423,104 @@ describe('assets routes', () => {
     expect(mockListGenRecords).toHaveBeenCalledWith(expect.objectContaining({ search: 'hero', projectId: 'proj-999' }))
     expect(mockListCanvasAssets).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'hero', projectId: 'proj-999' }))
     expect(mockListUploadedFiles).toHaveBeenCalledWith('acc-001', expect.objectContaining({ search: 'hero' }))
+  })
+
+  // ─── 隐藏资产（POST /api/assets/:source/:id/hide）───────────────────────────
+  // Eden treaty 无法正确解析 /api/assets/:source/:id/hide（与 GET /api/assets 冲突），
+  // 所以用 app.handle(new Request(...)) 直接测试。
+
+  describe('隐藏 generation_record', () => {
+    it('成功隐藏后返回 { success: true }', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValueOnce(
+        makeRecord({ id: 'rec-1', accountId: 'acc-001', status: 'succeeded' }),
+      )
+      mockHideGenerationRecord.mockResolvedValueOnce({ id: 'rec-1', hiddenAt: new Date() })
+
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-1/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(mockHideGenerationRecord).toHaveBeenCalledWith('rec-1')
+    })
+
+    it('其他用户的 generation_record 不能隐藏（404）', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValueOnce(null)
+
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/rec-other/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(404)
+      expect(mockHideGenerationRecord).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('隐藏 canvas_asset', () => {
+    it('成功隐藏 succeeded 资产后返回 { success: true }', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(
+        makeCanvasAsset({ id: 'asset-1', accountId: 'acc-001', status: 'succeeded' }),
+      )
+      mockHideCanvasAsset.mockResolvedValueOnce({ id: 'asset-1', hiddenAt: new Date() })
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      const body = await res.json()
+      expect(res.status).toBe(200)
+      expect(body.success).toBe(true)
+      expect(mockHideCanvasAsset).toHaveBeenCalledWith('asset-1')
+    })
+
+    it('其他用户的 canvas_asset 不能隐藏（404）', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(null)
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-other/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(404)
+      expect(mockHideCanvasAsset).not.toHaveBeenCalled()
+    })
+
+    it('queued 的 canvas_asset 隐藏返回 409', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(
+        makeCanvasAsset({ id: 'asset-q', accountId: 'acc-001', status: 'queued' }),
+      )
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-q/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(409)
+      expect(mockHideCanvasAsset).not.toHaveBeenCalled()
+    })
+
+    it('running 的 canvas_asset 隐藏返回 409', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(
+        makeCanvasAsset({ id: 'asset-r', accountId: 'acc-001', status: 'running' }),
+      )
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-r/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      expect(res.status).toBe(409)
+      expect(mockHideCanvasAsset).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('隐藏参数校验', () => {
+    it('source=uploaded_file 不支持隐藏（参数校验失败）', async () => {
+      const res = await app.handle(new Request('http://localhost/api/assets/uploaded_file/file-1/hide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+      // Elysia validates params against t.Union([t.Literal(...)]), rejects 'uploaded_file'
+      expect(res.status).toBe(422)
+    })
   })
 })

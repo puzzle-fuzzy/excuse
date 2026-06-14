@@ -1,6 +1,6 @@
 import type { CostDetail, OutputResult } from '../domain-types'
 import type { GenerationRecordInsert, ListGenerationRecordsFilter } from '../types'
-import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { generationRecords } from '../schema'
 
@@ -57,7 +57,7 @@ export async function getGenerationRecordByIdForAccount(id: string, accountId: s
  * model/createdFrom/createdTo 为资产中心按模型与时间筛选（v1.1）。
  */
 export async function listGenerationRecords(filter: ListGenerationRecordsFilter = {}) {
-  const { accountId, category, status, statuses, projectId, model, search, createdFrom, createdTo, limit = 50, offset = 0 } = filter
+  const { accountId, category, status, statuses, projectId, model, search, createdFrom, createdTo, excludeHidden, limit = 50, offset = 0 } = filter
 
   const conditions = []
   if (accountId)
@@ -86,6 +86,9 @@ export async function listGenerationRecords(filter: ListGenerationRecordsFilter 
     conditions.push(gte(generationRecords.createdAt, createdFrom))
   if (createdTo)
     conditions.push(lte(generationRecords.createdAt, createdTo))
+  // 资产中心默认排除已隐藏的记录
+  if (excludeHidden)
+    conditions.push(isNull(generationRecords.hiddenAt))
 
   return getDb()
     .select()
@@ -256,6 +259,26 @@ export async function getCostRecords(accountId: string, dateRange?: { from: Date
     .where(and(...conditions))
 
   return records.filter(r => r.cost && (typeof r.cost.totalPriceCents === 'number' || typeof r.cost.totalPrice === 'number'))
+}
+
+/** 隐藏生成记录（从资产中心移除，不删除 DB 记录） */
+export async function hideGenerationRecord(id: string) {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ hiddenAt: new Date(), updatedAt: new Date() })
+    .where(eq(generationRecords.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 恢复已隐藏的生成记录（repository 层，暂不做 UI） */
+export async function unhideGenerationRecord(id: string) {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ hiddenAt: null, updatedAt: new Date() })
+    .where(eq(generationRecords.id, id))
+    .returning()
+  return updated ?? null
 }
 
 /**

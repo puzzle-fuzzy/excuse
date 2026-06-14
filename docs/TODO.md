@@ -56,11 +56,19 @@
 
 ### 1. 资产中心升级
 
-当前状态：部分完成，commit 摘要：`312902e`、`9ade395`、`6c78415`、`7a8047c`、`4501b8d`、`1762ece`、`b0805bb`。
+当前状态：隐藏策略已完成，commit：本轮待提交。
+
+已完成：
+
+- `generation_records` / `canvas_assets` 新增 `hiddenAt` 字段（软隐藏，不物理删除）。
+- `POST /api/assets/:source/:id/hide`：按 `source + id` 隐藏，校验 `accountId`，queued/running 的 canvas_asset 返回 409。
+- `/api/assets` 默认排除 `hiddenAt IS NULL`。
+- 前端 `移出资产中心` 按钮 + 确认弹窗（按 source 不同文案）。
+- `unhideGenerationRecord` / `unhideCanvasAsset` repository 层已保留，暂不做 UI。
 
 待办：
 
-- 删除资产的统一产品策略：`generation_records` / `canvas_assets` 的删除、隐藏、回收站策略。
+- 回收站/恢复能力 UI（第一版只做隐藏，不做恢复 UI）。
 - uploaded_files 编辑产品流程：重命名、用途、metadata。
 - 高级筛选 UI 优化：排序、标签、收藏。
 - 资产中心查询已迁入 React Query 试点；后续可迁移 Canvas 项目详情、通知、Billing。
@@ -363,7 +371,7 @@ v0.5 已完成：
 2. ~~并行完成测试覆盖率治理第一批：output-parser / model-validator~~ ✓ 已完成，commit：`b86c727`、`97bf1ca`（output-parser 20 pass / model-validator 28 pass，覆盖率 98.53% / 100%）。
 3. ~~P1-2 批量应用参考资产~~ ✓ 已完成（缺少撤销历史），v0.5：纯函数 + 服务端端点 + 前端弹窗 + 测试。
 4. 成熟库治理第一批：debounce + React Query 选型和最小接入。
-5. 资产中心删除/隐藏/回收站策略。
+5. ~~资产中心删除/隐藏/回收站策略~~ ✓ 已完成（隐藏策略第一版），commit：本轮待提交。
 6. API Key 产品化与 Gateway 开放状态决策。
 7. Metrics / Health 生产级可观测性。
 8. Model Lab 内部实验页。

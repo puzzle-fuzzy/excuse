@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
 import type { CanvasAssetCategory, CanvasAssetInsert, CanvasAssetStatus } from '../types'
-import { and, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasAssets } from '../schema/canvas-assets'
 
@@ -61,11 +61,13 @@ export async function listCanvasAssetsForLibrary(
     search?: string
     createdFrom?: Date
     createdTo?: Date
+    /** 排除已隐藏的记录（资产中心默认排除） */
+    excludeHidden?: boolean
     limit?: number
     offset?: number
   } = {},
 ) {
-  const { statuses, categories, projectId, model, search, createdFrom, createdTo, limit = 100, offset = 0 } = filter
+  const { statuses, categories, projectId, model, search, createdFrom, createdTo, excludeHidden, limit = 100, offset = 0 } = filter
 
   const conditions = [eq(canvasAssets.accountId, accountId)]
   if (statuses && statuses.length > 0)
@@ -90,6 +92,9 @@ export async function listCanvasAssetsForLibrary(
     conditions.push(gte(canvasAssets.createdAt, createdFrom))
   if (createdTo)
     conditions.push(lte(canvasAssets.createdAt, createdTo))
+  // 资产中心默认排除已隐藏的记录
+  if (excludeHidden)
+    conditions.push(isNull(canvasAssets.hiddenAt))
 
   return getDb()
     .select()
@@ -351,6 +356,26 @@ export async function setCanvasAssetLocked(id: string, locked: boolean) {
   const [updated] = await getDb()
     .update(canvasAssets)
     .set({ locked, updatedAt: new Date() })
+    .where(eq(canvasAssets.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 隐藏 Canvas 资产（从资产中心移除，不改变 isActive/locked/status） */
+export async function hideCanvasAsset(id: string) {
+  const [updated] = await getDb()
+    .update(canvasAssets)
+    .set({ hiddenAt: new Date(), updatedAt: new Date() })
+    .where(eq(canvasAssets.id, id))
+    .returning()
+  return updated ?? null
+}
+
+/** 恢复已隐藏的 Canvas 资产（repository 层，暂不做 UI） */
+export async function unhideCanvasAsset(id: string) {
+  const [updated] = await getDb()
+    .update(canvasAssets)
+    .set({ hiddenAt: null, updatedAt: new Date() })
     .where(eq(canvasAssets.id, id))
     .returning()
   return updated ?? null

@@ -169,6 +169,13 @@
       "when": 1781418080141,
       "tag": "0023_cloudy_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781434545549,
+      "tag": "0024_petite_stone_men",
+      "breakpoints": true
     }
   ]
 }

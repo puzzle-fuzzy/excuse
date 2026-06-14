@@ -16,6 +16,10 @@ import type {
 } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
+  getCanvasAssetByIdForAccount,
+  getGenerationRecordByIdForAccount,
+  hideCanvasAsset,
+  hideGenerationRecord,
   listCanvasAssetsForLibrary,
   listGenerationRecords,
   listUploadedFilesForAccount,
@@ -23,6 +27,8 @@ import {
 import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
+import { audit } from '../services/audit'
+import { conflict, notFound, validationError } from '../utils/errors'
 
 /**
  * 统一资产中心路由 — GET /api/assets
@@ -287,6 +293,7 @@ export function createAssetsRoutes(config: ServerConfig) {
               search,
               createdFrom,
               createdTo,
+              excludeHidden: true,
               limit,
               offset,
             })
@@ -300,6 +307,7 @@ export function createAssetsRoutes(config: ServerConfig) {
               search,
               createdFrom,
               createdTo,
+              excludeHidden: true,
               limit,
               offset,
             })
@@ -340,6 +348,43 @@ export function createAssetsRoutes(config: ServerConfig) {
       detail: {
         summary: '获取统一资产列表',
         description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 隐藏资产（从资产中心移除，不删除 DB 记录） ──────────────────────────
+    .post('/assets/:source/:id/hide', async ({ params: { source, id }, userId, set }) => {
+      if (source === 'generation_record') {
+        const record = await getGenerationRecordByIdForAccount(id, userId)
+        if (!record)
+          return notFound(set, '生成记录不存在或无权限访问')
+        await hideGenerationRecord(id)
+        audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id } })
+        return { success: true }
+      }
+
+      if (source === 'canvas_asset') {
+        const asset = await getCanvasAssetByIdForAccount(id, userId)
+        if (!asset)
+          return notFound(set, 'Canvas 资产不存在或无权限访问')
+        // 拒绝隐藏正在生成中的资产
+        if (asset.status === 'queued' || asset.status === 'running')
+          return conflict(set, '正在生成中的资产不能隐藏')
+        await hideCanvasAsset(id)
+        audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id } })
+        return { success: true }
+      }
+
+      return validationError(set, '只支持隐藏 generation_record 或 canvas_asset')
+    }, {
+      params: t.Object({
+        source: t.Union([t.Literal('generation_record'), t.Literal('canvas_asset')]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '隐藏资产',
+        description: '将 generation_record 或 canvas_asset 从资产中心隐藏（设置 hiddenAt），不删除 DB 记录或存储文件。canvas_asset 状态为 queued/running 时拒绝隐藏（返回 409）。uploaded_file 请使用独立的删除接口。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

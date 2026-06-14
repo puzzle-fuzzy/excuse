@@ -90,6 +90,9 @@ export const generationRecords = pgTable('generation_records', {
   /** 去重键 = userId + model + hash(params)，防止同参数重复提交 */
   dedupeKey: text('dedupe_key').unique(),
 
+  /** 从资产中心隐藏的时间（null = 未隐藏，仍出现在资产列表） */
+  hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+
   /** 创建时间 */
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 
