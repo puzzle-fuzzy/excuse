@@ -23,6 +23,56 @@ import type {
 import { parseDashScopeError } from './dashscope-errors'
 import { getModelById } from './model-configs'
 
+/**
+ * Provider 调用观察者 —— 在 DashScope 调用结束（成功或失败）后被通知。
+ *
+ * 设计意图：
+ * - `@excuse/provider` 不依赖 `@excuse/metrics`（runtime 包不能依赖 pure 单例）；
+ *   由 app（如 server）启动时通过 `registerProviderCallObserver` 注入。
+ * - 全局 hook 列表，所有 DashScopeClient 实例共享 —— 因 DashScopeClient 在 server / worker
+ *   多个调用点分散实例化，没有集中初始化点；hook registry 让任意实例都能触发回调。
+ * - hook 内部不应抛错（已 try/catch 兜底，但 hook 自身性能影响所有调用）。
+ */
+export type ProviderCallObserver = (model: string, durationMs: number, success: boolean) => void
+
+const providerCallObservers: ProviderCallObserver[] = []
+
+/**
+ * 注册一个 provider 调用观察者。返回反注册函数。
+ *
+ * 在 app 启动时（如 `apps/server/src/index.ts`）调用一次：
+ *
+ * ```ts
+ * registerProviderCallObserver((model, durationMs, success) => {
+ *   recordProviderCall(model, durationMs, success)
+ * })
+ * ```
+ */
+export function registerProviderCallObserver(observer: ProviderCallObserver): () => void {
+  providerCallObservers.push(observer)
+  return () => {
+    const idx = providerCallObservers.indexOf(observer)
+    if (idx >= 0)
+      providerCallObservers.splice(idx, 1)
+  }
+}
+
+/** 仅供测试用：清空所有 observer。 */
+export function __resetProviderCallObservers(): void {
+  providerCallObservers.length = 0
+}
+
+function notifyProviderCallObservers(model: string, durationMs: number, success: boolean): void {
+  for (const observer of providerCallObservers) {
+    try {
+      observer(model, durationMs, success)
+    }
+    catch {
+      // hook 抛错不影响主流程；测试环境下也会暴露在 observer 自身日志中。
+    }
+  }
+}
+
 export class DashScopeClient {
   private config: DashScopeConfig
 
@@ -199,6 +249,7 @@ export class DashScopeClient {
 
     const body = this.buildRequestBody(modelConfig, params)
 
+    const startTime = Date.now()
     try {
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
@@ -209,6 +260,7 @@ export class DashScopeClient {
       const data = await response.json() as DashScopeChatResponse | DashScopeOpenaiChatResponse
 
       if (response.status !== 200) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
         return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: ${parseDashScopeError(data)}`)
       }
 
@@ -231,6 +283,7 @@ export class DashScopeClient {
           text = output.text
       }
 
+      notifyProviderCallObservers(model, Date.now() - startTime, true)
       return {
         type: 'text',
         success: true,
@@ -247,6 +300,7 @@ export class DashScopeClient {
       }
     }
     catch (error) {
+      notifyProviderCallObservers(model, Date.now() - startTime, false)
       const msg = error instanceof Error ? error.message : String(error)
       return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
     }
@@ -263,6 +317,7 @@ export class DashScopeClient {
 
     const body = this.buildRequestBody(modelConfig, params)
 
+    const startTime = Date.now()
     try {
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
@@ -273,6 +328,7 @@ export class DashScopeClient {
       const data = await response.json() as DashScopeImageResponse
 
       if (response.status !== 200) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
         return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: ${parseDashScopeError(data)}`)
       }
 
@@ -287,6 +343,7 @@ export class DashScopeClient {
           .filter((url): url is string => typeof url === 'string' && url.length > 0),
       )
 
+      notifyProviderCallObservers(model, Date.now() - startTime, true)
       return {
         type: 'image',
         success: true,
@@ -302,6 +359,7 @@ export class DashScopeClient {
       }
     }
     catch (error) {
+      notifyProviderCallObservers(model, Date.now() - startTime, false)
       const msg = error instanceof Error ? error.message : String(error)
       return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
     }
@@ -320,6 +378,7 @@ export class DashScopeClient {
     const body = this.buildRequestBody(modelConfig, params, referenceUrls)
     const duration = typeof params.duration === 'number' ? params.duration : 0
 
+    const startTime = Date.now()
     try {
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
@@ -333,13 +392,17 @@ export class DashScopeClient {
       const data = await response.json() as DashScopeVideoSubmitResponse
 
       if (response.status !== 200) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
         return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: ${parseDashScopeError(data)}`)
       }
 
       const taskId = data.output?.task_id ?? data.request_id
-      if (!taskId)
+      if (!taskId) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
         return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: 未返回 task_id`)
+      }
 
+      notifyProviderCallObservers(model, Date.now() - startTime, true)
       return {
         type: 'video_task',
         success: true,
@@ -357,6 +420,7 @@ export class DashScopeClient {
       }
     }
     catch (error) {
+      notifyProviderCallObservers(model, Date.now() - startTime, false)
       const msg = error instanceof Error ? error.message : String(error)
       return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
     }

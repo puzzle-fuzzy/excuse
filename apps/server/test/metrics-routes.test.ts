@@ -29,6 +29,11 @@ const FIXED_SNAPSHOT: MetricsSnapshot = {
   },
   sse: { onlineUsers: 3 },
   generation: { byStatus: { succeeded: 7, failed: 1 } },
+  providerCalls: {
+    'qwen-max': { success: 5, failed: 1, durations: [1000, 1100, 1200, 1300, 1400, 500] },
+    'wanx2.1-t2v-turbo': { success: 2, failed: 0, durations: [5000, 6000] },
+    'failed-only-model': { success: 0, failed: 3, durations: [] },
+  },
   errors: 4,
   uptime: 600,
 }
@@ -38,6 +43,7 @@ mock.module('../src/services/metrics', () => ({
   recordRequest: mock(() => {}),
   recordError: mock(() => {}),
   recordGenerationStatus: mock(() => {}),
+  recordProviderCall: mock(() => {}),
   resetMetrics: mock(() => {}),
 }))
 
@@ -277,5 +283,55 @@ describe('GET /metrics — DB-derived metrics', () => {
       expect(body).toContain(`# HELP ${name}`)
       expect(body).toMatch(new RegExp(`# TYPE ${name} (counter|gauge)`))
     }
+  })
+})
+
+describe('GET /metrics — provider metrics', () => {
+  it('输出含 excuse_provider_calls_total 按 model/status 分桶', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    expect(body).toContain('# HELP excuse_provider_calls_total')
+    expect(body).toContain('# TYPE excuse_provider_calls_total counter')
+
+    // qwen-max: 5 成功 + 1 失败
+    expect(body).toContain('excuse_provider_calls_total{model="qwen-max",status="success"} 5')
+    expect(body).toContain('excuse_provider_calls_total{model="qwen-max",status="failed"} 1')
+    // wanx2.1-t2v-turbo: 2 成功 + 0 失败
+    expect(body).toContain('excuse_provider_calls_total{model="wanx2.1-t2v-turbo",status="success"} 2')
+    expect(body).toContain('excuse_provider_calls_total{model="wanx2.1-t2v-turbo",status="failed"} 0')
+    // failed-only-model: 0 成功 + 3 失败
+    expect(body).toContain('excuse_provider_calls_total{model="failed-only-model",status="success"} 0')
+    expect(body).toContain('excuse_provider_calls_total{model="failed-only-model",status="failed"} 3')
+  })
+
+  it('输出含 excuse_provider_latency_seconds p50/p95/avg 样本', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    expect(body).toContain('# HELP excuse_provider_latency_seconds')
+    expect(body).toContain('# TYPE excuse_provider_latency_seconds gauge')
+
+    // qwen-max durations: [1000, 1100, 1200, 1300, 1400, 500] → sorted: [500, 1000, 1100, 1200, 1300, 1400] (n=6)
+    // p50 nearest-rank: idx = ceil(0.5*6)-1 = 2 → 1100ms → 1.1s
+    // p95 nearest-rank: idx = ceil(0.95*6)-1 = 5 → 1400ms → 1.4s
+    // avg = 6500/6 ≈ 1083.33ms → 1.083333s
+    expect(body).toContain('excuse_provider_latency_seconds{model="qwen-max",quantile="0.5"} 1.1')
+    expect(body).toContain('excuse_provider_latency_seconds{model="qwen-max",quantile="0.95"} 1.4')
+    expect(body).toContain('excuse_provider_latency_seconds{model="qwen-max",quantile="avg"}')
+
+    // wanx2.1-t2v-turbo durations: [5000, 6000] → p50=p95=avg=5000/6000/5500 → 5/6/5.5
+    expect(body).toContain('excuse_provider_latency_seconds{model="wanx2.1-t2v-turbo",quantile="0.5"} 5')
+    expect(body).toContain('excuse_provider_latency_seconds{model="wanx2.1-t2v-turbo",quantile="0.95"} 6')
+  })
+
+  it('空 durations 的 model 不输出 latency 样本（calls 仍输出）', async () => {
+    const res = await fetchMetrics(buildApp(), { ip: '127.0.0.1' })
+    const body = await res.text()
+
+    // failed-only-model 在 calls 中
+    expect(body).toContain('excuse_provider_calls_total{model="failed-only-model"')
+    // 但 latency 样本不包含 failed-only-model
+    expect(body).not.toMatch(/excuse_provider_latency_seconds\{model="failed-only-model"/)
   })
 })

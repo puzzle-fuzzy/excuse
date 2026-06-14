@@ -4,7 +4,7 @@ import { cors } from '@elysia/cors'
 import { staticPlugin } from '@elysia/static'
 import { openapi } from '@elysiajs/openapi'
 import { swagger } from '@elysiajs/swagger'
-import { checkFFmpegAsync } from '@excuse/provider'
+import { checkFFmpegAsync, registerProviderCallObserver } from '@excuse/provider'
 import { logger } from '@excuse/shared'
 import { Elysia } from 'elysia'
 import { loadConfig } from './config'
@@ -28,9 +28,22 @@ import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
 import { createSSERoutes } from './routes/sse'
 import { createSubtitleRoutes } from './routes/subtitle'
 import { createUploadRoutes } from './routes/upload'
+import { recordProviderCall } from './services/metrics'
 import { startSSEListener } from './services/sse-manager'
 
 const config = loadConfig()
+
+/**
+ * 把 DashScopeClient 的所有调用接入进程内 metrics 收集器。
+ *
+ * DashScopeClient 在 server / worker 多个调用点分散实例化（无集中初始化点），
+ * 这里通过 module-level observer registry 一次性挂接，所有实例自动覆盖。
+ * worker 进程不调用本文件，因此 worker 内的 provider 调用不会聚合到 server metrics ——
+ * 这是预期行为，跨进程聚合留给后续 Prometheus federation。
+ */
+registerProviderCallObserver((model, durationMs, success) => {
+  recordProviderCall(model, durationMs, success)
+})
 
 /**
  * =====================================================

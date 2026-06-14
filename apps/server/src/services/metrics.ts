@@ -23,6 +23,17 @@ export function recordGenerationStatus(status: string) {
   metrics.recordGenerationStatus(status)
 }
 
+/**
+ * 记录一次 DashScope provider 调用结果（成功/失败 + 耗时）。
+ *
+ * 由 `registerProviderCallObserver` 在 server 启动时挂到 DashScopeClient 上，
+ * 所有 chatCompletion / generateImage / submitVideoTask 调用结束后自动触发；
+ * 调用方一般不直接调用本函数。
+ */
+export function recordProviderCall(model: string, durationMs: number, success: boolean) {
+  metrics.recordProviderCall(model, durationMs, success)
+}
+
 // ===== 查询方法 =====
 
 /** 获取当前指标快照 */

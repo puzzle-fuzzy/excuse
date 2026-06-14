@@ -166,6 +166,7 @@ describe('snapshotToPrometheus', () => {
     },
     sse: { onlineUsers: 7 },
     generation: { byStatus: { succeeded: 50, failed: 3, processing: 2 } },
+    providerCalls: {},
     errors: 12,
     uptime: 3600,
   }

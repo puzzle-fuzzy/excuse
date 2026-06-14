@@ -1,4 +1,5 @@
 import type { MetricsSnapshot } from './index'
+import { aggregateProviderMetrics } from './provider-derived'
 
 /**
  * Prometheus metric family 描述
@@ -123,6 +124,7 @@ export function snapshotToPrometheus(snapshot: MetricsSnapshot): PrometheusMetri
       type: 'gauge',
       samples: [{ value: snapshot.uptime }],
     },
+    ...aggregateProviderMetrics(snapshot.providerCalls),
   ]
 }
 

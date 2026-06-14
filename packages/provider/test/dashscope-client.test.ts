@@ -407,4 +407,115 @@ describe('DashScopeClient', () => {
       expect(result.error).toContain('未知模型')
     })
   })
+
+  // ── provider call observer（metrics 埋点） ──
+
+  describe('provider call observer', () => {
+    let calls: Array<{ model: string, durationMs: number, success: boolean }>
+    let unregister: () => void
+
+    beforeEach(() => {
+      const { registerProviderCallObserver, __resetProviderCallObservers } = require('../src/dashscope-client')
+      __resetProviderCallObservers()
+      calls = []
+      unregister = registerProviderCallObserver((model, durationMs, success) => {
+        calls.push({ model, durationMs, success })
+      })
+    })
+
+    afterEach(() => {
+      unregister()
+      const { __resetProviderCallObservers } = require('../src/dashscope-client')
+      __resetProviderCallObservers()
+    })
+
+    it('chatCompletion 成功 → observer 收到 success=true', async () => {
+      withMock(200, {
+        output: { choices: [{ message: { content: [{ text: 'ok' }] } }] },
+        usage: {},
+      })
+
+      await client.chatCompletion('qwen-max', { prompt: 'hi' })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'qwen-max', success: true })
+      expect(calls[0]!.durationMs).toBeGreaterThanOrEqual(0)
+    })
+
+    it('chatCompletion HTTP 错误 → observer 收到 success=false', async () => {
+      withMock(500, { message: '服务器错误' })
+
+      await client.chatCompletion('qwen-max', { prompt: 'hi' })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'qwen-max', success: false })
+    })
+
+    it('chatCompletion 网络异常 → observer 收到 success=false', async () => {
+      withMockError(new Error('network down'))
+
+      await client.chatCompletion('qwen-max', { prompt: 'hi' })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'qwen-max', success: false })
+    })
+
+    it('generateImage 成功 → observer 触发', async () => {
+      withMock(200, {
+        output: { choices: [{ message: { content: [{ image: 'https://example.com/x.png' }] } }] },
+        usage: {},
+      })
+
+      await client.generateImage('qwen-image-2.0-pro', { prompt: 'cat' })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'qwen-image-2.0-pro', success: true })
+    })
+
+    it('submitVideoTask 成功 → observer 触发', async () => {
+      withMock(200, { output: { task_id: 'task-001' } })
+
+      await client.submitVideoTask('happyhorse-1.0-t2v', { prompt: 'video', duration: 5 })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'happyhorse-1.0-t2v', success: true })
+    })
+
+    it('submitVideoTask 未返回 task_id → observer 收到 success=false', async () => {
+      withMock(200, { output: {} })
+
+      await client.submitVideoTask('happyhorse-1.0-t2v', { prompt: 'video', duration: 5 })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]).toMatchObject({ model: 'happyhorse-1.0-t2v', success: false })
+    })
+
+    it('未注册 observer → 调用仍正常完成（不抛错）', async () => {
+      const { __resetProviderCallObservers } = require('../src/dashscope-client')
+      __resetProviderCallObservers()
+      withMock(200, {
+        output: { choices: [{ message: { content: [{ text: 'ok' }] } }] },
+      })
+
+      const result = await client.chatCompletion('qwen-max', { prompt: 'hi' })
+
+      expect(result.success).toBe(true)
+      expect(calls).toHaveLength(0)
+    })
+
+    it('observer 抛错不影响主流程', async () => {
+      const { registerProviderCallObserver, __resetProviderCallObservers } = require('../src/dashscope-client')
+      __resetProviderCallObservers()
+      registerProviderCallObserver(() => {
+        throw new Error('observer boom')
+      })
+      withMock(200, {
+        output: { choices: [{ message: { content: [{ text: 'ok' }] } }] },
+      })
+
+      const result = await client.chatCompletion('qwen-max', { prompt: 'hi' })
+
+      expect(result.success).toBe(true)
+    })
+  })
 })

@@ -132,7 +132,8 @@
 
 待办：
 
-- 补 provider 错误率、模型耗时。
+- ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `<本轮 hash>`）。
+- ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
 - 线上排障检查命令或文档。
 - Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
 
@@ -144,7 +145,8 @@
 
 待办：
 
-- scope、rate limit、quota、lastUsedAt 使用统计增强。
+- scope、rate limit、quota。
+- ✅ lastUsedAt 使用统计增强（schema 已有 `last_used_at` 字段；auth plugin 在 API Key 鉴权成功后 fire-and-forget 调 `touchApiKeyLastUsed`；管理后台 `GET /api/api-keys` 已返回 `lastUsedAt` 字段）（commit: `5cdaaf3` 起完整可用）。
 - 决定是否随 OpenAI Gateway 一起开放。
 
 验收：
