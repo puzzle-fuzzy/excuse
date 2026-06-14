@@ -190,3 +190,51 @@ describe('assets PreviewModal 编辑入口', () => {
     expect(updateUploadedFile).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('assets 排序下拉', () => {
+  it('默认显示「最新优先」（sort=created_desc）', async () => {
+    renderAssets([])
+
+    const sortSelect = await screen.findByLabelText('排序')
+    expect(sortSelect).toHaveValue('created_desc')
+  })
+
+  it('切换到「标题 A→Z」后 queryAssetLibrary 收到 sort=title_asc', async () => {
+    const user = userEvent.setup()
+    renderAssets([])
+
+    // 等初始查询完成
+    await screen.findByLabelText('排序')
+
+    // 初始默认 sort=created_desc
+    expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
+      filters: expect.objectContaining({ sort: 'created_desc' }),
+    }))
+
+    // 切换到「标题 A→Z」
+    const sortSelect = screen.getByLabelText('排序')
+    await user.selectOptions(sortSelect, 'title_asc')
+
+    await waitFor(() => {
+      expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
+        filters: expect.objectContaining({ sort: 'title_asc' }),
+      }))
+    })
+  })
+
+  it('切换到「标题 Z→A」后 queryAssetLibrary 收到 sort=title_desc', async () => {
+    const user = userEvent.setup()
+    renderAssets([])
+
+    await screen.findByLabelText('排序')
+
+    const sortSelect = screen.getByLabelText('排序')
+    await user.selectOptions(sortSelect, 'title_desc')
+
+    await waitFor(() => {
+      expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
+        filters: expect.objectContaining({ sort: 'title_desc' }),
+      }))
+    })
+  })
+})

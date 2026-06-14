@@ -52,6 +52,22 @@ export type AssetLibraryStatusFilter
     | 'queued'
 
 /**
+ * 资产中心列表排序选项
+ *
+ * - created_desc：按创建时间倒序（默认，与历史行为一致）
+ * - created_asc：按创建时间正序（最早的在前）
+ * - title_asc / title_desc：按卡片标题字母序（中文按 localeCompare）
+ *
+ * 排序在 route 合并 generation_records / canvas_assets / uploaded_files 三来源后
+ * 统一做，不影响各 repo 的内部分页（repo 仍然按 createdAt desc）。
+ */
+export type AssetLibrarySort
+  = | 'created_desc'
+    | 'created_asc'
+    | 'title_asc'
+    | 'title_desc'
+
+/**
  * 单条统一资产 — 页面渲染所需的最小标量集合
  */
 export interface AssetLibraryItem {
@@ -121,6 +137,8 @@ export interface AssetLibraryQuery {
   createdFrom?: string
   /** 创建时间上界（含），ISO 日期字符串 */
   createdTo?: string
+  /** 排序方式，缺省 created_desc */
+  sort?: AssetLibrarySort
   limit?: number
   offset?: number
 }

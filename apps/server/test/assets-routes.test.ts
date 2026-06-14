@@ -261,6 +261,78 @@ describe('assets routes', () => {
     expect(items[1]!.id).toBe('old')
   })
 
+  // ─── sort 排序 ──────────────────────────────────────────
+
+  describe('GET /api/assets sort', () => {
+    // 跨三种来源的固定 fixture：标题混合中英文，创建时间不同。
+    // - Apple（gen，最早）
+    // - 香蕉（canvas，中段）
+    // - Cherry（upload，最新）
+    //
+    // 期望：
+    //   created_desc → Cherry, 香蕉, Apple（newest first）
+    //   created_asc  → Apple, 香蕉, Cherry（oldest first）
+    //   title_asc    → 香蕉, Apple, Cherry（按本机 ICU localeCompare('zh-CN') 实际顺序：
+    //                  CJK 在 Latin 之前，Latin 内部按字典序）
+    //   title_desc   → Cherry, Apple, 香蕉（title_asc 的逆序）
+    function seedSortFixture() {
+      mockListGenRecords.mockResolvedValueOnce([
+        makeRecord({ id: 'a', accountId: 'acc-001', model: 'Apple', createdAt: new Date('2024-06-01T00:00:00Z') }),
+      ])
+      mockListCanvasAssets.mockResolvedValueOnce([
+        makeCanvasAsset({ id: 'b', model: '香蕉', createdAt: new Date('2024-06-05T00:00:00Z') }),
+      ])
+      mockListUploadedFiles.mockResolvedValueOnce([
+        makeUploadedFile({ id: 'c', accountId: 'acc-001', fileName: 'Cherry', createdAt: new Date('2024-06-10T00:00:00Z') }),
+      ])
+    }
+
+    async function fetchItems(querySort?: string) {
+      const { data, error } = await client.api.assets.get({
+        query: querySort ? { sort: querySort } : {},
+        ...AUTH(token),
+      })
+      expect(error).toBeNull()
+      return (data as { items: AssetLibraryItem[] }).items
+    }
+
+    it('默认（不传 sort）等价于 created_desc', async () => {
+      seedSortFixture()
+      const items = await fetchItems()
+      expect(items.map(i => i.id)).toEqual(['c', 'b', 'a'])
+    })
+
+    it('sort=created_desc 显式传也支持', async () => {
+      seedSortFixture()
+      const items = await fetchItems('created_desc')
+      expect(items.map(i => i.id)).toEqual(['c', 'b', 'a'])
+    })
+
+    it('sort=created_asc 最早创建在前', async () => {
+      seedSortFixture()
+      const items = await fetchItems('created_asc')
+      expect(items.map(i => i.id)).toEqual(['a', 'b', 'c'])
+    })
+
+    it('sort=title_asc 标题升序（localeCompare zh-CN：CJK 在 Latin 之前）', async () => {
+      seedSortFixture()
+      const items = await fetchItems('title_asc')
+      expect(items.map(i => i.id)).toEqual(['b', 'a', 'c'])
+    })
+
+    it('sort=title_desc 标题降序（title_asc 的逆序）', async () => {
+      seedSortFixture()
+      const items = await fetchItems('title_desc')
+      expect(items.map(i => i.id)).toEqual(['c', 'a', 'b'])
+    })
+
+    it('sort=invalid_value 静默回落到 created_desc（不返回 400）', async () => {
+      seedSortFixture()
+      const items = await fetchItems('totally-invalid')
+      expect(items.map(i => i.id)).toEqual(['c', 'b', 'a'])
+    })
+  })
+
   it('model 过滤透传到 generation/canvas 查询，且跳过 uploaded_files（无 model 列）', async () => {
     await client.api.assets.get({
       query: { model: 'wanx2.1-imgen3' },

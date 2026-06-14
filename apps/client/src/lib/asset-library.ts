@@ -1,4 +1,4 @@
-import type { ApplyReferenceAssetsMode, AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, CanvasShotReferenceAsset, CanvasShotReferenceRole, ReferenceAssetApplyPreview, ReferenceAssetApplyTarget } from '@excuse/shared'
+import type { ApplyReferenceAssetsMode, AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, CanvasShotReferenceAsset, CanvasShotReferenceRole, ReferenceAssetApplyPreview, ReferenceAssetApplyTarget } from '@excuse/shared'
 import { isImageUrl, isVideoUrl } from './generation-utils'
 
 /**
@@ -86,6 +86,14 @@ export function getAssetLibraryPreviewKind(item: AssetLibraryItem): AssetPreview
   }
 }
 
+/** 合法的排序值（与 AssetLibrarySort 联合类型一一对应） */
+const ALLOWED_SORTS: AssetLibrarySort[] = ['created_desc', 'created_asc', 'title_asc', 'title_desc']
+
+/** 把 URL params 里的 sort 值规整为合法 AssetLibrarySort，非法/缺省回落 created_desc */
+function resolveSortParam(raw: string | null): AssetLibrarySort {
+  return raw && ALLOWED_SORTS.includes(raw as AssetLibrarySort) ? raw as AssetLibrarySort : 'created_desc'
+}
+
 /** 页面本地筛选条件 — 与 URL query 同步，服务端下推过滤 */
 export interface AssetLibraryFilters {
   source: 'all' | AssetLibrarySource
@@ -99,6 +107,8 @@ export interface AssetLibraryFilters {
   createdFrom: string
   /** 创建时间上界（ISO 日期字符串，空=不过滤） */
   createdTo: string
+  /** 排序方式 */
+  sort: AssetLibrarySort
 }
 
 export const DEFAULT_FILTERS: AssetLibraryFilters = {
@@ -109,6 +119,7 @@ export const DEFAULT_FILTERS: AssetLibraryFilters = {
   model: '',
   createdFrom: '',
   createdTo: '',
+  sort: 'created_desc',
 }
 
 /** 从 URLSearchParams 解析筛选条件，缺省值用 DEFAULT_FILTERS */
@@ -121,6 +132,7 @@ export function normalizeAssetLibraryFiltersFromSearchParams(params: URLSearchPa
     model: params.get('model') ?? DEFAULT_FILTERS.model,
     createdFrom: params.get('createdFrom') ?? DEFAULT_FILTERS.createdFrom,
     createdTo: params.get('createdTo') ?? DEFAULT_FILTERS.createdTo,
+    sort: resolveSortParam(params.get('sort')),
   }
 }
 

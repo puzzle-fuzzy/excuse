@@ -11,6 +11,7 @@ import type {
   AssetLibraryItem,
   AssetLibraryKind,
   AssetLibraryListResponse,
+  AssetLibrarySort,
   AssetLibrarySource,
   AssetLibraryStatusFilter,
 } from '@excuse/shared'
@@ -244,6 +245,33 @@ function resolveSourcePlan(
 
 const MAX_LIMIT = 200
 
+/** 合法的排序值（与 AssetLibrarySort 联合类型一一对应） */
+const ALLOWED_SORTS: AssetLibrarySort[] = ['created_desc', 'created_asc', 'title_asc', 'title_desc']
+
+/** 把 query.sort 解析为合法 AssetLibrarySort，非法值回落到默认 created_desc */
+function resolveSort(raw: string | undefined): AssetLibrarySort {
+  return raw && ALLOWED_SORTS.includes(raw as AssetLibrarySort) ? raw as AssetLibrarySort : 'created_desc'
+}
+
+/** 对合并后的统一 items 数组按指定排序方式重排 */
+function sortAssetLibraryItems(items: AssetLibraryItem[], sort: AssetLibrarySort): void {
+  switch (sort) {
+    case 'created_asc':
+      items.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      break
+    case 'title_asc':
+      items.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+      break
+    case 'title_desc':
+      items.sort((a, b) => b.title.localeCompare(a.title, 'zh-CN'))
+      break
+    case 'created_desc':
+    default:
+      items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      break
+  }
+}
+
 /** 把 query 里的 limit/offset 规整为安全整数（clamp 到合理区间） */
 function clampInt(value: number | undefined, min: number, max: number, fallback: number): number {
   if (value == null || Number.isNaN(value))
@@ -275,6 +303,7 @@ export function createAssetsRoutes(config: ServerConfig) {
       const search = rawSearch.length > 0 ? rawSearch.slice(0, 120) : undefined
       const createdFrom = parseDateParam(query.createdFrom)
       const createdTo = parseDateParam(query.createdTo)
+      const sort = resolveSort(typeof query.sort === 'string' ? query.sort : undefined)
       // clamp：limit ∈ [1, 200]，offset ≥ 0
       const limit = clampInt(query.limit, 1, MAX_LIMIT, 100)
       const offset = clampInt(query.offset, 0, Number.MAX_SAFE_INTEGER, 0)
@@ -325,8 +354,8 @@ export function createAssetsRoutes(config: ServerConfig) {
         ...uploadRows.map(mapUploadedFile),
       ]
 
-      // 按 createdAt desc 统一排序（各来源已各自 desc，但合并后需重排）
-      items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      // 按 sort 参数统一排序（各来源已各自 createdAt desc，但合并后需按用户选择重排）
+      sortAssetLibraryItems(items, sort)
 
       // 轻量分页（Plan A）：返回条数 >= limit 时认为“可能有更多”，不做 SQL count。
       const hasMore = items.length >= limit
@@ -342,12 +371,13 @@ export function createAssetsRoutes(config: ServerConfig) {
         search: t.Optional(t.String({ description: '关键词搜索' })),
         createdFrom: t.Optional(t.String()),
         createdTo: t.Optional(t.String()),
+        sort: t.Optional(t.String({ description: '排序：created_desc（默认） / created_asc / title_asc / title_desc' })),
         limit: t.Optional(t.Numeric()),
         offset: t.Optional(t.Numeric()),
       }),
       detail: {
         summary: '获取统一资产列表',
-        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
+        description: '合并 generation_records / canvas_assets / uploaded_files 三种来源，支持按 source（来源表）、kind（资产类别）、status（状态）、projectId、model、search（关键词搜索）、createdFrom/createdTo 过滤，sort 排序（created_desc / created_asc / title_asc / title_desc，默认 created_desc，非法值静默回落），limit/offset 分页（limit 上限 200）。所有查询按当前用户隔离。previewUrl 优先稳定 publicUrl。hasMore 为轻量分页标记（返回条数 >= limit 时为 true）。search 与其他过滤条件为 AND 关系，服务端 trim 后生效，限长 120 字符。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

@@ -1,4 +1,4 @@
-import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
+import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -98,7 +98,7 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
 
 function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
   const url = new URL(window.location.href)
-  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'project'])
+  for (const key of ['source', 'kind', 'status', 'search', 'model', 'createdFrom', 'createdTo', 'sort', 'project'])
     url.searchParams.delete(key)
   if (filters.source !== 'all')
     url.searchParams.set('source', filters.source)
@@ -114,6 +114,8 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
     url.searchParams.set('createdFrom', filters.createdFrom)
   if (filters.createdTo)
     url.searchParams.set('createdTo', filters.createdTo)
+  if (filters.sort !== 'created_desc')
+    url.searchParams.set('sort', filters.sort)
   if (projectId)
     url.searchParams.set('project', projectId)
   window.history.replaceState({}, '', url.toString())
@@ -305,7 +307,7 @@ export default function Assets() {
         })}
       </div>
 
-      {/* 模型 + 时间筛选 + 清空 */}
+      {/* 模型 + 时间筛选 + 排序 + 清空 */}
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex flex-col gap-1">
           <label className="text-[10px] text-muted-foreground">模型</label>
@@ -334,6 +336,20 @@ export default function Assets() {
             onChange={e => updateFilter('createdTo', e.target.value)}
             className="h-8 rounded-md border bg-background px-2 text-xs"
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground">排序</label>
+          <select
+            value={filters.sort}
+            onChange={e => updateFilter('sort', e.target.value as AssetLibrarySort)}
+            className="h-8 rounded-md border bg-background px-2 text-xs"
+            aria-label="排序"
+          >
+            <option value="created_desc">最新优先</option>
+            <option value="created_asc">最早优先</option>
+            <option value="title_asc">标题 A→Z</option>
+            <option value="title_desc">标题 Z→A</option>
+          </select>
         </div>
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>

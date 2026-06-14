@@ -17,6 +17,7 @@ export function filtersToQueryParams(
     model: filters.model || undefined,
     createdFrom: filters.createdFrom || undefined,
     createdTo: filters.createdTo || undefined,
+    sort: filters.sort,
     projectId: projectId ?? undefined,
     limit,
     offset,
