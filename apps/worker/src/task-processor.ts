@@ -136,7 +136,11 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
         type: 'task_failed',
         title: '视频生成超时',
         body: '任务超过 4 小时未完成，已自动失败并退款',
-        meta: { recordId: record.id, category: record.category },
+        meta: {
+          recordId: record.id,
+          category: record.category,
+          ...(canvasMeta && { projectId: canvasMeta.projectId, shotId: canvasMeta.shotId }),
+        },
       }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to push timeout task_failed notification'))
       return { action: 'completed', taskId }
     }
@@ -225,7 +229,11 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
           type: 'task_completed',
           title: '视频生成完成',
           body: `${record.model} · 点击查看结果`,
-          meta: { recordId: record.id, category: record.category },
+          meta: {
+            recordId: record.id,
+            category: record.category,
+            ...(canvasMeta && { projectId: canvasMeta.projectId, shotId: canvasMeta.shotId }),
+          },
         }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to push task_completed notification'))
 
         // ── 通知：Canvas 项目视频阶段全部完成（P2-2） ──
@@ -277,7 +285,11 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
           type: 'task_failed',
           title: '视频生成失败',
           body: errMsg,
-          meta: { recordId: record.id, category: record.category },
+          meta: {
+            recordId: record.id,
+            category: record.category,
+            ...(canvasMeta && { projectId: canvasMeta.projectId, shotId: canvasMeta.shotId }),
+          },
         }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to push task_failed notification'))
 
         return { action: 'completed', taskId }

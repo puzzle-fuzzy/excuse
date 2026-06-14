@@ -556,3 +556,117 @@ describe('processTask', () => {
     expect(canvasDone!.meta?.projectId).toBe('proj-999')
   })
 })
+
+// ── P2-2 第二条：通知 meta 携带 projectId + shotId（Canvas 链路） ──
+
+describe('notifyUser meta payload', () => {
+  interface CapturedNotification {
+    type: string
+    meta?: Record<string, unknown>
+  }
+
+  function createCanvasRecord(overrides: Record<string, unknown> = {}) {
+    return createRecord({
+      inputParams: {
+        source: 'canvas',
+        projectId: 'proj-canvas-1',
+        shotId: 'shot-canvas-1',
+        prompt: 'test',
+        duration: 5,
+      },
+      ...overrides,
+    })
+  }
+
+  it('task_completed + canvas 链路 meta 含 projectId + shotId', async () => {
+    const notifications: CapturedNotification[] = []
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'SUCCEEDED',
+        output: { video_url: 'https://cdn/video.mp4' },
+      }),
+      downloadAndMap: async urls => urls,
+      markGenerationSucceeded: async () => {},
+      notifyNotification: async opts =>
+        notifications.push({ type: opts.type, meta: opts.meta as Record<string, unknown> | undefined }),
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createCanvasRecord())
+
+    const completed = notifications.find(n => n.type === 'task_completed')
+    expect(completed).toBeDefined()
+    expect(completed!.meta).toMatchObject({
+      recordId: 'rec-001',
+      category: 'video',
+      projectId: 'proj-canvas-1',
+      shotId: 'shot-canvas-1',
+    })
+  })
+
+  it('task_completed + 非 canvas 链路 meta 仅含 recordId + category', async () => {
+    const notifications: CapturedNotification[] = []
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'SUCCEEDED',
+        output: { video_url: 'https://cdn/video.mp4' },
+      }),
+      downloadAndMap: async urls => urls,
+      markGenerationSucceeded: async () => {},
+      notifyNotification: async opts =>
+        notifications.push({ type: opts.type, meta: opts.meta as Record<string, unknown> | undefined }),
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({ inputParams: { source: 'workspace', prompt: 'test', duration: 5 } }))
+
+    const completed = notifications.find(n => n.type === 'task_completed')
+    expect(completed).toBeDefined()
+    expect(completed!.meta).toEqual({ recordId: 'rec-001', category: 'video' })
+  })
+
+  it('task_failed + canvas 链路 meta 含 projectId + shotId', async () => {
+    const notifications: CapturedNotification[] = []
+    const deps = createMockDeps({
+      queryTask: async () => ({ status: 'FAILED', errorMessage: 'Model error' }),
+      markGenerationFailed: async () => {},
+      notifyNotification: async opts =>
+        notifications.push({ type: opts.type, meta: opts.meta as Record<string, unknown> | undefined }),
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createCanvasRecord())
+
+    const failed = notifications.find(n => n.type === 'task_failed')
+    expect(failed).toBeDefined()
+    expect(failed!.meta).toMatchObject({
+      recordId: 'rec-001',
+      category: 'video',
+      projectId: 'proj-canvas-1',
+      shotId: 'shot-canvas-1',
+    })
+  })
+
+  it('task_failed 超时 + canvas 链路 meta 含 projectId + shotId', async () => {
+    const notifications: CapturedNotification[] = []
+    const deps = createMockDeps({
+      queryTask: async () => ({ status: 'RUNNING' }),
+      markGenerationFailed: async () => {},
+      notifyNotification: async opts =>
+        notifications.push({ type: opts.type, meta: opts.meta as Record<string, unknown> | undefined }),
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    // staleTimeoutMs=1000，构造 5s 前的 createdAt 触发超时分支
+    await processTask(createCanvasRecord({ createdAt: new Date(Date.now() - 5000) }))
+
+    const timeoutFailed = notifications.find(n => n.type === 'task_failed')
+    expect(timeoutFailed).toBeDefined()
+    expect(timeoutFailed!.meta).toMatchObject({
+      recordId: 'rec-001',
+      category: 'video',
+      projectId: 'proj-canvas-1',
+      shotId: 'shot-canvas-1',
+    })
+  })
+})

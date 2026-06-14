@@ -25,6 +25,7 @@ import {
   markNotificationRead,
 } from '@/api/notifications'
 import { notificationQueryKeys } from '@/api/query-client'
+import { resolveNotificationTarget } from '@/lib/notification-target'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from './ui/button'
 
@@ -46,17 +47,6 @@ const TYPE_META: Record<string, { icon: typeof Bell, color: string }> = {
   balance_warning: { icon: Wallet, color: 'text-orange-600' },
   api_key_expired: { icon: Clapperboard, color: 'text-purple-600' },
   system: { icon: Bell, color: 'text-muted-foreground' },
-}
-
-/** 点击定位 — 根据类型 + meta 决定跳转目标 */
-function resolveTarget(n: NotificationItem): string | undefined {
-  if (n.type === 'canvas_completed' && n.meta?.projectId)
-    return `/canvas/${n.meta.projectId}`
-  if (n.type === 'balance_warning')
-    return '/billing'
-  if (n.type === 'task_completed' || n.type === 'task_failed')
-    return n.meta?.recordId ? `/?record=${n.meta.recordId}` : '/'
-  return undefined
 }
 
 function formatRelativeTime(iso: string): string {
@@ -135,7 +125,7 @@ export default function Navbar() {
   function handleClickItem(n: NotificationItem) {
     if (!n.read)
       markReadMutation.mutate(n.id)
-    const target = resolveTarget(n)
+    const target = resolveNotificationTarget(n)
     setOpen(false)
     if (target)
       navigate(target)
