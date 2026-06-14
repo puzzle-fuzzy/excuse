@@ -322,3 +322,42 @@ export function decideBatchOutcome(items: readonly BatchItemLike[]): BatchOutcom
 
   return { type: 'partial_failed', succeeded, failed, total }
 }
+
+// ===== Pipeline command 规则 =====
+// Canvas pipeline 的 command 决策（pause / resume / cancel / retry）纯规则。
+// 只复用下层状态/阶段规则（isActivePipelineRun / isRetryablePipelineRun / isPauseBeforePhase），
+// 不依赖 DB/provider/server/worker runtime。真正执行 command 的更高层 adapter 仍在 app 层。
+
+/** Canvas pipeline 支持的 command 词汇（pause 待更高层 adapter 接入） */
+export type WorkflowCommand = 'pause' | 'resume' | 'cancel' | 'retry'
+
+/** command 判定的最小 run 形状 — status 必填，phase 可选（resume 用） */
+export interface PipelineCommandRunLike {
+  status: PipelineRunStatus
+  phase?: CanvasPipelinePhase
+}
+
+/**
+ * run 是否可取消。
+ * 规则：只有活跃 run（pending / running）可取消；终态 run 不重复取消。
+ */
+export function canCancelPipelineRun(run: PipelineCommandRunLike): boolean {
+  return isActivePipelineRun(run)
+}
+
+/**
+ * run 是否可重试。
+ * 规则：只有失败/取消（failed / cancelled）的 run 可重试；成功或活跃 run 不可重试。
+ */
+export function canRetryPipelineRun(run: PipelineCommandRunLike): boolean {
+  return isRetryablePipelineRun(run)
+}
+
+/**
+ * 是否允许从某阶段 resume。
+ * 规则：只有 pause-before 阶段（storyboard / videos）是合法 resume 点 ——
+ * 普通阶段由自动推进处理，不存在"暂停后继续"的语义。
+ */
+export function canResumeFromPhase(phase: CanvasPipelinePhase): boolean {
+  return isPauseBeforePhase(phase)
+}

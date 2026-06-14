@@ -59,7 +59,7 @@ import {
 } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
 import { cancelTaskWithAdapter } from '@excuse/task-engine'
-import { filterActivePipelineRuns } from '@excuse/workflow-engine'
+import { canCancelPipelineRun } from '@excuse/workflow-engine'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/canvas/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -453,9 +453,9 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!owned)
         return notFound(set, '项目不存在或无权访问')
 
-      // 查找项目所有活跃 pipeline runs（pending 或 running 状态）
+      // 查找项目所有可取消的 pipeline runs（pending 或 running 状态）
       const runs = await listPipelineRunsByProject(projectId)
-      const activeRuns = filterActivePipelineRuns(runs)
+      const activeRuns = runs.filter(canCancelPipelineRun)
       if (activeRuns.length === 0)
         return { cancelled: 0, message: '当前没有活跃的阶段任务' }
 

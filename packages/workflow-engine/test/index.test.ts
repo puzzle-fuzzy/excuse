@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 import {
   canAdvanceToPhase,
+  canCancelPipelineRun,
+  canResumeFromPhase,
+  canRetryPipelineRun,
   CANVAS_PAUSE_BEFORE,
   CANVAS_PHASE_ORDER,
   createNextCanvasPipelineTask,
@@ -321,5 +324,40 @@ describe('batch outcome rules', () => {
       { status: 'cancelled' as const },
       { status: 'cancelled' as const },
     ])).toMatchObject({ type: 'all_failed', failed: 2 })
+  })
+})
+
+describe('pipeline command rules', () => {
+  it('allows cancelling pending and running runs', () => {
+    expect(canCancelPipelineRun({ status: 'pending' })).toBe(true)
+    expect(canCancelPipelineRun({ status: 'running' })).toBe(true)
+  })
+
+  it('forbids cancelling terminal runs', () => {
+    expect(canCancelPipelineRun({ status: 'succeeded' })).toBe(false)
+    expect(canCancelPipelineRun({ status: 'failed' })).toBe(false)
+    expect(canCancelPipelineRun({ status: 'cancelled' })).toBe(false)
+  })
+
+  it('allows retrying failed and cancelled runs', () => {
+    expect(canRetryPipelineRun({ status: 'failed' })).toBe(true)
+    expect(canRetryPipelineRun({ status: 'cancelled' })).toBe(true)
+  })
+
+  it('forbids retrying pending, running and succeeded runs', () => {
+    expect(canRetryPipelineRun({ status: 'pending' })).toBe(false)
+    expect(canRetryPipelineRun({ status: 'running' })).toBe(false)
+    expect(canRetryPipelineRun({ status: 'succeeded' })).toBe(false)
+  })
+
+  it('allows resume only from pause-before phases (storyboard / videos)', () => {
+    expect(canResumeFromPhase('storyboard')).toBe(true)
+    expect(canResumeFromPhase('videos')).toBe(true)
+  })
+
+  it('forbids resume from ordinary phases', () => {
+    expect(canResumeFromPhase('analyze')).toBe(false)
+    expect(canResumeFromPhase('characters')).toBe(false)
+    expect(canResumeFromPhase('rebuild')).toBe(false)
   })
 })
