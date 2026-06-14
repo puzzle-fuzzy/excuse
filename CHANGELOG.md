@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file.
 - 补齐 `packages/provider/src/model-validator.ts` 边界测试（commit: `97bf1ca`）。
 - OpenAI Gateway 错误码常量与测试矩阵：`packages/gateway` 新增 `OPENAI_GATEWAY_ERROR_CODES`，route 与 `normalizeOpenAIChatRequest` 全部替换为常量；route 层补未知模型 / 非文本模型 / stream / 缺 user message / 参数校验失败 / provider 失败（含 refund 断言）/ 余额不足七条错误码响应测试（commit: `6b1026f`）。
 
+### Changed
+
+- `ShotReferenceAssets` 参考资产选择器搜索改用 `use-debounce`（300ms）替代手写 `setTimeout`；保留弹窗打开守卫、并发保护与单次 trim 语义，新增 debounce 后再请求、弹窗未打开不请求两条测试覆盖（commit: `d128b59`）。
+
 ## [0.0.1] - 2026-06-11
 
 ### Added
