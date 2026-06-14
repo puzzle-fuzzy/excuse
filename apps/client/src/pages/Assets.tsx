@@ -28,7 +28,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   buildAssetLibraryStats,
   getAssetLibraryPreviewKind,
-  getCanvasProjectUrl,
+  getCanvasAssetUrl,
   getCanvasSourceLabel,
   KIND_LABELS,
   SOURCE_LABELS,
@@ -385,7 +385,7 @@ function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => v
 
 function PreviewModal({ item, onClose }: { item: AssetLibraryItem, onClose: () => void }) {
   const previewKind = getAssetLibraryPreviewKind(item)
-  const canvasUrl = getCanvasProjectUrl(item)
+  const canvasUrl = getCanvasAssetUrl(item)
   const sourceLabel = getCanvasSourceLabel(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
 
