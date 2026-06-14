@@ -20,6 +20,7 @@ import {
 } from '@excuse/db'
 import { AssetStorage, DashScopeClient, getModelById } from '@excuse/provider'
 import { createLogger, extractBillingParams } from '@excuse/shared'
+import { audit } from './services/audit'
 
 const logger = createLogger('worker-processor')
 
@@ -108,6 +109,19 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
     if (elapsed > config.staleTimeoutMs) {
       await fail(record.id, 'Task timed out (>4h)')
       await refundReservedCredit(record, refund, '视频任务超时退款')
+      if (record.cost?.totalPriceCents && record.cost.totalPriceCents > 0) {
+        await audit('credit_refund', {
+          accountId: record.accountId,
+          targetId: record.id,
+          detail: {
+            accountId: record.accountId,
+            generationRecordId: record.id,
+            amountCents: record.cost.totalPriceCents,
+            description: '视频任务超时退款',
+            source: 'worker_video',
+          },
+        }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to audit credit_refund on timeout'))
+      }
       // ── 标记 shotVideo canvas_asset 为失败 ──
       await markCanvasAssetFailedByTaskId(taskId, 'Task timed out (>4h)').catch(err =>
         logger.warn({ err, taskId }, 'Failed to mark canvas_asset as failed on timeout'),
@@ -185,6 +199,17 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
             actualCents: actualCost.totalPriceCents,
             description: `视频生成成功扣款：${record.model}`,
           })
+          await audit('credit_debit', {
+            accountId: record.accountId,
+            targetId: record.id,
+            detail: {
+              accountId: record.accountId,
+              generationRecordId: record.id,
+              amountCents: actualCost.totalPriceCents,
+              description: `视频生成成功扣款：${record.model}`,
+              source: 'worker_video',
+            },
+          }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to audit credit_debit'))
         }
 
         // ── 标记 shotVideo canvas_asset 为 succeeded + 设为活跃 ──
@@ -255,6 +280,19 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
         const errMsg = taskStatus.errorMessage || 'DashScope task failed'
         await fail(record.id, errMsg)
         await refundReservedCredit(record, refund, `视频生成失败退款：${record.model}`)
+        if (record.cost?.totalPriceCents && record.cost.totalPriceCents > 0) {
+          await audit('credit_refund', {
+            accountId: record.accountId,
+            targetId: record.id,
+            detail: {
+              accountId: record.accountId,
+              generationRecordId: record.id,
+              amountCents: record.cost.totalPriceCents,
+              description: `视频生成失败退款：${record.model}`,
+              source: 'worker_video',
+            },
+          }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to audit credit_refund'))
+        }
         const projectStatus = canvasMeta
           ? await updateCanvasShotAndProject(canvasMeta.projectId, canvasMeta.shotId, {
               status: 'failed',

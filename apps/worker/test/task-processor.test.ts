@@ -1,6 +1,8 @@
 import type { GenerationNotifyPayload, OutputResult, VideoOutputResult } from '@excuse/shared'
+import type { WorkerAuditEntry } from '../src/services/audit'
 import type { TaskProcessorDeps } from '../src/task-processor'
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { resetWorkerAuditWriter, setWorkerAuditWriter } from '../src/services/audit'
 import { createTaskProcessor, extractVideoUrl } from '../src/task-processor'
 
 // 可按测试重置的 listCanvasShotsByProject — 用于触发 Canvas 全部完成场景
@@ -668,5 +670,157 @@ describe('notifyUser meta payload', () => {
       projectId: 'proj-canvas-1',
       shotId: 'shot-canvas-1',
     })
+  })
+})
+
+// ── P2.3 第二条：worker 资金类操作审计 ──
+
+describe('credit audit', () => {
+  let auditCalls: WorkerAuditEntry[]
+  let auditWriter: ReturnType<typeof mock<(entry: WorkerAuditEntry) => Promise<void>>>
+
+  beforeEach(() => {
+    auditCalls = []
+    auditWriter = mock<(entry: WorkerAuditEntry) => Promise<void>>((entry) => {
+      auditCalls.push(entry)
+      return Promise.resolve()
+    })
+    setWorkerAuditWriter(auditWriter)
+  })
+
+  afterEach(() => {
+    resetWorkerAuditWriter()
+  })
+
+  it('成功路径：actualCost.totalPriceCents > 0 → debit + audit credit_debit (source=worker_video)', async () => {
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'SUCCEEDED',
+        output: { video_url: 'https://cdn/video.mp4' },
+      }),
+      downloadAndMap: async urls => urls,
+      markGenerationSucceeded: async () => {},
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({
+      cost: { unit: 'video', totalPriceCents: 150, totalPrice: 1.5 },
+    }))
+
+    const debitAudit = auditCalls.find(a => a.action === 'credit_debit')
+    expect(debitAudit).toBeDefined()
+    expect(debitAudit!.accountId).toBe('acc-001')
+    expect(debitAudit!.targetId).toBe('rec-001')
+    expect(debitAudit!.detail).toMatchObject({
+      accountId: 'acc-001',
+      generationRecordId: 'rec-001',
+      amountCents: 150,
+      description: '视频生成成功扣款：happyhorse-1.0-t2v',
+      source: 'worker_video',
+    })
+  })
+
+  it('失败路径：record.cost.totalPriceCents > 0 → refund + audit credit_refund', async () => {
+    const deps = createMockDeps({
+      queryTask: async () => ({ status: 'FAILED', errorMessage: 'Provider error' }),
+      markGenerationFailed: async () => {},
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({
+      cost: { unit: 'video', totalPriceCents: 200, totalPrice: 2 },
+    }))
+
+    const refundAudit = auditCalls.find(a => a.action === 'credit_refund')
+    expect(refundAudit).toBeDefined()
+    expect(refundAudit!.detail).toMatchObject({
+      amountCents: 200,
+      description: '视频生成失败退款：happyhorse-1.0-t2v',
+      source: 'worker_video',
+    })
+  })
+
+  it('超时路径：createdAt 早于 staleTimeoutMs → refund + audit credit_refund (description 含超时)', async () => {
+    const deps = createMockDeps({
+      queryTask: async () => ({ status: 'RUNNING' }),
+      markGenerationFailed: async () => {},
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({
+      createdAt: new Date(Date.now() - 5000),
+      cost: { unit: 'video', totalPriceCents: 80, totalPrice: 0.8 },
+    }))
+
+    const refundAudit = auditCalls.find(a => a.action === 'credit_refund')
+    expect(refundAudit).toBeDefined()
+    expect(refundAudit!.detail).toMatchObject({
+      amountCents: 80,
+      description: '视频任务超时退款',
+      source: 'worker_video',
+    })
+  })
+
+  it('成功路径：actualCost.totalPriceCents === 0 → debit 不调用，audit credit_debit 也不调用', async () => {
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'SUCCEEDED',
+        output: { video_url: 'https://cdn/video.mp4' },
+      }),
+      downloadAndMap: async urls => urls,
+      markGenerationSucceeded: async () => {},
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({
+      cost: { unit: 'video', totalPriceCents: 0, totalPrice: 0 },
+    }))
+
+    const debitAudit = auditCalls.find(a => a.action === 'credit_debit')
+    expect(debitAudit).toBeUndefined()
+  })
+
+  it('失败路径：record.cost.totalPriceCents === 0 → refund 不调用，audit credit_refund 也不调用', async () => {
+    const deps = createMockDeps({
+      queryTask: async () => ({ status: 'FAILED', errorMessage: 'Provider error' }),
+      markGenerationFailed: async () => {},
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    await processTask(createRecord({
+      cost: { unit: 'video', totalPriceCents: 0, totalPrice: 0 },
+    }))
+
+    const refundAudit = auditCalls.find(a => a.action === 'credit_refund')
+    expect(refundAudit).toBeUndefined()
+  })
+
+  it('audit writer 抛错 → 业务流程不中断，debit/refund 仍正常完成', async () => {
+    const throwingWriter = mock<(entry: WorkerAuditEntry) => Promise<void>>(() =>
+      Promise.reject(new Error('audit DB down')),
+    )
+    setWorkerAuditWriter(throwingWriter)
+
+    const debits: Array<{ generationRecordId: string, actualCents: number }> = []
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'SUCCEEDED',
+        output: { video_url: 'https://cdn/video.mp4' },
+      }),
+      downloadAndMap: async urls => urls,
+      markGenerationSucceeded: async () => {},
+      debitCredit: async opts => debits.push({ generationRecordId: opts.generationRecordId, actualCents: opts.actualCents }),
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    // 不应抛错
+    const result = await processTask(createRecord({
+      cost: { unit: 'video', totalPriceCents: 100, totalPrice: 1 },
+    }))
+
+    expect(result.action).toBe('completed')
+    // debit 已正常执行（audit 抛错被 .catch + audit 内部 try/catch 双层吞掉）
+    expect(debits).toHaveLength(1)
+    expect(debits[0]!.actualCents).toBe(100)
   })
 })
