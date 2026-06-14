@@ -435,12 +435,13 @@
 - server 有 health 和基础 metrics route。
 - worker 有独立 health。
 - 已能观察基础请求、SSE 在线、worker 轮询状态等信息。
+- **（`9a04434` 新增）生成任务状态分布已接入 metrics**：`MetricsCollector` 新增 `recordGenerationStatus`，`generation.byStatus` 不再恒为 `{}`（此前为死字段，永远返回空对象）。接入点为主 generate 路径的 `failed`/`processing`/`succeeded`/`cancelled` 与 OpenAI 网关的 `succeeded`/`failed`。受内存单例架构限制，worker 异步视频终态（DashScope 轮询后的 succeeded/failed）发生在独立进程，无法聚合到 server 的 `/api/health/metrics`——这是 in-memory metrics 的固有边界，而非接入遗漏。
 
 未完成：
 
 - metrics 主要是内存态，重启后丢失，不适合多实例聚合。
 - 缺少 Prometheus 或类似标准格式。
-- 缺少 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时等关键指标。
+- 缺少 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时等关键指标（生成任务状态分布已接入，见上方 `9a04434`）。
 - metrics route 是否需要鉴权还未决策。
 
 决策项：
