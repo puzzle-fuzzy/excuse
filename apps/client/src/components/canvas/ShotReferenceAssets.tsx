@@ -40,6 +40,16 @@ interface ShotReferenceAssetsProps {
   onUpdate?: () => void
 }
 
+/** 最近一次批量应用的本地撤销快照（仅组件生命周期内有效，非持久化） */
+interface ApplyUndoSnapshot {
+  mode: ApplyReferenceAssetsMode
+  affectedShots: Array<{
+    shotId: string
+    shotIndex: number
+    beforeAssets: CanvasShotReferenceAsset[]
+  }>
+}
+
 /**
  * 镜头额外参考资产管理（P1-2 v0.5）
  *
@@ -73,6 +83,9 @@ export function ShotReferenceAssets({
   const [applyOpen, setApplyOpen] = useState(false)
   const [applyMode, setApplyMode] = useState<ApplyReferenceAssetsMode>('append')
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(() => new Set())
+
+  /** 最近一次批量应用撤销快照 — null 表示无可撤销 */
+  const [lastApplyUndo, setLastApplyUndo] = useState<ApplyUndoSnapshot | null>(null)
 
   const atLimit = shot.referenceAssets.length >= MAX_SHOT_REFERENCE_ASSETS
 
@@ -206,6 +219,24 @@ export function ShotReferenceAssets({
         toast.success(`已应用到 ${totalApplied} 个镜头，部分镜头因上限被截断`)
       else
         toast.success(`已应用到 ${totalApplied} 个镜头`)
+
+      // 只对服务端实际应用的镜头保存撤销快照，避免服务端跳过镜头时错误撤销
+      const otherShotById = new Map(otherShots.map(s => [s.id, s]))
+      const affectedShots = result.applied
+        .map((applied) => {
+          const originalShot = otherShotById.get(applied.shotId)
+          if (!originalShot)
+            return null
+          return {
+            shotId: applied.shotId,
+            shotIndex: originalShot.shotIndex,
+            beforeAssets: originalShot.referenceAssets,
+          }
+        })
+        .filter((s): s is ApplyUndoSnapshot['affectedShots'][number] => s !== null)
+      if (affectedShots.length > 0)
+        setLastApplyUndo({ mode: applyMode, affectedShots })
+
       setApplyOpen(false)
       setSelectedShotIds(new Set())
       onUpdate?.()
@@ -216,7 +247,34 @@ export function ShotReferenceAssets({
     finally {
       setSaving(false)
     }
-  }, [selectedShotIds, projectId, shot.id, shot.referenceAssets, applyMode, onUpdate])
+  }, [selectedShotIds, projectId, shot.id, shot.referenceAssets, applyMode, onUpdate, otherShots])
+
+  // ── 撤销最近一次批量应用 ──────────────────────────
+  // 复用现有 applyShotReferenceAssets 接口，对每个受影响镜头以 replace 模式回写原始参考资产。
+  // 注意：撤销失败时保留 lastApplyUndo，方便用户重试；空数组 beforeAssets 也应正常清空目标镜头。
+  const handleUndoApply = useCallback(async () => {
+    if (!lastApplyUndo)
+      return
+    setSaving(true)
+    try {
+      await Promise.all(lastApplyUndo.affectedShots.map(snapshot =>
+        applyShotReferenceAssets(projectId, {
+          targetShotIds: [snapshot.shotId],
+          referenceAssetsJson: snapshot.beforeAssets,
+          mode: 'replace',
+        }),
+      ))
+      setLastApplyUndo(null)
+      toast.success('已撤销最近一次批量应用')
+      onUpdate?.()
+    }
+    catch {
+      toast.error('撤销失败，可重试')
+    }
+    finally {
+      setSaving(false)
+    }
+  }, [lastApplyUndo, projectId, onUpdate])
 
   // 弹窗打开时 / 搜索 / 仅当前项目变化时拉取资产（debounce 由 use-debounce 提供）
   useEffect(() => {
@@ -295,6 +353,24 @@ export function ShotReferenceAssets({
           </Button>
         )}
       </div>
+
+      {/* 最近一次批量应用撤销入口（仅本地生命周期内有效） */}
+      {lastApplyUndo && (
+        <div className="flex items-center justify-between text-[10px] text-muted-foreground bg-muted/40 rounded p-1.5">
+          <span>
+            {`最近一次批量应用影响 ${lastApplyUndo.affectedShots.length} 个镜头，可撤销`}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-5 px-2 text-[10px]"
+            disabled={saving}
+            onClick={handleUndoApply}
+          >
+            {saving ? '撤销中...' : '撤销上次应用'}
+          </Button>
+        </div>
+      )}
 
       {/* 已有参考资产列表（每行支持 role 调整） */}
       {shot.referenceAssets.length > 0 && (

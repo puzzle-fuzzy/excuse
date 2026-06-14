@@ -284,4 +284,190 @@ describe('批量应用参考资产（P1-2 v0.5）', () => {
       expect(onUpdate).toHaveBeenCalledTimes(1)
     })
   })
+
+  it('批量应用成功后展示「撤销上次应用」入口', async () => {
+    vi.mocked(applyShotReferenceAssets).mockResolvedValue({
+      success: true,
+      applied: [
+        { shotId: 'shot-2', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+      ],
+    })
+
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const otherShot = makeBatchableShot('shot-2', 2, [])
+
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: '撤销上次应用' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: /应用到 1 个镜头/ }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '撤销上次应用' })).toBeInTheDocument()
+    })
+  })
+
+  it('点击撤销按受影响镜头逐个调用 applyShotReferenceAssets（replace 模式 + 原始参考资产）', async () => {
+    vi.mocked(applyShotReferenceAssets).mockResolvedValue({
+      success: true,
+      applied: [
+        { shotId: 'shot-2', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+      ],
+    })
+
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    // shot-2 初始已有 1 个参考资产（撤销时应恢复成这条记录）
+    const shot2BeforeAssets: CanvasShotReferenceAsset[] = [
+      { assetId: 'before-1', url: 'https://cdn.local/before.png', role: 'location', source: 'asset_library' },
+    ]
+    const otherShot = makeBatchableShot('shot-2', 2, shot2BeforeAssets)
+
+    const onUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={onUpdate}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: /应用到 1 个镜头/ }))
+
+    await screen.findByRole('button', { name: '撤销上次应用' })
+    vi.mocked(applyShotReferenceAssets).mockClear()
+
+    await user.click(screen.getByRole('button', { name: '撤销上次应用' }))
+
+    await waitFor(() => {
+      expect(applyShotReferenceAssets).toHaveBeenCalledTimes(1)
+    })
+    expect(applyShotReferenceAssets).toHaveBeenCalledWith('p1', expect.objectContaining({
+      targetShotIds: ['shot-2'],
+      referenceAssetsJson: shot2BeforeAssets,
+      mode: 'replace',
+    }))
+
+    // 批量应用已触发一次 onUpdate，撤销成功应再触发一次
+    await waitFor(() => {
+      expect(onUpdate).toHaveBeenCalledTimes(2)
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: '撤销上次应用' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('撤销只针对服务端实际应用的镜头，未被应用的镜头不会进入撤销', async () => {
+    // 选了两个镜头，但服务端只实际应用了 shot-2（模拟服务端跳过 shot-3）
+    vi.mocked(applyShotReferenceAssets).mockResolvedValue({
+      success: true,
+      applied: [
+        { shotId: 'shot-2', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+      ],
+    })
+
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const shot2BeforeAssets: CanvasShotReferenceAsset[] = [
+      { assetId: 'before-2', url: 'https://cdn.local/before-2.png', role: 'location', source: 'asset_library' },
+    ]
+    const otherShot2 = makeBatchableShot('shot-2', 2, shot2BeforeAssets)
+    const otherShot3 = makeBatchableShot('shot-3', 3, [])
+
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot2, otherShot3]}
+        onSave={vi.fn()}
+        onUpdate={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+    // 全选两个目标镜头
+    await user.click(screen.getByRole('button', { name: '全选' }))
+    await user.click(screen.getByRole('button', { name: /应用到 2 个镜头/ }))
+
+    await screen.findByRole('button', { name: '撤销上次应用' })
+    vi.mocked(applyShotReferenceAssets).mockClear()
+
+    await user.click(screen.getByRole('button', { name: '撤销上次应用' }))
+
+    await waitFor(() => {
+      expect(applyShotReferenceAssets).toHaveBeenCalledTimes(1)
+    })
+    // 不应出现 shot-3 的撤销调用
+    expect(applyShotReferenceAssets).toHaveBeenCalledWith('p1', expect.objectContaining({
+      targetShotIds: ['shot-2'],
+      mode: 'replace',
+    }))
+    for (const call of vi.mocked(applyShotReferenceAssets).mock.calls) {
+      expect(call[1]?.targetShotIds).not.toContain('shot-3')
+    }
+  })
+
+  it('撤销失败时保留撤销入口，方便用户重试', async () => {
+    // 第一次：批量应用成功；之后：撤销被拒绝
+    vi.mocked(applyShotReferenceAssets)
+      .mockResolvedValueOnce({
+        success: true,
+        applied: [
+          { shotId: 'shot-2', beforeCount: 0, afterCount: 1, addedCount: 1, truncatedCount: 0 },
+        ],
+      })
+      .mockRejectedValueOnce(new Error('network'))
+
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const otherShot = makeBatchableShot('shot-2', 2, [])
+
+    const onUpdate = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={onUpdate}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: /应用到 1 个镜头/ }))
+
+    await screen.findByRole('button', { name: '撤销上次应用' })
+    await user.click(screen.getByRole('button', { name: '撤销上次应用' }))
+
+    await waitFor(() => {
+      expect(applyShotReferenceAssets).toHaveBeenCalledTimes(2)
+    })
+    // 撤销失败不应清空 lastApplyUndo，按钮仍在；onUpdate 也不应被调用
+    expect(screen.getByRole('button', { name: '撤销上次应用' })).toBeInTheDocument()
+    expect(onUpdate).toHaveBeenCalledTimes(1) // 仅批量应用触发了一次
+  })
 })

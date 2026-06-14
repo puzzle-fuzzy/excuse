@@ -67,10 +67,6 @@
 
 ### 2. 参考资产复用
 
-待办：
-
-- 批量应用前提供撤销历史（第一版只有预览，没有持久化撤销）。
-
 验收：
 
 - 用户能明确知道当前镜头用了哪些参考图。
@@ -310,12 +306,11 @@
 ## 推荐执行顺序
 
 1. 成熟库治理第一批：继续推进 React Query 迁移边界（参考资产选择器 debounce 已收口）。
-2. P1-2 批量应用参考资产补撤销历史。
-3. API Key 产品化与 Gateway 开放状态决策。
-4. Metrics / Health 生产级可观测性。
-5. Model Lab 内部实验页。
-6. 管理后台和运营统计。
-7. Package 治理剩余项：events、workflow command adapter、gateway streaming、Canvas domain service。
+2. API Key 产品化与 Gateway 开放状态决策。
+3. Metrics / Health 生产级可观测性。
+4. Model Lab 内部实验页。
+5. 管理后台和运营统计。
+6. Package 治理剩余项：events、workflow command adapter、gateway streaming、Canvas domain service。
 
 ## 验收命令
 
