@@ -76,11 +76,17 @@ export function getAssetLibraryPreviewKind(item: AssetLibraryItem): AssetPreview
   }
 }
 
-/** 页面本地筛选条件 */
+/** 页面本地筛选条件 — 与 URL query 同步，服务端下推过滤 */
 export interface AssetLibraryFilters {
   source: 'all' | AssetLibrarySource
   kind: 'all' | AssetLibraryKind
   status: 'all' | AssetLibraryStatusFilter
+  /** 模型精确匹配（空字符串=不过滤） */
+  model: string
+  /** 创建时间下界（ISO 日期字符串，空=不过滤） */
+  createdFrom: string
+  /** 创建时间上界（ISO 日期字符串，空=不过滤） */
+  createdTo: string
 }
 
 /**
@@ -158,10 +164,32 @@ export function buildAssetLibraryStats(items: AssetLibraryItem[]): AssetLibraryS
 }
 
 /**
- * 构造“打开 Canvas 项目”跳转目标
+ * 构造”打开 Canvas 项目”跳转目标
  *
  * 有 projectId 的资产（Canvas 资产、部分生成记录）可回到项目编辑器。
  */
 export function getCanvasProjectUrl(item: AssetLibraryItem): string | null {
   return item.projectId ? `/canvas/${item.projectId}` : null
+}
+
+/**
+ * 根据 targetEntityType 返回来源定位按钮文案
+ *
+ * Canvas 资产可按实体类型显示更具体的按钮文案：
+ *   - character → “打开角色所在项目”
+ *   - location → “打开场景所在项目”
+ *   - shot → “打开镜头所在项目”
+ *   - 其他 → “打开项目”
+ *
+ * 无 projectId 时返回空字符串（不显示按钮）。
+ */
+export function getCanvasSourceLabel(item: AssetLibraryItem): string {
+  if (!item.projectId)
+    return ''
+  switch (item.targetEntityType) {
+    case 'character': return '打开角色所在项目'
+    case 'location': return '打开场景所在项目'
+    case 'shot': return '打开镜头所在项目'
+    default: return '打开项目'
+  }
 }

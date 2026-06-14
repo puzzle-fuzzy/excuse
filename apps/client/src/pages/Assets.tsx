@@ -12,6 +12,7 @@ import {
   Layers,
   Link2,
   MapPin,
+  RotateCcw,
   Upload,
   User,
   Video,
@@ -26,9 +27,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   buildAssetLibraryStats,
-  filterAssetLibraryItems,
   getAssetLibraryPreviewKind,
   getCanvasProjectUrl,
+  getCanvasSourceLabel,
+  KIND_LABELS,
+  SOURCE_LABELS,
+  STATUS_LABELS,
 } from '@/lib/asset-library'
 import { formatCents } from '@/lib/generation-utils'
 
@@ -76,34 +80,59 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
   project: FolderOpen,
 }
 
-const KIND_LABELS: Record<AssetLibraryKind, string> = {
-  image: '图片',
-  video: '视频',
-  text: '文本',
-  subtitle: '字幕',
-  upload: '上传',
-  character: '角色',
-  location: '场景',
-  shot: '镜头',
-  project: '项目',
+// ── URL ↔ 状态同步 ──────────────────────────────────────────────────────────
+
+function readFiltersFromUrl(): AssetLibraryFilters {
+  const params = new URLSearchParams(window.location.search)
+  return {
+    source: (params.get('source') as SourceFilter) ?? 'all',
+    kind: (params.get('kind') as KindFilter) ?? 'all',
+    status: (params.get('status') as StatusFilter) ?? 'all',
+    model: params.get('model') ?? '',
+    createdFrom: params.get('createdFrom') ?? '',
+    createdTo: params.get('createdTo') ?? '',
+  }
 }
 
-const SOURCE_LABELS: Record<AssetLibrarySource, string> = {
-  generation_record: '生成',
-  canvas_asset: 'Canvas',
-  uploaded_file: '上传',
+function readProjectIdFromUrl(): string | null {
+  const params = new URLSearchParams(window.location.search)
+  const project = params.get('project')
+  return project && project.length > 0 ? project : null
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  succeeded: '已完成',
-  failed: '失败',
-  cancelled: '已取消',
-  running: '运行中',
-  queued: '排队中',
-  pending: '等待中',
-  submitting: '提交中',
-  processing: '处理中',
-  saving_output: '保存中',
+function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null) {
+  const url = new URL(window.location.href)
+  for (const key of ['source', 'kind', 'status', 'model', 'createdFrom', 'createdTo', 'project'])
+    url.searchParams.delete(key)
+  if (filters.source !== 'all')
+    url.searchParams.set('source', filters.source)
+  if (filters.kind !== 'all')
+    url.searchParams.set('kind', filters.kind)
+  if (filters.status !== 'all')
+    url.searchParams.set('status', filters.status)
+  if (filters.model)
+    url.searchParams.set('model', filters.model)
+  if (filters.createdFrom)
+    url.searchParams.set('createdFrom', filters.createdFrom)
+  if (filters.createdTo)
+    url.searchParams.set('createdTo', filters.createdTo)
+  if (projectId)
+    url.searchParams.set('project', projectId)
+  window.history.replaceState({}, '', url.toString())
+}
+
+function toQueryParams(filters: AssetLibraryFilters, projectId: string | null, limit: number, offset: number) {
+  return {
+    source: filters.source !== 'all' ? filters.source : undefined,
+    kind: filters.kind !== 'all' ? filters.kind : undefined,
+    status: filters.status !== 'all' ? filters.status : undefined,
+    model: filters.model || undefined,
+    createdFrom: filters.createdFrom || undefined,
+    createdTo: filters.createdTo || undefined,
+    projectId: projectId ?? undefined,
+    limit,
+    offset,
+  }
 }
 
 async function copyLink(url: string) {
@@ -117,38 +146,58 @@ async function copyLink(url: string) {
 }
 
 export default function Assets() {
+  const [filters, setFilters] = useState<AssetLibraryFilters>(readFiltersFromUrl)
+  const [projectId, setProjectId] = useState<string | null>(readProjectIdFromUrl)
   const [items, setItems] = useState<AssetLibraryItem[]>([])
-  const [filters, setFilters] = useState<AssetLibraryFilters>({
-    source: 'all',
-    kind: 'all',
-    status: 'all',
-  })
-  const [projectId, setProjectId] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [previewItem, setPreviewItem] = useState<AssetLibraryItem | null>(null)
 
+  // 筛选变更 → URL 同步
+  useEffect(() => {
+    syncFiltersToUrl(filters, projectId)
+  }, [filters, projectId])
+
+  // 服务端筛选加载（主筛选下推到 SQL，不再只在前端本地过滤）
   const loadAssets = useCallback(async () => {
     try {
-      const data = await fetchAssetLibrary({ limit: 200, projectId: projectId ?? undefined })
+      const data = await fetchAssetLibrary(toQueryParams(filters, projectId, 200, 0))
       setItems(data.items)
+      setHasMore(data.hasMore ?? false)
     }
     catch {
       toast.error('加载资产列表失败')
     }
-  }, [projectId])
-
-  useEffect(() => {
-    // 支持 ?project=<uuid> 按 Canvas 项目过滤
-    const params = new URLSearchParams(window.location.search)
-    const project = params.get('project')
-    setProjectId(project && project.length > 0 ? project : null)
-  }, [])
+  }, [filters, projectId])
 
   useEffect(() => {
     loadAssets()
   }, [loadAssets])
 
+  // 加载更多（轻量分页 Plan A：offset 推进，hasMore 启发式）
+  const loadMore = useCallback(async () => {
+    try {
+      const data = await fetchAssetLibrary(toQueryParams(filters, projectId, 200, items.length))
+      setItems(prev => [...prev, ...data.items])
+      setHasMore(data.hasMore ?? false)
+    }
+    catch {
+      toast.error('加载更多失败')
+    }
+  }, [filters, projectId, items.length])
+
   const stats = useMemo(() => buildAssetLibraryStats(items), [items])
-  const filtered = useMemo(() => filterAssetLibraryItems(items, filters), [items, filters])
+
+  const hasActiveFilters = filters.source !== 'all' || filters.kind !== 'all' || filters.status !== 'all'
+    || filters.model || filters.createdFrom || filters.createdTo || projectId
+
+  function clearFilters() {
+    setFilters({ source: 'all', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
+    setProjectId(null)
+  }
+
+  function updateFilter<K extends keyof AssetLibraryFilters>(key: K, value: AssetLibraryFilters[K]) {
+    setFilters(f => ({ ...f, [key]: value }))
+  }
 
   return (
     <div className="mx-auto max-w-7xl p-4 space-y-6">
@@ -165,12 +214,7 @@ export default function Assets() {
             …
             <button
               type="button"
-              onClick={() => {
-                setProjectId(null)
-                const url = new URL(window.location.href)
-                url.searchParams.delete('project')
-                window.history.replaceState({}, '', url.toString())
-              }}
+              onClick={() => setProjectId(null)}
               className="ml-1 hover:text-foreground"
               aria-label="清除项目筛选"
             >
@@ -180,14 +224,14 @@ export default function Assets() {
         )}
       </div>
 
-      {/* 来源筛选 */}
+      {/* 来源 + 状态筛选 */}
       <div className="flex flex-wrap gap-2">
         {SOURCE_OPTIONS.map(({ value, label }) => (
           <Button
             key={value}
             variant={filters.source === value ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFilters(f => ({ ...f, source: value }))}
+            onClick={() => updateFilter('source', value)}
           >
             {label}
           </Button>
@@ -198,7 +242,7 @@ export default function Assets() {
             key={value}
             variant={filters.status === value ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setFilters(f => ({ ...f, status: value }))}
+            onClick={() => updateFilter('status', value)}
           >
             {label}
           </Button>
@@ -208,12 +252,12 @@ export default function Assets() {
       {/* 统计卡片（按 kind，点击切换 kind 筛选） */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
         {KIND_CARDS.map(({ value, label, icon: Icon }) => {
-          const count = value === 'all' ? stats.total : stats.byKind[value]
+          const count = value === 'all' ? stats.total : (stats.byKind[value] ?? 0)
           return (
             <Card
               key={value}
               className={`cursor-pointer transition-colors ${filters.kind === value ? 'ring-2 ring-primary' : ''}`}
-              onClick={() => setFilters(f => ({ ...f, kind: value }))}
+              onClick={() => updateFilter('kind', value)}
             >
               <CardContent className="flex flex-col items-center gap-1 p-3 text-center">
                 <Icon className="size-4 text-muted-foreground" />
@@ -225,8 +269,46 @@ export default function Assets() {
         })}
       </div>
 
-      {/* 资产网格 */}
-      {filtered.length === 0
+      {/* 模型 + 时间筛选 + 清空 */}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground">模型</label>
+          <input
+            type="text"
+            value={filters.model}
+            onChange={e => updateFilter('model', e.target.value)}
+            placeholder="精确匹配"
+            className="h-8 w-32 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground">开始日期</label>
+          <input
+            type="date"
+            value={filters.createdFrom}
+            onChange={e => updateFilter('createdFrom', e.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] text-muted-foreground">结束日期</label>
+          <input
+            type="date"
+            value={filters.createdTo}
+            onChange={e => updateFilter('createdTo', e.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <RotateCcw className="size-3" />
+            清空筛选
+          </Button>
+        )}
+      </div>
+
+      {/* 资产网格（服务端已筛选，直接展示） */}
+      {items.length === 0
         ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <FolderOpen className="mb-2 size-10" />
@@ -235,11 +317,18 @@ export default function Assets() {
           )
         : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {filtered.map(item => (
+              {items.map(item => (
                 <AssetCard key={`${item.source}-${item.id}`} item={item} onClick={() => setPreviewItem(item)} />
               ))}
             </div>
           )}
+
+      {/* 加载更多（轻量分页 Plan A） */}
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={loadMore}>加载更多</Button>
+        </div>
+      )}
 
       {/* 预览弹窗 */}
       {previewItem && (
@@ -297,6 +386,7 @@ function AssetCard({ item, onClick }: { item: AssetLibraryItem, onClick: () => v
 function PreviewModal({ item, onClose }: { item: AssetLibraryItem, onClose: () => void }) {
   const previewKind = getAssetLibraryPreviewKind(item)
   const canvasUrl = getCanvasProjectUrl(item)
+  const sourceLabel = getCanvasSourceLabel(item)
   const Icon = KIND_ICON[item.kind] ?? FileText
 
   return (
@@ -379,7 +469,7 @@ function PreviewModal({ item, onClose }: { item: AssetLibraryItem, onClose: () =
             <Link to={canvasUrl}>
               <Button variant="outline" size="sm">
                 <ExternalLink className="size-3" />
-                打开 Canvas 项目
+                {sourceLabel}
               </Button>
             </Link>
           )}

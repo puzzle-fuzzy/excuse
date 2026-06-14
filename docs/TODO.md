@@ -270,7 +270,7 @@
 
 ### 1. 资产中心升级
 
-当前状态：部分完成（统一资产列表 v1，commit 见本轮 `feat(assets)` 提交）。
+当前状态：部分完成（统一资产列表 v1 + 筛选分页 v1.1，commit：`312902e`、`9ade395`、本轮新增待提交）。
 
 已完成：
 
@@ -278,13 +278,18 @@
 - `/assets` 页面改用统一资产 DTO，支持 source（来源）/kind（类别）/status（状态）/projectId（URL `?project=`）基础筛选。
 - 资产卡片支持预览（图片/视频/图标）、下载、复制链接、回到 Canvas 项目（`projectId` → `/canvas/:projectId`）。
 - Canvas 资产（角色图/场景图/镜头视频/项目文档）进入资产中心；previewUrl 优先稳定 publicUrl。
+- v1.1：筛选条件下推服务端，支持 source/kind/status/projectId/model/createdFrom/createdTo（model 精确匹配，时间范围 SQL 层过滤，limit clamp 上限 200）。
+- v1.1：页面筛选同步 URL query（`/assets?kind=shot&model=wanx2.1-i2v-turbo&createdFrom=2026-06-01`），筛选变更触发服务端重新查询。
+- v1.1：模型输入框 + 开始/结束日期输入 + 清空筛选按钮。
+- v1.1：轻量分页（Plan A：hasMore 启发式 + "加载更多"按钮）。
+- v1.1：Canvas 资产来源文案更明确（"打开角色/场景/镜头所在项目"而非笼统"打开项目"）。
 
 待办（未完成）：
 
-- 删除资产的统一产品策略（本轮只做 UI 预留，不破坏生成记录或 Canvas 历史）。
-- 查看资产来源任务详情、精确跳转到单个 shot/asset（目前只跳到项目）。
-- 更完整的项目选择器和高级筛选（按时间、模型筛选）。
-- uploaded_files 目前为轻量接入（kind=upload，无删除/管理产品闭环）。
+- 删除资产的统一产品策略。
+- 精确跳转到单个 shot/asset 或自动选中 Canvas 节点（当前仍跳到项目首页）。
+- uploaded_files 管理闭环（删除/编辑产品流程）。
+- 模糊搜索、项目选择器、高级筛选 UI 优化。
 
 验收：
 

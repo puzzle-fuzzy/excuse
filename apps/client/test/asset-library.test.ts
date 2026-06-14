@@ -5,6 +5,7 @@ import {
   filterAssetLibraryItems,
   getAssetLibraryPreviewKind,
   getCanvasProjectUrl,
+  getCanvasSourceLabel,
 } from '../src/lib/asset-library'
 
 /** 构造测试用 AssetLibraryItem */
@@ -75,27 +76,27 @@ describe('filterAssetLibraryItems', () => {
   ]
 
   it('source 过滤生效', () => {
-    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all' })
+    const canvas = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
     expect(canvas.map(i => i.id).sort()).toEqual(['char', 'shot'])
   })
 
   it('status 过滤生效（running 匹配 processing/running）', () => {
-    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running' })
+    const running = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'running', model: '', createdFrom: '', createdTo: '' })
     expect(running.map(i => i.id)).toEqual(['shot'])
   })
 
   it('kind 过滤生效', () => {
-    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all' })
+    const chars = filterAssetLibraryItems(items, { source: 'all', kind: 'character', status: 'all', model: '', createdFrom: '', createdTo: '' })
     expect(chars.map(i => i.id)).toEqual(['char'])
   })
 
   it('组合过滤', () => {
-    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running' })
+    const result = filterAssetLibraryItems(items, { source: 'canvas_asset', kind: 'shot', status: 'running', model: '', createdFrom: '', createdTo: '' })
     expect(result.map(i => i.id)).toEqual(['shot'])
   })
 
   it('all 过滤返回全部', () => {
-    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all' })
+    const result = filterAssetLibraryItems(items, { source: 'all', kind: 'all', status: 'all', model: '', createdFrom: '', createdTo: '' })
     expect(result).toHaveLength(5)
   })
 })
@@ -131,5 +132,28 @@ describe('getCanvasProjectUrl', () => {
 
   it('无 projectId 返回 null', () => {
     expect(getCanvasProjectUrl(makeItem({ projectId: null }))).toBeNull()
+  })
+})
+
+describe('getCanvasSourceLabel', () => {
+  it('targetEntityType=character 返回角色标签', () => {
+    expect(getCanvasSourceLabel(makeItem({ projectId: 'proj-1', targetEntityType: 'character' }))).toBe('打开角色所在项目')
+  })
+
+  it('targetEntityType=location 返回场景标签', () => {
+    expect(getCanvasSourceLabel(makeItem({ projectId: 'proj-1', targetEntityType: 'location' }))).toBe('打开场景所在项目')
+  })
+
+  it('targetEntityType=shot 返回镜头标签', () => {
+    expect(getCanvasSourceLabel(makeItem({ projectId: 'proj-1', targetEntityType: 'shot' }))).toBe('打开镜头所在项目')
+  })
+
+  it('其他 targetEntityType 返回通用项目标签', () => {
+    expect(getCanvasSourceLabel(makeItem({ projectId: 'proj-1', targetEntityType: null }))).toBe('打开项目')
+    expect(getCanvasSourceLabel(makeItem({ projectId: 'proj-1', targetEntityType: 'project' }))).toBe('打开项目')
+  })
+
+  it('无 projectId 返回空字符串（不显示按钮）', () => {
+    expect(getCanvasSourceLabel(makeItem({ projectId: null }))).toBe('')
   })
 })
