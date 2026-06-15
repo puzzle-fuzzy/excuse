@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Canvas videos worker 提交幂等 (P1-1 部分完成，本提交)**：`canvas_assets` repository 新增 `findReusableCanvasAssetForPipelineTarget()`，worker 执行 Canvas `videos` phase 时按 `pipelineRunId + shotId + category` 复用已有非失败 `shotVideo` asset；如果既有 asset 已绑定 provider task、shot 已有 `videoTaskId` 或资产已成功，则跳过再次调用 provider，避免 worker 崩溃重试时为同一 run/shot 生成重复 Canvas asset 或重复提交已绑定任务。若已有 queued asset 但尚未绑定 provider task，则复用同一 asset 继续提交。补 `apps/worker/test/canvas-videos.test.ts` 覆盖已绑定跳过、queued 复用、新建提交三条路径；TODO 已收窄为剩余 provider 取消状态可见化。
+
 - **生产数据迁移和资产一致性门禁 (P0-4，本提交)**：新增只读 `bun run check:assets` 脚本，扫描 `generation_records` / `canvas_assets` / `uploaded_files` 与本地 `STORAGE_ROOT` 的一致性，报告 `missing_file`、`dangling_file`、`hidden_but_referenced`，并支持 `--json`、`--fail-on-issues`、`--storage-root`；纯函数覆盖 URL 提取、本地路径映射、shot 引用收集和综合报告。`docs/deployment.md` 补生产 migration-only 发布顺序：发布前 `pg_dump` 备份、只运行 `db:migrate`、新进程启动前跑资产检查、失败时停止发布或按备份 `pg_restore` 回滚，并明确高风险 schema 变更使用 expand/migrate/contract。对应 TODO 已删除。
 
 - **Credit 正式计费策略闭环 (P0-3，本提交)**：新增 `@excuse/billing` 纯计费策略模块，声明 `workspace.generate` 与 `openai.gateway.chat` 为正式 `credit-ledger` surface，统一要求 `reserve -> debit | refund`、`generation_records` 与 `usage_events` 关联；Canvas 前置流水线明确为 `beta/free quota`，Subtitle ASR 明确为 `cost-only`，避免误判为已进入用户余额扣款。普通生成、Gateway non-stream 编排器和 Gateway stream 路径接入 `assertCreditLedgerPolicy`，新增策略单元测试与 `docs/billing.md` 资金状态机文档。对应 TODO 已删除。

@@ -38,24 +38,18 @@
 
 ## P1：核心生产可靠性
 
-### 1. Worker 幂等和重复提交风险
+### 1. Provider 取消语义还不够可见
 
 问题：
 
-- Worker claim/heartbeat/orphan sweep 已有基础能力，但 provider 提交通常是外部副作用；如果 task 在提交后、写 DB 前崩溃，重试可能重复提交 provider 任务。
-- Canvas `videos` 一个 task 可能提交多个 shot provider task，需要保证每个 shot/asset 的提交幂等，而不是只依赖外层 task 幂等。
 - 取消任务与 provider 侧取消是 best-effort，用户看到“已取消”时可能 provider 仍在运行或稍后回调成功。
 
 解决办法：
 
-- 为每类外部副作用定义 idempotency key：如 `canvasAssetId`、`shotId + runId`、`generationRecordId`，提交前先查是否已有 provider task id。
-- 提交 provider task 的流程改成“先创建本地 pending/submitting record + asset，再提交 provider，再绑定 provider task id”；崩溃恢复时按本地记录继续，而不是重新提交。
 - 取消路径记录 `cancelRequestedAt` / `providerCancelStatus`，UI 区分“本地取消”“provider 已取消”“provider 取消失败但结果会被忽略”。
 
 验收：
 
-- 模拟 worker 在 provider submit 后崩溃，重启后不会重复提交同一个 shot。
-- 重试 task 不会生成重复 canvas asset 当前版本。
 - 取消中的 provider task 即使稍后成功，也不会覆盖用户已取消状态。
 
 ### 2. 长任务并发和队列策略需要产品化

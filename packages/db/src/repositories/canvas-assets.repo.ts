@@ -159,6 +159,33 @@ export async function listCanvasAssetsByTarget(
 }
 
 /**
+ * 查询同一 pipeline run + 目标实体下已有的非失败资产。
+ *
+ * 用于 worker 重试幂等：如果 videos phase 在提交 provider 后崩溃，重试时应复用
+ * 同一个 shotVideo asset，而不是为同一个 run/shot 再创建一个新版本。
+ */
+export async function findReusableCanvasAssetForPipelineTarget(opts: {
+  pipelineRunId: string
+  targetEntityType: string
+  targetEntityId: string
+  category: CanvasAssetCategory
+}) {
+  const [asset] = await getDb()
+    .select()
+    .from(canvasAssets)
+    .where(and(
+      eq(canvasAssets.pipelineRunId, opts.pipelineRunId),
+      eq(canvasAssets.targetEntityType, opts.targetEntityType),
+      eq(canvasAssets.targetEntityId, opts.targetEntityId),
+      eq(canvasAssets.category, opts.category),
+      inArray(canvasAssets.status, ['queued', 'running', 'succeeded']),
+    ))
+    .orderBy(desc(canvasAssets.createdAt))
+    .limit(1)
+  return asset ?? null
+}
+
+/**
  * 查询指定目标实体的当前活跃资产（isActive=true）
  * — 用于确定实体当前正在使用哪个资产版本
  */

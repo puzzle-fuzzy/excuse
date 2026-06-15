@@ -2,6 +2,7 @@ import type { WorkerConfig } from './config'
 import { submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,
+  findReusableCanvasAssetForPipelineTarget,
   markCanvasAssetFailed,
   markCanvasAssetRunning,
   notifyNotification,
@@ -44,8 +45,22 @@ export async function executeCanvasVideos(
       continue
     }
 
+    const existingAsset = runId
+      ? await findReusableCanvasAssetForPipelineTarget({
+          pipelineRunId: runId,
+          targetEntityType: 'shot',
+          targetEntityId: shot.id,
+          category: 'shotVideo',
+        })
+      : null
+
+    if (existingAsset && (existingAsset.status === 'succeeded' || shot.videoTaskId || existingAsset.taskId)) {
+      shotsSubmitted += 1
+      continue
+    }
+
     const pendingModel = getVideoModel(project.modelPreferencesJson, [])
-    const shotVideoAsset = await createCanvasAsset({
+    const shotVideoAsset = existingAsset ?? await createCanvasAsset({
       accountId,
       projectId,
       category: 'shotVideo',
@@ -54,7 +69,8 @@ export async function executeCanvasVideos(
       pipelineRunId: runId ?? undefined,
       model: pendingModel,
     })
-    await markCanvasAssetRunning(shotVideoAsset.id)
+    if (shotVideoAsset.status === 'queued')
+      await markCanvasAssetRunning(shotVideoAsset.id)
 
     try {
       await submitShotVideoEntity({
