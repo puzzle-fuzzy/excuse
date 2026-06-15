@@ -26,3 +26,23 @@ export function formatNumber(value: number | null | undefined): string {
     return '—'
   return value.toLocaleString('zh-CN')
 }
+
+/**
+ * Canvas pipeline 阶段中文标签（9 阶段）。
+ * 用于 admin 任务详情的 pipeline run 时间线展示。
+ */
+export const PIPELINE_PHASE_LABELS: Record<string, string> = {
+  analyze: '分析',
+  characters: '角色',
+  locations: '场景',
+  characterRefs: '角色参考图',
+  locationRefs: '场景参考图',
+  storyboard: '分镜',
+  continuity: '连续性',
+  rebuild: '提示词重建',
+  videos: '视频',
+}
+
+export function pipelinePhaseLabel(phase: string): string {
+  return PIPELINE_PHASE_LABELS[phase] ?? phase
+}

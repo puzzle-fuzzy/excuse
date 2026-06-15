@@ -158,6 +158,63 @@ const mockGetAdminProviderStats = mock(async (_windowHours: number) => [
   },
 ])
 
+const mockGetAdminTaskDetail = mock(async (taskId: string) => {
+  if (taskId === 'missing-task')
+    return null
+  return {
+    task: {
+      id: taskId,
+      accountId: 'admin-1',
+      type: 'canvas.analyze',
+      domain: 'canvas',
+      status: 'failed',
+      priority: 5,
+      attempts: 3,
+      maxAttempts: 3,
+      projectId: 'project-1',
+      targetType: 'pipeline_run',
+      targetId: 'run-1',
+      generationRecordId: null,
+      lockedBy: '',
+      lockedUntil: null,
+      nextRunAt: '2026-06-14T00:00:00.000Z',
+      startedAt: '2026-06-14T00:00:00.000Z',
+      finishedAt: '2026-06-14T00:01:00.000Z',
+      createdAt: '2026-06-14T00:00:00.000Z',
+      updatedAt: '2026-06-14T00:01:00.000Z',
+      errorMessage: 'provider timeout',
+      canRequeue: true,
+      canCancel: false,
+    },
+    pipelineRuns: [
+      {
+        id: 'run-1',
+        projectId: 'project-1',
+        phase: 'analyze',
+        status: 'succeeded',
+        startedAt: '2026-06-14T00:00:00.000Z',
+        finishedAt: '2026-06-14T00:00:30.000Z',
+        durationMs: 30_000,
+        errorMessage: null,
+        outputSummary: { summary: '一个故事' },
+        createdAt: '2026-06-14T00:00:00.000Z',
+      },
+      {
+        id: 'run-2',
+        projectId: 'project-1',
+        phase: 'storyboard',
+        status: 'failed',
+        startedAt: '2026-06-14T00:01:00.000Z',
+        finishedAt: '2026-06-14T00:01:30.000Z',
+        durationMs: 30_000,
+        errorMessage: 'LLM 输出校验失败',
+        outputSummary: null,
+        createdAt: '2026-06-14T00:01:00.000Z',
+      },
+    ],
+  }
+})
+
 mock.module('@excuse/db', () => ({
   getAdminOverview: mockGetAdminOverview,
   listAdminTasks: mockListAdminTasks,
@@ -166,6 +223,7 @@ mock.module('@excuse/db', () => ({
   listAdminUsers: mockListAdminUsers,
   getAdminUserDetail: mockGetAdminUserDetail,
   getAdminProviderStats: mockGetAdminProviderStats,
+  getAdminTaskDetail: mockGetAdminTaskDetail,
   findApiKeyByHash: mock(async () => null),
   touchApiKeyLastUsed: mock(async () => undefined),
 }))
@@ -203,6 +261,7 @@ beforeEach(() => {
   mockListAdminUsers.mockClear()
   mockGetAdminUserDetail.mockClear()
   mockGetAdminProviderStats.mockClear()
+  mockGetAdminTaskDetail.mockClear()
   mockProviderCallsSnapshot.mockClear()
 })
 
@@ -282,6 +341,73 @@ describe('admin routes', () => {
     expect(res.error).toBeNull()
     expect((res.data as { success: true, data: { status: string } } | null)?.data.status).toBe('cancelled')
     expect(mockCancelAdminTask).toHaveBeenCalledWith('task-2')
+  })
+
+  // ── 新增：task detail endpoint ─────────────
+
+  describe('admin task detail endpoint', () => {
+    it('rejects non-admin user', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'user-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.tasks({ id: 'task-1' }).get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(403)
+      expect(mockGetAdminTaskDetail).not.toHaveBeenCalled()
+    })
+
+    it('returns 404 for missing task', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.tasks({ id: 'missing-task' }).get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(404)
+      expect(mockGetAdminTaskDetail).toHaveBeenCalledWith('missing-task')
+    })
+
+    it('returns task + pipeline runs cascade with durationMs', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.tasks({ id: 'task-1' }).get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as {
+        success: true
+        data: {
+          task: { id: string, type: string }
+          pipelineRuns: Array<{
+            phase: string
+            status: string
+            durationMs: number | null
+            errorMessage: string | null
+            outputSummary: Record<string, unknown> | null
+          }>
+        }
+      } | null
+      expect(data?.data.task.id).toBe('task-1')
+      expect(data?.data.pipelineRuns.length).toBe(2)
+      const analyze = data?.data.pipelineRuns.find(r => r.phase === 'analyze')
+      const storyboard = data?.data.pipelineRuns.find(r => r.phase === 'storyboard')
+      expect(analyze?.status).toBe('succeeded')
+      expect(analyze?.durationMs).toBe(30_000)
+      expect(analyze?.outputSummary).toEqual({ summary: '一个故事' })
+      expect(storyboard?.status).toBe('failed')
+      expect(storyboard?.errorMessage).toBe('LLM 输出校验失败')
+      expect(mockGetAdminTaskDetail).toHaveBeenCalledWith('task-1')
+    })
   })
 
   // ── 新增：users / providers endpoints ─────────────

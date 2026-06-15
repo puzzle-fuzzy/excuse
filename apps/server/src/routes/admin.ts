@@ -1,7 +1,7 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminOverviewResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminOverviewResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, getAdminOverview, getAdminProviderStats, getAdminUserDetail, listAdminTasks, listAdminUsers, requeueAdminTask } from '@excuse/db'
+import { cancelAdminTask, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminTasks, listAdminUsers, requeueAdminTask } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { getProviderCallsSnapshot } from '../services/metrics'
@@ -89,6 +89,27 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '查询统一任务队列',
         description: '按状态、领域或关键字查询 tasks 表，返回管理员可见的任务诊断字段。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/tasks/:id', async ({ adminAllowed, adminDenied, params, set }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const detail = await getAdminTaskDetail(params.id)
+      if (!detail)
+        return notFound(set, '任务不存在')
+
+      return {
+        success: true,
+        data: detail,
+      } satisfies AdminTaskDetailResponse
+    }, {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        summary: '查询任务详情（含 Canvas pipeline run 级联）',
+        description: '单任务下钻：task 基本信息 + 关联的 canvas_pipeline_runs 时间线（phase/status/durationMs/errorMessage），用于定位失败任务卡在哪个阶段。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

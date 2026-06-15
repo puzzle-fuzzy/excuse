@@ -1,5 +1,6 @@
 import type {
   AdminProviderStatsResponse,
+  AdminTaskDetailResponse,
   AdminUserDetailResponse,
   AdminUserListQuery,
   AdminUserListResponse,
@@ -7,8 +8,11 @@ import type {
 import { api } from './client'
 
 export type {
+  AdminPipelineRun,
   AdminProviderStatsItem,
   AdminProviderStatsResponse,
+  AdminTaskDetail,
+  AdminTaskDetailResponse,
   AdminUserDetail,
   AdminUserDetailResponse,
   AdminUserListQuery,
@@ -54,6 +58,12 @@ export async function fetchAdminUserDetail(accountId: string): Promise<AdminUser
   )
 }
 
+export async function fetchAdminTaskDetail(taskId: string): Promise<AdminTaskDetailResponse> {
+  return unwrap<AdminTaskDetailResponse>(
+    await api.api.admin.tasks({ id: taskId }).get(),
+  )
+}
+
 export interface AdminProviderStatsQuery {
   windowHours?: number
 }
@@ -79,4 +89,8 @@ export const adminUsersQueryKeys = {
 
 export const adminProvidersQueryKeys = {
   list: (windowHours: number) => ['admin', 'providers', windowHours] as const,
+}
+
+export const adminTasksQueryKeys = {
+  detail: (taskId: string) => ['admin', 'tasks', 'detail', taskId] as const,
 }

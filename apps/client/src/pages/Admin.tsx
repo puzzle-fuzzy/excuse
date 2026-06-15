@@ -1,4 +1,4 @@
-import type { AdminOverview, AdminProviderStatsItem, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
+import type { AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -16,7 +16,7 @@ import {
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { fetchAdminProviderStats, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
+import { adminTasksQueryKeys, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '@/api/client'
 import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { formatLatencyMs, formatNumber, formatPercent } from '@/lib/admin-format'
+import { formatLatencyMs, formatNumber, formatPercent, pipelinePhaseLabel } from '@/lib/admin-format'
 import { formatCents } from '@/lib/generation-utils'
 
 const TASK_LIMIT = 40
@@ -169,12 +169,14 @@ function TaskTable({
   isMutating,
   onRequeue,
   onCancel,
+  onOpenDetail,
 }: {
   tasks: AdminTaskItem[]
   isLoading: boolean
   isMutating: boolean
   onRequeue: (id: string) => void
   onCancel: (id: string) => void
+  onOpenDetail: (id: string) => void
 }) {
   if (isLoading) {
     return (
@@ -250,6 +252,13 @@ function TaskTable({
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => onOpenDetail(task.id)}
+                  >
+                    详情
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     disabled={!task.canRequeue || isMutating}
                     onClick={() => onRequeue(task.id)}
                   >
@@ -310,6 +319,7 @@ function AdminOverviewTab({
   requeue: (id: string) => void
   cancel: (id: string) => void
 }) {
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const { summary } = data
   return (
     <div className="space-y-4">
@@ -420,6 +430,7 @@ function AdminOverviewTab({
             isMutating={isMutating}
             onRequeue={requeue}
             onCancel={cancel}
+            onOpenDetail={setSelectedTaskId}
           />
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
@@ -440,6 +451,14 @@ function AdminOverviewTab({
           </div>
         </CardContent>
       </Card>
+
+      <AdminTaskDetailDialog
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onRequeue={requeue}
+        onCancel={cancel}
+        isMutating={isMutating}
+      />
     </div>
   )
 }
@@ -589,6 +608,170 @@ function AdminUsersTab() {
 
       <AdminUserDetailDialog userId={selectedUserId} onClose={() => setSelectedUserId(null)} />
     </div>
+  )
+}
+
+function AdminTaskDetailDialog({
+  taskId,
+  onClose,
+  onRequeue,
+  onCancel,
+  isMutating,
+}: {
+  taskId: string | null
+  onClose: () => void
+  onRequeue: (id: string) => void
+  onCancel: (id: string) => void
+  isMutating: boolean
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: adminTasksQueryKeys.detail(taskId ?? ''),
+    queryFn: () => fetchAdminTaskDetail(taskId!),
+    enabled: !!taskId,
+  })
+
+  const detail: AdminTaskDetail | undefined = data?.data
+  const task = detail?.task
+  const runs: AdminPipelineRun[] = detail?.pipelineRuns ?? []
+
+  return (
+    <Dialog open={!!taskId} onOpenChange={open => !open && onClose()}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80" onClick={onClose} />
+        <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
+          {isLoading || !task
+            ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">正在加载任务详情...</p>
+              )
+            : (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-lg font-semibold">{task.type}</h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>{task.domain}</span>
+                        <span>·</span>
+                        <span className="font-mono">{shortId(task.id)}</span>
+                      </div>
+                    </div>
+                    <Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">尝试</p>
+                      <p className="mt-1 font-mono">{task.attempts}/{task.maxAttempts}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">开始</p>
+                      <p className="mt-1 text-xs">{formatDate(task.startedAt)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">结束</p>
+                      <p className="mt-1 text-xs">{formatDate(task.finishedAt)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">下次执行</p>
+                      <p className="mt-1 text-xs">{formatDate(task.nextRunAt)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">项目</p>
+                      <p className="mt-1 font-mono text-xs">{shortId(task.projectId)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">账号</p>
+                      <p className="mt-1 font-mono text-xs">{shortId(task.accountId)}</p>
+                    </div>
+                  </div>
+
+                  {task.errorMessage && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                      <p className="mb-1 text-xs font-medium text-destructive">错误信息</p>
+                      <p className="whitespace-pre-wrap break-all text-sm text-destructive">{task.errorMessage}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-medium">Canvas pipeline run 时间线</p>
+                      <span className="text-xs text-muted-foreground">{runs.length} 条</span>
+                    </div>
+                    {runs.length === 0
+                      ? (
+                          <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                            该任务无关联 Canvas pipeline run（可能是 generate / gateway / subtitle 域任务）。
+                          </p>
+                        )
+                      : (
+                          <div className="space-y-2">
+                            {runs.map(run => (
+                              <div key={run.id} className="rounded-lg border p-3 text-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline">{pipelinePhaseLabel(run.phase)}</Badge>
+                                    <Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
+                                  </div>
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {formatLatencyMs(run.durationMs)}
+                                  </span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
+                                  <div>
+                                    开始：
+                                    {formatDate(run.startedAt)}
+                                  </div>
+                                  <div>
+                                    结束：
+                                    {formatDate(run.finishedAt)}
+                                  </div>
+                                  <div>
+                                    项目：
+                                    {shortId(run.projectId)}
+                                  </div>
+                                </div>
+                                {run.errorMessage && (
+                                  <p className="mt-2 break-all text-xs text-destructive">{run.errorMessage}</p>
+                                )}
+                                {run.outputSummary && Object.keys(run.outputSummary).length > 0 && (
+                                  <details className="mt-2">
+                                    <summary className="cursor-pointer text-xs text-muted-foreground">输出摘要</summary>
+                                    <pre className="mt-1 overflow-x-auto rounded bg-muted p-2 text-xs">
+                                      {JSON.stringify(run.outputSummary, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!task.canRequeue || isMutating}
+                      onClick={() => onRequeue(task.id)}
+                    >
+                      <RotateCcw className="size-4" />
+                      重排
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!task.canCancel || isMutating}
+                      onClick={() => onCancel(task.id)}
+                    >
+                      <Ban className="size-4" />
+                      取消
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                  </div>
+                </>
+              )}
+        </div>
+      </div>
+    </Dialog>
   )
 }
 

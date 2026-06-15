@@ -1,6 +1,6 @@
 import type { SQL } from 'drizzle-orm'
 import type { TaskRow } from '../types'
-import { and, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { accounts, canvasPipelineRuns, canvasProjects, creditAccounts, generationRecords, tasks } from '../schema'
 
@@ -357,6 +357,91 @@ export async function listAdminTasks(query: AdminTaskListQuery = {}): Promise<{ 
   return {
     items: rows.map(serializeAdminTask),
     total: numberValue(totalRows[0]?.count),
+  }
+}
+
+export interface AdminPipelineRunRow {
+  id: string
+  projectId: string | null
+  phase: string
+  status: string
+  startedAt: string | null
+  finishedAt: string | null
+  durationMs: number | null
+  errorMessage: string | null
+  outputSummary: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface AdminTaskDetailRow {
+  task: AdminTaskItem
+  pipelineRuns: AdminPipelineRunRow[]
+}
+
+/**
+ * 单任务详情 + Canvas pipeline run 级联。
+ *
+ * 通过 `canvas_pipeline_runs.taskId = tasks.id` 关联（软外键，schema 无 FK 约束）。
+ * task 与 pipeline_runs 并发查询；task 不存在返回 null（route 层 404）。
+ * 非 canvas 域任务通常无关联 pipeline_run，`pipelineRuns` 返回空数组。
+ *
+ * 注意：不 JOIN generation_records —— `tasks.generationRecordId` 字段声明但代码库
+ * 无写入路径（恒为 null），`generation_records.taskId` 是 provider 字符串 ID 非
+ * tasks uuid，两表无法直接 JOIN（见 docs/TODO.md P3.2 调研结论）。
+ */
+export async function getAdminTaskDetail(
+  taskId: string,
+): Promise<AdminTaskDetailRow | null> {
+  const [taskRows, runRows] = await Promise.all([
+    getDb()
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId))
+      .limit(1),
+    getDb()
+      .select({
+        id: canvasPipelineRuns.id,
+        projectId: canvasPipelineRuns.projectId,
+        phase: canvasPipelineRuns.phase,
+        status: canvasPipelineRuns.status,
+        startedAt: canvasPipelineRuns.startedAt,
+        finishedAt: canvasPipelineRuns.finishedAt,
+        errorMessage: canvasPipelineRuns.errorMessage,
+        outputSummary: canvasPipelineRuns.outputSummaryJson,
+        createdAt: canvasPipelineRuns.createdAt,
+      })
+      .from(canvasPipelineRuns)
+      .where(eq(canvasPipelineRuns.taskId, taskId))
+      .orderBy(asc(canvasPipelineRuns.createdAt)),
+  ])
+
+  const taskRow = taskRows[0]
+  if (!taskRow)
+    return null
+
+  const pipelineRuns: AdminPipelineRunRow[] = runRows.map((row) => {
+    const startedAtMs = row.startedAt ? new Date(row.startedAt).getTime() : null
+    const finishedAtMs = row.finishedAt ? new Date(row.finishedAt).getTime() : null
+    const durationMs = startedAtMs !== null && finishedAtMs !== null
+      ? finishedAtMs - startedAtMs
+      : null
+    return {
+      id: row.id,
+      projectId: row.projectId,
+      phase: row.phase,
+      status: row.status,
+      startedAt: iso(row.startedAt),
+      finishedAt: iso(row.finishedAt),
+      durationMs,
+      errorMessage: row.errorMessage,
+      outputSummary: (row.outputSummary as Record<string, unknown> | null) ?? null,
+      createdAt: iso(row.createdAt)!,
+    }
+  })
+
+  return {
+    task: serializeAdminTask(taskRow),
+    pipelineRuns,
   }
 }
 

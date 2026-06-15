@@ -180,3 +180,31 @@ export interface AdminProviderStatsResponse {
   windowHours: number
   items: AdminProviderStatsItem[]
 }
+
+// ── 任务详情 + Canvas pipeline run 级联 ──────────────────────────────────────
+
+export interface AdminPipelineRun {
+  id: string
+  projectId: string | null
+  phase: string
+  status: string
+  startedAt: string | null
+  finishedAt: string | null
+  /** finishedAt - startedAt，repo 层计算，避免前端处理时区 */
+  durationMs: number | null
+  errorMessage: string | null
+  /** outputSummaryJson 解析后的对象；形状随 phase 变化，前端只做摘要展示 */
+  outputSummary: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface AdminTaskDetail {
+  task: AdminTaskItem
+  /** canvas_pipeline_runs.taskId = tasks.id，按 createdAt asc */
+  pipelineRuns: AdminPipelineRun[]
+}
+
+export interface AdminTaskDetailResponse {
+  success: true
+  data: AdminTaskDetail
+}

@@ -1,9 +1,9 @@
-import type { AdminOverview, AdminProviderStatsResponse, AdminTaskItem, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminOverview, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskItem, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchAdminProviderStats, fetchAdminUserDetail, fetchAdminUsers } from '../src/api/admin'
+import { fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '../src/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '../src/api/client'
 import Admin from '../src/pages/Admin'
 
@@ -18,12 +18,16 @@ vi.mock('../src/api/admin', () => ({
   fetchAdminUsers: vi.fn(),
   fetchAdminUserDetail: vi.fn(),
   fetchAdminProviderStats: vi.fn(),
+  fetchAdminTaskDetail: vi.fn(),
   adminUsersQueryKeys: {
     list: (params: unknown) => ['admin', 'users', 'list', params] as const,
     detail: (id: string) => ['admin', 'users', 'detail', id] as const,
   },
   adminProvidersQueryKeys: {
     list: (windowHours: number) => ['admin', 'providers', windowHours] as const,
+  },
+  adminTasksQueryKeys: {
+    detail: (taskId: string) => ['admin', 'tasks', 'detail', taskId] as const,
   },
 }))
 
@@ -34,6 +38,7 @@ const mockCancelAdminTask = vi.mocked(cancelAdminTask)
 const mockFetchAdminUsers = vi.mocked(fetchAdminUsers)
 const mockFetchAdminUserDetail = vi.mocked(fetchAdminUserDetail)
 const mockFetchAdminProviderStats = vi.mocked(fetchAdminProviderStats)
+const mockFetchAdminTaskDetail = vi.mocked(fetchAdminTaskDetail)
 
 function makeOverview(overrides?: Partial<AdminOverview>): AdminOverview {
   return {
@@ -121,6 +126,7 @@ beforeEach(() => {
   mockFetchAdminUsers.mockResolvedValue(makeAdminUsersResponse())
   mockFetchAdminUserDetail.mockResolvedValue(makeAdminUserDetailResponse())
   mockFetchAdminProviderStats.mockResolvedValue(makeAdminProvidersResponse())
+  mockFetchAdminTaskDetail.mockResolvedValue(makeAdminTaskDetailResponse())
 })
 
 function makeAdminUsersResponse(overrides?: Partial<AdminUserListResponse>): AdminUserListResponse {
@@ -196,6 +202,41 @@ function makeAdminProvidersResponse(overrides?: Partial<AdminProviderStatsRespon
   }
 }
 
+function makeAdminTaskDetailResponse(overrides?: { pipelineRuns?: AdminTaskDetailResponse['data']['pipelineRuns'] }): AdminTaskDetailResponse {
+  return {
+    success: true,
+    data: {
+      task: makeTask(),
+      pipelineRuns: overrides?.pipelineRuns ?? [
+        {
+          id: 'run-1',
+          projectId: 'project-1',
+          phase: 'analyze',
+          status: 'succeeded',
+          startedAt: '2026-06-14T00:00:00.000Z',
+          finishedAt: '2026-06-14T00:00:30.000Z',
+          durationMs: 30_000,
+          errorMessage: null,
+          outputSummary: null,
+          createdAt: '2026-06-14T00:00:00.000Z',
+        },
+        {
+          id: 'run-2',
+          projectId: 'project-1',
+          phase: 'storyboard',
+          status: 'failed',
+          startedAt: '2026-06-14T00:01:00.000Z',
+          finishedAt: '2026-06-14T00:01:30.000Z',
+          durationMs: 30_000,
+          errorMessage: 'LLM 输出校验失败',
+          outputSummary: null,
+          createdAt: '2026-06-14T00:01:00.000Z',
+        },
+      ],
+    },
+  }
+}
+
 describe('admin page', () => {
   it('renders overview metrics and recent failures', async () => {
     mockFetchAdminOverview.mockResolvedValue(makeOverview())
@@ -235,6 +276,57 @@ describe('admin page', () => {
     expect(mockRequeueAdminTask.mock.calls[0]?.[0]).toBe('task-1')
     await waitFor(() => {
       expect(mockFetchAdminTasks).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  // ── 新增：任务详情 dialog ─────────────────
+
+  describe('task detail dialog', () => {
+    it('opens detail dialog on row 详情 click and renders pipeline run timeline', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+
+      renderAdmin()
+      await screen.findByText('任务诊断')
+
+      await user.click(await screen.findByRole('button', { name: '详情' }))
+
+      expect(await screen.findByText('Canvas pipeline run 时间线')).toBeInTheDocument()
+      expect(screen.getAllByText('分析').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('分镜').length).toBeGreaterThan(0)
+      expect(screen.getByText('LLM 输出校验失败')).toBeInTheDocument()
+      expect(mockFetchAdminTaskDetail).toHaveBeenCalledWith('task-1')
+    })
+
+    it('shows empty hint when pipelineRuns is empty', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+      mockFetchAdminTaskDetail.mockResolvedValueOnce(makeAdminTaskDetailResponse({ pipelineRuns: [] }))
+
+      renderAdmin()
+      await screen.findByText('任务诊断')
+      await user.click(await screen.findByRole('button', { name: '详情' }))
+
+      expect(await screen.findByText(/无关联 Canvas pipeline run/)).toBeInTheDocument()
+    })
+
+    it('requeue button inside dialog triggers mutation', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+
+      renderAdmin()
+      await screen.findByText('任务诊断')
+      await user.click(await screen.findByRole('button', { name: '详情' }))
+
+      // dialog 内的重排按钮（第一个匹配）
+      await user.click(await screen.findByText('Canvas pipeline run 时间线'))
+      const requeueButtons = await screen.findAllByRole('button', { name: /重排/ })
+      // 至少存在 dialog 内的重排按钮
+      expect(requeueButtons.length).toBeGreaterThanOrEqual(1)
+      await user.click(requeueButtons[requeueButtons.length - 1]!)
+      await waitFor(() => {
+        expect(mockRequeueAdminTask).toHaveBeenCalled()
+      })
     })
   })
 
