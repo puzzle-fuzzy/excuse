@@ -1,4 +1,3 @@
-import type { Serialize, UploadedFileRow } from '@excuse/db'
 import type { EntityResponse } from './api-response'
 
 /**
@@ -8,7 +7,18 @@ import type { EntityResponse } from './api-response'
  * DB row 的 Date 字段必须通过 .toISOString() 转为 string，
  * 不允许 Date 对象泄露到 API 响应中。
  */
-export type UploadedFileDTO = Serialize<UploadedFileRow>
+export interface UploadedFileDTO {
+  id: string
+  accountId: string
+  fileName: string
+  fileSize: number
+  mimeType: string
+  storagePath: string
+  publicUrl: string
+  purpose: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
 
 /** 上传文件接口响应格式 */
 export type UploadResponse = EntityResponse<UploadedFileDTO>

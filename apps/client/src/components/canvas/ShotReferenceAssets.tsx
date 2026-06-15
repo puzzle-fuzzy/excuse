@@ -130,10 +130,13 @@ export function ShotReferenceAssets({
     }
     setSaving(true)
     try {
-      const next: CanvasShotReferenceAsset[] = [
-        ...shot.referenceAssets,
+      const next = mergeShotReferenceAssets(shot.referenceAssets, [
         { assetId: `manual-${Date.now()}`, url, role: addRole, label: addLabel.trim() || undefined, source: 'manual' },
-      ]
+      ], MAX_SHOT_REFERENCE_ASSETS)
+      if (next.length === shot.referenceAssets.length) {
+        toast.error('该 URL 已在当前镜头中')
+        return
+      }
       await onSave(next)
       setAddUrl('')
       setAddLabel('')
@@ -335,6 +338,14 @@ export function ShotReferenceAssets({
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-muted-foreground">
           参考资产
+          {' '}
+          <span className="font-normal">
+            (
+            {shot.referenceAssets.length}
+            /
+            {MAX_SHOT_REFERENCE_ASSETS}
+            )
+          </span>
           {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
         </label>
         {shot.referenceAssets.length > 0 && (
@@ -651,6 +662,12 @@ export function ShotReferenceAssets({
                     →
                     {' '}
                     {p.afterCount}
+                    {`，新增 ${p.addedCount}`}
+                    {applyMode === 'append' && Math.max(0, shot.referenceAssets.length - p.addedCount - p.truncatedCount) > 0 && (
+                      <span>
+                        {`，去重 ${Math.max(0, shot.referenceAssets.length - p.addedCount - p.truncatedCount)}`}
+                      </span>
+                    )}
                     {p.truncatedCount > 0 && `（截断 ${p.truncatedCount}）`}
                   </p>
                 ))}

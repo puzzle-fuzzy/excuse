@@ -33,7 +33,7 @@ scrape_configs:
 所有指标统一加 `excuse_` 前缀：
 
 - `excuse_http_requests_total{status}` — HTTP 请求总数（带裸 total 样本 + 按状态码分桶样本）
-- `excuse_http_latency_seconds{quantile}` — HTTP 请求延迟（p50 / p95 / p99 / avg；ms→s）
+- `excuse_http_latency_seconds{quantile}` — HTTP 请求延迟（`0.5` / `0.95` / `0.99` / `avg`；ms→s）
 - `excuse_sse_online_users` — SSE 在线用户数
 - `excuse_generation_total{status}` — 生成任务计数（按状态分桶）
 - `excuse_errors_total` — 错误总数（显式 `recordError()` + HTTP 5xx）
@@ -47,7 +47,7 @@ worker 进程在自己的 health server（`WORKER_HEALTH_PORT`，默认 5100）�
 
 - **provider 调用**（与 server 同名，Prometheus 自动按 `instance` 聚合）：
   - `excuse_provider_calls_total{model,status}` — worker 侧 DashScope 调用计数
-  - `excuse_provider_latency_seconds{model,quantile}` — worker 侧调用延迟（p50/p95/avg）
+  - `excuse_provider_latency_seconds{model,quantile}` — worker 侧调用延迟（`0.5` / `0.95` / `avg`）
 - **worker 运行时**（仅 worker target 输出）：
   - `excuse_worker_uptime_seconds` — worker 进程运行时长（秒）
   - `excuse_worker_polling` — 是否在轮询主循环（1/0）
@@ -76,7 +76,7 @@ worker health server 额外暴露 `GET /provider-calls` —— JSON 格式的 pr
   - `::1` 或 `::1/128`（IPv6 回环精确匹配）
   - 完整 IPv4 / IPv6 字符串等值（含可选 `/32`、`/128` 后缀）
 - 不支持的形态：任意非 `/8`/`/32` 的 IPv4 段（如 `10.0.0.0/24`）、任意非 `/128` 的 IPv6 段。需要复杂 CIDR 时建议反向代理层处理。
-- 不含 provider 错误率、模型耗时、任务队列积压、Canvas 阶段耗时等业务级指标，留待后续在调用方补 `record*` 钩子。
+- DB derived 指标（`excuse_canvas_phase_total` / `excuse_task_queue_depth`）的时效性取决于指标 scrape 间隔；默认统计窗口由 server route 聚合逻辑控制。
 
 ## 线上排障检查
 
@@ -176,8 +176,8 @@ curl -s http://localhost:5007/metrics | grep '^excuse_provider_calls_total'
 
 # 查看模型耗时（ms，分位数）
 curl -s http://localhost:5007/metrics | grep '^excuse_provider_latency_seconds'
-# excuse_provider_latency_seconds{model="qwen-max",quantile="p50"} 2.1
-# excuse_provider_latency_seconds{model="qwen-max",quantile="p95"} 8.5
+# excuse_provider_latency_seconds{model="qwen-max",quantile="0.5"} 2.1
+# excuse_provider_latency_seconds{model="qwen-max",quantile="0.95"} 8.5
 ```
 
 异常判断：
@@ -197,9 +197,9 @@ curl -s http://localhost:5007/metrics | grep '^excuse_canvas_phase_total'
 
 # 各 phase 耗时分位数
 curl -s http://localhost:5007/metrics | grep '^excuse_canvas_phase_duration_seconds'
-# excuse_canvas_phase_duration_seconds{phase="analysis",quantile="p50"} 5.2
-# excuse_canvas_phase_duration_seconds{phase="analysis",quantile="p95"} 15.1
-# excuse_canvas_phase_duration_seconds{phase="characters",quantile="p50"} 3.8
+# excuse_canvas_phase_duration_seconds{phase="analysis",quantile="0.5"} 5.2
+# excuse_canvas_phase_duration_seconds{phase="analysis",quantile="0.95"} 15.1
+# excuse_canvas_phase_duration_seconds{phase="characters",quantile="0.5"} 3.8
 ```
 
 ### 7. HTTP 请求概览
@@ -209,8 +209,8 @@ curl -s http://localhost:5007/metrics | grep '^excuse_canvas_phase_duration_seco
 curl -s http://localhost:5007/metrics | grep -E '^(excuse_http_requests_total|excuse_http_latency_seconds)'
 # excuse_http_requests_total{status="200"} 1024
 # excuse_http_requests_total{status="500"} 3
-# excuse_http_latency_seconds{quantile="p50"} 0.05
-# excuse_http_latency_seconds{quantile="p99"} 0.42
+# excuse_http_latency_seconds{quantile="0.5"} 0.05
+# excuse_http_latency_seconds{quantile="0.99"} 0.42
 ```
 
 ### 快速一键检查
@@ -223,6 +223,6 @@ curl -s http://localhost:5007/metrics | grep -E '^(excuse_uptime_seconds|excuse_
 ### 已知局限
 
 - **跨进程聚合**：server 与 worker 各自暴露 `/metrics`（5007 / 5100），Prometheus 抓取两个 target 后由 `instance` label 区分；`sum by (model)(excuse_provider_calls_total)` 等查询自动聚合两进程。worker 的视频/图片/文本生成 provider 调用现已纳入。
-- **ASR 未覆盖**：`ASRClient`（字幕转录）未接入 provider observer，其调用暂不进 provider 指标。
-- **admin 后台 Provider tab**：`GET /api/admin/providers` 直接读 server 进程内 `getProviderCallsSnapshot()` 合并延迟，仍只反映 server 侧；worker 侧 provider 延迟需经 Prometheus 查看（admin UI 跨进程合并待后续）。
+- **ASR 统计口径**：`ASRClient.submitTranscription` 已接入 provider observer，model 为 `paraformer-v2`；`queryTask` 轮询不计入 provider latency，避免廉价轮询稀释真实提交耗时。
+- **admin 后台 Provider tab**：配置 `WORKER_METRICS_URL` 后会 best-effort 拉取 worker `/provider-calls` 并与 server 进程内样本合并；worker 不可达或未配置时降级为仅 server 进程数据。
 - DB derived 指标（`excuse_canvas_phase_total` / `excuse_task_queue_depth`）的时效性取决于指标 scrape 间隔；默认 24 小时窗口。

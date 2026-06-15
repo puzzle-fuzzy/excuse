@@ -1,6 +1,6 @@
-import type { SubtitleSentence, SubtitleStyleConfig } from '@excuse/db'
+import type { SubtitleSentence, SubtitleStyleConfig } from '../src'
 import { describe, expect, it } from 'bun:test'
-import { getDefaultStyleConfig, getPresetById, sentencesToAss, SUBTITLE_STYLE_PRESETS } from '../src/subtitle'
+import { getDefaultStyleConfig, getPresetById, sentencesToAss, SUBTITLE_STYLE_PRESETS } from '../src'
 
 // ===== sentencesToAss =====
 

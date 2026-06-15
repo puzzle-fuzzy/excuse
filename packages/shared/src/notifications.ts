@@ -1,7 +1,16 @@
-import type { NotificationRow, Serialize } from '@excuse/db'
 import type { EntityResponse, ListResponse } from './api-response'
+import type { NotificationMeta } from './domain-types'
 
-export type NotificationDTO = Serialize<NotificationRow>
+export interface NotificationDTO {
+  id: string
+  accountId: string
+  type: string
+  title: string
+  body: string | null
+  meta: NotificationMeta | null
+  read: boolean
+  createdAt: string
+}
 
 export interface NotificationCount {
   count: number

@@ -1,5 +1,5 @@
 import type { SubtitleSentence, SubtitleStyleConfig } from '@excuse/shared'
-import { SUBTITLE_STYLE_PRESETS } from '@excuse/shared'
+import { SUBTITLE_STYLE_PRESETS } from '@excuse/subtitle-engine'
 import { ArrowLeft, Download, Loader2, RefreshCcw, Save, Scissors, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'

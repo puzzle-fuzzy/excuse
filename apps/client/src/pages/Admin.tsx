@@ -1,4 +1,4 @@
-import type { AdminApiKeyItem, AdminAuditLogItem, AdminGatewayClientDetail, AdminGatewayClientItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskGenerationRecord, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
+import type { AdminApiKeyItem, AdminAuditLogItem, AdminGatewayClientDetail, AdminGatewayClientItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskGenerationRecord, AdminTaskItem, AdminUserDetail, AdminUserRecentRecord } from '@excuse/shared'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -166,6 +166,32 @@ function shortId(value: string | null) {
   if (!value)
     return '-'
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
+}
+
+function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecord['matchReason']) {
+  switch (matchReason) {
+    case 'direct':
+      return '直接关联'
+    case 'worker-task':
+      return '统一任务'
+    case 'pipeline-run':
+      return 'Pipeline'
+    case 'time-window':
+      return '候选·时间窗口'
+  }
+}
+
+function recentRecordExecutionLabel(kind: AdminUserRecentRecord['executionKind']) {
+  switch (kind) {
+    case 'legacy-provider-task':
+      return 'Legacy provider task'
+    case 'canvas-worker':
+      return 'Canvas worker'
+    case 'gateway':
+      return 'Gateway'
+    case 'inline':
+      return '同步'
+  }
 }
 
 function TaskTable({
@@ -806,8 +832,8 @@ function AdminTaskDetailDialog({
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Badge variant="outline" className="font-mono">{record.model}</Badge>
                                     <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
-                                    <Badge variant={record.matchReason === 'direct' ? 'secondary' : 'outline'}>
-                                      {record.matchReason === 'direct' ? '直接关联' : '候选·时间窗口'}
+                                    <Badge variant={record.matchReason === 'time-window' ? 'outline' : 'secondary'}>
+                                      {generationRecordMatchLabel(record.matchReason)}
                                     </Badge>
                                   </div>
                                   <span className="font-mono text-xs text-muted-foreground">
@@ -978,6 +1004,7 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
                               <tr className="border-b text-left text-muted-foreground">
                                 <th className="py-1.5 font-medium">模型</th>
                                 <th className="py-1.5 font-medium">状态</th>
+                                <th className="py-1.5 font-medium">执行</th>
                                 <th className="py-1.5 text-right font-medium">成本</th>
                                 <th className="py-1.5 font-medium">时间</th>
                               </tr>
@@ -988,6 +1015,18 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
                                   <td className="py-1.5 font-mono text-xs">{record.model}</td>
                                   <td className="py-1.5">
                                     <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                  </td>
+                                  <td className="py-1.5">
+                                    <div className="flex flex-col gap-1">
+                                      <Badge variant={record.executionKind === 'legacy-provider-task' ? 'outline' : 'secondary'} className="w-fit">
+                                        {recentRecordExecutionLabel(record.executionKind)}
+                                      </Badge>
+                                      {record.providerTaskId && (
+                                        <span className="font-mono text-[11px] text-muted-foreground">
+                                          {shortId(record.providerTaskId)}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
                                   <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>

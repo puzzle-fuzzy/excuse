@@ -4,12 +4,11 @@
   "version": "0.0.1",
   "private": true,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./domain-types": "./src/domain-types.ts"
   },
   "module": "src/index.ts",
   "dependencies": {
-    "@excuse/db": "workspace:*",
-    "@excuse/subtitle-engine": "workspace:*",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"
   }

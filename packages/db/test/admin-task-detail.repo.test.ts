@@ -204,6 +204,57 @@ describe('getAdminTaskDetail', () => {
     expect(detail!.generationRecords).toEqual([])
   })
 
+  it('Canvas worker 写入 workerTaskId 时返回 worker-task 精确关联', async () => {
+    const task = await seedTask({ type: 'canvas.videos', domain: 'canvas' })
+    const record = await createGenerationRecord({
+      accountId,
+      model: 'wanx2.1-t2v',
+      category: 'video' as const,
+      inputParams: {
+        source: 'canvas',
+        projectId: task.projectId ?? '00000000-0000-0000-0000-000000000000',
+        workerTaskId: task.id,
+        canvasAssetId: crypto.randomUUID(),
+        prompt: 'canvas shot',
+      },
+      totalPriceCents: 120,
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords.length).toBe(1)
+    expect(detail!.generationRecords[0]!.id).toBe(record.id)
+    expect(detail!.generationRecords[0]!.matchReason).toBe('worker-task')
+  })
+
+  it('Canvas worker 写入 pipelineRunId 时返回 pipeline-run 精确关联', async () => {
+    const pipelineRunId = crypto.randomUUID()
+    const task = await seedTask({
+      type: 'canvas.videos',
+      domain: 'canvas',
+      targetId: pipelineRunId,
+    })
+    const record = await createGenerationRecord({
+      accountId,
+      model: 'wanx2.1-t2v',
+      category: 'video' as const,
+      inputParams: {
+        source: 'canvas',
+        projectId: task.projectId ?? '00000000-0000-0000-0000-000000000000',
+        pipelineRunId,
+        canvasAssetId: crypto.randomUUID(),
+        prompt: 'canvas shot',
+      },
+      totalPriceCents: 140,
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords.length).toBe(1)
+    expect(detail!.generationRecords[0]!.id).toBe(record.id)
+    expect(detail!.generationRecords[0]!.matchReason).toBe('pipeline-run')
+  })
+
   it('无直接关联时按 accountId + 时间窗口返回候选（time-window）', async () => {
     const task = await seedTask({ type: 'canvas.videos', domain: 'canvas' })
     const inWindow = await createGenerationRecord({

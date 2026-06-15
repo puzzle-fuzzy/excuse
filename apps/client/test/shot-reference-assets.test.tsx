@@ -190,6 +190,27 @@ describe('shotReferenceAssets 资产库选择器', () => {
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(fetchAssetLibrary).not.toHaveBeenCalled()
   })
+
+  it('手动输入重复 URL 时不调用 onSave', async () => {
+    const onSave = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ShotReferenceAssets
+        shot={makeShot([
+          { assetId: 'existing', url: 'https://cdn.local/existing.png', role: 'other', source: 'manual' },
+        ])}
+        projectId="p1"
+        onSave={onSave}
+      />,
+    )
+
+    await user.type(screen.getByPlaceholderText('输入参考图 URL'), 'https://cdn.local/existing.png')
+    await user.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(onSave).not.toHaveBeenCalled()
+    })
+  })
 })
 
 describe('视频变体推荐提示', () => {
@@ -283,6 +304,34 @@ describe('批量应用参考资产（P1-2 v0.5）', () => {
     await waitFor(() => {
       expect(onUpdate).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('批量应用预览显示新增和去重数量', async () => {
+    const currentShot = makeBatchableShot('shot-1', 1, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+      { assetId: 'r2', url: 'https://cdn.local/r2.png', role: 'style', source: 'asset_library' },
+    ])
+    const otherShot = makeBatchableShot('shot-2', 2, [
+      { assetId: 'r1', url: 'https://cdn.local/r1.png', role: 'character', source: 'asset_library' },
+    ])
+    const user = userEvent.setup()
+
+    render(
+      <ShotReferenceAssets
+        shot={currentShot}
+        projectId="p1"
+        allShots={[currentShot, otherShot]}
+        onSave={vi.fn()}
+        onUpdate={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: '应用到...' }))
+    await user.click(screen.getByRole('checkbox'))
+
+    expect(screen.getByText(/1 → 2/)).toBeInTheDocument()
+    expect(screen.getByText(/新增 1/)).toBeInTheDocument()
+    expect(screen.getByText(/去重 1/)).toBeInTheDocument()
   })
 
   it('批量应用成功后展示「撤销上次应用」入口', async () => {

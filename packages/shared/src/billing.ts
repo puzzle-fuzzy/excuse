@@ -1,4 +1,3 @@
-import type { CreditTransactionRow, Serialize } from '@excuse/db'
 import type { EntityResponse, ListResponse } from './api-response'
 
 // ===== 计费相关类型定义 =====
@@ -45,7 +44,20 @@ export interface BillingBalance {
   totalCents: number
 }
 
-export type CreditTransactionDTO = Serialize<CreditTransactionRow>
+export type CreditTransactionType = 'reserve' | 'debit' | 'refund' | 'credit' | 'admin_adjust'
+
+export interface CreditTransactionDTO {
+  id: string
+  accountId: string
+  type: CreditTransactionType
+  amountCents: number
+  balanceAfterCents: number
+  frozenAfterCents: number
+  generationRecordId: string | null
+  description: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
 
 export type BillingStatisticsResponse = EntityResponse<BillingStatistics>
 

@@ -161,7 +161,7 @@ export async function handleCanvasRebuild(task: TaskRow, _workerConfig: WorkerCo
 export async function handleCanvasVideos(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasVideos(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasVideos(projectId, workerConfig, runId ?? undefined, task.id)
   await markRunSucceededAndNotify(task, result)
   return result
 }

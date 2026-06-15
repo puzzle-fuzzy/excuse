@@ -57,6 +57,11 @@ export interface CanvasVideoSubmitInput {
   referenceUrls: string[]
   client: DashScopeClient
   estimatedCost?: boolean
+  diagnostics?: {
+    workerTaskId?: string
+    pipelineRunId?: string
+    canvasAssetId?: string
+  }
 }
 
 export interface CanvasVideoSubmitResult {
@@ -283,6 +288,9 @@ export async function submitCanvasShotVideo(
     source: 'canvas',
     projectId: input.projectId,
     shotId: input.shotId,
+    workerTaskId: input.diagnostics?.workerTaskId,
+    pipelineRunId: input.diagnostics?.pipelineRunId,
+    canvasAssetId: input.diagnostics?.canvasAssetId ?? input.assetId,
     ...videoParams,
   }
   const cost = calculateCost(usedModelConfig, extractBillingParams(videoParams))

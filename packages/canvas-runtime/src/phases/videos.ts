@@ -25,6 +25,11 @@ export interface ShotVideoEntityInput {
   modelPreferences: { videoModel?: string | null } | null | undefined
   client: DashScopeClient
   estimatedCost?: boolean
+  diagnostics?: {
+    workerTaskId?: string
+    pipelineRunId?: string
+    canvasAssetId?: string
+  }
 }
 
 export interface ShotVideoEntityResult {
@@ -56,6 +61,7 @@ export async function submitShotVideoEntity(input: ShotVideoEntityInput): Promis
     referenceUrls,
     client: input.client,
     estimatedCost: input.estimatedCost,
+    diagnostics: input.diagnostics,
   })
 
   return { taskId, model: recommendation.model, referenceUrls, recommendationReason: recommendation.reason }

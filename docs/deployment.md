@@ -8,9 +8,9 @@
 |------|------|------|------|
 | **Server** | `apps/server/src/index.ts` | 5007 | ElysiaJS API 服务 |
 | **Client** | `apps/client/` | 8007 | Vite + React SPA（开发模式；生产为静态文件） |
-| **Worker** | `apps/worker/src/index.ts` | — | 后台任务轮询（视频生成） |
+| **Worker** | `apps/worker/src/index.ts` | 5100（health/metrics） | 后台任务轮询、Canvas 流水线推进、视频/ASR/字幕任务处理 |
 
-**重要**：Server 和 Worker **不产出 bundle**，直接以 Bun 运行 TypeScript 入口文件。
+**重要**：Server 和 Worker 的 `build` 脚本执行 TypeScript typecheck，不产出 bundle；生产运行仍直接以 Bun 执行 TypeScript 入口文件。
 
 ## 环境要求
 
@@ -68,10 +68,10 @@ Server 和 Worker 以 Bun 直接运行 TS 入口，无需预编译：
 
 ```bash
 # Server
-NODE_ENV=production bun run apps/server/src/index.ts
+NODE_ENV=production bun --env-file .env apps/server/src/index.ts
 
 # Worker
-NODE_ENV=production bun run apps/worker/src/index.ts
+NODE_ENV=production bun --env-file .env apps/worker/src/index.ts
 ```
 
 Client 构建为静态文件，由 Nginx 等反向代理托管：
@@ -88,6 +88,8 @@ bun run build:client
 | `DATABASE_URL` | PostgreSQL 连接串 |
 | `DASHSCOPE_API_KEY` | DashScope API 密钥 |
 | `JWT_SECRET` | JWT 签名密钥（≥32 字符） |
+| `METRICS_ACCESS_TOKEN` | `/metrics` 和 worker `/provider-calls` 的可选 Bearer token |
+| `WORKER_METRICS_URL` | server 聚合 worker provider latency 时使用，如 `http://localhost:5100` |
 
 详见 `.env.example` 获取完整列表。
 
@@ -129,8 +131,8 @@ server {
 
 ```bash
 # 使用 pm2 示例
-pm2 start "bun run apps/server/src/index.ts" --name excuse-server
-pm2 start "bun run apps/worker/src/index.ts" --name excuse-worker
+pm2 start "bun --env-file .env apps/server/src/index.ts" --name excuse-server
+pm2 start "bun --env-file .env apps/worker/src/index.ts" --name excuse-worker
 ```
 
 ### Docker 部署（可选）
@@ -141,7 +143,7 @@ pm2 start "bun run apps/worker/src/index.ts" --name excuse-worker
 services:
   server:
     build: .
-    command: bun run apps/server/src/index.ts
+    command: bun --env-file .env apps/server/src/index.ts
     env_file: .env
     ports:
       - "5007:5007"
@@ -150,8 +152,10 @@ services:
 
   worker:
     build: .
-    command: bun run apps/worker/src/index.ts
+    command: bun --env-file .env apps/worker/src/index.ts
     env_file: .env
+    ports:
+      - "5100:5100"
     depends_on:
       - postgres
 ```
@@ -168,7 +172,7 @@ bun run dev:client         # 仅 client
 bun run dev:worker         # 仅 worker
 
 # 构建
-bun run build              # server smoke + client build
+bun run build              # server typecheck + worker typecheck + client build
 bun run build:client       # 仅构建前端
 
 # 测试

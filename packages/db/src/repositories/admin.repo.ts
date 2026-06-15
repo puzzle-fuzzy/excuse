@@ -383,7 +383,7 @@ export interface AdminTaskGenerationRecordRow {
   costCents: number | null
   createdAt: string
   errorMessage: string | null
-  matchReason: 'direct' | 'time-window'
+  matchReason: 'direct' | 'worker-task' | 'pipeline-run' | 'time-window'
 }
 
 export interface AdminTaskDetailRow {
@@ -396,9 +396,10 @@ export interface AdminTaskDetailRow {
  * 单任务详情 + Canvas pipeline run 级联 + 关联生成记录（诊断用）。
  *
  * - pipeline_runs：通过 `canvas_pipeline_runs.taskId = tasks.id` 关联（软外键，无 FK 约束）。
- * - generation_records：两段策略——
+ * - generation_records：多段策略——
  *   1) `task.generationRecordId` 非空时直接命中（`matchReason='direct'`，如 subtitle 烧录导出回填）；
- *   2) 否则按 `accountId + 任务执行时间窗口` 返回候选（`matchReason='time-window'`），
+ *   2) Canvas worker 写入 `input_params.workerTaskId/pipelineRunId` 时精确命中；
+ *   3) 否则按 `accountId + 任务执行时间窗口` 返回候选（`matchReason='time-window'`），
  *      覆盖 canvas 等任务（其 generation_records 由 worker 在执行期间创建，无 task 列直接关联）。
  *      时间窗口匹配可能含并发记录，前端按候选展示。
  *
@@ -471,6 +472,7 @@ const GEN_RECORD_CANDIDATE_LIMIT = 10
 /**
  * 取任务关联的生成记录（诊断用）。
  * - task.generationRecordId 非空 → 精确命中（direct）。
+ * - Canvas worker 元数据存在 → 按 workerTaskId / pipelineRunId 精确命中。
  * - 否则 → accountId + 时间窗口候选（time-window），按 createdAt asc，limit 上限。
  */
 async function fetchTaskGenerationRecords(task: TaskRow): Promise<AdminTaskGenerationRecordRow[]> {
@@ -493,6 +495,39 @@ async function fetchTaskGenerationRecords(task: TaskRow): Promise<AdminTaskGener
     return direct
       ? [{ ...direct, costCents: direct.costCents ?? null, createdAt: iso(direct.createdAt)!, matchReason: 'direct' as const }]
       : []
+  }
+
+  const diagnosticConditions: SQL[] = [
+    sql`${generationRecords.inputParams}->>'workerTaskId' = ${task.id}`,
+  ]
+  if (task.targetId)
+    diagnosticConditions.push(sql`${generationRecords.inputParams}->>'pipelineRunId' = ${task.targetId}`)
+
+  const diagnosticRows = await getDb()
+    .select({
+      ...projection,
+      workerTaskId: sql<string | null>`${generationRecords.inputParams}->>'workerTaskId'`,
+      pipelineRunId: sql<string | null>`${generationRecords.inputParams}->>'pipelineRunId'`,
+    })
+    .from(generationRecords)
+    .where(and(
+      eq(generationRecords.accountId, task.accountId),
+      or(...diagnosticConditions),
+    ))
+    .orderBy(asc(generationRecords.createdAt))
+    .limit(GEN_RECORD_CANDIDATE_LIMIT)
+
+  if (diagnosticRows.length > 0) {
+    return diagnosticRows.map(row => ({
+      id: row.id,
+      model: row.model,
+      category: row.category,
+      status: row.status,
+      costCents: row.costCents ?? null,
+      createdAt: iso(row.createdAt)!,
+      errorMessage: row.errorMessage,
+      matchReason: row.workerTaskId === task.id ? 'worker-task' as const : 'pipeline-run' as const,
+    }))
   }
 
   // 任务执行时间窗口（createdAt ~ finishedAt，finishedAt 缺失时延伸至 now）
@@ -617,6 +652,8 @@ export interface AdminUserRecentRecordRow {
   status: string
   costCents: number
   createdAt: string
+  providerTaskId: string | null
+  executionKind: 'inline' | 'legacy-provider-task' | 'canvas-worker' | 'gateway'
 }
 
 export interface AdminUserDetailRow {
@@ -764,6 +801,8 @@ export async function getAdminUserDetail(
         status: generationRecords.status,
         costCents: sql<number>`coalesce(${generationRecords.totalPriceCents}, 0)::int`,
         createdAt: generationRecords.createdAt,
+        providerTaskId: generationRecords.taskId,
+        source: sql<string | null>`${generationRecords.inputParams}->>'source'`,
       })
       .from(generationRecords)
       .where(eq(generationRecords.accountId, accountId))
@@ -803,6 +842,14 @@ export async function getAdminUserDetail(
       status: row.status,
       costCents: numberValue(row.costCents),
       createdAt: iso(row.createdAt)!,
+      providerTaskId: row.providerTaskId,
+      executionKind: row.source === 'canvas'
+        ? 'canvas-worker'
+        : row.source === 'gateway'
+          ? 'gateway'
+          : row.providerTaskId
+            ? 'legacy-provider-task'
+            : 'inline',
     })),
   }
 }

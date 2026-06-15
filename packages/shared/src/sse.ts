@@ -1,5 +1,6 @@
-import type { CostDetail, GenerationCategory, GenerationStatus, NotificationMeta, OutputResult } from '@excuse/db'
 import type { SSEPipelineNodeEvent } from './canvas'
+import type { CostDetail, NotificationMeta, OutputResult } from './domain-types'
+import type { GenerationCategory, GenerationStatus } from './generation'
 import { parseCostDetail, parseOutputResult } from './generation'
 
 // ===== SSE 事件类型定义 =====

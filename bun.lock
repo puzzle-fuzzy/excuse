@@ -34,6 +34,7 @@
         "@dagrejs/dagre": "^3.0.0",
         "@elysia/eden": "^1.4.10",
         "@excuse/shared": "workspace:*",
+        "@excuse/subtitle-engine": "workspace:*",
         "@fontsource-variable/geist": "^5.2.9",
         "@hookform/resolvers": "^5.4.0",
         "@microsoft/fetch-event-source": "^2.0.1",
@@ -99,6 +100,7 @@
         "@excuse/provider": "workspace:*",
         "@excuse/rate-limit": "workspace:*",
         "@excuse/shared": "workspace:*",
+        "@excuse/subtitle-engine": "workspace:*",
         "@excuse/task-engine": "workspace:*",
         "@excuse/workflow-engine": "workspace:*",
         "drizzle-orm": "^0.44.2",
@@ -167,6 +169,7 @@
       "name": "@excuse/db",
       "version": "0.0.1",
       "dependencies": {
+        "@excuse/shared": "workspace:*",
         "drizzle-orm": "^0.44.2",
         "postgres": "^3.4.7",
       },
@@ -226,8 +229,6 @@
       "name": "@excuse/shared",
       "version": "0.0.1",
       "dependencies": {
-        "@excuse/db": "workspace:*",
-        "@excuse/subtitle-engine": "workspace:*",
         "pino": "^10.3.1",
         "pino-pretty": "^13.1.3",
       },

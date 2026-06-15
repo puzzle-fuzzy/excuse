@@ -26,6 +26,7 @@ export async function executeCanvasVideos(
   projectId: string,
   workerConfig: WorkerConfig,
   runId?: string,
+  workerTaskId?: string,
 ): Promise<CanvasVideosResult> {
   const detail = await loadRunnableCanvasProject(projectId)
   const project = detail.project
@@ -66,6 +67,11 @@ export async function executeCanvasVideos(
         locations: detail.locations,
         modelPreferences: project.modelPreferencesJson,
         client,
+        diagnostics: {
+          workerTaskId,
+          pipelineRunId: runId,
+          canvasAssetId: shotVideoAsset.id,
+        },
       })
 
       shotsSubmitted += 1

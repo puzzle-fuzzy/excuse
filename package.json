@@ -18,6 +18,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "check:boundaries": "bun scripts/check-package-boundaries.ts",
     "kill-ports": "bun --env-file .env scripts/kill-ports.ts",
     "dev:server": "bun run --cwd apps/server dev",
     "dev:client": "bun run --cwd apps/client dev",

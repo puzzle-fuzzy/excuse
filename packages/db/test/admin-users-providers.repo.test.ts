@@ -134,6 +134,42 @@ describe('管理用户 / providers 仓库', () => {
       expect(detail!.recentRecords.length).toBe(2)
     })
 
+    it('近期记录标识 legacy provider task / inline / canvas / gateway 执行来源', async () => {
+      await seedRecord({
+        model: 'wanx2.1-t2v',
+        category: 'video',
+        taskId: 'provider-task-1',
+        inputParams: { prompt: 'legacy video' },
+      })
+      await seedRecord({
+        model: 'qwen-plus',
+        taskId: null,
+        inputParams: { prompt: 'inline text' },
+      })
+      await seedRecord({
+        model: 'wanx2.1-t2v',
+        category: 'video',
+        taskId: 'provider-task-2',
+        inputParams: { source: 'canvas', workerTaskId: crypto.randomUUID(), prompt: 'canvas video' },
+      })
+      await seedRecord({
+        model: 'qwen-plus',
+        taskId: null,
+        inputParams: { source: 'gateway', requestedModel: 'gpt-4o-mini', prompt: 'gateway call' },
+      })
+
+      const detail = await getAdminUserDetail(accountId)
+
+      expect(detail!.recentRecords.some(record =>
+        record.executionKind === 'canvas-worker' && record.providerTaskId === 'provider-task-2',
+      )).toBe(true)
+      expect(detail!.recentRecords.some(record =>
+        record.executionKind === 'legacy-provider-task' && record.providerTaskId === 'provider-task-1',
+      )).toBe(true)
+      expect(detail!.recentRecords.some(record => record.executionKind === 'inline')).toBe(true)
+      expect(detail!.recentRecords.some(record => record.executionKind === 'gateway')).toBe(true)
+    })
+
     it('近期记录最多 10 条', async () => {
       for (let i = 0; i < 12; i++)
         await seedRecord({ model: 'qwen-plus' })

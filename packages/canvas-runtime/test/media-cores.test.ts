@@ -248,6 +248,11 @@ async function submitShotVideoEntityLocal(input: {
   locations: CanvasProjectDetail['locations'][number][]
   modelPreferences: { videoModel?: string | null } | null | undefined
   client: import('@excuse/provider').DashScopeClient
+  diagnostics?: {
+    workerTaskId?: string
+    pipelineRunId?: string
+    canvasAssetId?: string
+  }
 }) {
   const references = resolveShotVideoReferences({
     shot: input.shot,
@@ -268,7 +273,19 @@ async function submitShotVideoEntityLocal(input: {
     throw new Error(submitResult?.error ?? '视频提交失败')
   await bindAssetTaskId(input.assetId, submitResult.taskId)
   await updateShot(input.shotId, { videoTaskId: submitResult.taskId, status: 'generating' })
-  await createRecord({ accountId: input.accountId, taskId: submitResult.taskId, model: submitResult.model })
+  await createRecord({
+    accountId: input.accountId,
+    taskId: submitResult.taskId,
+    model: submitResult.model,
+    inputParams: {
+      source: 'canvas',
+      projectId: input.projectId,
+      shotId: input.shotId,
+      workerTaskId: input.diagnostics?.workerTaskId,
+      pipelineRunId: input.diagnostics?.pipelineRunId,
+      canvasAssetId: input.diagnostics?.canvasAssetId ?? input.assetId,
+    },
+  })
 
   return {
     taskId: submitResult.taskId,
@@ -299,6 +316,40 @@ describe('submitShotVideoEntity', () => {
     expect(model).toContain('-r2v')
     expect(bindAssetTaskId).toHaveBeenCalledTimes(1)
     expect(updateShot).toHaveBeenCalledTimes(1)
+  })
+
+  it('创建 generation record 时写入 Canvas 诊断元数据', async () => {
+    const client = makeVideoClient()
+    await submitShotVideoEntityLocal({
+      projectId: 'p1',
+      accountId: 'a1',
+      shotId: 'shot-1',
+      assetId: 'asset-video',
+      shot: baseShot,
+      characters: [characterWithRef],
+      locations: [locationWithRef],
+      modelPreferences: null,
+      client,
+      diagnostics: {
+        workerTaskId: 'task-1',
+        pipelineRunId: 'run-1',
+        canvasAssetId: 'asset-video',
+      },
+    })
+
+    expect(createRecord).toHaveBeenCalledTimes(1)
+    expect(createRecord.mock.calls[0]![0]).toMatchObject({
+      accountId: 'a1',
+      taskId: 'video-task-1',
+      inputParams: {
+        source: 'canvas',
+        projectId: 'p1',
+        shotId: 'shot-1',
+        workerTaskId: 'task-1',
+        pipelineRunId: 'run-1',
+        canvasAssetId: 'asset-video',
+      },
+    })
   })
 
   it('无 referenceUrls 时使用 -t2v 后缀', async () => {

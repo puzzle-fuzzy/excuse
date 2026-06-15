@@ -126,6 +126,9 @@ export interface AdminUserRecentRecord {
   status: string
   costCents: number
   createdAt: string
+  /** generation_records.taskId；旧 generate 视频为 provider task id，不是统一 tasks.id */
+  providerTaskId: string | null
+  executionKind: 'inline' | 'legacy-provider-task' | 'canvas-worker' | 'gateway'
 }
 
 export interface AdminUserDetail {
@@ -205,9 +208,8 @@ export interface AdminTaskDetail {
   /**
    * 关联生成记录（诊断用），帮助运营定位「任务 → 扣费/产物/错误原因」。
    * - matchReason='direct'：task.generationRecordId 直接命中（如 subtitle 烧录导出回填）。
-   * - matchReason='time-window'：无直接关联时，按 accountId + 任务执行时间窗口返回候选；
-   *   canvas 等任务的 generation_records 由 worker 在执行期间创建，无 task 列直接关联，
-   *   时间窗口匹配可能含并发记录，前端按候选展示。
+   * - matchReason='worker-task' / 'pipeline-run'：Canvas worker 写入诊断元数据后精确命中。
+   * - matchReason='time-window'：无直接关联时，按 accountId + 任务执行时间窗口返回候选。
    */
   generationRecords: AdminTaskGenerationRecord[]
 }
@@ -221,8 +223,8 @@ export interface AdminTaskGenerationRecord {
   costCents: number | null
   createdAt: string
   errorMessage: string | null
-  /** direct = task.generationRecordId 直接命中；time-window = accountId+时间窗口候选 */
-  matchReason: 'direct' | 'time-window'
+  /** direct / worker-task / pipeline-run 为精确命中；time-window = accountId+时间窗口候选 */
+  matchReason: 'direct' | 'worker-task' | 'pipeline-run' | 'time-window'
 }
 
 export interface AdminTaskDetailResponse {

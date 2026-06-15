@@ -1,35 +1,29 @@
+import type { EntityResponse, ListResponse, MutationOkResponse } from './api-response'
+import type { CanvasFailureKind } from './canvas-failure'
 import type {
-  CanvasLayoutDto as CanvasLayoutDtoFromDB,
+  CanvasLayoutDto,
   CanvasLayoutEdge,
   CanvasLayoutNode,
   CanvasLayoutPosition,
   CanvasLayoutViewport,
   CanvasModelPreferences,
-  CanvasPipelineRunRow,
-  CanvasProjectStatus as CanvasProjectStatusFromDB,
-  CanvasShotReferenceAsset as CanvasShotReferenceAssetFromDB,
-  CanvasShotReferenceRole as CanvasShotReferenceRoleFromDB,
-  CanvasShotStatus as CanvasShotStatusFromDB,
+  CanvasShotReferenceAsset,
+  CanvasShotReferenceRole,
   CharacterProfile,
   ContinuityIssue,
   LocationProfile,
   NovelAnalysis,
-  Serialize,
   ShotCamera,
   ShotContinuity,
   ShotEnvironment,
   ShotTimelineEntry,
-} from '@excuse/db'
-import type { EntityResponse, ListResponse, MutationOkResponse } from './api-response'
-import type { CanvasFailureKind } from './canvas-failure'
+} from './domain-types'
 
-// 域类型从 @excuse/db import type 重导出（编译期擦除，零运行时影响）
+// 域类型从 shared domain-types 重导出，供 client/server/worker 共用。
 export type { CanvasModelPreferences, CharacterProfile, ContinuityIssue, LocationProfile, NovelAnalysis }
 export type { ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry }
 export type { CanvasLayoutEdge, CanvasLayoutNode, CanvasLayoutPosition, CanvasLayoutViewport }
-export type CanvasShotReferenceRole = CanvasShotReferenceRoleFromDB
-export type CanvasShotReferenceAsset = CanvasShotReferenceAssetFromDB
-export type CanvasLayoutDto = CanvasLayoutDtoFromDB
+export type { CanvasLayoutDto, CanvasShotReferenceAsset, CanvasShotReferenceRole }
 
 // ===== 批量应用参考资产类型（client/server 共用） =====
 
@@ -111,18 +105,55 @@ export function recommendCanvasVideoVariant(
     reason: '未检测到参考图，使用文生视频（T2V）',
   }
 }
-export type CanvasPipelineRunDTO = Serialize<CanvasPipelineRunRow>
+export type CanvasPipelinePhase
+  = | 'analyze'
+    | 'characters'
+    | 'locations'
+    | 'characterRefs'
+    | 'locationRefs'
+    | 'storyboard'
+    | 'continuity'
+    | 'rebuild'
+    | 'videos'
+
+export type CanvasPipelineRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface CanvasPipelineRunDTO {
+  id: string
+  projectId: string
+  phase: CanvasPipelinePhase
+  status: CanvasPipelineRunStatus
+  startedAt: string | null
+  finishedAt: string | null
+  errorMessage: string | null
+  createdBy: string | null
+  inputSnapshotJson: Record<string, unknown> | null
+  outputSummaryJson: Record<string, unknown> | null
+  taskId: string | null
+  createdAt: string
+}
 
 // ===== 画布状态类型（从 DB pgEnum 推导，消除重复定义） =====
 
-/** 画布项目状态（从 pgEnum 推导，与数据库枚举保持同步） */
-export type CanvasProjectStatus = CanvasProjectStatusFromDB
+export type CanvasProjectStatus
+  = | 'draft'
+    | 'analyzed'
+    | 'characters_ready'
+    | 'locations_ready'
+    | 'refs_ready'
+    | 'refs_all_ready'
+    | 'storyboard_ready'
+    | 'continuity_checked'
+    | 'prompts_ready'
+    | 'generating'
+    | 'completed'
+    | 'partial_failed'
+    | 'failed'
 
-/** 画布镜头状态（从 pgEnum 推导，与数据库枚举保持同步） */
-export type CanvasShotStatus = CanvasShotStatusFromDB
+export type CanvasShotStatus = 'draft' | 'ready' | 'generating' | 'completed' | 'failed'
 
 // ===== LLM 输出类型 =====
-// NovelAnalysis / CharacterProfile / LocationProfile / ContinuityIssue 已从 @excuse/db 重导出
+// NovelAnalysis / CharacterProfile / LocationProfile / ContinuityIssue 已从 shared domain-types 重导出
 
 /** 分镜草稿（LLM 输出） */
 export interface ShotDraft {
@@ -210,7 +241,7 @@ export interface ShotDTO {
   status: CanvasShotStatus
   errorMessage: string | null
   /** 镜头额外参考资产列表 — 生成/重试时合并进 referenceUrls */
-  referenceAssets: CanvasShotReferenceAssetFromDB[]
+  referenceAssets: CanvasShotReferenceAsset[]
   createdAt: string
   updatedAt: string
 }
@@ -346,7 +377,7 @@ export interface CanvasAssetsPoll {
 
 /**
  * Canvas 成本聚合阶段维度。
- * 镜像 `@excuse/db` 的 `CanvasPipelinePhase` enum（权威源），用于成本按阶段分组展示。
+ * 镜像 DB 的 `CanvasPipelinePhase` enum（权威源），用于成本按阶段分组展示。
  * 此处不直接 import db 类型以避免 shared ← db 反向依赖。
  */
 export type CanvasCostPhase

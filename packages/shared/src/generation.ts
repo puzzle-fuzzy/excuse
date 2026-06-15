@@ -1,27 +1,30 @@
-// ===== 生成记录相关类型 =====
-// CostDetail / OutputResult 从 @excuse/db domain-types 导入（import type，零运行时影响）
-// DB schema 现已使用精确 $type，InferSelectModel 自动推断为域类型
-
+import type { ListResponse, MutationOkResponse, RecordResponse } from './api-response'
 import type {
   CostDetail,
-  GenerationCategory,
   GenerationInputParams,
   GenerationNotifyPayload,
-  GenerationRecordRow,
-  GenerationStatus,
   ImageOutputResult,
   OutputResult,
   ProcessingOutputResult,
-  Serialize,
   SubtitleOutputResult,
   TextOutputResult,
   VideoOutputResult,
-} from '@excuse/db'
-import type { ListResponse, MutationOkResponse, RecordResponse } from './api-response'
+} from './domain-types'
 
 // 重导出域类型，保持下游 import 不变
-export type { CostDetail, GenerationCategory, GenerationInputParams, GenerationNotifyPayload, GenerationStatus }
+export type { CostDetail, GenerationInputParams, GenerationNotifyPayload }
 export type { ImageOutputResult, OutputResult, ProcessingOutputResult, SubtitleOutputResult, TextOutputResult, VideoOutputResult }
+
+export type GenerationCategory = 'text' | 'image' | 'video' | 'subtitle'
+
+export type GenerationStatus
+  = | 'pending'
+    | 'submitting'
+    | 'processing'
+    | 'saving_output'
+    | 'succeeded'
+    | 'failed'
+    | 'cancelled'
 
 // ===== SSE → GenerationRecord 运行时解析 =====
 
@@ -114,14 +117,25 @@ export function parseCostDetail(data: unknown): CostDetail | null {
   return null
 }
 
-// ===== 生成记录（从 Drizzle schema 推导，Date → string） =====
-
-/**
- * API 层生成记录类型
- * schema 现已用 $type<CostDetail>() / $type<OutputResult>()
- * InferSelectModel 直接推断为域类型，无需 Omit 覆写
- */
-export type GenerationRecord = Serialize<GenerationRecordRow>
+export interface GenerationRecord {
+  id: string
+  accountId: string
+  taskId: string | null
+  model: string
+  category: GenerationCategory
+  status: GenerationStatus
+  inputParams: GenerationInputParams
+  outputResult: OutputResult | null
+  cost: CostDetail | null
+  totalPriceCents: number | null
+  errorMessage: string | null
+  retryCount: number
+  traceId: string | null
+  dedupeKey: string | null
+  hiddenAt: string | null
+  createdAt: string
+  updatedAt: string
+}
 
 // ===== 请求/响应类型 =====
 
