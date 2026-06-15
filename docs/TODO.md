@@ -122,9 +122,10 @@
 待办：
 
 - ✅ 决策：正式开放给用户。
-- Gateway scope、quota、rate limit 实现。
+- Gateway scope、quota、rate limit 实现（待 DB schema 变更）。
 - ✅ 开发者文档页面已完善：streaming 标记已支持、Python 示例、用量概览展示、文本模型定价表。
 - ✅ 开放策略和计费模式已明确：正式开放 + 按 Token 计费 + beta 阶段不扣费。
+- ✅ provider 调用 service 提取：`apps/server/src/services/gateway-service.ts` 统一编排 credit/record/audit/provider 调用生命周期。
 
 验收：
 
@@ -249,8 +250,8 @@
 
 待办：
 
-- 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。
-- Storage 与 Asset 分层：`packages/storage` 只负责对象存取；资产记录、业务绑定、SSE 通知由 worker/service 完成。
+- 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。（待实现）
+- ✅ Storage 与 Asset 分层：`packages/storage` 只负责对象存取（`AssetStorage` 仅提供 OSS/本地存储）；资产记录、业务绑定、SSE 通知由 worker/service 完成。`@excuse/provider` 为方便 re-export `AssetStorage`，分层边界清晰。
 - ✅ Events：domain event 与 user notification 分层已定型（generation_status / notification 两通道，SSE 桥接由 events package 统一处理）。业务 service 通过 notifyNotifyGeneration/notifyNotification 发布 domain event，不直接关心 SSE。
 - ✅ Workflow / Task：pause/resume/cancel/retry 的纯规则 guard 函数已完善（`canPausePipelineRun` / `canResumePipelineRun` / `canCancelPipelineRun` / `canRetryPipelineRun`）。`cancel` 有完整 adapter 实现；`pause`/`resume` adapter 接口已定义（`TaskPauseAdapter` + `pauseTaskWithAdapter`/`resumeTaskWithAdapter`），DB migration 待实际需要时补入。
 - ✅ Prompt / Canvas Engine：四个阶段（analysis / characters / locations / storyboard）+ server regenerate 已迁移为 `parseLLMJsonWithSchema` + 导出了 4 个 zod schema（commits: `600e0cf`、`e8c47f7`）。
