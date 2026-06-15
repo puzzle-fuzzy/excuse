@@ -160,7 +160,7 @@
 
 待办：
 
-- Canvas 新项目 / 编辑器消费 Model Lab 保存的默认模型偏好。
+- ✅ Canvas 新项目消费 Model Lab 默认模型偏好（新建项目时读 localStorage `excuse:model-lab:canvas-defaults`，过滤非空字段后调既有 `PATCH /api/canvas/projects/:id/model-preferences` 写入 `modelPreferencesJson`；方案 B 最小改动，零 server / db / api helper 改动；commit: `<本轮 hash>`）。
 
 验收：
 
@@ -209,6 +209,7 @@
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
    - Elysia route schema 可以保留，不强行替换。
    - ✅ packages/gateway（`normalizeOpenAIChatRequest` / `mapGatewayUsageItem` 引入 zod safeParse + 新建 `packages/gateway/src/schemas.ts`）+ packages/prompt-engine（新建 `parseLLMJsonWithSchema` + `LLMSchemaValidationError` + `packages/prompt-engine/src/schemas.ts`，保留 `parseLLMJson` 原签名）已完成第一批迁移（commit: `e797419`）。canvas-runtime / regenerate.ts 调用迁移留待独立任务。
+   - ✅ packages/canvas-engine（`validateNovelAnalysis` / `validateCharacterProfile` / `validateLocationProfile` / `validateShotDrafts` 4 个 LLM 输出校验器内部改为 zod schema 驱动，新建 canvas-engine 内部 zod schema，保留对外签名 + 缺失字段填充默认值语义；commit: `600e0cf`）。canvas-runtime phases + regenerate.ts 调用方零改动。
 
 5. `p-limit` / `p-queue`
    - 用于单个任务内部的批量上传、下载、生成、持久化并发控制。
