@@ -2,6 +2,9 @@ import type {
   AdminApiKeyListResponse,
   AdminAuditLogListQuery,
   AdminAuditLogListResponse,
+  AdminGatewayClientDetailResponse,
+  AdminGatewayClientListQuery,
+  AdminGatewayClientListResponse,
   AdminProjectListQuery,
   AdminProjectListResponse,
   AdminProviderStatsResponse,
@@ -165,4 +168,41 @@ export async function fetchAdminUpdateApiKeyConfig(params: {
     const errMsg = (res.error as { value?: { error?: string } })?.value?.error ?? '更新 API Key 配置失败'
     throw new Error(errMsg)
   }
+}
+
+// ── Gateway 客户管理 ──────────────────────────────────────────────────────────
+
+/** 跨账户 Gateway 客户聚合列表（持有 ≥1 个 API Key 的账户） */
+export async function fetchAdminGatewayClients(params?: AdminGatewayClientListQuery): Promise<AdminGatewayClientListResponse> {
+  return unwrap<AdminGatewayClientListResponse>(
+    await api.api.admin['gateway-clients'].get({
+      query: {
+        search: params?.search,
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+    }),
+  )
+}
+
+/** 单个 Gateway 客户详情（账户摘要 + 全部 key + 最近 Gateway 调用记录） */
+export async function fetchAdminGatewayClientDetail(accountId: string): Promise<AdminGatewayClientDetailResponse> {
+  return unwrap<AdminGatewayClientDetailResponse>(
+    await api.api.admin['gateway-clients']({ accountId }).get(),
+  )
+}
+
+/** 重置 API Key 已消耗额度（管理员，手动重置配额周期） */
+export async function resetApiKeyQuota(id: string): Promise<void> {
+  unwrap<{ success: true }>(await api.api.admin['api-keys']({ id })['reset-quota'].post())
+}
+
+/** 撤销 API Key（管理员，无需 owner 校验；已撤销或不存在抛 409） */
+export async function revokeApiKeyAdmin(id: string): Promise<void> {
+  unwrap<{ success: true }>(await api.api.admin['api-keys']({ id }).revoke.post())
+}
+
+export const adminGatewayClientsQueryKeys = {
+  list: (params: AdminGatewayClientListQuery) => ['admin', 'gateway-clients', 'list', params] as const,
+  detail: (accountId: string) => ['admin', 'gateway-clients', 'detail', accountId] as const,
 }

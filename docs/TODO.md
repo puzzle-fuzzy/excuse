@@ -117,7 +117,7 @@
 
 ### 4. OpenAI Gateway
 
-当前状态：streaming + usage 查询已完成，开发者文档已更新；scope/quota/rate-limit 已完成（2026-06-15）。
+当前状态：streaming + usage 查询已完成，开发者文档已更新；scope/quota/rate-limit 已完成（2026-06-15）；Gateway 客户管理（跨账户聚合列表 + 客户详情 + Key 配置/重置额度/撤销管理 + 审计）已完成（2026-06-15）。
 
 待办：
 
@@ -184,7 +184,7 @@
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
 - ✅ 失败任务深度诊断 — Canvas pipeline run 级联（admin 后台新增 `GET /api/admin/tasks/:id` 单任务详情 endpoint，`getAdminTaskDetail` JOIN `canvas_pipeline_runs.taskId = tasks.id`，返回 pipeline run 时间线 phase/status/durationMs/errorMessage/outputSummary；Admin.tsx 任务行点击「详情」展开 dialog + 重排/取消按钮；commit: `86ca4b4`）。generation record 级联因数据模型阻塞（`tasks.generationRecordId` 字段声明但代码库无写入路径，恒为 null；`generation_records.taskId` 是 provider 字符串 ID 非 tasks uuid）—— 待后续补 `tasks.generationRecordId` 写入路径或改用 accountId+时间窗口间接关联。
 - ✅ provider 错误率和模型成本统计（admin 后台新增「Provider」tab，DB 聚合 + server 进程内 metrics 合并 avg/p50/p95 latency；commit: `1c5dfeb`）。
-- ✅ API Key 管理（管理后台用户详情中展示 API Key 列表：前缀/名称/状态/最近使用/创建时间；`GET /api/admin/users/:id/api-keys` 端点 + `AdminUserApiKeysSection` 组件）。Gateway 客户管理、scope/quota/rate-limit 联动待后续补。
+- ✅ API Key 管理（管理后台用户详情中展示 API Key 列表：前缀/名称/状态/最近使用/创建时间；`GET /api/admin/users/:id/api-keys` 端点 + `AdminUserApiKeysSection` 组件）。Gateway 客户管理已完成：顶层「Gateway 客户」tab + 跨账户聚合列表（`GET /api/admin/gateway-clients`，活跃/总 key 数、Key 消耗、额度上限、最近活动）+ 客户详情（`GET /api/admin/gateway-clients/:accountId`，账户摘要 + 全部 key + 最近 50 条 Gateway 调用记录）+ Key 管理动作（`POST /api/admin/api-keys/:id/reset-quota` 重置额度、`POST /api/admin/api-keys/:id/revoke` 撤销、`PATCH /api/admin/api-keys/:id/config` 编辑配置）+ admin_action / api_key_revoke 审计。scope/quota/rate-limit 联动随 per-key 能力一并具备。
 - 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
 
 验收：
@@ -310,7 +310,7 @@
 3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情、审计日志 tab —— 已完成。
 4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成。
 5. ✅ Package 治理剩余项：events 分层已定型、workflow pause/resume adapter 接口已定义、Gateway streaming + usage + 开发者文档已补齐。
-6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路、Gateway 客户管理。
+6. ✅ Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路、Gateway 客户管理 —— 已完成。
 7. ✅ Metrics / Health 生产级可观测性（跨进程聚合）：worker `/metrics` + provider observer + `@excuse/metrics` 访问策略下沉已完成。
 8. ✅ Package 治理深化：媒体处理任务化（`media.extract-audio` + `media.burn-subtitle` 已完成）、Storage/Asset 分层、Gateway provider 调用 service 提取。
 

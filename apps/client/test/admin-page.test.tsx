@@ -1,9 +1,9 @@
-import type { AdminOverview, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskItem, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverview, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskItem, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '../src/api/admin'
+import { fetchAdminGatewayClientDetail, fetchAdminGatewayClients, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUpdateApiKeyConfig, fetchAdminUserApiKeys, fetchAdminUserDetail, fetchAdminUsers, resetApiKeyQuota, revokeApiKeyAdmin } from '../src/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '../src/api/client'
 import Admin from '../src/pages/Admin'
 
@@ -19,6 +19,12 @@ vi.mock('../src/api/admin', () => ({
   fetchAdminUserDetail: vi.fn(),
   fetchAdminProviderStats: vi.fn(),
   fetchAdminTaskDetail: vi.fn(),
+  fetchAdminGatewayClients: vi.fn(),
+  fetchAdminGatewayClientDetail: vi.fn(),
+  resetApiKeyQuota: vi.fn(),
+  revokeApiKeyAdmin: vi.fn(),
+  fetchAdminUpdateApiKeyConfig: vi.fn(),
+  fetchAdminUserApiKeys: vi.fn(),
   adminUsersQueryKeys: {
     list: (params: unknown) => ['admin', 'users', 'list', params] as const,
     detail: (id: string) => ['admin', 'users', 'detail', id] as const,
@@ -28,6 +34,13 @@ vi.mock('../src/api/admin', () => ({
   },
   adminTasksQueryKeys: {
     detail: (taskId: string) => ['admin', 'tasks', 'detail', taskId] as const,
+  },
+  adminGatewayClientsQueryKeys: {
+    list: (params: unknown) => ['admin', 'gateway-clients', 'list', params] as const,
+    detail: (accountId: string) => ['admin', 'gateway-clients', 'detail', accountId] as const,
+  },
+  adminUserApiKeysQueryKeys: {
+    list: (accountId: string) => ['admin', 'users', accountId, 'api-keys'] as const,
   },
 }))
 
@@ -39,6 +52,12 @@ const mockFetchAdminUsers = vi.mocked(fetchAdminUsers)
 const mockFetchAdminUserDetail = vi.mocked(fetchAdminUserDetail)
 const mockFetchAdminProviderStats = vi.mocked(fetchAdminProviderStats)
 const mockFetchAdminTaskDetail = vi.mocked(fetchAdminTaskDetail)
+const mockFetchAdminGatewayClients = vi.mocked(fetchAdminGatewayClients)
+const mockFetchAdminGatewayClientDetail = vi.mocked(fetchAdminGatewayClientDetail)
+const mockRevokeApiKeyAdmin = vi.mocked(revokeApiKeyAdmin)
+const mockResetApiKeyQuota = vi.mocked(resetApiKeyQuota)
+const mockFetchAdminUpdateApiKeyConfig = vi.mocked(fetchAdminUpdateApiKeyConfig)
+const mockFetchAdminUserApiKeys = vi.mocked(fetchAdminUserApiKeys)
 
 function makeOverview(overrides?: Partial<AdminOverview>): AdminOverview {
   return {
@@ -127,6 +146,12 @@ beforeEach(() => {
   mockFetchAdminUserDetail.mockResolvedValue(makeAdminUserDetailResponse())
   mockFetchAdminProviderStats.mockResolvedValue(makeAdminProvidersResponse())
   mockFetchAdminTaskDetail.mockResolvedValue(makeAdminTaskDetailResponse())
+  mockFetchAdminGatewayClients.mockResolvedValue(makeAdminGatewayClientsResponse())
+  mockFetchAdminGatewayClientDetail.mockResolvedValue(makeAdminGatewayClientDetailResponse())
+  mockRevokeApiKeyAdmin.mockResolvedValue(undefined)
+  mockResetApiKeyQuota.mockResolvedValue(undefined)
+  mockFetchAdminUpdateApiKeyConfig.mockResolvedValue(undefined)
+  mockFetchAdminUserApiKeys.mockResolvedValue({ success: true, items: [] })
 })
 
 function makeAdminUsersResponse(overrides?: Partial<AdminUserListResponse>): AdminUserListResponse {
@@ -232,6 +257,78 @@ function makeAdminTaskDetailResponse(overrides?: { pipelineRuns?: AdminTaskDetai
           outputSummary: null,
           createdAt: '2026-06-14T00:01:00.000Z',
         },
+      ],
+    },
+  }
+}
+
+function makeAdminGatewayClientsResponse(overrides?: Partial<AdminGatewayClientListResponse>): AdminGatewayClientListResponse {
+  return {
+    success: true,
+    items: [
+      {
+        accountId: 'acc-1',
+        username: 'alice',
+        email: 'alice@example.com',
+        activeKeyCount: 1,
+        totalKeyCount: 2,
+        totalSpendCents: 1234,
+        totalQuotaCents: 10000,
+        lastKeyActivityAt: '2026-06-14T12:00:00.000Z',
+      },
+    ],
+    total: 1,
+    ...overrides,
+  }
+}
+
+function makeAdminGatewayClientDetailResponse(): AdminGatewayClientDetailResponse {
+  return {
+    success: true,
+    data: {
+      summary: {
+        accountId: 'acc-1',
+        username: 'alice',
+        email: 'alice@example.com',
+        creditBalanceCents: 5000,
+        activeKeyCount: 1,
+        totalKeyCount: 2,
+        totalSpendCents: 1234,
+        totalQuotaCents: 10000,
+        gatewayCalls: 42,
+        gatewaySpendCents: 2345,
+        lastKeyActivityAt: '2026-06-14T12:00:00.000Z',
+      },
+      keys: [
+        {
+          id: 'key-1',
+          prefix: 'exc_abc',
+          name: '生产',
+          scope: 'gateway',
+          rateLimitPerMinute: 60,
+          quotaMaxCents: 10000,
+          totalSpendCents: 1234,
+          quotaResetAt: null,
+          lastUsedAt: '2026-06-14T12:00:00.000Z',
+          createdAt: '2026-06-01T00:00:00.000Z',
+          revokedAt: null,
+        },
+        {
+          id: 'key-2',
+          prefix: 'exc_xyz',
+          name: null,
+          scope: 'all',
+          rateLimitPerMinute: null,
+          quotaMaxCents: null,
+          totalSpendCents: 0,
+          quotaResetAt: null,
+          lastUsedAt: null,
+          createdAt: '2026-06-02T00:00:00.000Z',
+          revokedAt: '2026-06-10T00:00:00.000Z',
+        },
+      ],
+      recentGatewayRecords: [
+        { id: 'rec-1', model: 'qwen-plus', status: 'succeeded', costCents: 100, createdAt: '2026-06-14T10:00:00.000Z' },
       ],
     },
   }
@@ -419,12 +516,69 @@ describe('admin page', () => {
       await user.click(screen.getByRole('button', { name: 'Provider' }))
       await screen.findByText('qwen-plus')
 
-      // 切到近 1 小时
-      const select = screen.getByDisplayValue('近 24 小时')
-      await user.selectOptions(select, '1')
+      // 切到近 1 小时（Radix Select：打开 combobox 后点选 option）
+      await user.click(screen.getByRole('combobox'))
+      await user.click(await screen.findByRole('option', { name: '近 1 小时' }))
 
       await waitFor(() => {
         expect(mockFetchAdminProviderStats.mock.calls.some(args => args[0]?.windowHours === 1)).toBe(true)
+      })
+    })
+  })
+
+  // ── 新增：Gateway 客户管理 tab ─────────────────
+
+  describe('gateway tab', () => {
+    it('renders gateway client list when switching to gateway tab', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+
+      renderAdmin()
+      await screen.findByText('管理后台')
+
+      await user.click(screen.getByRole('button', { name: 'Gateway 客户' }))
+
+      expect(await screen.findByText('alice')).toBeInTheDocument()
+      expect(screen.getByText('alice@example.com')).toBeInTheDocument()
+      expect(mockFetchAdminGatewayClients).toHaveBeenCalled()
+    })
+
+    it('opens detail dialog with keys + recent records when clicking a row', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+
+      renderAdmin()
+      await screen.findByText('管理后台')
+      await user.click(screen.getByRole('button', { name: 'Gateway 客户' }))
+      await screen.findByText('alice')
+
+      await user.click(screen.getByText('alice'))
+
+      expect(await screen.findByText('API Key 管理')).toBeInTheDocument()
+      expect(screen.getByText('最近 Gateway 调用记录（前 50）')).toBeInTheDocument()
+      expect(mockFetchAdminGatewayClientDetail).toHaveBeenCalledWith('acc-1')
+    })
+
+    it('revokes a key via the action button + confirm dialog', async () => {
+      const user = userEvent.setup()
+      mockFetchAdminOverview.mockResolvedValue(makeOverview())
+
+      renderAdmin()
+      await screen.findByText('管理后台')
+      await user.click(screen.getByRole('button', { name: 'Gateway 客户' }))
+      await screen.findByText('alice')
+      await user.click(screen.getByText('alice'))
+
+      // detail dialog 渲染活跃 key（key-1）行，带「撤销」按钮
+      await screen.findByText('API Key 管理')
+      await user.click(await screen.findByRole('button', { name: /撤销/ }))
+
+      // 确认 dialog
+      expect(await screen.findByText('确认撤销该 Key？')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: '确认' }))
+
+      await waitFor(() => {
+        expect(mockRevokeApiKeyAdmin).toHaveBeenCalledWith('key-1')
       })
     })
   })
