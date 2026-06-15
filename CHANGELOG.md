@@ -39,6 +39,7 @@ All notable changes to this project will be documented in this file.
 - 补齐 `apps/server/src/modules/generation/output-parser.ts` 测试（commits: `b86c727`、`97bf1ca`）。
 - 补齐 `packages/provider/src/model-validator.ts` 边界测试（commit: `97bf1ca`）。
 - OpenAI Gateway 错误码常量与测试矩阵：`packages/gateway` 新增 `OPENAI_GATEWAY_ERROR_CODES`，route 与 `normalizeOpenAIChatRequest` 全部替换为常量；route 层补未知模型 / 非文本模型 / stream / 缺 user message / 参数校验失败 / provider 失败（含 refund 断言）/ 余额不足七条错误码响应测试（commit: `6b1026f`）。
+- Package 纯规则单测补全：`packages/shared/test/canvas-failure.test.ts` 新增 41 条测试覆盖 `classifyCanvasFailure` 全部 7 种失败类型（status 优先、空输入、balance/content/network/storage/cancel/provider 关键词、优先级顺序、大小写不敏感、兜底 system、返回结构完整性）；`packages/shared/test/error.test.ts` 新增 17 条测试覆盖 `getErrorMessage`/`isPgTableNotFoundError`/`getPgErrorCode` 三个纯函数；两文件 100% 行覆盖率。
 
 ### Changed
 
