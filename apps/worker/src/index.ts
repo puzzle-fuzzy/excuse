@@ -2,7 +2,7 @@ import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollExportingProjects, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
 import { ASRClient, checkFFmpegAsync } from '@excuse/provider'
-import { createLogger } from '@excuse/shared'
+import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { loadConfig } from './config'
 import { createHealthServer } from './health'
@@ -92,6 +92,12 @@ async function runOrphanSweep() {
     }
   }
   catch (err) {
+    if (isPgTableNotFoundError(err)) {
+      logger.error('❌ 数据库表不存在，请先运行数据库迁移：bun run --cwd packages/db db:push')
+      clearInterval(sweepTimer)
+      running = false
+      return
+    }
     logger.error({ err }, 'Orphan sweep error')
   }
 }
@@ -115,6 +121,12 @@ async function main() {
   const ffmpegWarnings = await checkFFmpegAsync()
   for (const w of ffmpegWarnings) {
     logger.warn(w)
+  }
+
+  // 前置异步检查（orphan sweep / ffmpeg）期间可能已将 running 设为 false
+  if (!running) {
+    logger.info('🤖 Worker stopped.')
+    return
   }
 
   logger.info({
@@ -234,9 +246,15 @@ async function main() {
       }
     }
     catch (error: unknown) {
+      if (isPgTableNotFoundError(error)) {
+        logger.error('❌ 数据库表不存在，请先运行数据库迁移：bun run --cwd packages/db db:push')
+        healthState.lastPollError = 'UNDEFINED_TABLE'
+        running = false
+        break
+      }
+
       const err = error instanceof Error ? error : null
-      const code = (err?.cause as { code?: string } | undefined)?.code
-        ?? (err as NodeJS.ErrnoException)?.code
+      const code = (err as NodeJS.ErrnoException)?.code
       if (code === 'ECONNREFUSED') {
         logger.error('❌ PostgreSQL 未启动（连接被拒绝），请检查数据库服务')
         healthState.lastPollError = 'ECONNREFUSED'

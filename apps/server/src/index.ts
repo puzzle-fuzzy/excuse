@@ -5,7 +5,7 @@ import { staticPlugin } from '@elysia/static'
 import { openapi } from '@elysiajs/openapi'
 import { swagger } from '@elysiajs/swagger'
 import { checkFFmpegAsync, registerProviderCallObserver } from '@excuse/provider'
-import { logger } from '@excuse/shared'
+import { isPgTableNotFoundError, logger } from '@excuse/shared'
 import { Elysia } from 'elysia'
 import { loadConfig } from './config'
 import { createAuthPlugin } from './plugins/auth'
@@ -153,12 +153,17 @@ app.listen(config.port, async () => {
     logger.info(`🚀 Server listening on port ${config.port}`)
   }
   catch {
-    logger.warn('⚠️ 数据库连接失败，服务已启动但 DB 功能不可用')
+    logger.warn('⚠️ 数据库连接失败，服务已启动但 DB 功能不可用。请先运行：bun run --cwd packages/db db:push')
   }
 })
 
 // 启动 PostgreSQL LISTEN — 接收 Worker 的生成状态通知并推送到 SSE 客户端
 startSSEListener().catch((err: unknown) => {
+  if (isPgTableNotFoundError(err)) {
+    logger.error('❌ 数据库表不存在，SSE 监听器无法启动。请先运行：bun run --cwd packages/db db:push')
+    return
+  }
+
   const error = err instanceof Error ? err : null
   const aggregateCode = (error?.cause as { aggregateErrors?: Array<{ code?: string }> } | undefined)?.aggregateErrors?.[0]?.code
   const code = aggregateCode ?? (error as NodeJS.ErrnoException)?.code

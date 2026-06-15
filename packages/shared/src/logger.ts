@@ -2,6 +2,44 @@ import pino from 'pino'
 
 export type Logger = pino.Logger
 
+/**
+ * pino 错误序列化器 — 精简 DrizzleQueryError 输出
+ *
+ * DrizzleQueryError 默认序列化会输出完整 SQL、params、嵌套 cause 全栈等 ~30 行，
+ * 此序列化器将其压缩为 2-3 行（仅保留 PG 核心错误信息）。
+ * 对普通 Error 保留 pino 默认行为 + 补充 `.code` 属性。
+ */
+function serializeDbError(err: unknown): unknown {
+  if (typeof err !== 'object' || err === null)
+    return err
+
+  const error = err as Error & {
+    query?: string
+    params?: unknown[]
+    cause?: Error & { code?: string, severity?: string, table?: string }
+  }
+
+  // DrizzleQueryError: 通过 .query + .params 特征检测（该类不设置 .name）
+  // 输出 PG cause 的精简信息，而非 Drizzle 包装的完整 SQL
+  if ('query' in error && 'params' in error && error.cause) {
+    return {
+      message: error.cause.message,
+      code: error.cause.code,
+      severity: error.cause.severity,
+      table: error.cause.table,
+    }
+  }
+
+  // 普通 Error: 保留 pino 默认输出 + 补充系统级 .code
+  const result: Record<string, unknown> = {
+    message: error.message,
+    stack: error.stack,
+  }
+  if ('code' in error)
+    result.code = error.code
+  return result
+}
+
 /** 浏览器环境：pino 降级为 console 输出（无 transport、无 redact） */
 function createBrowserLogger(name: string): Logger {
   return pino({ name, level: 'debug' })
@@ -26,6 +64,7 @@ function createNodeLogger(name: string, options?: pino.LoggerOptions): Logger {
     {
       name,
       level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'info'),
+      serializers: { err: serializeDbError },
       redact: {
         paths: [
           'password',
