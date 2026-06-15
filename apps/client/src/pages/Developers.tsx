@@ -14,6 +14,14 @@ const BASE_URL = window.location.origin
 
 const MODEL_ALIAS_LIST = Object.entries(MODEL_ALIASES).map(([alias, internal]) => ({ alias, internal }))
 
+/** 文本模型定价（分/百万 Token），与 packages/provider/src/model-configs.ts 保持同步 */
+const TEXT_MODEL_PRICING: Array<{ model: string, name: string, inputCents: number, outputCents: number }> = [
+  { model: 'qwen-max', name: '千问 Max', inputCents: 240, outputCents: 960 },
+  { model: 'qwen-plus', name: '千问 Plus', inputCents: 80, outputCents: 200 },
+  { model: 'qwen-turbo', name: '千问 Turbo', inputCents: 30, outputCents: 60 },
+  { model: 'qwen-long', name: '千问 Long', inputCents: 50, outputCents: 200 },
+]
+
 const ERROR_CODES: Array<{ code: string, status: number, meaning: string, action: string }> = [
   {
     code: 'model_not_found',
@@ -330,6 +338,47 @@ export default function Developers() {
           </table>
           <p className="mt-3 text-xs text-muted-foreground">
             也可直接使用内部模型名（如 qwen-max）作为 model 参数。
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* 定价说明 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">文本模型定价</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-xs text-muted-foreground">
+            按 Token 计费，单位为人民币分（¢）/ 百万 Token。价格与阿里云百炼平台同步。
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium text-muted-foreground">模型</th>
+                <th className="py-2 text-left font-medium text-muted-foreground">名称</th>
+                <th className="py-2 text-right font-medium text-muted-foreground">输入价格</th>
+                <th className="py-2 text-right font-medium text-muted-foreground">输出价格</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TEXT_MODEL_PRICING.map(({ model, name, inputCents, outputCents }) => (
+                <tr key={model} className="border-b last:border-b-0">
+                  <td className="py-2"><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{model}</code></td>
+                  <td className="py-2 text-xs">{name}</td>
+                  <td className="py-2 text-right font-mono text-xs">
+                    {inputCents}
+                    ¢ / M
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs">
+                    {outputCents}
+                    ¢ / M
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-muted-foreground">
+            费用 = 输入 Token × 输入单价 + 输出 Token × 输出单价。当前为 beta 阶段，不扣除实际费用。
           </p>
         </CardContent>
       </Card>
