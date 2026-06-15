@@ -9,17 +9,22 @@
  *   - 直接进入 DB insert / 喂给下游生成器的字段 → 必填，缺失或类型错误抛 CanvasSchemaError
  *   - 描述性 / 嵌套 / 可选字段 → 缺失时填合理默认值，容忍 LLM 正常抖动
  *
+ * 实现细节：4 个对外 validate 函数的内部由 zod schema 驱动；schema 用
+ * `preprocess + .default()` 复刻既有「缺失字段（含 null / 类型不符）填充默认值」语义，
+ * 保证返回对象始终完全填充（`profile.face.shape` 永远是 string 而非 undefined）。
+ *
+ * 注意 zod 的 `.default(literal)` 在字段缺失时直接返回字面量、不再跑内层 schema，
+ * 所以嵌套对象的默认值必须预先填好全字段（见 FACE_DEFAULT / HAIR_DEFAULT 等），
+ * 否则会出现 `face: {}` 这种内层字段缺失的情况。
+ *
  * 参考 `./continuity.ts` 的纯领域函数风格：仅依赖 `@excuse/shared` 类型。
  */
+import { z } from 'zod'
 import type {
   CharacterProfile,
   LocationProfile,
   NovelAnalysis,
-  ShotCamera,
-  ShotContinuity,
   ShotDraft,
-  ShotEnvironment,
-  ShotTimelineEntry,
 } from '@excuse/shared'
 
 /** Canvas LLM 输出不符合 schema 时抛出，携带字段名与原因，便于上游 catch 后回传给用户 */
@@ -34,216 +39,292 @@ export class CanvasSchemaError extends Error {
   }
 }
 
-type Record_ = Record<string, unknown>
-
-function isRecord(v: unknown): v is Record_ {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
+/** 把 zod safeParse 失败结果转换为 CanvasSchemaError，保留 field/reason 契约 */
+function throwSchemaError(
+  result: { success: false, error: z.ZodError },
+  prefix = '',
+): never {
+  const issue = result.error.issues[0]
+  if (!issue) throw new CanvasSchemaError(prefix || '(root)', '校验失败')
+  const path = issue.path.length > 0 ? issue.path.join('.') : '(root)'
+  throw new CanvasSchemaError(
+    prefix ? `${prefix}.${path}` : path,
+    issue.message,
+  )
 }
 
-/** 必填字符串 — 缺失或非字符串则抛错（空串视为合法，交给 LLM 抖动） */
-function requireString(obj: Record_, key: string, field: string): string {
-  const v = obj[key]
-  if (typeof v !== 'string')
-    throw new CanvasSchemaError(field, `应为字符串，实际为 ${typeof v}`)
-  return v
+// ── 复刻 optXxx 语义的 zod 构造块 ─────────────────────────────────────────────
+
+/**
+ * 可选字符串 — 非字符串（含 null / number / 缺失）一律填默认值 ''。
+ * zod 的 `.default('')` 只在输入为 undefined 时触发，所以需要 preprocess
+ * 把任何非字符串归一为 undefined。
+ */
+const optString = z.preprocess(
+  v => (typeof v === 'string' ? v : undefined),
+  z.string().default(''),
+)
+
+/**
+ * 可选字符串数组 — 非数组填 []；数组则过滤掉非字符串元素（与 optStringArray 一致）。
+ */
+const optStringArray = z.preprocess(
+  v => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : undefined),
+  z.array(z.string()).default([]),
+)
+
+/**
+ * 可选数字 — 非有限数字填 0。
+ */
+const optNumber = z.preprocess(
+  v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined),
+  z.number().default(0),
+)
+
+/**
+ * 嵌套对象字段：非 record（含 null / 数组 / 原始值 / 缺失）→ 返回预设的满默认值。
+ * preprocess 把非 record 归一为 undefined，`.default(def)` 在 undefined 时填入 def。
+ * 注意：def 必须是预先填好全字段的默认对象（zod 的 .default 不跑内层 schema）。
+ */
+function optRecord<T extends z.ZodTypeAny>(schema: T, def: z.output<T>) {
+  return z.preprocess(
+    v => (typeof v === 'object' && v !== null && !Array.isArray(v) ? v : undefined),
+    schema.default(def as never),
+  )
 }
 
-/** 可选字符串 — 缺失或非字符串时返回默认值 */
-function optString(obj: Record_, key: string, def = ''): string {
-  const v = obj[key]
-  return typeof v === 'string' ? v : def
-}
+// ── NovelAnalysis ────────────────────────────────────────────────────────────
 
-/** 可选字符串数组 — 缺失返回 []；存在则过滤掉非字符串元素 */
-function optStringArray(obj: Record_, key: string): string[] {
-  const v = obj[key]
-  if (!Array.isArray(v))
-    return []
-  return v.filter((x): x is string => typeof x === 'string')
-}
-
-/** 可选数字 — 缺失或非有限数字时返回默认值 */
-function optNumber(obj: Record_, key: string, def = 0): number {
-  const v = obj[key]
-  return typeof v === 'number' && Number.isFinite(v) ? v : def
-}
-
-/** 可选对象 — 缺失或非对象时返回 {} */
-function optRecord(obj: Record_, key: string): Record_ {
-  const v = obj[key]
-  return isRecord(v) ? v : {}
-}
+const novelAnalysisSchema = z.object({
+  summary: z.string(),
+  mainConflict: z.string(),
+  timeline: optStringArray,
+  characterNames: optStringArray,
+  sceneNames: optStringArray,
+})
 
 /** 校验并归一化 NovelAnalysis（小说分析，整个 pipeline 的根） */
 export function validateNovelAnalysis(input: unknown): NovelAnalysis {
-  if (!isRecord(input))
-    throw new CanvasSchemaError('analysis', `应为对象，实际为 ${typeof input}`)
-
-  return {
-    summary: requireString(input, 'summary', 'analysis.summary'),
-    mainConflict: requireString(input, 'mainConflict', 'analysis.mainConflict'),
-    timeline: optStringArray(input, 'timeline'),
-    characterNames: optStringArray(input, 'characterNames'),
-    sceneNames: optStringArray(input, 'sceneNames'),
-  }
+  const result = novelAnalysisSchema.safeParse(input)
+  if (!result.success)
+    throwSchemaError(result, 'analysis')
+  return result.data as NovelAnalysis
 }
+
+// ── CharacterProfile ─────────────────────────────────────────────────────────
+
+const FACE_DEFAULT = { shape: '', eyes: '', eyebrows: '', nose: '', mouth: '', skin: '' }
+const HAIR_DEFAULT = { color: '', style: '', length: '' }
+const COSTUME_DEFAULT = { mainColor: '', style: '', material: '', details: [] as string[] }
+
+const faceSchema = z.object({
+  shape: optString,
+  eyes: optString,
+  eyebrows: optString,
+  nose: optString,
+  mouth: optString,
+  skin: optString,
+})
+
+const hairSchema = z.object({
+  color: optString,
+  style: optString,
+  length: optString,
+})
+
+const costumeSchema = z.object({
+  mainColor: optString,
+  style: optString,
+  material: optString,
+  details: optStringArray,
+})
+
+const characterProfileSchema = z.object({
+  name: z.string(),
+  role: optString,
+  age: optString,
+  gender: optString,
+  bodyShape: optString,
+  height: optString,
+  face: optRecord(faceSchema, FACE_DEFAULT),
+  hair: optRecord(hairSchema, HAIR_DEFAULT),
+  costume: optRecord(costumeSchema, COSTUME_DEFAULT),
+  accessories: optStringArray,
+  identityPrompt: z.string(),
+  negativePrompt: optString,
+})
 
 /** 校验并归一化 CharacterProfile（角色档案） */
 export function validateCharacterProfile(input: unknown): CharacterProfile {
-  if (!isRecord(input))
-    throw new CanvasSchemaError('character', `应为对象，实际为 ${typeof input}`)
-  const c = input
-  const face = optRecord(c, 'face')
-  const hair = optRecord(c, 'hair')
-  const costume = optRecord(c, 'costume')
-
-  return {
-    name: requireString(c, 'name', 'character.name'),
-    role: optString(c, 'role'),
-    age: optString(c, 'age'),
-    gender: optString(c, 'gender'),
-    bodyShape: optString(c, 'bodyShape'),
-    height: optString(c, 'height'),
-    face: {
-      shape: optString(face, 'shape'),
-      eyes: optString(face, 'eyes'),
-      eyebrows: optString(face, 'eyebrows'),
-      nose: optString(face, 'nose'),
-      mouth: optString(face, 'mouth'),
-      skin: optString(face, 'skin'),
-    },
-    hair: {
-      color: optString(hair, 'color'),
-      style: optString(hair, 'style'),
-      length: optString(hair, 'length'),
-    },
-    costume: {
-      mainColor: optString(costume, 'mainColor'),
-      style: optString(costume, 'style'),
-      material: optString(costume, 'material'),
-      details: optStringArray(costume, 'details'),
-    },
-    accessories: optStringArray(c, 'accessories'),
-    identityPrompt: requireString(c, 'identityPrompt', 'character.identityPrompt'),
-    negativePrompt: optString(c, 'negativePrompt'),
-  }
+  const result = characterProfileSchema.safeParse(input)
+  if (!result.success)
+    throwSchemaError(result, 'character')
+  return result.data as CharacterProfile
 }
+
+// ── LocationProfile ──────────────────────────────────────────────────────────
+
+const VISUAL_RULES_DEFAULT = {
+  colorPalette: [] as string[],
+  lighting: '',
+  architecture: '',
+  floor: '',
+  backgroundElements: [] as string[],
+}
+const CAMERA_RULES_DEFAULT = {
+  axisDirection: '',
+  allowedAngles: [] as string[],
+  forbiddenAngles: [] as string[],
+}
+
+const visualRulesSchema = z.object({
+  colorPalette: optStringArray,
+  lighting: optString,
+  architecture: optString,
+  floor: optString,
+  backgroundElements: optStringArray,
+})
+
+const cameraRulesSchema = z.object({
+  axisDirection: optString,
+  allowedAngles: optStringArray,
+  forbiddenAngles: optStringArray,
+})
+
+const locationTypeEnum = z.enum(['interior', 'exterior', 'mixed'])
+
+const locationProfileSchema = z.object({
+  name: z.string(),
+  type: z.preprocess(
+    v => (locationTypeEnum.options.includes(v as never) ? v : undefined),
+    locationTypeEnum.default('mixed'),
+  ),
+  location: optString,
+  era: optString,
+  atmosphere: optString,
+  visualRules: optRecord(visualRulesSchema, VISUAL_RULES_DEFAULT),
+  cameraRules: optRecord(cameraRulesSchema, CAMERA_RULES_DEFAULT),
+  scenePrompt: z.string(),
+  negativePrompt: optString,
+})
 
 /** 校验并归一化 LocationProfile（场景档案） */
 export function validateLocationProfile(input: unknown): LocationProfile {
-  if (!isRecord(input))
-    throw new CanvasSchemaError('location', `应为对象，实际为 ${typeof input}`)
-  const l = input
-  const visualRules = optRecord(l, 'visualRules')
-  const cameraRules = optRecord(l, 'cameraRules')
-
-  const rawType = optString(l, 'type', 'mixed')
-  const type: LocationProfile['type']
-    = rawType === 'interior' || rawType === 'exterior' || rawType === 'mixed' ? rawType : 'mixed'
-
-  return {
-    name: requireString(l, 'name', 'location.name'),
-    type,
-    location: optString(l, 'location'),
-    era: optString(l, 'era'),
-    atmosphere: optString(l, 'atmosphere'),
-    visualRules: {
-      colorPalette: optStringArray(visualRules, 'colorPalette'),
-      lighting: optString(visualRules, 'lighting'),
-      architecture: optString(visualRules, 'architecture'),
-      floor: optString(visualRules, 'floor'),
-      backgroundElements: optStringArray(visualRules, 'backgroundElements'),
-    },
-    cameraRules: {
-      axisDirection: optString(cameraRules, 'axisDirection'),
-      allowedAngles: optStringArray(cameraRules, 'allowedAngles'),
-      forbiddenAngles: optStringArray(cameraRules, 'forbiddenAngles'),
-    },
-    scenePrompt: requireString(l, 'scenePrompt', 'location.scenePrompt'),
-    negativePrompt: optString(l, 'negativePrompt'),
-  }
+  const result = locationProfileSchema.safeParse(input)
+  if (!result.success)
+    throwSchemaError(result, 'location')
+  return result.data as LocationProfile
 }
 
-/** 校验并归一化单个镜头的摄影参数 */
-function normalizeCamera(raw: unknown): ShotCamera {
-  const c = isRecord(raw) ? raw : {}
-  return {
-    shotSize: optString(c, 'shotSize'),
-    angle: optString(c, 'angle'),
-    movement: optString(c, 'movement'),
-    lens: optString(c, 'lens'),
-  }
+// ── ShotDraft ────────────────────────────────────────────────────────────────
+
+const SHOT_CAMERA_DEFAULT = { shotSize: '', angle: '', movement: '', lens: '' }
+const SHOT_CONTINUITY_DEFAULT = {
+  screenDirection: '',
+  characterFacing: {} as Record<string, string>,
+  actionStart: '',
+  actionEnd: '',
+  emotionStart: '',
+  emotionEnd: '',
 }
 
-/** 校验并归一化单个镜头的连续性参数 */
-function normalizeContinuity(raw: unknown): ShotContinuity {
-  const c = isRecord(raw) ? raw : {}
-  const facing = optRecord(c, 'characterFacing')
-  const characterFacing: Record<string, string> = {}
-  for (const [k, v] of Object.entries(facing)) {
-    if (typeof v === 'string')
-      characterFacing[k] = v
-  }
-  return {
-    screenDirection: optString(c, 'screenDirection'),
-    characterFacing,
-    actionStart: optString(c, 'actionStart'),
-    actionEnd: optString(c, 'actionEnd'),
-    emotionStart: optString(c, 'emotionStart'),
-    emotionEnd: optString(c, 'emotionEnd'),
-  }
-}
+const shotCameraSchema = z.object({
+  shotSize: optString,
+  angle: optString,
+  movement: optString,
+  lens: optString,
+})
 
-function normalizeTimeline(raw: unknown): ShotTimelineEntry[] | undefined {
-  if (!Array.isArray(raw))
+/** characterFacing: Record<string, string>；过滤非字符串 value；非对象 → {} */
+const characterFacingSchema = z.preprocess((v) => {
+  if (typeof v !== 'object' || v === null || Array.isArray(v))
+    return {}
+  const out: Record<string, string> = {}
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === 'string')
+      out[k] = val
+  }
+  return out
+}, z.record(z.string(), z.string()))
+
+const shotContinuitySchema = z.object({
+  screenDirection: optString,
+  characterFacing: optRecord(characterFacingSchema, {}),
+  actionStart: optString,
+  actionEnd: optString,
+  emotionStart: optString,
+  emotionEnd: optString,
+})
+
+const shotTimelineEntrySchema = z.object({
+  time: optString,
+  action: optString,
+})
+
+/** timeline: 非数组或全无效 → undefined */
+const shotTimelineField = z.preprocess((v) => {
+  if (!Array.isArray(v))
     return undefined
-  const out: ShotTimelineEntry[] = []
-  for (const entry of raw) {
-    if (!isRecord(entry))
-      continue
-    out.push({
-      time: optString(entry, 'time'),
-      action: optString(entry, 'action'),
-    })
-  }
+  const out = v
+    .filter((e): e is Record<string, unknown> =>
+      typeof e === 'object' && e !== null && !Array.isArray(e))
+    .map(e => ({
+      time: typeof e.time === 'string' ? e.time : '',
+      action: typeof e.action === 'string' ? e.action : '',
+    }))
   return out.length > 0 ? out : undefined
-}
+}, z.array(shotTimelineEntrySchema).optional())
 
-function normalizeEnvironment(raw: unknown): ShotEnvironment | undefined {
-  if (!isRecord(raw))
+/** environment: 非对象 → undefined；对象内非字符串 value → undefined */
+const shotEnvironmentField = z.preprocess((v) => {
+  if (typeof v !== 'object' || v === null || Array.isArray(v))
     return undefined
+  const rec = v as Record<string, unknown>
   return {
-    backgroundMotion: typeof raw.backgroundMotion === 'string' ? raw.backgroundMotion : undefined,
-    lighting: typeof raw.lighting === 'string' ? raw.lighting : undefined,
-    mood: typeof raw.mood === 'string' ? raw.mood : undefined,
-    style: typeof raw.style === 'string' ? raw.style : undefined,
+    backgroundMotion: typeof rec.backgroundMotion === 'string' ? rec.backgroundMotion : undefined,
+    lighting: typeof rec.lighting === 'string' ? rec.lighting : undefined,
+    mood: typeof rec.mood === 'string' ? rec.mood : undefined,
+    style: typeof rec.style === 'string' ? rec.style : undefined,
   }
-}
+}, z.object({
+  backgroundMotion: z.string().optional(),
+  lighting: z.string().optional(),
+  mood: z.string().optional(),
+  style: z.string().optional(),
+}).optional())
 
-function validateShotDraft(raw: unknown, index: number): ShotDraft {
-  if (!isRecord(raw))
-    throw new CanvasSchemaError(`shots[${index}]`, `应为对象，实际为 ${typeof raw}`)
-  const field = (k: string) => `shots[${index}].${k}`
-  return {
-    shotIndex: typeof raw.shotIndex === 'number' && Number.isFinite(raw.shotIndex)
-      ? raw.shotIndex
-      : index,
-    duration: optNumber(raw, 'duration'),
-    locationId: typeof raw.locationId === 'string' ? raw.locationId : null,
-    characterIds: optStringArray(raw, 'characterIds'),
-    narrative: requireString(raw, 'narrative', field('narrative')),
-    camera: normalizeCamera(raw.camera),
-    continuity: normalizeContinuity(raw.continuity),
-    timeline: normalizeTimeline(raw.timeline),
-    environment: normalizeEnvironment(raw.environment),
-  }
-}
+/**
+ * 单镜头 schema — shotIndex 经 preprocess 归一为 finite number | undefined，
+ * 数组层 transform 再用 index 兜底（复刻既有「缺失 shotIndex 时回退到数组下标」语义）。
+ */
+const shotDraftSchema = z.object({
+  shotIndex: z.preprocess(
+    v => (typeof v === 'number' && Number.isFinite(v) ? v : undefined),
+    z.number().optional(),
+  ),
+  duration: optNumber,
+  locationId: z.preprocess(
+    v => (typeof v === 'string' ? v : null),
+    z.string().nullable(),
+  ),
+  characterIds: optStringArray,
+  narrative: z.string(),
+  camera: optRecord(shotCameraSchema, SHOT_CAMERA_DEFAULT),
+  continuity: optRecord(shotContinuitySchema, SHOT_CONTINUITY_DEFAULT),
+  timeline: shotTimelineField,
+  environment: shotEnvironmentField,
+})
+
+const shotDraftsSchema = z.array(shotDraftSchema)
+  .min(1, '不能为空数组')
+  .transform(shots => shots.map((shot, index) =>
+    shot.shotIndex === undefined ? { ...shot, shotIndex: index } : shot,
+  )) as unknown as z.ZodType<ShotDraft[]>
 
 /** 校验并归一化分镜草案数组（storyboard LLM 输出） */
 export function validateShotDrafts(input: unknown): ShotDraft[] {
-  if (!Array.isArray(input))
-    throw new CanvasSchemaError('shots', `应为数组，实际为 ${typeof input}`)
-  if (input.length === 0)
-    throw new CanvasSchemaError('shots', '不能为空数组')
-  return input.map((shot, i) => validateShotDraft(shot, i))
+  const result = shotDraftsSchema.safeParse(input)
+  if (!result.success)
+    throwSchemaError(result, 'shots')
+  return result.data
 }

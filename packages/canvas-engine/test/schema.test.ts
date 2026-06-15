@@ -169,7 +169,7 @@ describe('validateShotDrafts', () => {
 })
 
 describe('CanvasSchemaError', () => {
-  it('carries field and reason', () => {
+  it('carries field (prefixed by validator) and reason', () => {
     try {
       validateNovelAnalysis({})
       throw new Error('should have thrown')
@@ -177,9 +177,94 @@ describe('CanvasSchemaError', () => {
     catch (err) {
       expect(err).toBeInstanceOf(CanvasSchemaError)
       const e = err as CanvasSchemaError
+      // zod path 'summary' + validator 前缀 'analysis'
       expect(e.field).toBe('analysis.summary')
-      expect(e.reason).toContain('字符串')
+      expect(e.reason).toContain('string')
       expect(e.message).toContain('analysis.summary')
     }
+  })
+})
+
+// ── zod 行为补充（本轮新增） ─────────────────────────────────────────────────
+
+describe('validateCharacterProfile with zod', () => {
+  it('returns fully populated profile on minimal input', () => {
+    const result = validateCharacterProfile({ name: 'Alice', identityPrompt: 'hero' })
+    expect(result.name).toBe('Alice')
+    expect(result.age).toBe('')
+    expect(result.face.shape).toBe('')
+    expect(result.accessories).toEqual([])
+  })
+
+  it('throws CanvasSchemaError on missing name', () => {
+    expect(() => validateCharacterProfile({ identityPrompt: 'hero' })).toThrow(CanvasSchemaError)
+  })
+
+  it('throws CanvasSchemaError on wrong type for required field', () => {
+    expect(() => validateCharacterProfile({ name: 42, identityPrompt: 'x' })).toThrow(CanvasSchemaError)
+  })
+
+  it('ignores extra fields (zod strip)', () => {
+    const result = validateCharacterProfile({
+      name: 'Alice',
+      identityPrompt: 'hero',
+      extra: 'ignored',
+    })
+    expect((result as Record<string, unknown>).extra).toBeUndefined()
+  })
+
+  it('coerces null / non-object nested face to full defaults', () => {
+    const result = validateCharacterProfile({
+      name: 'A',
+      identityPrompt: 'h',
+      face: null,
+      hair: 'not-an-object',
+    })
+    expect(result.face).toEqual({ shape: '', eyes: '', eyebrows: '', nose: '', mouth: '', skin: '' })
+    expect(result.hair).toEqual({ color: '', style: '', length: '' })
+  })
+})
+
+describe('validateLocationProfile with zod', () => {
+  it('coerces invalid type to mixed via default', () => {
+    const result = validateLocationProfile({ name: 'x', scenePrompt: 'y', type: 'underwater' })
+    expect(result.type).toBe('mixed')
+  })
+
+  it('keeps a valid enum type', () => {
+    const result = validateLocationProfile({ name: 'x', scenePrompt: 'y', type: 'exterior' })
+    expect(result.type).toBe('exterior')
+  })
+
+  it('throws on missing scenePrompt', () => {
+    expect(() => validateLocationProfile({ name: 'x' })).toThrow(CanvasSchemaError)
+  })
+})
+
+describe('validateNovelAnalysis with zod', () => {
+  it('throws on non-object root', () => {
+    expect(() => validateNovelAnalysis('nope')).toThrow(CanvasSchemaError)
+    expect(() => validateNovelAnalysis(null)).toThrow(CanvasSchemaError)
+  })
+
+  it('ignores extra fields', () => {
+    const result = validateNovelAnalysis({ summary: 's', mainConflict: 'c', extra: 1 })
+    expect((result as Record<string, unknown>).extra).toBeUndefined()
+  })
+})
+
+describe('validateShotDrafts with zod', () => {
+  it('throws CanvasSchemaError on empty array', () => {
+    expect(() => validateShotDrafts([])).toThrow(CanvasSchemaError)
+  })
+
+  it('filters non-string entries out of characterIds', () => {
+    const [result] = validateShotDrafts([{ narrative: 'x', characterIds: ['a', 1, null] }])
+    expect(result.characterIds).toEqual(['a'])
+  })
+
+  it('coerces non-string locationId to null', () => {
+    const [result] = validateShotDrafts([{ narrative: 'x', locationId: 42 }])
+    expect(result.locationId).toBeNull()
   })
 })

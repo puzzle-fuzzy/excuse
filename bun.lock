@@ -146,6 +146,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@excuse/shared": "workspace:*",
+        "zod": "^4.4.3",
       },
     },
     "packages/canvas-runtime": {
