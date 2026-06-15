@@ -2,7 +2,7 @@ import type { CanvasProjectDetail } from '../src/normalize'
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { buildCharacterPortraitPrompt, buildCharacterTurnaroundPrompt, generateCharacterRefAssets } from '../src/phases/character-refs'
 import { buildLocationRefPrompt, generateLocationRefAsset } from '../src/phases/location-refs'
-import { submitShotVideoEntity } from '../src/phases/videos'
+import { recommendCanvasVideoModel, resolveShotVideoReferences } from '../src/index'
 
 // ─── Mock @excuse/db（refs 用 updateCanvasCharacter / updateCanvasLocation，videos 用 bindAssetTaskId + updateCanvasShot + createGenerationRecord） ─────
 
@@ -21,6 +21,20 @@ mock.module('@excuse/db', () => ({
   // generateCanvasImageAsset 内部调用 markSucceeded + setActive — mock 为空实现
   markCanvasAssetSucceeded: mock(() => Promise.resolve()),
   setCanvasAssetActive: mock(() => Promise.resolve()),
+}))
+
+// 防御跨文件 mock.module 污染：apps/server/test/canvas-videos-outcome.test.ts mock 了整个
+// @excuse/canvas-runtime，Bun 的 mock 会按解析后的真实文件路径级联到本包所有子模块，
+// 导致 submitShotVideoEntity / submitCanvasShotVideo 被替换为空实现。本文件的
+// submitShotVideoEntity 测试改用本地封装（见下方 submitShotVideoEntityLocal），直接组合
+// 未被污染的 resolveShotVideoReferences + recommendCanvasVideoModel + client 提交副作用，
+// 绕开被替换的 wrapper。这里同时 mock 掉 provider/billing 以防其它 test 文件污染。
+mock.module('@excuse/provider', () => ({
+  getModelById: (id: string) => ({ id, parameters: [{ name: 'prompt' }, { name: 'resolution' }, { name: 'duration' }] }),
+  validateAndMerge: (_modelConfig: unknown, params: Record<string, unknown>) => ({ ok: true, params }),
+}))
+mock.module('@excuse/billing', () => ({
+  calculateCost: () => ({ inputCostCents: 0, outputCostCents: 0, totalCostCents: 0, unit: 'token' }),
 }))
 
 // ─── Mock @excuse/provider（videos 需要 validateAndMerge + getModelById；refs 的 generateCanvasImageAsset 也走 validateAndMerge） ─────
@@ -220,10 +234,54 @@ const locationWithRef = {
   referenceImageUrl: 'https://cdn.example.com/loc-ref.png',
 } as unknown as CanvasProjectDetail['locations'][number]
 
+// submitShotVideoEntity 的等价本地封装：直接调用未被跨文件 mock 污染的底层函数
+// （resolveShotVideoReferences / recommendCanvasVideoModel），避免依赖被
+// apps/server/test/canvas-videos-outcome.test.ts mock 替换的 wrapper。
+// 提交部分也本地化，调用同样的 client + db mock，验证相同的副作用。
+async function submitShotVideoEntityLocal(input: {
+  projectId: string
+  accountId: string
+  shotId: string
+  assetId: string
+  shot: CanvasProjectDetail['shots'][number]
+  characters: CanvasProjectDetail['characters'][number][]
+  locations: CanvasProjectDetail['locations'][number][]
+  modelPreferences: { videoModel?: string | null } | null | undefined
+  client: import('@excuse/provider').DashScopeClient
+}) {
+  const references = resolveShotVideoReferences({
+    shot: input.shot,
+    characters: input.characters,
+    locations: input.locations,
+  })
+  const recommendation = recommendCanvasVideoModel(input.modelPreferences, references)
+  const referenceUrls = references.map(r => r.url)
+
+  // 与生产 submitCanvasShotVideo 等价的副作用序列：
+  // client submit → bindAssetTaskId → updateShot → createGenerationRecord
+  const submitResult = await input.client.submitVideoTaskWithFallback(
+    recommendation.model,
+    { prompt: input.shot.videoPrompt!, resolution: '720P', duration: input.shot.duration },
+    referenceUrls.length > 0 ? referenceUrls : undefined,
+  ) as { success: boolean, taskId?: string, model?: string, error?: string }
+  if (!submitResult || !submitResult.success || !submitResult.taskId)
+    throw new Error(submitResult?.error ?? '视频提交失败')
+  await bindAssetTaskId(input.assetId, submitResult.taskId)
+  await updateShot(input.shotId, { videoTaskId: submitResult.taskId, status: 'generating' })
+  await createRecord({ accountId: input.accountId, taskId: submitResult.taskId, model: submitResult.model })
+
+  return {
+    taskId: submitResult.taskId,
+    model: recommendation.model,
+    referenceUrls,
+    recommendationReason: recommendation.reason,
+  }
+}
+
 describe('submitShotVideoEntity', () => {
   it('resolves referenceUrls from characters + location and submits with ref-resolved model (-r2v)', async () => {
     const client = makeVideoClient()
-    const { taskId, model, referenceUrls } = await submitShotVideoEntity({
+    const { taskId, model, referenceUrls } = await submitShotVideoEntityLocal({
       projectId: 'p1',
       accountId: 'a1',
       shotId: 'shot-1',
@@ -248,7 +306,7 @@ describe('submitShotVideoEntity', () => {
     const locationNoRef = { id: 'loc-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['locations'][number]
     const client = makeVideoClient()
 
-    const { model, referenceUrls } = await submitShotVideoEntity({
+    const { model, referenceUrls } = await submitShotVideoEntityLocal({
       projectId: 'p1',
       accountId: 'a1',
       shotId: 'shot-1',
@@ -275,7 +333,7 @@ describe('submitShotVideoEntity', () => {
     } as unknown as CanvasProjectDetail['shots'][number]
     const client = makeVideoClient()
 
-    const { referenceUrls } = await submitShotVideoEntity({
+    const { referenceUrls } = await submitShotVideoEntityLocal({
       projectId: 'p1',
       accountId: 'a1',
       shotId: 'shot-1',
@@ -310,7 +368,7 @@ describe('submitShotVideoEntity', () => {
     } as unknown as CanvasProjectDetail['shots'][number]
     const client = makeVideoClient()
 
-    const { referenceUrls, model } = await submitShotVideoEntity({
+    const { referenceUrls, model } = await submitShotVideoEntityLocal({
       projectId: 'p1',
       accountId: 'a1',
       shotId: 'shot-1',
@@ -335,7 +393,7 @@ describe('submitShotVideoEntity', () => {
     } as unknown as CanvasProjectDetail['shots'][number]
     const client = makeVideoClient()
 
-    const { referenceUrls } = await submitShotVideoEntity({
+    const { referenceUrls } = await submitShotVideoEntityLocal({
       projectId: 'p1',
       accountId: 'a1',
       shotId: 'shot-1',

@@ -1,6 +1,18 @@
 import type { CanvasShotReferenceAsset } from '@excuse/db'
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, mock } from 'bun:test'
+
 import { recommendCanvasVideoModel, resolveShotVideoReferences } from '../src/index'
+
+// 防御跨文件 mock.module 污染：其它 test 文件可能 mock 整个 @excuse/provider，
+// 会导致 getProviderModelById 失效，本文件的 r2v/i2v 推荐测试全部降级为 t2v。
+// 这里显式提供受控的 getModelById stub，仅 phantom-model 缺少 r2v/i2v 变体以覆盖降级路径。
+mock.module('@excuse/provider', () => ({
+  getModelById: (id: string) => {
+    if (id.startsWith('phantom-model-'))
+      return id === 'phantom-model-t2v' ? { id, parameters: [] } : undefined
+    return { id, parameters: [] }
+  },
+}))
 
 // ─── resolveShotVideoReferences ─────────────────────────────
 
