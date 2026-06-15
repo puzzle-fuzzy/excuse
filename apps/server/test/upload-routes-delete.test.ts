@@ -83,6 +83,16 @@ const testConfig = makeTestConfig({
 })
 
 async function getValidToken(): Promise<string> {
+  mockGetAccountById.mockResolvedValue({
+    id: 'acc-upload-delete',
+    username: 'upload-delete',
+    email: 'upload-delete@example.com',
+    password: 'hashed',
+    avatar: null,
+    isActive: true,
+    createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+  })
   return signTestToken(testConfig.jwtSecret, 'acc-upload-delete')
 }
 

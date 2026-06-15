@@ -32,6 +32,36 @@ export interface ServerConfig {
   adminUserIds?: string[]
 }
 
+const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production'
+
+function isPublicMetricsCidrs(cidrs: string[]): boolean {
+  return cidrs.some(cidr => cidr === '0.0.0.0/0' || cidr === '::/0' || cidr === '*')
+}
+
+export function validateProductionConfig(config: ServerConfig, env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production')
+    return
+
+  const errors: string[] = []
+  if (!env.DATABASE_URL)
+    errors.push('DATABASE_URL is required')
+  if (!config.dashscopeApiKey)
+    errors.push('DASHSCOPE_API_KEY is required')
+  if (!env.FRONTEND_URL)
+    errors.push('FRONTEND_URL is required')
+  if (!env.JWT_SECRET)
+    errors.push('JWT_SECRET is required')
+  else if (config.jwtSecret === DEFAULT_JWT_SECRET)
+    errors.push('JWT_SECRET must not use the development default')
+  else if (config.jwtSecret.length < 32)
+    errors.push('JWT_SECRET must be at least 32 characters')
+  if (isPublicMetricsCidrs(config.metricsAllowedCidrs) && !config.metricsAccessToken)
+    errors.push('METRICS_ACCESS_TOKEN is required when METRICS_ALLOWED_CIDRS exposes public networks')
+
+  if (errors.length > 0)
+    throw new Error(`Invalid production configuration: ${errors.join(', ')}`)
+}
+
 /**
  * 从环境变量加载并校验服务端配置
  *
@@ -48,7 +78,7 @@ export function loadConfig(): ServerConfig {
     storageRoot: process.env.STORAGE_ROOT || './uploads',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:8007',
     workerPollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS) || 5000,
-    jwtSecret: process.env.JWT_SECRET || 'dev-secret-change-in-production',
+    jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
     oss: loadOSSConfig(),
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
@@ -63,19 +93,7 @@ export function loadConfig(): ServerConfig {
       .filter(Boolean),
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    const missing: string[] = []
-    if (!process.env.DATABASE_URL)
-      missing.push('DATABASE_URL')
-    if (!config.dashscopeApiKey)
-      missing.push('DASHSCOPE_API_KEY')
-    if (!process.env.JWT_SECRET || config.jwtSecret.length < 32)
-      missing.push('JWT_SECRET (at least 32 characters)')
-
-    if (missing.length > 0) {
-      throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`)
-    }
-  }
+  validateProductionConfig(config)
 
   return config
 }

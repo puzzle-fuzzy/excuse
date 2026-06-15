@@ -1,4 +1,5 @@
 import { treaty } from '@elysia/eden'
+import { createApiKeySecret } from '@excuse/auth'
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { Elysia } from 'elysia'
 import { createAdminRoutes } from '../src/routes/admin'
@@ -279,6 +280,45 @@ const mockResetApiKeySpend = mock(async () => undefined)
 
 const mockUpdateApiKeyConfig = mock(async () => ({ id: 'key-1', scope: 'gateway' }))
 
+interface MockAccountRow {
+  id: string
+  username: string
+  email: string
+  password: string
+  avatar: string | null
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface MockApiKeyRow {
+  id: string
+  accountId: string
+  scope: string
+  rateLimitPerMinute: number | null
+  totalSpendCents: number
+  quotaMaxCents: number | null
+  quotaResetAt: Date | null
+}
+
+function makeActiveAccount(id: string): MockAccountRow {
+  return {
+    id,
+    username: id,
+    email: `${id}@example.com`,
+    password: 'hashed',
+    avatar: null,
+    isActive: true,
+    createdAt: new Date('2026-06-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+  }
+}
+
+const mockGetAccountById = mock<(id: string) => Promise<MockAccountRow | null>>(async (id: string) => makeActiveAccount(id))
+const mockFindApiKeyByHash = mock<() => Promise<MockApiKeyRow | null>>(async () => null)
+const mockFindRevokedApiKeyByHash = mock<() => Promise<MockApiKeyRow | null>>(async () => null)
+const mockTouchApiKeyLastUsed = mock(async () => undefined)
+
 mock.module('@excuse/db', () => ({
   getAdminOverview: mockGetAdminOverview,
   listAdminTasks: mockListAdminTasks,
@@ -293,9 +333,10 @@ mock.module('@excuse/db', () => ({
   revokeApiKeyAdmin: mockRevokeApiKeyAdmin,
   resetApiKeySpend: mockResetApiKeySpend,
   updateApiKeyConfig: mockUpdateApiKeyConfig,
-  findApiKeyByHash: mock(async () => null),
-  findRevokedApiKeyByHash: mock(async () => null),
-  touchApiKeyLastUsed: mock(async () => undefined),
+  getAccountById: mockGetAccountById,
+  findApiKeyByHash: mockFindApiKeyByHash,
+  findRevokedApiKeyByHash: mockFindRevokedApiKeyByHash,
+  touchApiKeyLastUsed: mockTouchApiKeyLastUsed,
 }))
 
 // metricsCollector.snapshot() — 仅 stub providerCalls 字段
@@ -343,8 +384,16 @@ beforeEach(() => {
   mockRevokeApiKeyAdmin.mockClear()
   mockResetApiKeySpend.mockClear()
   mockUpdateApiKeyConfig.mockClear()
+  mockGetAccountById.mockClear()
+  mockFindApiKeyByHash.mockClear()
+  mockFindRevokedApiKeyByHash.mockClear()
+  mockTouchApiKeyLastUsed.mockClear()
   mockProviderCallsSnapshot.mockClear()
   mockFetchWorkerProviderCalls.mockClear()
+  mockGetAccountById.mockImplementation(async (id: string) => makeActiveAccount(id))
+  mockFindApiKeyByHash.mockResolvedValue(null)
+  mockFindRevokedApiKeyByHash.mockResolvedValue(null)
+  mockTouchApiKeyLastUsed.mockResolvedValue(undefined)
 })
 
 describe('admin routes', () => {
@@ -374,6 +423,53 @@ describe('admin routes', () => {
 
     expect(res.data).toBeNull()
     expect((res.error as { status?: number } | null)?.status).toBe(403)
+    expect(mockGetAdminOverview).not.toHaveBeenCalled()
+  })
+
+  it('拒绝 API Key 访问管理后台，即使 key 属于管理员账号', async () => {
+    const { key } = createApiKeySecret()
+    mockFindApiKeyByHash.mockResolvedValueOnce({
+      id: 'key-admin',
+      accountId: 'admin-1',
+      scope: 'all',
+      rateLimitPerMinute: 60,
+      totalSpendCents: 0,
+      quotaMaxCents: null,
+      quotaResetAt: null,
+    })
+    const { app } = makeApp(['admin-1'])
+    const client = treaty(app)
+
+    const res = await client.api.admin.overview.get({
+      headers: { authorization: `Bearer ${key}` },
+    })
+
+    expect(res.data).toBeNull()
+    expect((res.error as { status?: number } | null)?.status).toBe(403)
+    expect(mockGetAdminOverview).not.toHaveBeenCalled()
+  })
+
+  it('拒绝已禁用的管理员用户', async () => {
+    mockGetAccountById.mockResolvedValueOnce({
+      id: 'admin-1',
+      username: 'admin-1',
+      email: 'admin@example.com',
+      password: 'hashed',
+      avatar: null,
+      isActive: false,
+      createdAt: new Date('2026-06-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-01T00:00:00.000Z'),
+    })
+    const { app, config } = makeApp(['admin-1'])
+    const token = await signTestToken(config.jwtSecret, 'admin-1')
+    const client = treaty(app)
+
+    const res = await client.api.admin.overview.get({
+      headers: { authorization: `Bearer ${token}` },
+    })
+
+    expect(res.data).toBeNull()
+    expect((res.error as { status?: number } | null)?.status).toBe(401)
     expect(mockGetAdminOverview).not.toHaveBeenCalled()
   })
 

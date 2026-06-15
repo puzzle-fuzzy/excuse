@@ -23,6 +23,26 @@ export interface WorkerConfig {
   metricsAllowedCidrs: string[]
 }
 
+function isPublicMetricsCidrs(cidrs: string[]): boolean {
+  return cidrs.some(cidr => cidr === '0.0.0.0/0' || cidr === '::/0' || cidr === '*')
+}
+
+export function validateProductionConfig(config: WorkerConfig, env: NodeJS.ProcessEnv = process.env): void {
+  if (env.NODE_ENV !== 'production')
+    return
+
+  const errors: string[] = []
+  if (!env.DATABASE_URL)
+    errors.push('DATABASE_URL is required')
+  if (!config.dashscopeApiKey)
+    errors.push('DASHSCOPE_API_KEY is required')
+  if (isPublicMetricsCidrs(config.metricsAllowedCidrs) && !config.metricsAccessToken)
+    errors.push('METRICS_ACCESS_TOKEN is required when METRICS_ALLOWED_CIDRS exposes public networks')
+
+  if (errors.length > 0)
+    throw new Error(`Invalid production configuration: ${errors.join(', ')}`)
+}
+
 /**
  * 从环境变量读取并构建 Worker 配置
  */
@@ -41,17 +61,7 @@ export function loadConfig(): WorkerConfig {
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128').split(',').map(s => s.trim()).filter(Boolean),
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    const missing: string[] = []
-    if (!process.env.DATABASE_URL)
-      missing.push('DATABASE_URL')
-    if (!config.dashscopeApiKey)
-      missing.push('DASHSCOPE_API_KEY')
-
-    if (missing.length > 0) {
-      throw new Error(`Missing required environment variables in production: ${missing.join(', ')}`)
-    }
-  }
+  validateProductionConfig(config)
 
   return config
 }

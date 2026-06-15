@@ -11,8 +11,8 @@ import { fetchWorkerProviderCalls } from '../services/worker-metrics'
 import { conflict, forbidden, notFound } from '../utils/errors'
 import { notifyApiKeyRevoked } from './notifications'
 
-function canAccessAdmin(config: ServerConfig, userId: string): boolean {
-  return (config.adminUserIds ?? []).includes(userId)
+function canAccessAdmin(config: ServerConfig, userId: string, authMethod: 'jwt' | 'api_key' | null): boolean {
+  return authMethod === 'jwt' && (config.adminUserIds ?? []).includes(userId)
 }
 
 function nearestRankPercentile(sortedAsc: number[], p: number): number {
@@ -37,8 +37,8 @@ function computeLatency(stats: ProviderCallStats | undefined): { avg: number | n
 export function createAdminRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api/admin' })
     .use(createRequireAuthPlugin(config))
-    .derive(({ userId, set }) => {
-      if (!canAccessAdmin(config, userId)) {
+    .derive(({ userId, authMethod, set }) => {
+      if (!canAccessAdmin(config, userId, authMethod)) {
         return {
           adminAllowed: false as const,
           adminDenied: () => forbidden(set, '无权访问管理后台'),
@@ -49,8 +49,8 @@ export function createAdminRoutes(config: ServerConfig) {
         adminDenied: () => forbidden(set, '无权访问管理后台'),
       }
     })
-    .get('/overview', async ({ userId, set }) => {
-      if (!canAccessAdmin(config, userId))
+    .get('/overview', async ({ userId, authMethod, set }) => {
+      if (!canAccessAdmin(config, userId, authMethod))
         return forbidden(set, '无权访问管理后台')
 
       const overview = await getAdminOverview()

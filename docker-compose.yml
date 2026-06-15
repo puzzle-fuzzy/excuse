@@ -12,13 +12,16 @@ services:
     volumes:
       - excuse-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U excuse -d excuse']
+      test:
+        - CMD-SHELL
+        - pg_isready -U excuse -d excuse
       interval: 10s
       timeout: 5s
       retries: 5
 
   server:
-    profiles: ['prod']
+    profiles:
+      - prod
     build:
       context: .
       target: server
@@ -36,7 +39,8 @@ services:
         condition: service_healthy
 
   worker:
-    profiles: ['prod']
+    profiles:
+      - prod
     build:
       context: .
       target: worker
@@ -54,7 +58,8 @@ services:
         condition: service_healthy
 
   client:
-    profiles: ['prod']
+    profiles:
+      - prod
     build:
       context: .
       target: client

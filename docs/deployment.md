@@ -89,11 +89,34 @@ bun run build:client
 |------|------|
 | `DATABASE_URL` | PostgreSQL 连接串 |
 | `DASHSCOPE_API_KEY` | DashScope API 密钥 |
-| `JWT_SECRET` | JWT 签名密钥（≥32 字符） |
-| `METRICS_ACCESS_TOKEN` | `/metrics` 和 worker `/provider-calls` 的可选 Bearer token |
+| `JWT_SECRET` | JWT 签名密钥（≥32 字符，不能使用开发默认值） |
+| `FRONTEND_URL` | 生产前端域名，用于 CORS allowlist |
+| `METRICS_ACCESS_TOKEN` | `/metrics` 和 worker `/provider-calls` 的 Bearer token；当 metrics CIDR 公开时必填 |
 | `WORKER_METRICS_URL` | server 聚合 worker provider latency 时使用，如 `http://localhost:5100` |
 
 详见 `.env.example` 获取完整列表。
+
+### 生产安全基线
+
+服务启动时会执行生产配置门禁：
+
+- `NODE_ENV=production` 时，`DATABASE_URL`、`DASHSCOPE_API_KEY`、`FRONTEND_URL`、`JWT_SECRET` 必须显式配置。
+- `JWT_SECRET` 必须至少 32 字符，且不能使用 `.env.example` 中的开发默认值。
+- `METRICS_ALLOWED_CIDRS` 如果配置为 `0.0.0.0/0`、`::/0` 或 `*`，必须同时设置 `METRICS_ACCESS_TOKEN`。
+- Worker 同样会检查 `DATABASE_URL`、`DASHSCOPE_API_KEY`，以及公开 metrics CIDR 时的 token。
+
+管理后台访问规则：
+
+- 仅 JWT 登录用户可访问 `/api/admin/*`。
+- 用户 `account.id` 必须出现在 `ADMIN_USER_IDS` 中。
+- API Key 不允许访问管理后台，即使该 Key 属于管理员账户。
+- 禁用用户无法通过 JWT 或 API Key 继续访问受保护接口。
+
+上传安全规则：
+
+- `/api/upload` 仅允许 `PNG/JPEG/WebP/GIF/MP4/WebM/MOV/AVI`，最大 200MB。
+- 存储 key 由服务端生成；客户端传入的原始文件名只作为元数据保存。
+- 删除上传文件前会检查字幕项目和生成记录引用，使用中的文件不能删除。
 
 ### Nginx 配置参考
 
@@ -101,6 +124,9 @@ bun run build:client
 server {
     listen 80;
     server_name your-domain.com;
+
+    client_max_body_size 200m;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     # 前端静态文件
     location / {
@@ -113,6 +139,8 @@ server {
         proxy_pass http://127.0.0.1:5007;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # SSE 长连接
@@ -123,6 +151,13 @@ server {
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 86400s;
+    }
+
+    # Metrics 不建议公网暴露；如必须经反代访问，需叠加 IP allowlist 与 Bearer token。
+    location = /metrics {
+        allow 127.0.0.1;
+        deny all;
+        proxy_pass http://127.0.0.1:5007/metrics;
     }
 }
 ```

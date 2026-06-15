@@ -126,6 +126,12 @@ async function getValidToken(client: ReturnType<typeof treaty>): Promise<string>
     password: 'password123456',
   })
 
+  mockGetAccountById.mockResolvedValue(makeAccount({
+    id: 'acc-upload-test',
+    username: 'uploaduser',
+    email: 'upload@example.com',
+  }))
+
   return (res.data as { data?: { token?: string } })?.data?.token as string
 }
 

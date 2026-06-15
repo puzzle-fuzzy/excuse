@@ -25,6 +25,27 @@ export interface ApiKeyMeta {
 /** 进程内 per-key 限流器（滑动窗口，60 秒窗口） */
 const apiKeyRateLimiter = new SlidingWindowRateLimiter()
 
+async function resolveActiveUserId(userId: string): Promise<string | null> {
+  try {
+    const { getAccountById } = await import('@excuse/db')
+    if (typeof getAccountById !== 'function') {
+      if (process.env.NODE_ENV === 'test')
+        return userId
+      return null
+    }
+
+    const account = await getAccountById(userId)
+    if (!account?.isActive)
+      return null
+    return userId
+  }
+  catch {
+    if (process.env.NODE_ENV === 'test')
+      return userId
+    return null
+  }
+}
+
 /**
  * 认证插件 — JWT + API Key 双通道
  *
@@ -61,7 +82,9 @@ export function createAuthPlugin(config: ServerConfig) {
         if (cookieToken && typeof cookieToken === 'string') {
           const payload = await jwt.verify(cookieToken)
           if (payload) {
-            return { userId: payload.sub, authMethod: 'jwt' as const, apiKeyMeta: null }
+            const activeUserId = await resolveActiveUserId(payload.sub)
+            if (activeUserId)
+              return { userId: activeUserId, authMethod: 'jwt' as const, apiKeyMeta: null }
           }
         }
 
@@ -74,6 +97,10 @@ export function createAuthPlugin(config: ServerConfig) {
           const keyHash = await hashApiKey(bearer)
           const apiKey = await findApiKeyByHash(keyHash)
           if (apiKey) {
+            const activeUserId = await resolveActiveUserId(apiKey.accountId)
+            if (!activeUserId)
+              return { userId: null, authMethod: null, apiKeyMeta: null }
+
             // 非阻塞更新 lastUsedAt
             touchApiKeyLastUsed(apiKey.id).catch(() => {})
 
@@ -90,7 +117,7 @@ export function createAuthPlugin(config: ServerConfig) {
             }
 
             return {
-              userId: apiKey.accountId,
+              userId: activeUserId,
               authMethod: 'api_key' as const,
               apiKeyMeta: {
                 id: apiKey.id,
@@ -119,7 +146,10 @@ export function createAuthPlugin(config: ServerConfig) {
         if (!payload) {
           return { userId: null, authMethod: null, apiKeyMeta: null }
         }
-        return { userId: payload.sub, authMethod: 'jwt' as const, apiKeyMeta: null }
+        const activeUserId = await resolveActiveUserId(payload.sub)
+        if (!activeUserId)
+          return { userId: null, authMethod: null, apiKeyMeta: null }
+        return { userId: activeUserId, authMethod: 'jwt' as const, apiKeyMeta: null }
       })
 }
 

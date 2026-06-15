@@ -36,29 +36,7 @@
 
 ## P0：上线阻断项
 
-### 1. 安全基线还没有形成上线门槛
-
-问题：
-
-- `.env.example` 有 JWT 长度提示，但服务启动时是否强制校验生产密钥强度、默认密钥、`NODE_ENV=production` 风险项，需要作为上线门禁明确。
-- 管理后台依赖 `ADMIN_USER_IDS`，但需要明确未配置、误配置、用户停用、API Key 鉴权混用时的拒绝策略。
-- Metrics 端点已有 token/IP 保护，但复杂 CIDR 不支持，生产如果误暴露需要反向代理兜底。
-- 上传文件、生成产物、外部 URL 预览涉及文件类型、大小、内容类型、路径穿越、远程 URL SSRF/热链风险，需要统一策略。
-
-解决办法：
-
-- 新增 `validateProductionConfig()`：生产环境强制检查 `JWT_SECRET` 长度和默认值、`DATABASE_URL`、`DASHSCOPE_API_KEY`、`FRONTEND_URL`、metrics token/代理说明。
-- 管理后台鉴权增加文档化规则：仅 JWT 用户且 account.id 在 `ADMIN_USER_IDS` 内；API Key 不可访问 admin；禁用用户不可访问。
-- 上传路由补 MIME/扩展名/大小白名单，OSS/local storage 路径只允许服务端生成 key；远程下载类能力走 allowlist 或显式禁用内网 IP。
-- 在部署文档增加反向代理安全段：HTTPS、HSTS、body size、SSE timeout、metrics/admin IP allowlist。
-
-验收：
-
-- `NODE_ENV=production` 且使用默认 `JWT_SECRET` 时服务启动失败并给出明确错误。
-- admin/API Key/普通用户权限路径有测试覆盖。
-- 上传非法类型、超大文件、危险路径、内网 URL 均被拒绝。
-
-### 2. Credit 正式计费闭环仍是上线前条件项
+### 1. Credit 正式计费闭环仍是上线前条件项
 
 当前状态：部分完成；Canvas 前置阶段已决策为 beta/free quota，暂不进 credit。
 
@@ -80,7 +58,7 @@
 - 用户能看到失败任务是否扣费或退款。
 - admin 能按用户、任务、资产、provider task 追踪资金流水。
 
-### 3. 数据备份、迁移和回滚流程不足
+### 2. 数据备份、迁移和回滚流程不足
 
 问题：
 

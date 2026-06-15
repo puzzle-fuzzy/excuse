@@ -133,6 +133,11 @@ async function getValidToken(client: ReturnType<typeof treaty>) {
     username: 'guarduser',
     email: 'guard@example.com',
   }))
+  mockGetAccountById.mockResolvedValue(makeAccount({
+    id: 'acc-guard-test',
+    username: 'guarduser',
+    email: 'guard@example.com',
+  }))
 
   const res = await client.api.auth.register.post({
     username: 'guarduser',

@@ -348,8 +348,8 @@ describe('auth routes', () => {
 
       const err = extractEdenError(res)
       expect(err).toBeTruthy()
-      expect(err!.status).toBe(404)
-      expect(err!.error).toContain('用户不存在')
+      expect(err!.status).toBe(401)
+      expect(err!.error).toContain('未登录')
     })
   })
 })
