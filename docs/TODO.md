@@ -134,7 +134,7 @@
 
 - ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `9b0a37a`）。
 - ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
-- 线上排障检查命令或文档。
+- ✅ 线上排障检查命令或文档（`docs/metrics.md` §线上排障检查；cover 7 个场景：存活/DB/Worker/积压/Provider/Canvas/HTTP；commit: `0df806f`）。
 - Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
 
 验收：
@@ -209,8 +209,8 @@
 4. `zod` / `valibot` / `arktype`
    - 用于 AI 输出、LLM JSON、Gateway 请求、复杂配置、跨模块 DTO 的运行时校验。
    - Elysia route schema 可以保留，不强行替换。
-   - ✅ packages/gateway（`normalizeOpenAIChatRequest` / `mapGatewayUsageItem` 引入 zod safeParse + 新建 `packages/gateway/src/schemas.ts`）+ packages/prompt-engine（新建 `parseLLMJsonWithSchema` + `LLMSchemaValidationError` + `packages/prompt-engine/src/schemas.ts`，保留 `parseLLMJson` 原签名）已完成第一批迁移（commit: `e797419`）。canvas-runtime / regenerate.ts 调用迁移留待独立任务。
-   - ✅ packages/canvas-engine（`validateNovelAnalysis` / `validateCharacterProfile` / `validateLocationProfile` / `validateShotDrafts` 4 个 LLM 输出校验器内部改为 zod schema 驱动，新建 canvas-engine 内部 zod schema，保留对外签名 + 缺失字段填充默认值语义；commit: `600e0cf`）。canvas-runtime phases + regenerate.ts 调用方零改动。
+   - ✅ packages/gateway + packages/prompt-engine 已完成第一批迁移（commit: `e797419`）。
+   - ✅ canvas-engine LLM 输出校验器 zod 化 + canvas-runtime phases 迁移 + server regenerate 迁移已完成（commits: `600e0cf`、`e8c47f7`）。
 
 5. `p-limit` / `p-queue`
    - 用于单个任务内部的批量上传、下载、生成、持久化并发控制。
@@ -246,7 +246,7 @@
 - Storage 与 Asset 分层：`packages/storage` 只负责对象存取；资产记录、业务绑定、SSE 通知由 worker/service 完成。
 - Events：继续推进 domain event 与 user notification 分层；业务 service 只发布 domain event，不直接关心 SSE。
 - Workflow / Task：继续整理 pause/cancel/resume 的高层 command adapter；Canvas domain service 边界继续收口。
-- Prompt / Canvas Engine：继续把 Canvas prompt、parser、storyboard、continuity 和阶段 helper 沉淀到 package，server/worker 复用。
+- ✅ Prompt / Canvas Engine：四个阶段（analysis / characters / locations / storyboard）+ server regenerate 已迁移为 `parseLLMJsonWithSchema` + 导出了 4 个 zod schema（commits: `600e0cf`、`e8c47f7`）。
 - Gateway：补 streaming adapter、provider 调用 service、usage/credit 协议测试和开发者中心开放策略。
 
 验收：
@@ -301,11 +301,11 @@
 ## 推荐执行顺序
 
 1. 成熟库治理第一批：继续推进 React Query 迁移边界（参考资产选择器 debounce 已收口）。
-2. API Key 产品化与 Gateway 开放状态决策。
-3. Metrics / Health 生产级可观测性。
-4. Model Lab 内部实验页。
-5. 管理后台和运营统计。
-6. Package 治理剩余项：events、workflow command adapter、gateway streaming、Canvas domain service。
+2. ✅ Model Lab 内部实验页、Canvas 新建项目消费默认偏好 —— 已完成。
+3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情 —— 已完成。
+4. Package 治理剩余项：events、workflow command adapter、gateway streaming 协议测试、Canvas domain service 边界收口。
+5. API Key 产品化与 Gateway 开放状态决策。
+6. Metrics / Health 生产级可观测性（线上排障文档、跨进程聚合）。
 
 ## 验收命令
 
