@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { ASRClient } from '../src/asr-client'
+import { __resetProviderCallObservers, registerProviderCallObserver } from '../src/dashscope-client'
 
 // ── parseTranscription ──────────────────────────────────
 // 纯逻辑测试，无需网络，不涉及 submitTranscription/queryTask
@@ -194,5 +195,93 @@ describe('ASRClient.parseTranscription', () => {
 
   it('空 sentences 数组不产生输出', () => {
     expect(client.parseTranscription({ transcripts: [{ sentences: [] }] })).toEqual([])
+  })
+})
+
+// ── submitTranscription provider observer ───────────────
+// 验证 ASR 提交调用接入 provider observer（与 DashScopeClient 同机制）。
+
+interface CapturedCall {
+  model: string
+  durationMs: number
+  success: boolean
+}
+
+function mockFetchResponse(status: number, body: unknown) {
+  const original = globalThis.fetch
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(JSON.stringify(body), { status })),
+  ) as unknown as typeof fetch
+  return () => {
+    globalThis.fetch = original
+  }
+}
+
+describe('ASRClient.submitTranscription — provider observer', () => {
+  const client = new ASRClient({ apiKey: 'test-key' })
+  let captured: CapturedCall[]
+  let restoreFetch: () => void
+
+  beforeEach(() => {
+    __resetProviderCallObservers()
+    captured = []
+    registerProviderCallObserver((model, durationMs, success) => {
+      captured.push({ model, durationMs, success })
+    })
+    restoreFetch = () => {}
+  })
+
+  afterEach(() => {
+    restoreFetch()
+    __resetProviderCallObservers()
+  })
+
+  it('提交成功 → 通知 observer（model=paraformer-v2, success=true, durationMs>=0）', async () => {
+    restoreFetch = mockFetchResponse(200, { output: { task_id: 'asr-task-1' }, request_id: 'req-1' })
+
+    const result = await client.submitTranscription('https://example.com/audio.mp3')
+
+    expect(result.success).toBe(true)
+    expect(result.taskId).toBe('asr-task-1')
+    expect(captured).toHaveLength(1)
+    expect(captured[0]!.model).toBe('paraformer-v2')
+    expect(captured[0]!.success).toBe(true)
+    expect(captured[0]!.durationMs).toBeGreaterThanOrEqual(0)
+  })
+
+  it('HTTP 非 200 → 通知 observer（success=false）', async () => {
+    restoreFetch = mockFetchResponse(400, { message: 'invalid audio url' })
+
+    const result = await client.submitTranscription('https://example.com/bad.mp3')
+
+    expect(result.success).toBe(false)
+    expect(captured).toHaveLength(1)
+    expect(captured[0]!.model).toBe('paraformer-v2')
+    expect(captured[0]!.success).toBe(false)
+  })
+
+  it('成功响应但缺 task_id 与 request_id → 通知 observer（success=false）', async () => {
+    // task_id 缺失、request_id 也缺失 → 命中「未返回 task_id」失败分支
+    restoreFetch = mockFetchResponse(200, { output: {} })
+
+    const result = await client.submitTranscription('https://example.com/audio.mp3')
+
+    expect(result.success).toBe(false)
+    expect(captured).toHaveLength(1)
+    expect(captured[0]!.success).toBe(false)
+  })
+
+  it('网络异常（fetch reject）→ 通知 observer（success=false）', async () => {
+    const original = globalThis.fetch
+    globalThis.fetch = mock(() => Promise.reject(new Error('ECONNREFUSED'))) as unknown as typeof fetch
+    restoreFetch = () => {
+      globalThis.fetch = original
+    }
+
+    const result = await client.submitTranscription('https://example.com/audio.mp3')
+
+    expect(result.success).toBe(false)
+    expect(captured).toHaveLength(1)
+    expect(captured[0]!.success).toBe(false)
   })
 })

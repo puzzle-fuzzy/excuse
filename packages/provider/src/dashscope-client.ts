@@ -62,7 +62,15 @@ export function __resetProviderCallObservers(): void {
   providerCallObservers.length = 0
 }
 
-function notifyProviderCallObservers(model: string, durationMs: number, success: boolean): void {
+/**
+ * 通知所有已注册的 provider 调用观察者（包内共享）。
+ *
+ * 由 DashScopeClient（chat/image/video submit）与 ASRClient（paraformer submit）
+ * 在每次 provider 调用结束（成功/失败）时调用。observer 抛错不影响主流程。
+ * 注：异步任务的轮询查询（queryTask）不计入 —— 与 video `queryTask` 一致，
+ * 避免廉价轮询稀释模型真实 latency（见 ASRClient.submitTranscription）。
+ */
+export function notifyProviderCallObservers(model: string, durationMs: number, success: boolean): void {
   for (const observer of providerCallObservers) {
     try {
       observer(model, durationMs, success)

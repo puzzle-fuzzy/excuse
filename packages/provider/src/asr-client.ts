@@ -1,8 +1,12 @@
 import type { SubtitleSentence } from '@excuse/subtitle-engine'
 import { parseAsrTranscription } from '@excuse/subtitle-engine'
+import { notifyProviderCallObservers } from './dashscope-client'
 import { parseDashScopeError } from './dashscope-errors'
 
 export type { SubtitleSentence } from '@excuse/subtitle-engine'
+
+/** Paraformer-v2 模型 ID —— observer 记录与请求体共用的唯一 model 标识 */
+const ASR_MODEL = 'paraformer-v2'
 
 /**
  * ASR 客户端配置
@@ -83,10 +87,13 @@ export class ASRClient {
    *
    * Paraformer-v2 离线文件转录 API 支持任意长度音频，
    * 异步返回 task_id，Worker 通过 queryTask() 轮询进度。
+   *
+   * observer：仅记录本次 submit 调用（与 DashScopeClient.submitVideoTask 一致），
+   * 不记录 queryTask() 轮询 —— 避免廉价轮询稀释 paraformer-v2 真实 latency。
    */
   async submitTranscription(audioUrl: string, options?: ASROptions): Promise<ASRSubmitResult> {
     const body = {
-      model: 'paraformer-v2',
+      model: ASR_MODEL,
       input: {
         file_urls: [audioUrl],
       },
@@ -100,6 +107,7 @@ export class ASRClient {
       },
     }
 
+    const startTime = Date.now()
     try {
       const response = await fetch(`${this.baseUrl}/services/audio/asr/transcription`, {
         method: 'POST',
@@ -113,6 +121,7 @@ export class ASRClient {
       const data = await response.json() as Record<string, unknown>
 
       if (response.status !== 200) {
+        notifyProviderCallObservers(ASR_MODEL, Date.now() - startTime, false)
         const errorMsg = parseDashScopeError(data)
         return { success: false, taskId: '', error: errorMsg }
       }
@@ -121,12 +130,15 @@ export class ASRClient {
       const taskId = (output?.task_id as string) ?? (data.request_id as string)
 
       if (!taskId) {
+        notifyProviderCallObservers(ASR_MODEL, Date.now() - startTime, false)
         return { success: false, taskId: '', error: '未返回 task_id' }
       }
 
+      notifyProviderCallObservers(ASR_MODEL, Date.now() - startTime, true)
       return { success: true, taskId }
     }
     catch (error) {
+      notifyProviderCallObservers(ASR_MODEL, Date.now() - startTime, false)
       const msg = error instanceof Error ? error.message : String(error)
       return { success: false, taskId: '', error: `网络错误：无法连接 ASR API（${msg}）` }
     }
