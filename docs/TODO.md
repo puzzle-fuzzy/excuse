@@ -36,29 +36,7 @@
 
 ## P0：上线阻断项
 
-### 1. Credit 正式计费闭环仍是上线前条件项
-
-当前状态：部分完成；Canvas 前置阶段已决策为 beta/free quota，暂不进 credit。
-
-待办：
-
-- 如果未来 Canvas 前置阶段改为收费，需要为每个 provider 调用建立 reserve/debit/refund 策略。
-- 补齐 Canvas 全链路计费端到端测试，仅在正式收费前执行。
-- 成本展示可以保留 beta/free quota 文案，避免误导用户。
-
-解决办法：
-
-- 为每个收费 task type 定义 billing policy：估算金额、reserve 时机、provider 成功 debit 时机、失败/取消 refund 时机。
-- `generation_records`、`usage_events`、`credit_transactions` 建立可追踪关联，admin 能从任务定位每一笔资金流水。
-- 对 Canvas 多阶段、多镜头场景，按阶段或镜头生成独立 usage event，避免一个 pipeline run 混合多次 provider 调用后无法解释费用。
-
-验收：
-
-- 所有正式收费路径都能证明 reserve、debit、refund 三段闭环。
-- 用户能看到失败任务是否扣费或退款。
-- admin 能按用户、任务、资产、provider task 追踪资金流水。
-
-### 2. 数据备份、迁移和回滚流程不足
+### 1. 数据备份、迁移和回滚流程不足
 
 问题：
 

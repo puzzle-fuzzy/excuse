@@ -1,7 +1,7 @@
 import type { OutputResult } from '@excuse/db'
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
-import { calculateCost } from '@excuse/billing'
+import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
   CreditError,
@@ -57,6 +57,9 @@ export type GatewayChatCompletionOutput = {
 export async function handleGatewayChatCompletion(
   input: GatewayChatCompletionInput,
 ): Promise<GatewayChatCompletionOutput> {
+  const billingPolicy = getBillingPolicy('openai.gateway.chat')
+  assertCreditLedgerPolicy(billingPolicy, 'openai.gateway.chat')
+
   const { userId, modelConfig, validatedParams, request, callProvider } = input
 
   // 成本估算

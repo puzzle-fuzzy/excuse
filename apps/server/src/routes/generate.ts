@@ -1,7 +1,7 @@
 import type { GenerationCategory, GenerationInputParams, GenerationRecordRow, GenerationStatus } from '@excuse/db'
 import type { DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { calculateCost } from '@excuse/billing'
+import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
   CreditError,
@@ -40,6 +40,9 @@ import { notifyInsufficientBalance } from './notifications'
  *   - 同步任务（文本/图片）: 直接下载并保存输出，一步到位
  */
 export function createGenerateRoutes(config: ServerConfig) {
+  const billingPolicy = getBillingPolicy('workspace.generate')
+  assertCreditLedgerPolicy(billingPolicy, 'workspace.generate')
+
   const client = new DashScopeClient({
     apiKey: config.dashscopeApiKey,
     baseUrl: config.dashscopeBaseUrl,
@@ -120,7 +123,7 @@ export function createGenerateRoutes(config: ServerConfig) {
         return { success: true, record: serializeRecord(updated ?? dedupeResult.record), duplicated: true } satisfies GenerateResponse
       }
 
-      // 预估费用 — 使用 extractBillingParams 从 ValidatedModelParameters 提取计费字段
+      // 预估费用 — workspace.generate 明确走 reserve -> debit/refund 的 credit ledger 策略
       const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
       const taskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const traceId = crypto.randomUUID()

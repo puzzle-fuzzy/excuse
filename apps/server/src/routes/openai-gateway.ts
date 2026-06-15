@@ -3,7 +3,7 @@ import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import type { ApiKeyMeta } from '../plugins/auth'
-import { calculateCost } from '@excuse/billing'
+import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   checkAndResetApiKeyQuota,
   createGenerationRecord,
@@ -85,6 +85,9 @@ async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<{ status: numbe
  */
 
 export function createOpenAIGatewayRoutes(config: ServerConfig) {
+  const billingPolicy = getBillingPolicy('openai.gateway.chat')
+  assertCreditLedgerPolicy(billingPolicy, 'openai.gateway.chat')
+
   const client = new DashScopeClient({
     apiKey: config.dashscopeApiKey,
     baseUrl: config.dashscopeBaseUrl,
