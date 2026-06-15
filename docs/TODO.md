@@ -160,7 +160,7 @@
 
 待办：
 
-- ✅ Canvas 新项目消费 Model Lab 默认模型偏好（新建项目时读 localStorage `excuse:model-lab:canvas-defaults`，过滤非空字段后调既有 `PATCH /api/canvas/projects/:id/model-preferences` 写入 `modelPreferencesJson`；方案 B 最小改动，零 server / db / api helper 改动；commit: `<本轮 hash>`）。
+- ✅ Canvas 新项目消费 Model Lab 默认模型偏好（新建项目时读 localStorage `excuse:model-lab:canvas-defaults`，过滤非空字段后调既有 `PATCH /api/canvas/projects/:id/model-preferences` 写入 `modelPreferencesJson`；方案 B 最小改动，零 server / db / api helper 改动；commit: `0255323`）。
 
 验收：
 
