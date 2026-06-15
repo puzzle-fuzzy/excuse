@@ -1,9 +1,10 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask, updateApiKeyConfig } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask, resetApiKeySpend, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
+import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
 import { conflict, forbidden, notFound } from '../utils/errors'
 
@@ -401,7 +402,7 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .patch('/api-keys/:id/config', async ({ adminAllowed, adminDenied, params, body, set }) => {
+    .patch('/api-keys/:id/config', async ({ adminAllowed, adminDenied, params, body, set, userId }) => {
       if (!adminAllowed)
         return adminDenied()
 
@@ -412,6 +413,12 @@ export function createAdminRoutes(config: ServerConfig) {
       })
       if (!updated)
         return notFound(set, 'API Key 不存在')
+
+      audit('admin_action', {
+        accountId: userId,
+        targetId: params.id,
+        detail: { type: 'api_key_config', scope: body.scope, rateLimitPerMinute: body.rateLimitPerMinute, quotaMaxCents: body.quotaMaxCents },
+      })
 
       return { success: true }
     }, {
@@ -425,6 +432,116 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '更新 API Key 配置',
         description: '管理后台更新指定 API Key 的 scope/rate-limit/quota 配置',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/gateway-clients', async ({ adminAllowed, adminDenied, query }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const result = await listAdminGatewayClients({
+        search: query.search,
+        limit: query.limit,
+        offset: query.offset,
+      })
+      return {
+        success: true,
+        items: result.items,
+        total: result.total,
+      } satisfies AdminGatewayClientListResponse
+    }, {
+      query: t.Object({
+        search: t.Optional(t.String()),
+        limit: t.Optional(t.Numeric()),
+        offset: t.Optional(t.Numeric()),
+      }),
+      detail: {
+        summary: '查询 Gateway 客户列表',
+        description: '持有 ≥1 个 API Key 的账户聚合视图：活跃/总 key 数、Key 消耗、额度上限、最近活动。支持搜索与分页。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/gateway-clients/:accountId', async ({ adminAllowed, adminDenied, params, set }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const detail = await getAdminGatewayClientDetail(params.accountId)
+      if (!detail)
+        return notFound(set, 'Gateway 客户不存在')
+
+      const items = detail.keys.map(key => ({
+        id: key.id,
+        prefix: key.prefix,
+        name: key.name,
+        scope: key.scope,
+        rateLimitPerMinute: key.rateLimitPerMinute,
+        quotaMaxCents: key.quotaMaxCents,
+        totalSpendCents: key.totalSpendCents,
+        quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
+        lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+        createdAt: key.createdAt.toISOString(),
+        revokedAt: key.revokedAt?.toISOString() ?? null,
+      }))
+
+      return {
+        success: true,
+        data: {
+          summary: detail.summary,
+          keys: items,
+          recentGatewayRecords: detail.recentGatewayRecords,
+        },
+      } satisfies AdminGatewayClientDetailResponse
+    }, {
+      params: t.Object({ accountId: t.String() }),
+      detail: {
+        summary: '查询 Gateway 客户详情',
+        description: '单客户下钻：账户摘要（余额/key 聚合/gateway 调用）+ 全部 key（含已撤销）+ 最近 50 条 Gateway 调用记录。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .post('/api-keys/:id/reset-quota', async ({ adminAllowed, adminDenied, params, userId }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      await resetApiKeySpend(params.id)
+      audit('admin_action', {
+        accountId: userId,
+        targetId: params.id,
+        detail: { type: 'api_key_quota_reset' },
+      })
+
+      return { success: true }
+    }, {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        summary: '重置 API Key 额度',
+        description: '将指定 API Key 的 totalSpendCents 归零并清除 quotaResetAt（手动重置配额周期）。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .post('/api-keys/:id/revoke', async ({ adminAllowed, adminDenied, params, set, userId }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const revoked = await revokeApiKeyAdmin(params.id)
+      if (!revoked)
+        return conflict(set, 'API Key 不存在或已撤销')
+
+      audit('api_key_revoke', {
+        accountId: userId,
+        targetId: params.id,
+      })
+
+      return { success: true }
+    }, {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        summary: '管理员撤销 API Key',
+        description: '管理员撤销任意 API Key（无需 owner 校验）。已撤销或不存在返回 409。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

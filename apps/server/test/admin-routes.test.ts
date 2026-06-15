@@ -215,6 +215,58 @@ const mockGetAdminTaskDetail = mock(async (taskId: string) => {
   }
 })
 
+const mockListAdminGatewayClients = mock(async (query: { search?: string, limit?: number, offset?: number }) => ({
+  items: [
+    {
+      accountId: 'acc-gw-1',
+      username: query.search?.includes('alice') ? 'alice' : 'bob',
+      email: query.search?.includes('alice') ? 'alice@example.com' : 'bob@example.com',
+      activeKeyCount: 1,
+      totalKeyCount: 2,
+      totalSpendCents: 500,
+      totalQuotaCents: 10000,
+      lastKeyActivityAt: '2026-06-14T12:00:00.000Z',
+    },
+  ],
+  total: 1,
+}))
+
+const mockGetAdminGatewayClientDetail = mock(async (accountId: string) => {
+  if (accountId === 'missing-client')
+    return null
+  return {
+    summary: {
+      accountId,
+      username: 'alice',
+      email: 'alice@example.com',
+      creditBalanceCents: 5000,
+      activeKeyCount: 1,
+      totalKeyCount: 2,
+      totalSpendCents: 500,
+      totalQuotaCents: 10000,
+      gatewayCalls: 42,
+      gatewaySpendCents: 1234,
+      lastKeyActivityAt: '2026-06-14T12:00:00.000Z',
+    },
+    keys: [
+      { id: 'key-1', prefix: 'exc_abcd', name: 'prod', scope: 'gateway', rateLimitPerMinute: 60, quotaMaxCents: 10000, totalSpendCents: 500, quotaResetAt: null, lastUsedAt: new Date('2026-06-14T12:00:00.000Z'), createdAt: new Date('2026-06-01T00:00:00.000Z'), revokedAt: null },
+    ],
+    recentGatewayRecords: [
+      { id: 'rec-1', model: 'qwen-plus', status: 'succeeded', costCents: 10, createdAt: '2026-06-14T10:00:00.000Z' },
+    ],
+  }
+})
+
+const mockRevokeApiKeyAdmin = mock(async (id: string) => {
+  if (id === 'missing-key')
+    return null
+  return { id, revokedAt: new Date('2026-06-14T12:00:00.000Z') }
+})
+
+const mockResetApiKeySpend = mock(async () => undefined)
+
+const mockUpdateApiKeyConfig = mock(async () => ({ id: 'key-1', scope: 'gateway' }))
+
 mock.module('@excuse/db', () => ({
   getAdminOverview: mockGetAdminOverview,
   listAdminTasks: mockListAdminTasks,
@@ -224,6 +276,11 @@ mock.module('@excuse/db', () => ({
   getAdminUserDetail: mockGetAdminUserDetail,
   getAdminProviderStats: mockGetAdminProviderStats,
   getAdminTaskDetail: mockGetAdminTaskDetail,
+  listAdminGatewayClients: mockListAdminGatewayClients,
+  getAdminGatewayClientDetail: mockGetAdminGatewayClientDetail,
+  revokeApiKeyAdmin: mockRevokeApiKeyAdmin,
+  resetApiKeySpend: mockResetApiKeySpend,
+  updateApiKeyConfig: mockUpdateApiKeyConfig,
   findApiKeyByHash: mock(async () => null),
   findRevokedApiKeyByHash: mock(async () => null),
   touchApiKeyLastUsed: mock(async () => undefined),
@@ -263,6 +320,11 @@ beforeEach(() => {
   mockGetAdminUserDetail.mockClear()
   mockGetAdminProviderStats.mockClear()
   mockGetAdminTaskDetail.mockClear()
+  mockListAdminGatewayClients.mockClear()
+  mockGetAdminGatewayClientDetail.mockClear()
+  mockRevokeApiKeyAdmin.mockClear()
+  mockResetApiKeySpend.mockClear()
+  mockUpdateApiKeyConfig.mockClear()
   mockProviderCallsSnapshot.mockClear()
 })
 
@@ -586,6 +648,150 @@ describe('admin routes', () => {
       const qwen = data?.items.find(item => item.model === 'qwen-plus')
       expect(qwen?.avgLatencyMs).toBeNull()
       expect(qwen?.p50LatencyMs).toBeNull()
+    })
+  })
+
+  // ── 新增：Gateway 客户管理端点 ─────────────
+
+  describe('管理 Gateway 客户端点', () => {
+    it('拒绝非管理员用户列出 Gateway 客户', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'user-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['gateway-clients'].get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(403)
+      expect(mockListAdminGatewayClients).not.toHaveBeenCalled()
+    })
+
+    it('支持 search + 分页参数的 Gateway 客户列表', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['gateway-clients'].get({
+        headers: { authorization: `Bearer ${token}` },
+        query: { search: 'alice', limit: 10, offset: 0 },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as { success: true, items: Array<{ username: string, totalKeyCount: number }>, total: number } | null
+      expect(data?.success).toBe(true)
+      expect(data?.items[0]?.username).toBe('alice')
+      expect(data?.items[0]?.totalKeyCount).toBe(2)
+      expect(data?.total).toBe(1)
+      expect(mockListAdminGatewayClients).toHaveBeenCalledWith(expect.objectContaining({
+        search: 'alice',
+        limit: 10,
+        offset: 0,
+      }))
+    })
+
+    it('缺失 Gateway 客户返回 404', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['gateway-clients']({ accountId: 'missing-client' }).get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(404)
+      expect(mockGetAdminGatewayClientDetail).toHaveBeenCalledWith('missing-client')
+    })
+
+    it('返回客户详情含 summary + keys + recentGatewayRecords', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['gateway-clients']({ accountId: 'acc-gw-1' }).get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as {
+        success: true
+        data: {
+          summary: { username: string, gatewayCalls: number }
+          keys: Array<{ id: string }>
+          recentGatewayRecords: Array<{ id: string }>
+        }
+      } | null
+      expect(data?.data.summary.username).toBe('alice')
+      expect(data?.data.summary.gatewayCalls).toBe(42)
+      expect(data?.data.keys.length).toBe(1)
+      expect(data?.data.recentGatewayRecords.length).toBe(1)
+    })
+
+    it('重置 API Key 额度', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['api-keys']({ id: 'key-1' })['reset-quota'].post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      expect((res.data as { success: true } | null)?.success).toBe(true)
+      expect(mockResetApiKeySpend).toHaveBeenCalledWith('key-1')
+    })
+
+    it('管理员撤销 API Key', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['api-keys']({ id: 'key-1' }).revoke.post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      expect((res.data as { success: true } | null)?.success).toBe(true)
+      expect(mockRevokeApiKeyAdmin).toHaveBeenCalledWith('key-1')
+    })
+
+    it('撤销不存在或已撤销的 key 返回 409', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['api-keys']({ id: 'missing-key' }).revoke.post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(409)
+      expect(mockRevokeApiKeyAdmin).toHaveBeenCalledWith('missing-key')
+    })
+
+    it('更新 API Key 配置', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['api-keys']({ id: 'key-1' }).config.patch({
+        userId: 'acc-gw-1',
+        scope: 'gateway',
+        rateLimitPerMinute: 120,
+        quotaMaxCents: 20000,
+      }, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      expect((res.data as { success: true } | null)?.success).toBe(true)
+      expect(mockUpdateApiKeyConfig).toHaveBeenCalledWith('key-1', 'acc-gw-1', expect.objectContaining({
+        scope: 'gateway',
+        rateLimitPerMinute: 120,
+        quotaMaxCents: 20000,
+      }))
     })
   })
 })

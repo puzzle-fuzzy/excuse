@@ -82,6 +82,19 @@ export async function revokeApiKey(id: string, accountId: string) {
   return updated ?? null
 }
 
+/**
+ * 管理员撤销 API Key —— 与 revokeApiKey 的区别是不校验 owner（admin 可撤销任意 key）。
+ * 返回更新后的行；不存在或已撤销返回 null。
+ */
+export async function revokeApiKeyAdmin(id: string) {
+  const [updated] = await getDb()
+    .update(apiKeys)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(apiKeys.id, id), isNull(apiKeys.revokedAt)))
+    .returning()
+  return updated ?? null
+}
+
 /** 更新 API Key 最后使用时间（每次成功认证后调用） */
 export async function touchApiKeyLastUsed(id: string) {
   await getDb()

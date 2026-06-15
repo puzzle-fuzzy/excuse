@@ -289,3 +289,73 @@ export interface AdminApiKeyListResponse {
   success: true
   items: AdminApiKeyItem[]
 }
+
+// ── Gateway 客户管理 ──────────────────────────────────────────────────────────
+
+/** Gateway 客户聚合列表项 —— 一个持有 ≥1 个 API Key 的账户 */
+export interface AdminGatewayClientItem {
+  accountId: string
+  username: string
+  email: string | null
+  /** 未撤销的 key 数 */
+  activeKeyCount: number
+  /** 全部 key 数（含已撤销） */
+  totalKeyCount: number
+  /** 该账户所有 key 的 totalSpendCents 之和（受配额周期重置影响） */
+  totalSpendCents: number
+  /** 该账户所有 key 的 quotaMaxCents 之和；任一 key 无限额（null）则整体为 null */
+  totalQuotaCents: number | null
+  /** max(api_keys.lastUsedAt) */
+  lastKeyActivityAt: string | null
+}
+
+export interface AdminGatewayClientListQuery {
+  search?: string
+  limit?: number
+  offset?: number
+}
+
+export interface AdminGatewayClientListResponse {
+  success: true
+  items: AdminGatewayClientItem[]
+  total: number
+}
+
+/** 单个 Gateway 客户的账户摘要（详情顶部） */
+export interface AdminGatewayClientSummary {
+  accountId: string
+  username: string
+  email: string | null
+  /** credit_accounts.availableCents */
+  creditBalanceCents: number
+  activeKeyCount: number
+  totalKeyCount: number
+  totalSpendCents: number
+  totalQuotaCents: number | null
+  /** generation_records source=gateway 的调用计数 */
+  gatewayCalls: number
+  /** generation_records source=gateway 的 totalPriceCents 之和（累计、不随配额重置归零） */
+  gatewaySpendCents: number
+  lastKeyActivityAt: string | null
+}
+
+export interface AdminGatewayRecentRecord {
+  id: string
+  model: string
+  status: string
+  costCents: number
+  createdAt: string
+}
+
+export interface AdminGatewayClientDetail {
+  summary: AdminGatewayClientSummary
+  /** 该账户所有 key（含已撤销） */
+  keys: AdminApiKeyItem[]
+  /** 最近 50 条 Gateway 调用记录 */
+  recentGatewayRecords: AdminGatewayRecentRecord[]
+}
+
+export interface AdminGatewayClientDetailResponse {
+  success: true
+  data: AdminGatewayClientDetail
+}
