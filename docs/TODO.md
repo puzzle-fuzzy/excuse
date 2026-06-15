@@ -143,7 +143,9 @@
 - ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `9b0a37a`）。
 - ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
 - ✅ 线上排障检查命令或文档（`docs/metrics.md` §线上排障检查；cover 7 个场景：存活/DB/Worker/积压/Provider/Canvas/HTTP；commit: `0df806f`）。
-- ✅ 跨进程聚合：worker 进程注册 provider observer + 在 health server（端口 5100）暴露 `/metrics`（provider 调用统计 + 8 个 `excuse_worker_*` family）；server 的访问策略（`isAllowedIp` + token 校验）下沉到 `@excuse/metrics`（`evaluateMetricsAccess`），server/worker 共用。Prometheus 多 target 抓取（server:5007 + worker:5100），通过自动 `instance` label 聚合两进程的 `excuse_provider_calls_total` 等。剩余 follow-up：ASRClient 未接入 observer；admin Provider tab 仍只读 server in-process latency。
+- ✅ 跨进程聚合：worker 进程注册 provider observer + 在 health server（端口 5100）暴露 `/metrics`（provider 调用统计 + 8 个 `excuse_worker_*` family）；server 的访问策略（`isAllowedIp` + token 校验）下沉到 `@excuse/metrics`（`evaluateMetricsAccess`），server/worker 共用。Prometheus 多 target 抓取（server:5007 + worker:5100），通过自动 `instance` label 聚合两进程的 `excuse_provider_calls_total` 等。
+- ✅ ASRClient 接入 provider observer：`submitTranscription` 计时并经 `notifyProviderCallObservers` 上报 `paraformer-v2`（与 `submitVideoTask` 一致；`queryTask` 轮询不计入，避免稀释 latency）。`notifyProviderCallObservers` 由 private 提升为包内 export 供 ASRClient 复用（commits: `ec4c0dd`）。
+- ✅ admin Provider tab 跨进程 latency 聚合：worker health 新增 `GET /provider-calls` JSON 快照端点（原始 durations，`evaluateMetricsAccess` 保护）；`@excuse/metrics` 新增纯函数 `mergeProviderCalls`（计数相加、durations 拼接，保原始样本以便精确重算跨进程 p50/p95）；server `WORKER_METRICS_URL` + `fetchWorkerProviderCalls`（best-effort，2s 超时，异常降级为空）→ admin `/providers` 合并 server+worker。worker 不可达时仅反映 server 进程（commits: `0d94b14`）。
 
 验收：
 

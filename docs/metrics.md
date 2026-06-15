@@ -58,11 +58,19 @@ worker 进程在自己的 health server（`WORKER_HEALTH_PORT`，默认 5100）�
   - `excuse_worker_last_poll_ok` — 最近一次轮询是否成功（1/0，首次轮询前为 0）
   - `excuse_worker_last_poll_timestamp_seconds` — 最近一次轮询时间戳（秒；从未轮询为 NaN）。告警：`time() - excuse_worker_last_poll_timestamp_seconds > 300`
 
-worker 侧的 DashScope 调用通过 `registerProviderCallObserver`（启动时注册，覆盖全部 DashScopeClient 实例）接入 worker 本地 `MetricsCollector`，随后经本端点暴露。
+worker 侧的 DashScope 调用通过 `registerProviderCallObserver`（启动时注册，覆盖全部 DashScopeClient 实例）接入 worker 本地 `MetricsCollector`，随后经本端点暴露。ASR 字幕调用（`ASRClient.submitTranscription`，model=`paraformer-v2`）同样接入 observer；与 `submitVideoTask` 一致，仅记录提交调用、不计入 `queryTask` 轮询，避免廉价轮询稀释真实 latency。
+
+## Worker provider 快照（`GET /provider-calls` @ :5100）
+
+worker health server 额外暴露 `GET /provider-calls` —— JSON 格式的 provider 调用原始快照（`{ workerId, providerCalls }`，每个 model 含 `success`/`failed` 计数 + `durations` 原始毫秒样本）。访问策略与 `/metrics` 共用（`evaluateMetricsAccess`）。
+
+**用途**：admin 后台「Provider」tab 跨进程 latency 聚合。server 进程 fetch worker `/provider-calls` 后，用 `@excuse/metrics` 的 `mergeProviderCalls` 把两进程的 durations 原始样本拼接（计数相加），再算 avg/p50/p95 —— **必须用原始 durations**，因为已聚合的分位数无法跨进程正确合并。canvas 全链路的 provider 调用发生在 worker，此前 admin tab 只读 server 进程内 latency 对它们恒为 null；聚合后覆盖 server+worker。
+
+配置：server 侧 `WORKER_METRICS_URL`（如 `http://localhost:5100`，默认关闭）；鉴权 token 复用 `METRICS_ACCESS_TOKEN`（server/worker 同一 env）。worker 不可达时 `fetchWorkerProviderCalls` best-effort 返回空 map，admin 降级为仅 server（不报错）。
 
 ## 已知限制（v1）
 
-- server 与 worker 是独立进程，各自维护内存态 `MetricsCollector`；跨进程聚合依赖 Prometheus 多 target 抓取（见上方 scrape config），由 `instance` label 区分。ASR 字幕调用走独立的 `ASRClient`，未接入 provider observer，暂不进入 `excuse_provider_calls_total`（后续补并行 observer API）。
+- server 与 worker 是独立进程，各自维护内存态 `MetricsCollector`；跨进程聚合依赖 Prometheus 多 target 抓取（见上方 scrape config），由 `instance` label 区分；admin 后台的即时 latency 聚合则走 worker `/provider-calls` JSON 快照（见上节）。
 - CIDR 解析为简化实现，仅支持：
   - `127.0.0.0/8`（IPv4 回环段）
   - `::1` 或 `::1/128`（IPv6 回环精确匹配）
