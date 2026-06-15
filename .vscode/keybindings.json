@@ -1,0 +1,20 @@
+[
+  // Display / hide coverage in the active editor
+  {
+    "key": "alt+c",
+    "command": "extension.displayCoverage",
+    "when": "editorTextFocus"
+  },
+  // Remove coverage from the active editor
+  {
+    "key": "alt+shift+c",
+    "command": "extension.removeCoverage",
+    "when": "editorTextFocus"
+  },
+  // Toggle watch mode (auto-reload coverage on lcov.info change)
+  {
+    "key": "alt+w",
+    "command": "extension.watchCoverageAndVisibleEditors",
+    "when": "editorTextFocus"
+  }
+]

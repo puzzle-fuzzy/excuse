@@ -1,0 +1,25 @@
+{
+  // ── Coverage Gutters 配置 ────────────────────────────────
+  // 覆盖率报告路径（由 bunfig.toml 的 coverageReporter: lcov 生成）
+  "coverage-gutters.coverageFileNames": [
+    "coverage/lcov.info"
+  ],
+
+  // 在编辑器中可视化覆盖情况：gutter（左侧槽位圆点）+ 行高亮 + 标尺
+  "coverage-gutters.showGutterCoverage": true,
+  "coverage-gutters.showLineCoverage": true,
+  "coverage-gutters.showRulerCoverage": true,
+
+  // 覆盖状态颜色（绿=已覆盖，红=未覆盖，黄=部分覆盖）
+  "coverage-gutters.gutterContentColor": "rgba(165, 220, 134, 1)",
+  "coverage-gutters.noGutterColor": "rgba(224, 85, 99, 1)",
+  "coverage-gutters.partialGutterColor": "rgba(233, 215, 130, 1)",
+  "coverage-gutters.coveredHighlightColor": "rgba(165, 220, 134, 0.25)",
+  "coverage-gutters.uncoveredHighlightColor": "rgba(224, 85, 99, 0.25)",
+  "coverage-gutters.partialHighlightColor": "rgba(233, 215, 130, 0.25)",
+
+  // 打开文件时自动显示覆盖率（无需手动点 Watch）
+  "coverage-gutters.customizable.context-menu": {
+    "active-editor": true
+  }
+}

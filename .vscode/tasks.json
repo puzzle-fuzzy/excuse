@@ -1,0 +1,51 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "normalize-coverage",
+      "detail": "规范化 lcov 路径分隔符（\\ → /，修复 Coverage Gutters 匹配）",
+      "type": "process",
+      "command": "bun",
+      "args": [
+        "scripts/normalize-coverage.ts"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "test:coverage",
+      "detail": "bun test + 规范化 lcov 路径（Coverage Gutters 友好）",
+      "type": "shell",
+      "command": "bun test && bun scripts/normalize-coverage.ts",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "test:watch",
+      "detail": "bun test --watch（文件变更自动重跑，覆盖率实时刷新）",
+      "type": "process",
+      "command": "bun",
+      "args": [
+        "test",
+        "--watch"
+      ],
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "never",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}
