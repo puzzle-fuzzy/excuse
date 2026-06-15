@@ -111,12 +111,20 @@ describe('resolveNotificationTarget', () => {
   })
 
   describe('其他类型 / 无定位信息', () => {
-    it('api_key_expired → undefined', () => {
+    it('api_key_expired → /api-keys', () => {
       const url = resolveNotificationTarget(makeNotification({
         type: 'api_key_expired',
         meta: { recordId: 'rec-x' },
       }))
-      expect(url).toBeUndefined()
+      expect(url).toBe('/api-keys')
+    })
+
+    it('api_key_expired 无 meta 也跳 /api-keys', () => {
+      const url = resolveNotificationTarget(makeNotification({
+        type: 'api_key_expired',
+        meta: null,
+      }))
+      expect(url).toBe('/api-keys')
     })
 
     it('system → undefined', () => {
@@ -133,6 +141,24 @@ describe('resolveNotificationTarget', () => {
         meta: null,
       }))
       expect(url).toBeUndefined()
+    })
+  })
+
+  describe('subtitle 定位', () => {
+    it('task_completed + category=subtitle + recordId → /subtitle/:recordId', () => {
+      const url = resolveNotificationTarget(makeNotification({
+        type: 'task_completed',
+        meta: { category: 'subtitle', recordId: 'sub-1' },
+      }))
+      expect(url).toBe('/subtitle/sub-1')
+    })
+
+    it('task_failed + category=subtitle + recordId → /subtitle/:recordId', () => {
+      const url = resolveNotificationTarget(makeNotification({
+        type: 'task_failed',
+        meta: { category: 'subtitle', recordId: 'sub-2' },
+      }))
+      expect(url).toBe('/subtitle/sub-2')
     })
   })
 })

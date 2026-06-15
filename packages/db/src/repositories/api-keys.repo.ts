@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { getDb } from '../db'
 import { apiKeys } from '../schema/api-keys'
 
@@ -38,6 +38,16 @@ export async function findApiKeyByHash(keyHash: string) {
     .select()
     .from(apiKeys)
     .where(and(eq(apiKeys.keyHash, keyHash), isNull(apiKeys.revokedAt)))
+    .limit(1)
+  return key ?? null
+}
+
+/** 按 hash 查找已撤销的 API Key（用于触发过期通知） */
+export async function findRevokedApiKeyByHash(keyHash: string) {
+  const [key] = await getDb()
+    .select()
+    .from(apiKeys)
+    .where(and(eq(apiKeys.keyHash, keyHash), isNotNull(apiKeys.revokedAt)))
     .limit(1)
   return key ?? null
 }

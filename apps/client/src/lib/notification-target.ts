@@ -6,12 +6,14 @@ import type { NotificationItem } from '@/api/notifications'
  * 优先级（task_completed / task_failed）：
  *   1. projectId + shotId → `/canvas/:projectId?focus=shot:<shotId>`
  *   2. projectId（无 shotId）→ `/canvas/:projectId`
- *   3. recordId → `/?record=<recordId>`（工作台定位）
- *   4. 都没有 → undefined（不跳转）
+ *   3. category=subtitle + recordId → `/subtitle/:recordId`
+ *   4. recordId → `/?record=<recordId>`（工作台定位）
+ *   5. 都没有 → undefined（不跳转）
  *
  * canvas_completed 同样按 projectId / shotId 优先级解析，未带 meta 返回 undefined。
  * balance_warning 恒定跳 `/billing`。
- * 其他类型 / 无定位信息返回 undefined。
+ * api_key_expired 恒定跳 `/api-keys`。
+ * system / 其他类型返回 undefined。
  *
  * 纯函数：不依赖 React / router / fetch；同 input 永远同 output。
  */
@@ -21,12 +23,18 @@ export function resolveNotificationTarget(n: NotificationItem): string | undefin
   if (n.type === 'balance_warning')
     return '/billing'
 
+  if (n.type === 'api_key_expired')
+    return '/api-keys'
+
   if (n.type === 'task_completed' || n.type === 'task_failed' || n.type === 'canvas_completed') {
     if (meta.projectId && meta.shotId)
       return `/canvas/${meta.projectId}?focus=shot:${meta.shotId}`
     if (meta.projectId)
       return `/canvas/${meta.projectId}`
   }
+
+  if ((n.type === 'task_completed' || n.type === 'task_failed') && meta.category === 'subtitle' && meta.recordId)
+    return `/subtitle/${meta.recordId}`
 
   if ((n.type === 'task_completed' || n.type === 'task_failed') && meta.recordId)
     return `/?record=${meta.recordId}`

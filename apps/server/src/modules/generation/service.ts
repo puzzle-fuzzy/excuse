@@ -29,6 +29,7 @@ import {
   refundCredit,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
+import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../routes/notifications'
 import { recordGenerationStatus } from '../../services/metrics'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
@@ -148,6 +149,10 @@ export async function executeGeneration(
       traceId,
       errorMessage: result.error,
     })
+    // 同步任务（文本/图片）provider 失败时推送通知（视频异步失败由 Worker 处理）
+    if (category === 'text' || category === 'image') {
+      await notifySyncTaskFailed(accountId, recordId, category, model, result.error).catch(() => {})
+    }
     const updated = await getGenerationRecordById(recordId)
     return { success: false, record: updated! }
   }
@@ -205,6 +210,12 @@ export async function executeGeneration(
   })
 
   const updated = await getGenerationRecordById(recordId)
+
+  // 同步任务（文本/图片）成功时推送通知
+  if (category === 'text' || category === 'image') {
+    await notifySyncTaskCompleted(accountId, recordId, category, model).catch(() => {})
+  }
+
   return { success: true, record: updated! }
 }
 

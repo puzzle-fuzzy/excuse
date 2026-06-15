@@ -19,11 +19,13 @@ import { makeAccount, makeTestConfig, makeValidatedParams, signTestToken } from 
 // ─── Mock 依赖 ──────────────────────────────────────────
 
 const mockFindApiKeyByHash = mock<(hash: string) => Promise<{ id: string, accountId: string, prefix: string } | null>>(() => Promise.resolve(null))
+const mockFindRevokedApiKeyByHash = mock<(hash: string) => Promise<{ id: string, accountId: string, prefix: string } | null>>(() => Promise.resolve(null))
 const mockTouchApiKeyLastUsed = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetAccountById = mock<() => Promise<AccountRow | null>>(() => Promise.resolve(makeAccount()))
 
 mock.module('@excuse/db', () => ({
   findApiKeyByHash: mockFindApiKeyByHash,
+  findRevokedApiKeyByHash: mockFindRevokedApiKeyByHash,
   touchApiKeyLastUsed: mockTouchApiKeyLastUsed,
   getAccountById: mockGetAccountById,
   pgClient: { listen: async () => {} },

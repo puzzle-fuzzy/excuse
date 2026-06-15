@@ -225,6 +225,7 @@ mock.module('@excuse/db', () => ({
   getAdminProviderStats: mockGetAdminProviderStats,
   getAdminTaskDetail: mockGetAdminTaskDetail,
   findApiKeyByHash: mock(async () => null),
+  findRevokedApiKeyByHash: mock(async () => null),
   touchApiKeyLastUsed: mock(async () => undefined),
 }))
 

@@ -31,14 +31,10 @@ mock.module('@excuse/db', () => ({
   listNotifications: mockListNotifications,
   markAllNotificationsRead: mockMarkAllNotificationsRead,
   markNotificationRead: mockMarkNotificationRead,
-}))
-
-mock.module('@excuse/db', () => ({
-  createNotification: mockCreateNotification,
-  getUnreadCount: mockGetUnreadCount,
-  listNotifications: mockListNotifications,
-  markAllNotificationsRead: mockMarkAllNotificationsRead,
-  markNotificationRead: mockMarkNotificationRead,
+  notifyNotification: async () => {},
+  findApiKeyByHash: async () => null,
+  findRevokedApiKeyByHash: async () => null,
+  touchApiKeyLastUsed: async () => {},
 }))
 
 // eslint-disable-next-line import/first

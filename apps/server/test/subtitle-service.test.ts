@@ -102,6 +102,15 @@ mock.module('@excuse/db', () => ({
   notifyGenerationStatus: async (payload: Record<string, unknown>) => {
     dbState.notifications.push(payload)
   },
+  notifyNotification: async (payload: Record<string, unknown>) => {
+    dbState.notifications.push(payload)
+  },
+  listNotifications: async () => [],
+  getUnreadCount: async () => 0,
+  markNotificationRead: async () => null,
+  markAllNotificationsRead: async () => 0,
+  findApiKeyByHash: async () => null,
+  touchApiKeyLastUsed: async () => {},
 }))
 
 mock.module('@excuse/provider', () => ({
@@ -312,9 +321,9 @@ describe('retryProject', () => {
 
     // ASR 失败后 updateSubtitleProjectStatus 会设置 errorMessage
     // createGenerationRecord 只在 ASR 成功时创建
-    // SSE notifyGenerationStatus 只在 ASR 成功时发送
-    // 所以失败路径不会有 notifications 和 records
-    expect(dbState.notifications).toHaveLength(0)
+    // pushNotification 会在 ASR 失败时推送 task_failed 通知
+    expect(dbState.notifications).toHaveLength(1)
+    expect(dbState.notifications[0]).toMatchObject({ type: 'task_failed', title: '字幕重试失败' })
     expect(dbState.records).toHaveLength(0)
   })
 

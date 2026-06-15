@@ -68,6 +68,7 @@ import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { dispatchToUser } from '../services/sse-manager'
 import { conflict, forbidden, notFound, validationError } from '../utils/errors'
+import { notifyCanvasPhaseFailed } from './notifications'
 
 const logger = createLogger('canvas-routes')
 
@@ -136,6 +137,8 @@ function fireAndForgetWithRun(
         error: err instanceof Error ? err.message : String(err),
         runId,
       })
+      // 推送通知：Canvas Pipeline 阶段失败（用户可能已离开页面）
+      notifyCanvasPhaseFailed(userId, projectId, phaseKey, err instanceof Error ? err.message : String(err)).catch(() => {})
     })
 }
 

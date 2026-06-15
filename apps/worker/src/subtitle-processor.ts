@@ -15,6 +15,7 @@ import {
   markGenerationFailed,
   markGenerationSucceeded,
   notifyGenerationStatus,
+  notifyNotification,
   updateSubtitleExport,
   updateSubtitleProjectStatus,
   updateSubtitleSentences,
@@ -90,6 +91,15 @@ export async function processASRTask(project: SubtitleProjectRow, asrClient: ASR
       })
 
       logger.info({ projectId: project.id, sentenceCount: sentences.length }, '✅ ASR task completed')
+
+      // 通知：字幕 ASR 完成
+      await notifyNotification({
+        accountId: project.accountId,
+        type: 'task_completed',
+        title: '字幕识别完成',
+        body: `共识别 ${sentences.length} 条字幕，可前往编辑`,
+        meta: { recordId: record.id, category: 'subtitle' },
+      }).catch(err => logger.warn({ err, projectId: project.id }, 'Failed to push ASR completed notification'))
       break
     }
 
@@ -108,6 +118,15 @@ export async function processASRTask(project: SubtitleProjectRow, asrClient: ASR
         errorMessage: errMsg,
       })
       logger.error({ projectId: project.id, error: errMsg }, '❌ ASR task failed')
+
+      // 通知：字幕 ASR 失败
+      await notifyNotification({
+        accountId: project.accountId,
+        type: 'task_failed',
+        title: '字幕识别失败',
+        body: errMsg,
+        meta: { recordId: record.id, category: 'subtitle' },
+      }).catch(err => logger.warn({ err, projectId: project.id }, 'Failed to push ASR failed notification'))
       break
     }
 
@@ -223,12 +242,31 @@ export async function processExportTask(project: SubtitleProjectRow, config: Wor
     })
 
     logger.info({ projectId: project.id }, '✅ Export task completed')
+
+    // 通知：字幕导出完成
+    await notifyNotification({
+      accountId: project.accountId,
+      type: 'task_completed',
+      title: '字幕导出完成',
+      body: '字幕已烧录到视频，可前往下载',
+      meta: { recordId: project.exportRecordId, category: 'subtitle' },
+    }).catch(err => logger.warn({ err, projectId: project.id }, 'Failed to push export completed notification'))
   }
   catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: errorMsg })
     await markGenerationFailed(project.exportRecordId, errorMsg)
     await notifyExportFailed(project, errorMsg)
+
+    // 通知：字幕导出失败
+    await notifyNotification({
+      accountId: project.accountId,
+      type: 'task_failed',
+      title: '字幕导出失败',
+      body: errorMsg,
+      meta: { recordId: project.exportRecordId, category: 'subtitle' },
+    }).catch(err => logger.warn({ err, projectId: project.id }, 'Failed to push export failed notification'))
+
     logger.error({ err, projectId: project.id }, '❌ Export task failed')
   }
 }

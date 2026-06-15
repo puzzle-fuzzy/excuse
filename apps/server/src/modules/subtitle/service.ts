@@ -29,6 +29,7 @@ import {
   getMediaDurationMs,
 } from '@excuse/provider'
 import { getDefaultStyleConfig } from '@excuse/shared'
+import { pushNotification } from '../../routes/notifications'
 
 /** 字幕项目依赖的外部服务 */
 export interface SubtitleDependencies {
@@ -107,6 +108,13 @@ export async function createAndStartProject(
 
     if (!asrResult.success) {
       await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: asrResult.error })
+      await pushNotification({
+        accountId,
+        type: 'task_failed',
+        title: '字幕识别提交失败',
+        body: asrResult.error,
+        meta: { recordId: project.id, category: 'subtitle' },
+      }).catch(() => {})
       const failedProject = await getSubtitleProjectForAccount(project.id, accountId)
       return failedProject!
     }
@@ -150,6 +158,13 @@ export async function createAndStartProject(
   catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: errorMsg })
+    await pushNotification({
+      accountId,
+      type: 'task_failed',
+      title: '字幕项目创建失败',
+      body: errorMsg,
+      meta: { recordId: project.id, category: 'subtitle' },
+    }).catch(() => {})
     throw err
   }
 }
@@ -187,6 +202,13 @@ export async function retryProject(
 
     if (!asrResult.success) {
       await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: asrResult.error })
+      await pushNotification({
+        accountId,
+        type: 'task_failed',
+        title: '字幕重试失败',
+        body: asrResult.error,
+        meta: { recordId: project.id, category: 'subtitle' },
+      }).catch(() => {})
       const failedProject = await getSubtitleProjectForAccount(project.id, accountId)
       return failedProject!
     }
@@ -261,6 +283,13 @@ export async function retryProject(
 
     if (!asrResult.success) {
       await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: asrResult.error })
+      await pushNotification({
+        accountId,
+        type: 'task_failed',
+        title: '字幕重试失败',
+        body: asrResult.error,
+        meta: { recordId: project.id, category: 'subtitle' },
+      }).catch(() => {})
       const failedProject = await getSubtitleProjectForAccount(project.id, accountId)
       return failedProject!
     }
@@ -301,6 +330,13 @@ export async function retryProject(
   catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err)
     await updateSubtitleProjectStatus(project.id, 'failed', { errorMessage: errorMsg })
+    await pushNotification({
+      accountId,
+      type: 'task_failed',
+      title: '字幕重试失败',
+      body: errorMsg,
+      meta: { recordId: project.id, category: 'subtitle' },
+    }).catch(() => {})
     throw err
   }
 }

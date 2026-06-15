@@ -68,6 +68,7 @@ mock.module('@excuse/db', () => ({
   debitCredit: mockDebitCredit,
   refundCredit: mockRefundCredit,
   findApiKeyByHash: mockFindApiKeyByHash,
+  findRevokedApiKeyByHash: mock(async () => null),
   touchApiKeyLastUsed: mockTouchApiKeyLastUsed,
   getAccountById: mockGetAccountById,
   listGatewayUsageRecords: mockListGatewayUsageRecords,

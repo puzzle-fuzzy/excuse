@@ -4,6 +4,7 @@ import type { ServerConfig } from '../config'
 import { getUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead, notifyNotification } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
+import { COOLDOWN_MS, shouldSend } from '../services/notification-cooldown'
 import { notFound } from '../utils/errors'
 
 function serializeNotification(row: {
@@ -117,14 +118,115 @@ export async function pushNotification(opts: {
 }
 
 /**
- * 余额不足通知（P2-2） — reserveCredit 失败（INSUFFICIENT_BALANCE）时调用，
+ * 余额不足通知 — reserveCredit 失败（INSUFFICIENT_BALANCE）时调用，
  * 前端按 type=balance_warning 点击跳转到计费页。
+ * 冷却 5 分钟。
  */
 export async function notifyInsufficientBalance(accountId: string) {
+  if (!shouldSend(accountId, 'balance_warning', 'balance', COOLDOWN_MS.balanceWarning))
+    return
   return pushNotification({
     accountId,
     type: 'balance_warning',
     title: '余额不足',
     body: '信用额度不足，部分操作无法完成，请前往计费页查看',
+  })
+}
+
+/**
+ * 同步任务（文本/图片）完成通知 — 带 3s 冷却防刷
+ */
+export async function notifySyncTaskCompleted(accountId: string, recordId: string, category: 'text' | 'image', model: string) {
+  if (!shouldSend(accountId, 'task_completed', recordId, COOLDOWN_MS.syncTask))
+    return
+  return pushNotification({
+    accountId,
+    type: 'task_completed',
+    title: category === 'image' ? '图片生成完成' : '文本生成完成',
+    body: `${model} · 点击查看结果`,
+    meta: { recordId, category },
+  })
+}
+
+/**
+ * 同步任务（文本/图片）失败通知 — 带 3s 冷却防刷
+ */
+export async function notifySyncTaskFailed(accountId: string, recordId: string, category: 'text' | 'image', model: string, error: string) {
+  if (!shouldSend(accountId, 'task_failed', recordId, COOLDOWN_MS.syncTask))
+    return
+  return pushNotification({
+    accountId,
+    type: 'task_failed',
+    title: category === 'image' ? '图片生成失败' : '文本生成失败',
+    body: `${model}: ${error}`,
+    meta: { recordId, category },
+  })
+}
+
+/**
+ * 字幕任务通知 — ASR 完成/失败、导出完成/失败
+ */
+export async function notifySubtitleTask(accountId: string, recordId: string, type: 'task_completed' | 'task_failed', title: string, body?: string) {
+  return pushNotification({
+    accountId,
+    type,
+    title,
+    body,
+    meta: { recordId, category: 'subtitle' },
+  })
+}
+
+/**
+ * Canvas Pipeline 阶段失败通知
+ */
+export async function notifyCanvasPhaseFailed(accountId: string, projectId: string, phaseKey: string, error: string) {
+  const PHASE_LABELS: Record<string, string> = {
+    analyze: '故事分析',
+    characters: '角色生成',
+    locations: '场景生成',
+    characterRefs: '角色参考图',
+    locationRefs: '场景参考图',
+    storyboard: '分镜脚本',
+    continuity: '连续性校验',
+    rebuild: '提示词重建',
+    videos: '视频生成',
+  }
+  const label = PHASE_LABELS[phaseKey] ?? phaseKey
+  return pushNotification({
+    accountId,
+    type: 'task_failed',
+    title: '画布阶段失败',
+    body: `${label}: ${error}`,
+    meta: { projectId },
+  })
+}
+
+/**
+ * API Key 被撤销后仍有调用尝试 — 通知 key 所属用户
+ * 冷却 24 小时。
+ */
+export async function notifyApiKeyRevoked(accountId: string, keyId: string) {
+  if (!shouldSend(accountId, 'api_key_expired', keyId, COOLDOWN_MS.apiKeyExpired))
+    return
+  return pushNotification({
+    accountId,
+    type: 'api_key_expired',
+    title: 'API Key 已失效',
+    body: '有请求尝试使用已撤销的 API Key，请检查您的集成配置',
+  })
+}
+
+/**
+ * Provider 连续失败系统通知
+ * 冷却 1 小时。
+ */
+export async function notifyProviderFailure(accountId: string, model: string) {
+  if (!shouldSend(accountId, 'system', `provider_${model}`, COOLDOWN_MS.system))
+    return
+  return pushNotification({
+    accountId,
+    type: 'system',
+    title: 'AI 服务异常',
+    body: `${model} 连续调用失败，请稍后重试或检查配置`,
   })
 }

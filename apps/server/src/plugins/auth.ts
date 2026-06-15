@@ -63,6 +63,15 @@ export function createAuthPlugin(config: ServerConfig) {
             touchApiKeyLastUsed(apiKey.id).catch(() => {})
             return { userId: apiKey.accountId, authMethod: 'api_key' as const }
           }
+          // key 未找到，检查是否已被撤销 → 通知 key 所属用户
+          const { findRevokedApiKeyByHash } = await import('@excuse/db')
+          const revokedKey = await findRevokedApiKeyByHash(keyHash)
+          if (revokedKey) {
+            // 动态 import 避免循环依赖
+            import('../routes/notifications').then(({ notifyApiKeyRevoked }) => {
+              notifyApiKeyRevoked(revokedKey.accountId, revokedKey.id).catch(() => {})
+            }).catch(() => {})
+          }
           return { userId: null, authMethod: null }
         }
 
