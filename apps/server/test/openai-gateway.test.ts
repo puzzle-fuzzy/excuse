@@ -37,10 +37,14 @@ const mockMarkGenerationSucceeded = mock<(id: string, output: Record<string, unk
 const mockReserveCredit = mock<(opts: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
 const mockDebitCredit = mock<(opts: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
 const mockRefundCredit = mock<(opts: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
-const mockFindApiKeyByHash = mock<(hash: string) => Promise<{ id: string, accountId: string } | null>>(() => Promise.resolve(null))
+const mockFindApiKeyByHash = mock<(hash: string) => Promise<{ id: string, accountId: string, scope: string, rateLimitPerMinute: number | null, totalSpendCents: number, quotaMaxCents: number | null, quotaResetAt: Date | null } | null>>(() => Promise.resolve(null))
 const mockTouchApiKeyLastUsed = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetAccountById = mock<() => Promise<unknown>>(() => Promise.resolve(makeAccount()))
 const mockListGatewayUsageRecords = mock<(filter: Record<string, unknown>) => Promise<GenerationRecordRow[]>>(() => Promise.resolve([]))
+const mockCheckAndResetApiKeyQuota = mock<(id: string) => Promise<boolean>>(() => Promise.resolve(false))
+const mockIsApiKeyQuotaExceeded = mock<(id: string) => Promise<boolean>>(() => Promise.resolve(false))
+const mockIncrementApiKeySpend = mock<(id: string, cents: number) => Promise<void>>(() => Promise.resolve(undefined))
+const mockNotifyNotification = mock<(opts: Record<string, unknown>) => Promise<unknown>>(() => Promise.resolve({ id: 'n-1', read: false, createdAt: new Date() }))
 
 const mockChatCompletion = mock<(model: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>>(() => Promise.resolve({
   success: true,
@@ -72,6 +76,10 @@ mock.module('@excuse/db', () => ({
   touchApiKeyLastUsed: mockTouchApiKeyLastUsed,
   getAccountById: mockGetAccountById,
   listGatewayUsageRecords: mockListGatewayUsageRecords,
+  checkAndResetApiKeyQuota: mockCheckAndResetApiKeyQuota,
+  isApiKeyQuotaExceeded: mockIsApiKeyQuotaExceeded,
+  incrementApiKeySpend: mockIncrementApiKeySpend,
+  notifyNotification: mockNotifyNotification,
   pgClient: { listen: async () => {} },
 }))
 
@@ -119,6 +127,8 @@ mock.module('@excuse/billing', () => ({
 
 // eslint-disable-next-line import/first
 import { createOpenAIGatewayRoutes } from '../src/routes/openai-gateway'
+// eslint-disable-next-line import/first
+import { resetCooldowns } from '../src/services/notification-cooldown'
 
 // ─── 测试配置 ──────────────────────────────────────────
 
@@ -189,6 +199,12 @@ describe('OpenAI 网关', () => {
       yield { type: 'text-stream', model: 'qwen3.7-plus', delta: ' world', done: false }
       yield { type: 'text-stream', model: 'qwen3.7-plus', delta: '', usage: { inputTokens: 5, outputTokens: 2 }, done: true }
     } as never)
+    // 重置通知冷却状态，避免跨用例污染
+    resetCooldowns()
+    mockNotifyNotification.mockClear()
+    mockIsApiKeyQuotaExceeded.mockImplementation(() => Promise.resolve(false))
+    mockCheckAndResetApiKeyQuota.mockImplementation(() => Promise.resolve(false))
+    mockFindApiKeyByHash.mockImplementation(() => Promise.resolve(null))
   })
 
   describe('POST /v1/chat/completions', () => {
@@ -393,6 +409,97 @@ describe('OpenAI 网关', () => {
       expect(error).toBeTruthy()
       expect(getErrorCode(error)).toBe('insufficient_balance')
       expect(mockMarkGenerationFailed).toHaveBeenCalled()
+    })
+
+    it('provider 失败 → 触发 provider_anomaly 通知（系统风险）', async () => {
+      mockChatCompletion.mockImplementation(() => Promise.resolve({
+        success: false,
+        error: 'DashScope error',
+      }))
+
+      const headers = await getAuthHeaders()
+      const app = createGatewayApp()
+      const client = treaty(app)
+
+      await client.v1.chat.completions.post({
+        model: 'qwen-max',
+        messages: [{ role: 'user', content: 'Hello' }],
+      }, { headers })
+
+      // 编排器在 provider 抛错时 fire-and-forget 触发 notifyProviderFailure
+      // 等待微任务/异步通知落定
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(mockNotifyNotification).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        type: 'provider_anomaly',
+      }))
+    })
+
+    it('API Key 额度已用尽 → 429 + api_key_quota 通知', async () => {
+      // 配置 API Key 鉴权：scope=gateway，额度已用尽（100/100）
+      mockFindApiKeyByHash.mockImplementation(() => Promise.resolve({
+        id: 'key-001',
+        accountId: 'acc-001',
+        scope: 'gateway',
+        rateLimitPerMinute: null,
+        totalSpendCents: 100,
+        quotaMaxCents: 100,
+        quotaResetAt: null,
+      }))
+      mockIsApiKeyQuotaExceeded.mockImplementation(() => Promise.resolve(true))
+
+      const app = createGatewayApp()
+      const response = await app.handle(new Request('http://localhost/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'authorization': 'Bearer exc_testkey_quota' },
+        body: JSON.stringify({
+          model: 'qwen-max',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      }))
+
+      expect(response.status).toBe(429)
+      const body = await response.json() as { error?: { code?: string } }
+      expect(body.error?.code).toBe('api_key_quota_exceeded')
+      // 额度用尽通知（非阻塞）— 等待落定
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(mockNotifyNotification).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        type: 'api_key_quota',
+      }))
+    })
+
+    it('API Key 额度即将用尽（80%）成功调用 → 触发 api_key_quota 预警', async () => {
+      // 已用 75，本次成本 1（mock calculateCost 返回 1 cent）→ 投射 76，未达 80%，不触发；
+      // 改为已用 80 → 投射 81 ≥ 80%，触发即将用尽预警
+      mockFindApiKeyByHash.mockImplementation(() => Promise.resolve({
+        id: 'key-002',
+        accountId: 'acc-001',
+        scope: 'gateway',
+        rateLimitPerMinute: null,
+        totalSpendCents: 80,
+        quotaMaxCents: 100,
+        quotaResetAt: null,
+      }))
+
+      const app = createGatewayApp()
+      const response = await app.handle(new Request('http://localhost/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'authorization': 'Bearer exc_testkey_approaching' },
+        body: JSON.stringify({
+          model: 'qwen-max',
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      }))
+
+      expect(response.status).toBe(200)
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(mockNotifyNotification).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'acc-001',
+        type: 'api_key_quota',
+      }))
+      // 额度递增也被调用
+      expect(mockIncrementApiKeySpend).toHaveBeenCalledWith('key-002', 1)
     })
 
     it('未认证 → 401', async () => {

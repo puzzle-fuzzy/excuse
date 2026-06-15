@@ -7,6 +7,7 @@ import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
 import { conflict, forbidden, notFound } from '../utils/errors'
+import { notifyApiKeyRevoked } from './notifications'
 
 function canAccessAdmin(config: ServerConfig, userId: string): boolean {
   return (config.adminUserIds ?? []).includes(userId)
@@ -535,6 +536,9 @@ export function createAdminRoutes(config: ServerConfig) {
         accountId: userId,
         targetId: params.id,
       })
+
+      // 主动通知 Key 所属用户其凭证已被管理员撤销（非阻塞，24h 冷却）
+      notifyApiKeyRevoked(revoked.accountId, revoked.id).catch(() => {})
 
       return { success: true }
     }, {

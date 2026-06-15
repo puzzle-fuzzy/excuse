@@ -1,6 +1,6 @@
 # 项目统一 TODO
 
-更新时间：2026-06-14
+更新时间：2026-06-15
 
 本文是 `excuse` 后续产品迭代、技术治理和验收标准的唯一入口。后续 Claude / Codex 只处理本文，不再拆分处理多份清单。
 
@@ -92,9 +92,11 @@
 
 ### 2. Notification
 
+当前状态：已完成（2026-06-15）。
+
 待办：
 
-- API Key 过期、额度不足、异常调用等系统风险通知。
+- ✅ API Key 过期、额度不足、异常调用等系统风险通知：新增 `api_key_quota` / `provider_anomaly` 两个通知类型 + `notifyApiKeyQuota` emitter（80% 预警 / 100% 已用尽，6h / 24h 冷却）+ 接线 `notifyProviderFailure`（既有但从未调用，重定向到 `provider_anomaly`）。触发点：Gateway 额度检查拒绝（429）reactive + 调用成功后投射用量 proactive（80%）预警、`gateway-service` provider 抛错触发 `provider_anomaly`、管理员撤销 Key 主动通知 key 所属用户；客户端新增 `api_key_quota → /api-keys`、`provider_anomaly → /developers` 跳转与图标。余额不足（credit）侧此前已由 `notifyInsufficientBalance` 覆盖。
 
 验收：
 

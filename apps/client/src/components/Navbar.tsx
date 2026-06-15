@@ -1,6 +1,7 @@
 import type { NotificationItem } from '@/api/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  AlertTriangle,
   Beaker,
   Bell,
   CheckCheck,
@@ -9,6 +10,7 @@ import {
   Code2,
   Film,
   FolderOpen,
+  Gauge,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -50,6 +52,8 @@ const TYPE_META: Record<string, { icon: typeof Bell, color: string }> = {
   canvas_completed: { icon: Film, color: 'text-blue-600' },
   balance_warning: { icon: Wallet, color: 'text-orange-600' },
   api_key_expired: { icon: Clapperboard, color: 'text-purple-600' },
+  api_key_quota: { icon: Gauge, color: 'text-orange-600' },
+  provider_anomaly: { icon: AlertTriangle, color: 'text-red-600' },
   system: { icon: Bell, color: 'text-muted-foreground' },
 }
 

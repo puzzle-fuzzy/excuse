@@ -109,7 +109,7 @@ export function createNotificationRoutes(config: ServerConfig) {
  */
 export async function pushNotification(opts: {
   accountId: string
-  type: 'balance_warning' | 'task_completed' | 'task_failed' | 'canvas_completed' | 'api_key_expired' | 'system'
+  type: 'balance_warning' | 'task_completed' | 'task_failed' | 'canvas_completed' | 'api_key_expired' | 'api_key_quota' | 'provider_anomaly' | 'system'
   title: string
   body?: string
   meta?: NotificationMeta
@@ -217,16 +217,66 @@ export async function notifyApiKeyRevoked(accountId: string, keyId: string) {
 }
 
 /**
- * Provider 连续失败系统通知
- * 冷却 1 小时。
+ * API Key 额度风险通知 — 覆盖「即将用尽（80%）」和「已用尽（100%）」两档。
+ *
+ * 由调用方传入 key 的当前/预估消耗与额度上限：
+ *   - percent ≥ 1   → 「额度已用尽」（type=api_key_quota），冷却 6 小时
+ *   - 0.8 ≤ percent < 1 → 「额度即将用尽」（type=api_key_quota），冷却 24 小时（状态粘性）
+ *   - percent < 0.8 → 不发送
+ *
+ * 已用尽优先于即将用尽：单次调用从 70% 跳到 100% 时只发「已用尽」。
+ * 前端按 type=api_key_quota 点击跳转到 /api-keys。
+ */
+export async function notifyApiKeyQuota(
+  accountId: string,
+  opts: { keyId: string, totalSpendCents: number, quotaMaxCents: number | null },
+) {
+  const { keyId, totalSpendCents, quotaMaxCents } = opts
+  if (quotaMaxCents === null || quotaMaxCents <= 0)
+    return
+
+  const percent = totalSpendCents / quotaMaxCents
+
+  // 已用尽（100%）— 优先
+  if (percent >= 1) {
+    if (!shouldSend(accountId, 'api_key_quota', `${keyId}:exceeded`, COOLDOWN_MS.apiKeyQuota))
+      return
+    return pushNotification({
+      accountId,
+      type: 'api_key_quota',
+      title: 'API Key 额度已用尽',
+      body: '该 Key 的额度已耗尽，后续 Gateway 调用将被拒绝（429）。请前往 API Keys 页提升额度、重置配额或更换 Key。',
+      meta: { keyId, percent },
+    })
+  }
+
+  // 即将用尽（≥80%）
+  if (percent >= 0.8) {
+    if (!shouldSend(accountId, 'api_key_quota', `${keyId}:approaching`, COOLDOWN_MS.apiKeyQuotaApproaching))
+      return
+    return pushNotification({
+      accountId,
+      type: 'api_key_quota',
+      title: 'API Key 额度即将用尽',
+      body: '该 Key 的额度已使用 80% 以上，请注意控制用量或提前提升额度，避免调用被拒。',
+      meta: { keyId, percent },
+    })
+  }
+}
+
+/**
+ * Provider / Gateway 调用异常通知 — 单次 provider 调用失败时触发，
+ * 供开发者侧感知「异常调用」。冷却 1 小时（per account+model）。
+ * 前端按 type=provider_anomaly 点击跳转到 /developers。
  */
 export async function notifyProviderFailure(accountId: string, model: string) {
-  if (!shouldSend(accountId, 'system', `provider_${model}`, COOLDOWN_MS.system))
+  if (!shouldSend(accountId, 'provider_anomaly', `provider_${model}`, COOLDOWN_MS.system))
     return
   return pushNotification({
     accountId,
-    type: 'system',
-    title: 'AI 服务异常',
-    body: `${model} 连续调用失败，请稍后重试或检查配置`,
+    type: 'provider_anomaly',
+    title: 'Gateway 调用异常',
+    body: `${model} 调用失败，请稍后重试；如持续失败请检查模型状态或集成配置。`,
+    meta: { model },
   })
 }

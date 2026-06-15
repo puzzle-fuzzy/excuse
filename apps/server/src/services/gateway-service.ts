@@ -16,7 +16,7 @@ import {
   insufficientBalanceError,
 } from '@excuse/gateway'
 import { extractBillingParams } from '@excuse/shared'
-import { notifyInsufficientBalance } from '../routes/notifications'
+import { notifyInsufficientBalance, notifyProviderFailure } from '../routes/notifications'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { audit } from './audit'
 import { recordGenerationStatus } from './metrics'
@@ -159,6 +159,9 @@ export async function handleGatewayChatCompletion(
     const message = error instanceof Error ? error.message : String(error)
     await markGenerationFailed(record.id, message)
     recordGenerationStatus('failed')
+
+    // Provider 调用异常通知（非阻塞，1h 冷却 per account+model）
+    notifyProviderFailure(userId, modelConfig.id).catch(() => {})
 
     if (estimatedCost.totalPriceCents > 0) {
       await refundCredit({

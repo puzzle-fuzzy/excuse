@@ -41,7 +41,7 @@ import { audit } from '../services/audit'
 import { handleGatewayChatCompletion } from '../services/gateway-service'
 import { recordGenerationStatus } from '../services/metrics'
 import { createDedupeKey } from '../utils/dedupe-key'
-import { notifyInsufficientBalance } from './notifications'
+import { notifyApiKeyQuota, notifyInsufficientBalance, notifyProviderFailure } from './notifications'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
 
@@ -101,9 +101,9 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
     modelConfig: ModelConfig
     validatedParams: ValidatedModelParameters
     request: OpenAIChatRequest
-    apiKeyId?: string
+    apiKeyMeta?: ApiKeyMeta
   }): Promise<Response> {
-    const { userId, modelConfig, validatedParams, request, apiKeyId } = opts
+    const { userId, modelConfig, validatedParams, request, apiKeyMeta } = opts
 
     const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
     const traceId = crypto.randomUUID()
@@ -242,8 +242,16 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           })
 
           // API Key 额度追踪（非阻塞）
-          if (apiKeyId && actualCost.totalPriceCents > 0) {
-            incrementApiKeySpend(apiKeyId, actualCost.totalPriceCents).catch(() => {})
+          if (apiKeyMeta && actualCost.totalPriceCents > 0) {
+            incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
+          }
+          // API Key 额度即将用尽（80%）预警（非阻塞；已用尽由下次请求的额度检查触发）
+          if (apiKeyMeta) {
+            notifyApiKeyQuota(userId, {
+              keyId: apiKeyMeta.id,
+              totalSpendCents: apiKeyMeta.totalSpendCents + actualCost.totalPriceCents,
+              quotaMaxCents: apiKeyMeta.quotaMaxCents,
+            }).catch(() => {})
           }
         }
         catch (error) {
@@ -256,6 +264,8 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           }
           await markGenerationFailed(recordId, message)
           recordGenerationStatus('failed')
+          // Provider 调用异常通知（非阻塞）
+          notifyProviderFailure(userId, modelConfig.id).catch(() => {})
           if (estimatedCost.totalPriceCents > 0) {
             await refundCredit({
               accountId: userId,
@@ -300,6 +310,12 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
         }
         const quotaErr = await checkApiKeyQuota(apiKeyMeta)
         if (quotaErr) {
+          // 额度已用尽通知（非阻塞）
+          notifyApiKeyQuota(userId, {
+            keyId: apiKeyMeta.id,
+            totalSpendCents: apiKeyMeta.totalSpendCents,
+            quotaMaxCents: apiKeyMeta.quotaMaxCents,
+          }).catch(() => {})
           set.status = quotaErr.status
           return quotaErr.response
         }
@@ -342,7 +358,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           modelConfig,
           validatedParams,
           request,
-          apiKeyId: apiKeyMeta?.id,
+          apiKeyMeta: apiKeyMeta ?? undefined,
         })
       }
 
@@ -370,6 +386,12 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       if (apiKeyMeta && result.usage) {
         const actualCost = calculateCost(modelConfig, extractBillingParams(validatedParams), result.usage)
         incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
+        // API Key 额度即将用尽（80%）预警（非阻塞）
+        notifyApiKeyQuota(userId, {
+          keyId: apiKeyMeta.id,
+          totalSpendCents: apiKeyMeta.totalSpendCents + actualCost.totalPriceCents,
+          quotaMaxCents: apiKeyMeta.quotaMaxCents,
+        }).catch(() => {})
       }
 
       return createOpenAIChatResponse({

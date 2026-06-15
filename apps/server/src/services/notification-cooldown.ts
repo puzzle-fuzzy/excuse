@@ -11,8 +11,10 @@
  * 默认冷却时间：
  *   - balance_warning: 5 分钟
  *   - task_completed / task_failed (同步任务): 3 秒
- *   - system: 1 小时
+ *   - system / provider_anomaly: 1 小时
  *   - api_key_expired: 24 小时
+ *   - api_key_quota（已用尽）: 6 小时
+ *   - api_key_quota（即将用尽 80%）: 24 小时（状态粘性，少发）
  *   - task_completed / task_failed (异步视频): 0（每次都发）
  *   - canvas_completed: 0（每次都发）
  */
@@ -23,6 +25,10 @@ export const COOLDOWN_MS = {
   syncTask: 3 * 1000,
   system: 60 * 60 * 1000,
   apiKeyExpired: 24 * 60 * 60 * 1000,
+  /** API Key 额度已用尽（100%）— 6 小时 */
+  apiKeyQuota: 6 * 60 * 60 * 1000,
+  /** API Key 额度即将用尽（80%）— 24 小时（状态粘性） */
+  apiKeyQuotaApproaching: 24 * 60 * 60 * 1000,
   none: 0,
 } as const
 

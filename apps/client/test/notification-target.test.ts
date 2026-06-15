@@ -127,6 +127,22 @@ describe('resolveNotificationTarget', () => {
       expect(url).toBe('/api-keys')
     })
 
+    it('api_key_quota → /api-keys（额度风险定位到 API Keys 页）', () => {
+      const url = resolveNotificationTarget(makeNotification({
+        type: 'api_key_quota',
+        meta: { keyId: 'key-1', percent: 1 },
+      }))
+      expect(url).toBe('/api-keys')
+    })
+
+    it('provider_anomaly → /developers（调用异常定位到开发者页）', () => {
+      const url = resolveNotificationTarget(makeNotification({
+        type: 'provider_anomaly',
+        meta: { model: 'qwen-max' },
+      }))
+      expect(url).toBe('/developers')
+    })
+
     it('system → undefined', () => {
       const url = resolveNotificationTarget(makeNotification({
         type: 'system',

@@ -72,6 +72,14 @@ describe('COOLDOWN_MS 常量', () => {
     expect(COOLDOWN_MS.apiKeyExpired).toBe(24 * 60 * 60 * 1000)
   })
 
+  it('apiKeyQuota（已用尽）= 6 小时', () => {
+    expect(COOLDOWN_MS.apiKeyQuota).toBe(6 * 60 * 60 * 1000)
+  })
+
+  it('apiKeyQuotaApproaching（即将用尽 80%）= 24 小时', () => {
+    expect(COOLDOWN_MS.apiKeyQuotaApproaching).toBe(24 * 60 * 60 * 1000)
+  })
+
   it('none = 0', () => {
     expect(COOLDOWN_MS.none).toBe(0)
   })

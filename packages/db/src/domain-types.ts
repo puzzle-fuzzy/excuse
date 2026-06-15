@@ -400,6 +400,12 @@ export interface NotificationMeta {
   assetId?: string
   /** 生成类别，辅助前端选择定位目标与图标 */
   category?: 'text' | 'image' | 'video' | 'subtitle'
+  /** API Key id — api_key_quota / api_key_expired 定位到 /api-keys */
+  keyId?: string
+  /** 模型 id — provider_anomaly 等系统风险定位辅助 */
+  model?: string
+  /** API Key 额度使用比例（0-1+）— api_key_quota 展示用 */
+  percent?: number
 }
 
 // ===== Subtitle Domain Types =====

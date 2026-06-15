@@ -12,7 +12,8 @@ import type { NotificationItem } from '@/api/notifications'
  *
  * canvas_completed 同样按 projectId / shotId 优先级解析，未带 meta 返回 undefined。
  * balance_warning 恒定跳 `/billing`。
- * api_key_expired 恒定跳 `/api-keys`。
+ * api_key_expired / api_key_quota 恒定跳 `/api-keys`。
+ * provider_anomaly 恒定跳 `/developers`。
  * system / 其他类型返回 undefined。
  *
  * 纯函数：不依赖 React / router / fetch；同 input 永远同 output。
@@ -23,8 +24,11 @@ export function resolveNotificationTarget(n: NotificationItem): string | undefin
   if (n.type === 'balance_warning')
     return '/billing'
 
-  if (n.type === 'api_key_expired')
+  if (n.type === 'api_key_expired' || n.type === 'api_key_quota')
     return '/api-keys'
+
+  if (n.type === 'provider_anomaly')
+    return '/developers'
 
   if (n.type === 'task_completed' || n.type === 'task_failed' || n.type === 'canvas_completed') {
     if (meta.projectId && meta.shotId)

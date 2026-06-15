@@ -11,6 +11,8 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'task_failed',
   'canvas_completed',
   'api_key_expired',
+  'api_key_quota',
+  'provider_anomaly',
   'system',
 ])
 
