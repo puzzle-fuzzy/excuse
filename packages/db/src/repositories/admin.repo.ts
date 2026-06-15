@@ -4,7 +4,7 @@ import { and, asc, between, count, desc, eq, ilike, inArray, ne, or, sql } from 
 import { getDb } from '../db'
 import { accounts, apiKeys, canvasPipelineRuns, canvasProjects, canvasShots, creditAccounts, generationRecords, tasks } from '../schema'
 import { listAdminApiKeysByAccount } from './api-keys.repo'
-import { listGatewayUsageRecords } from './generation-records.repo'
+import { cancelGenerationRecordIfActive, listGatewayUsageRecords } from './generation-records.repo'
 
 export interface AdminOverview {
   summary: AdminSummary
@@ -552,7 +552,18 @@ export async function cancelAdminTask(id: string): Promise<AdminTaskItem | null>
     .where(and(eq(tasks.id, id), inArray(tasks.status, CANCELLABLE_STATUSES)))
     .returning()
 
-  return updated ? serializeAdminTask(updated) : null
+  if (!updated)
+    return null
+
+  // 跨业务状态联动：级联取消关联 generation_record（仅非终态）。
+  // 修复 queued 态取消任务后关联记录滞留 processing 的 bug；running 态取消时若 worker
+  // 已完成并 markGenerationSucceeded，cancelGenerationRecordIfActive 跳过（不覆盖成功产物）。
+  // best-effort：任务已取消，级联失败不影响主操作（repo 无 logger，静默降级）。
+  if (updated.generationRecordId) {
+    await cancelGenerationRecordIfActive(updated.generationRecordId).catch(() => {})
+  }
+
+  return serializeAdminTask(updated)
 }
 
 // ── 用户级运营统计 ──────────────────────────────────────────────────────────

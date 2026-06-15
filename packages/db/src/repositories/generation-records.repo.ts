@@ -216,6 +216,32 @@ export async function cancelGenerationRecord(id: string) {
     .where(eq(generationRecords.id, id))
 }
 
+/** 非终态生成状态：仅这些状态的记录可被级联取消（避免覆盖已 succeeded/failed 的记录） */
+const ACTIVE_GENERATION_STATUSES = ['pending', 'submitting', 'processing', 'saving_output'] as const
+
+/**
+ * 仅当生成记录处于非终态（pending/submitting/processing/saving_output）时取消。
+ *
+ * 用于管理后台任务取消的跨业务级联：running 态取消任务时 worker 可能已完成并
+ * markGenerationSucceeded，此时不应把成功产物覆盖为 cancelled。
+ *
+ * @returns 是否实际取消（false = 记录已终态，跳过；true = 已置 cancelled）
+ */
+export async function cancelGenerationRecordIfActive(
+  id: string,
+  errorMessage = '管理员取消任务',
+): Promise<boolean> {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ status: 'cancelled', errorMessage, dedupeKey: null, updatedAt: new Date() })
+    .where(and(
+      eq(generationRecords.id, id),
+      inArray(generationRecords.status, [...ACTIVE_GENERATION_STATUSES]),
+    ))
+    .returning()
+  return !!updated
+}
+
 /**
  * 按 dedupeKey 查询记录，防止同参数重复提交
  */
