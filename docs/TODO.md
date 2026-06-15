@@ -117,7 +117,7 @@
 
 ### 4. OpenAI Gateway
 
-当前状态：正式开放策略仍未完成。
+当前状态：streaming + usage 查询已完成，开发者文档已更新；scope/quota/rate-limit 未实现。
 
 待办：
 
@@ -251,10 +251,10 @@
 
 - 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。
 - Storage 与 Asset 分层：`packages/storage` 只负责对象存取；资产记录、业务绑定、SSE 通知由 worker/service 完成。
-- Events：继续推进 domain event 与 user notification 分层；业务 service 只发布 domain event，不直接关心 SSE。
-- Workflow / Task：继续整理 pause/cancel/resume 的高层 command adapter；Canvas domain service 边界继续收口。
+- ✅ Events：domain event 与 user notification 分层已定型（generation_status / notification 两通道，SSE 桥接由 events package 统一处理）。业务 service 通过 notifyNotifyGeneration/notifyNotification 发布 domain event，不直接关心 SSE。
+- ✅ Workflow / Task：pause/resume/cancel/retry 的纯规则 guard 函数已完善（`canPausePipelineRun` / `canResumePipelineRun` / `canCancelPipelineRun` / `canRetryPipelineRun`）。`cancel` 有完整 adapter 实现；`pause`/`resume` adapter 接口已定义（`TaskPauseAdapter` + `pauseTaskWithAdapter`/`resumeTaskWithAdapter`），DB migration 待实际需要时补入。
 - ✅ Prompt / Canvas Engine：四个阶段（analysis / characters / locations / storyboard）+ server regenerate 已迁移为 `parseLLMJsonWithSchema` + 导出了 4 个 zod schema（commits: `600e0cf`、`e8c47f7`）。
-- Gateway：补 streaming adapter、provider 调用 service、usage/credit 协议测试和开发者中心开放策略。
+- ✅ Gateway streaming adapter + usage/credit 协议测试已完成。开发者文档已更新（streaming 标记已支持、Python 示例、用量概览展示）。Provider 调用 service 提取到 package 待后续推进。
 
 验收：
 
@@ -306,11 +306,12 @@
 
 1. ✅ 成熟库治理第一批：React Query 迁移、debounce 改造 —— 已完成。
 2. ✅ Model Lab 内部实验页、Canvas 新建项目消费默认偏好 —— 已完成。
-3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情 —— 已完成。
-4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成（Gateway 正式开放、API Key 随 Gateway 开放、管理后台展示 audit）。
-5. Package 治理剩余项：events、workflow command adapter、gateway streaming 协议测试、Canvas domain service 边界收口。
-6. Gateway + API Key 开放实现：scope / quota / rate limit、开发者文档、API Key 鉴权链路、管理后台 audit tab。
-7. Metrics / Health 生产级可观测性（线上排障文档、跨进程聚合）。
+3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情、审计日志 tab —— 已完成。
+4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成。
+5. ✅ Package 治理剩余项：events 分层已定型、workflow pause/resume adapter 接口已定义、Gateway streaming + usage + 开发者文档已补齐。
+6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路管理后台客户管理。
+7. Metrics / Health 生产级可观测性（跨进程聚合）。
+8. Package 治理深化：媒体处理任务化、Storage/Asset 分层、Gateway provider 调用 service 提取。
 
 ## 验收命令
 
