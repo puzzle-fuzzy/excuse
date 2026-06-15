@@ -253,7 +253,7 @@
 
 - app 层只保留 route、auth glue、任务创建、响应映射。
 - package 不依赖 Elysia、React，不直接读写 HTTP request。
-- package 内纯规则有独立单元测试。
+- package 内纯规则有独立单元测试（✅ 第一批：`canvas-failure.ts` 41 条 + `error.ts` 17 条，100% 覆盖率；commit: `2c7234e`）。
 
 ## P5：测试体系与可注入设计
 
