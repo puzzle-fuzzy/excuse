@@ -1,9 +1,9 @@
 import type { DashScopeClient } from '@excuse/provider'
 import type { CharacterProfile, NovelAnalysis } from '@excuse/shared'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
-import { validateCharacterProfile } from '@excuse/canvas-engine'
+import { characterProfileSchema } from '@excuse/canvas-engine'
 import { createCanvasCharacter } from '@excuse/db'
-import { buildCharacterPrompt, parseLLMJson } from '@excuse/prompt-engine'
+import { buildCharacterPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
 type CharacterRow = Awaited<ReturnType<typeof createCanvasCharacter>>
@@ -41,7 +41,7 @@ export async function generateCharacterEntity(input: CharacterEntityInput): Prom
     deps: input.textLlmDeps,
   })
 
-  const profile = validateCharacterProfile(parseLLMJson(text))
+  const profile = parseLLMJsonWithSchema(text, characterProfileSchema)
   const character = await createCanvasCharacter({
     projectId: input.projectId,
     name: profile.name || input.name,

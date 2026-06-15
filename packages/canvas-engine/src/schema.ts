@@ -96,7 +96,12 @@ function optRecord<T extends z.ZodTypeAny>(schema: T, def: z.output<T>) {
 
 // ── NovelAnalysis ────────────────────────────────────────────────────────────
 
-const novelAnalysisSchema = z.object({
+/**
+ * NovelAnalysis LLM 输出 schema（drives `validateNovelAnalysis`）。
+ * 同样可直接喂给 `@excuse/prompt-engine` 的 `parseLLMJsonWithSchema(raw, novelAnalysisSchema)`，
+ * 把「提取 JSON + 校验」收口为单次调用（见 canvas-runtime/phases/analysis.ts）。
+ */
+export const novelAnalysisSchema = z.object({
   summary: z.string(),
   mainConflict: z.string(),
   timeline: optStringArray,
@@ -140,7 +145,11 @@ const costumeSchema = z.object({
   details: optStringArray,
 })
 
-const characterProfileSchema = z.object({
+/**
+ * CharacterProfile LLM 输出 schema（drives `validateCharacterProfile`）。
+ * 可直接喂给 `parseLLMJsonWithSchema(raw, characterProfileSchema)`。
+ */
+export const characterProfileSchema = z.object({
   name: z.string(),
   role: optString,
   age: optString,
@@ -194,7 +203,11 @@ const cameraRulesSchema = z.object({
 
 const locationTypeEnum = z.enum(['interior', 'exterior', 'mixed'])
 
-const locationProfileSchema = z.object({
+/**
+ * LocationProfile LLM 输出 schema（drives `validateLocationProfile`）。
+ * 可直接喂给 `parseLLMJsonWithSchema(raw, locationProfileSchema)`。
+ */
+export const locationProfileSchema = z.object({
   name: z.string(),
   type: z.preprocess(
     v => (locationTypeEnum.options.includes(v as never) ? v : undefined),
@@ -316,7 +329,11 @@ const shotDraftSchema = z.object({
   environment: shotEnvironmentField,
 })
 
-const shotDraftsSchema = z.array(shotDraftSchema)
+/**
+ * ShotDraft[] LLM 输出 schema（drives `validateShotDrafts`）。
+ * 可直接喂给 `parseLLMJsonWithSchema(raw, shotDraftsSchema)`。
+ */
+export const shotDraftsSchema = z.array(shotDraftSchema)
   .min(1, '不能为空数组')
   .transform(shots => shots.map((shot, index) =>
     shot.shotIndex === undefined ? { ...shot, shotIndex: index } : shot,

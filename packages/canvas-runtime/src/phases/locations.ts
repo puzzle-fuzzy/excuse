@@ -1,9 +1,9 @@
 import type { DashScopeClient } from '@excuse/provider'
 import type { LocationProfile, NovelAnalysis } from '@excuse/shared'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
-import { validateLocationProfile } from '@excuse/canvas-engine'
+import { locationProfileSchema } from '@excuse/canvas-engine'
 import { createCanvasLocation } from '@excuse/db'
-import { buildLocationPrompt, parseLLMJson } from '@excuse/prompt-engine'
+import { buildLocationPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
 type LocationRow = Awaited<ReturnType<typeof createCanvasLocation>>
@@ -40,7 +40,7 @@ export async function generateLocationEntity(input: LocationEntityInput): Promis
     deps: input.textLlmDeps,
   })
 
-  const profile = validateLocationProfile(parseLLMJson(text))
+  const profile = parseLLMJsonWithSchema(text, locationProfileSchema)
   const location = await createCanvasLocation({
     projectId: input.projectId,
     name: profile.name || input.name,

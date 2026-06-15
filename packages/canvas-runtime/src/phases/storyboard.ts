@@ -1,9 +1,9 @@
 import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis, ShotDraft } from '@excuse/shared'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
-import { validateShotDrafts } from '@excuse/canvas-engine'
+import { shotDraftsSchema } from '@excuse/canvas-engine'
 import { batchCreateCanvasShots, deleteCanvasShotsByProject } from '@excuse/db'
-import { buildStoryboardPrompt, parseLLMJson } from '@excuse/prompt-engine'
+import { buildStoryboardPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
 type ShotRow = Awaited<ReturnType<typeof batchCreateCanvasShots>>[number]
@@ -47,7 +47,7 @@ export async function runStoryboardPhase(input: StoryboardPhaseInput): Promise<S
     deps: input.textLlmDeps,
   })
 
-  const shots = validateShotDrafts(parseLLMJson(text))
+  const shots = parseLLMJsonWithSchema(text, shotDraftsSchema)
 
   await deleteCanvasShotsByProject(input.projectId)
   const shotsCreated = await batchCreateCanvasShots(shots.map(shot => ({

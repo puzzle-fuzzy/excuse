@@ -1,14 +1,14 @@
 import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis } from '@excuse/shared'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
-import { validateNovelAnalysis } from '@excuse/canvas-engine'
+import { novelAnalysisSchema } from '@excuse/canvas-engine'
 import {
   deleteCanvasCharactersByProject,
   deleteCanvasLocationsByProject,
   deleteCanvasShotsByProject,
   updateCanvasProject,
 } from '@excuse/db'
-import { buildAnalysisPrompt, parseLLMJson } from '@excuse/prompt-engine'
+import { buildAnalysisPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
 /**
@@ -49,7 +49,7 @@ export async function runAnalysisPhase(input: AnalysisPhaseInput): Promise<Analy
     deps: input.textLlmDeps,
   })
 
-  const analysis = validateNovelAnalysis(parseLLMJson(text))
+  const analysis = parseLLMJsonWithSchema(text, novelAnalysisSchema)
   await updateCanvasProject(input.projectId, {
     status: 'analyzed',
     analysisJson: analysis,
