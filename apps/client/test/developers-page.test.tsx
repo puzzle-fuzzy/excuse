@@ -1,19 +1,46 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Developers from '../src/pages/Developers'
+
+// Developers 页内 UsageSection 用 useQuery 拉 GET /v1/usage；本测试只断言静态
+// 页面内容，故提供 QueryClientProvider + mock fetch 返回有效用量，避免真实网络
+// 请求与控制台错误噪声。
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+}
 
 function renderDevelopers() {
   return render(
-    <MemoryRouter>
-      <Developers />
-    </MemoryRouter>,
+    <QueryClientProvider client={makeQueryClient()}>
+      <MemoryRouter>
+        <Developers />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      totalCalls: 0,
+      succeededCalls: 0,
+      failedCalls: 0,
+      totalTokens: 0,
+      totalPriceCents: 0,
+      recent: [],
+    }),
+  }))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('developers page', () => {
@@ -35,7 +62,8 @@ describe('developers page', () => {
   it('shows model aliases including gpt-4o-mini and qwen-plus', () => {
     renderDevelopers()
     expect(screen.getByText('gpt-4o-mini')).toBeInTheDocument()
-    expect(screen.getByText('qwen-plus')).toBeInTheDocument()
+    // qwen-plus 在定价表与多处 action 文案中重复出现，用 getAllByText 容忍多次匹配
+    expect(screen.getAllByText('qwen-plus').length).toBeGreaterThan(0)
     expect(screen.getByText('gpt-4o')).toBeInTheDocument()
     expect(screen.getAllByText('qwen-max').length).toBeGreaterThan(0)
   })
@@ -90,6 +118,7 @@ describe('developers page', () => {
   it('shows action hints for insufficient_balance and stream_not_supported', () => {
     renderDevelopers()
     expect(screen.getByText(/充值后重试/)).toBeInTheDocument()
-    expect(screen.getByText(/关闭 stream 参数/)).toBeInTheDocument()
+    // stream_not_supported 当前 action hint：提示哪些模型支持 streaming
+    expect(screen.getByText(/部分旧模型不支持 stream/)).toBeInTheDocument()
   })
 })
