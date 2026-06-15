@@ -17,6 +17,10 @@ export interface WorkerConfig {
   sweepIntervalMs: number
   /** OSS 配置（可选） */
   oss: OSSConfig | undefined
+  /** /metrics 端点访问 token（可选）；配置后所有访问必须带 Bearer（与 server 一致） */
+  metricsAccessToken: string | undefined
+  /** /metrics 端点允许的 CIDR / IP 列表（默认仅回环） */
+  metricsAllowedCidrs: string[]
 }
 
 /**
@@ -33,6 +37,8 @@ export function loadConfig(): WorkerConfig {
     claimTtlMs,
     sweepIntervalMs: Number(process.env.WORKER_SWEEP_INTERVAL_MS) || 60_000,
     oss: loadOSSConfig(),
+    metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
+    metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128').split(',').map(s => s.trim()).filter(Boolean),
   }
 
   if (process.env.NODE_ENV === 'production') {

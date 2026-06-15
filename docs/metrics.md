@@ -12,14 +12,21 @@
 
 ## Prometheus scrape config 示例
 
+server（5007）和 worker（5100）是独立进程，各自暴露 `/metrics`。Prometheus 抓取两个 target，通过自动附加的 `instance` label 区分；同名 counter（如 `excuse_provider_calls_total`）用 `sum by (model)(...)` 即可跨进程聚合。
+
 ```yaml
 scrape_configs:
   - job_name: excuse
-    static_configs:
-      - targets: ['localhost:5007']
     scheme: http
     bearer_token: <METRICS_ACCESS_TOKEN>   # 仅在配置 token 时需要
+    static_configs:
+      - targets: ['localhost:5007']        # server 进程
+        labels: { process: 'server' }
+      - targets: ['localhost:5100']        # worker 进程（WORKER_HEALTH_PORT）
+        labels: { process: 'worker' }
 ```
+
+> worker 的 `/metrics` 挂在 health server 上（`WORKER_HEALTH_PORT`，默认 5100），访问策略与 server 一致（默认仅回环，配置 `METRICS_ACCESS_TOKEN` 后需 Bearer）。
 
 ## 暴露的指标
 
@@ -34,9 +41,28 @@ scrape_configs:
 
 JSON 格式指标仍保留在 `GET /api/health/metrics`（开发调试用，不暴露 Prometheus 字段）。
 
+## Worker 进程指标（`GET /metrics` @ :5100）
+
+worker 进程在自己的 health server（`WORKER_HEALTH_PORT`，默认 5100）上暴露 `/metrics`，与 server 同协议、同访问策略。输出两类 family：
+
+- **provider 调用**（与 server 同名，Prometheus 自动按 `instance` 聚合）：
+  - `excuse_provider_calls_total{model,status}` — worker 侧 DashScope 调用计数
+  - `excuse_provider_latency_seconds{model,quantile}` — worker 侧调用延迟（p50/p95/avg）
+- **worker 运行时**（仅 worker target 输出）：
+  - `excuse_worker_uptime_seconds` — worker 进程运行时长（秒）
+  - `excuse_worker_polling` — 是否在轮询主循环（1/0）
+  - `excuse_worker_busy` — 是否正在执行任务（1/0）
+  - `excuse_worker_tasks_claimed_total` — 累计 claim 任务数（counter）
+  - `excuse_worker_tasks_processed_total` — 累计处理完成数（counter）
+  - `excuse_worker_orphan_sweeps_total` — 累计 orphan sweep 次数（counter）
+  - `excuse_worker_last_poll_ok` — 最近一次轮询是否成功（1/0，首次轮询前为 0）
+  - `excuse_worker_last_poll_timestamp_seconds` — 最近一次轮询时间戳（秒；从未轮询为 NaN）。告警：`time() - excuse_worker_last_poll_timestamp_seconds > 300`
+
+worker 侧的 DashScope 调用通过 `registerProviderCallObserver`（启动时注册，覆盖全部 DashScopeClient 实例）接入 worker 本地 `MetricsCollector`，随后经本端点暴露。
+
 ## 已知限制（v1）
 
-- 仅暴露 server 进程内 `MetricsCollector` 的指标；worker 异步任务终态不聚合（架构边界，非缺陷）。
+- server 与 worker 是独立进程，各自维护内存态 `MetricsCollector`；跨进程聚合依赖 Prometheus 多 target 抓取（见上方 scrape config），由 `instance` label 区分。ASR 字幕调用走独立的 `ASRClient`，未接入 provider observer，暂不进入 `excuse_provider_calls_total`（后续补并行 observer API）。
 - CIDR 解析为简化实现，仅支持：
   - `127.0.0.0/8`（IPv4 回环段）
   - `::1` 或 `::1/128`（IPv6 回环精确匹配）
@@ -81,7 +107,24 @@ curl -s http://localhost:5007/api/health
 
 ### 3. Worker 是否工作
 
-Worker 健康检查当前依赖以下间接信号：
+最直接的方式是抓 worker 自身的 `/metrics`（端口 5100）：
+
+```bash
+# worker 进程存活 + 是否在轮询
+curl -s http://localhost:5100/metrics | grep -E '^excuse_worker_(uptime_seconds|polling|busy)'
+# excuse_worker_uptime_seconds 3600
+# excuse_worker_polling 1
+# excuse_worker_busy 1
+
+# 最近轮询是否正常（last_poll_ok=1 且时间戳新鲜）
+curl -s http://localhost:5100/metrics | grep -E '^excuse_worker_last_poll'
+# excuse_worker_last_poll_ok 1
+# excuse_worker_last_poll_timestamp_seconds 1781481600
+```
+
+`excuse_worker_uptime_seconds` 不增长 → worker 未启动 / 崩溃；`excuse_worker_last_poll_timestamp_seconds` 停滞 → worker 卡死（`time() - timestamp > 300` 可告警）。
+
+补充间接信号（从 server `/metrics` 看队列终态产出）：
 
 ```bash
 # 检查任务队列中有终态（failed/succeeded）产出——说明 worker 在处理
@@ -171,5 +214,7 @@ curl -s http://localhost:5007/metrics | grep -E '^(excuse_uptime_seconds|excuse_
 
 ### 已知局限
 
-- Provider 指标目前仅聚合 server 进程内的调用数据；worker 发起的 provider 调用（视频生成等异步路径）不进入 `excuse_provider_calls_total`。跨进程聚合待 Prometheus federation 或 metrics push 机制引入后补齐。
+- **跨进程聚合**：server 与 worker 各自暴露 `/metrics`（5007 / 5100），Prometheus 抓取两个 target 后由 `instance` label 区分；`sum by (model)(excuse_provider_calls_total)` 等查询自动聚合两进程。worker 的视频/图片/文本生成 provider 调用现已纳入。
+- **ASR 未覆盖**：`ASRClient`（字幕转录）未接入 provider observer，其调用暂不进 provider 指标。
+- **admin 后台 Provider tab**：`GET /api/admin/providers` 直接读 server 进程内 `getProviderCallsSnapshot()` 合并延迟，仍只反映 server 侧；worker 侧 provider 延迟需经 Prometheus 查看（admin UI 跨进程合并待后续）。
 - DB derived 指标（`excuse_canvas_phase_total` / `excuse_task_queue_depth`）的时效性取决于指标 scrape 间隔；默认 24 小时窗口。

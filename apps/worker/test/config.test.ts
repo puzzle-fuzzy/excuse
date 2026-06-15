@@ -32,6 +32,8 @@ describe('loadConfig', () => {
     delete process.env.STORAGE_ROOT
     delete process.env.WORKER_POLL_INTERVAL_MS
     delete process.env.WORKER_STALE_TIMEOUT_MS
+    delete process.env.METRICS_ACCESS_TOKEN
+    delete process.env.METRICS_ALLOWED_CIDRS
 
     const config = loadConfig()
 
@@ -40,6 +42,8 @@ describe('loadConfig', () => {
     expect(config.storageRoot).toBe('./uploads')
     expect(config.pollIntervalMs).toBe(5000)
     expect(config.staleTimeoutMs).toBe(4 * 60 * 60 * 1000)
+    expect(config.metricsAccessToken).toBeUndefined()
+    expect(config.metricsAllowedCidrs).toEqual(['127.0.0.1/32', '::1/128'])
   })
 
   it('从环境变量读取值', () => {
@@ -48,6 +52,8 @@ describe('loadConfig', () => {
     process.env.STORAGE_ROOT = '/data/files'
     process.env.WORKER_POLL_INTERVAL_MS = '10000'
     process.env.WORKER_STALE_TIMEOUT_MS = '7200000'
+    process.env.METRICS_ACCESS_TOKEN = 'metrics-token'
+    process.env.METRICS_ALLOWED_CIDRS = '10.0.0.5/32, 8.8.8.8'
 
     const config = loadConfig()
 
@@ -56,6 +62,9 @@ describe('loadConfig', () => {
     expect(config.storageRoot).toBe('/data/files')
     expect(config.pollIntervalMs).toBe(10000)
     expect(config.staleTimeoutMs).toBe(7200000)
+    expect(config.metricsAccessToken).toBe('metrics-token')
+    // split + trim + filter 空段
+    expect(config.metricsAllowedCidrs).toEqual(['10.0.0.5/32', '8.8.8.8'])
   })
 
   it('无效数字环境变量时优雅回退', () => {

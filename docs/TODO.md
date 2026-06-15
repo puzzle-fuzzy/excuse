@@ -141,7 +141,7 @@
 - ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `9b0a37a`）。
 - ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
 - ✅ 线上排障检查命令或文档（`docs/metrics.md` §线上排障检查；cover 7 个场景：存活/DB/Worker/积压/Provider/Canvas/HTTP；commit: `0df806f`）。
-- ✅ Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
+- ✅ 跨进程聚合：worker 进程注册 provider observer + 在 health server（端口 5100）暴露 `/metrics`（provider 调用统计 + 8 个 `excuse_worker_*` family）；server 的访问策略（`isAllowedIp` + token 校验）下沉到 `@excuse/metrics`（`evaluateMetricsAccess`），server/worker 共用。Prometheus 多 target 抓取（server:5007 + worker:5100），通过自动 `instance` label 聚合两进程的 `excuse_provider_calls_total` 等。剩余 follow-up：ASRClient 未接入 observer；admin Provider tab 仍只读 server in-process latency。
 
 验收：
 
@@ -311,7 +311,7 @@
 4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成。
 5. ✅ Package 治理剩余项：events 分层已定型、workflow pause/resume adapter 接口已定义、Gateway streaming + usage + 开发者文档已补齐。
 6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路、Gateway 客户管理。
-7. Metrics / Health 生产级可观测性（跨进程聚合）。
+7. ✅ Metrics / Health 生产级可观测性（跨进程聚合）：worker `/metrics` + provider observer + `@excuse/metrics` 访问策略下沉已完成。
 8. ✅ Package 治理深化：媒体处理任务化（`media.extract-audio` + `media.burn-subtitle` 已完成）、Storage/Asset 分层、Gateway provider 调用 service 提取。
 
 ## 验收命令

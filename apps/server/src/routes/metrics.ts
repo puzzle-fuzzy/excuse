@@ -1,6 +1,6 @@
 import type { ServerConfig } from '../config'
 import { getCanvasPhaseStats, getTaskQueueStats } from '@excuse/db'
-import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
+import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics, evaluateMetricsAccess, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
 import { Elysia } from 'elysia'
 import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'
@@ -13,64 +13,6 @@ let startTime = Date.now()
 /** 测试用：重置 uptime 起点 */
 export function resetMetricsStartTime() {
   startTime = Date.now()
-}
-
-/**
- * 简化版 CIDR / IP 匹配（v1 不引入第三方库）。
- *
- * 支持的 CIDR 形态：
- * - `127.0.0.0/8`：IPv4 回环段（127.x.x.x 全部允许）
- * - `::1/128` 或 `::1`：IPv6 回环精确匹配
- * - 完整 IPv4 / IPv6 字符串等值（如 `10.0.0.5/32`、`10.0.0.5`、`fe80::1`）
- *
- * **不支持**：任意非 `/8`/`/32`/`/128` 的 IPv4 段（如 `10.0.0.0/24`）、IPv6 段（`fe80::/64`）。
- * 生产环境需要复杂 CIDR 时建议在反向代理层做 IP 白名单。
- */
-export function isAllowedIp(remoteIp: string, allowedCidrs: string[]): boolean {
-  if (!remoteIp)
-    return false
-  const ip = remoteIp.trim()
-
-  for (const cidr of allowedCidrs) {
-    const normalized = cidr.trim()
-    if (!normalized)
-      continue
-
-    if (normalized.includes('/')) {
-      const [base, prefixStr] = normalized.split('/')
-      const prefix = Number(prefixStr)
-
-      if (base && base.includes(':')) {
-        // IPv6 仅支持 ::1/128 精确匹配
-        if (prefix === 128 && base === '::1' && ip === '::1')
-          return true
-        continue
-      }
-
-      if (base && prefix === 8) {
-        const segments = base.split('.')
-        if (segments.length === 4 && segments[0] && ip.includes('.')) {
-          const ipSegments = ip.split('.')
-          if (ipSegments.length === 4 && ipSegments[0] === segments[0])
-            return true
-        }
-        continue
-      }
-
-      if (base && prefix === 32) {
-        if (ip === base)
-          return true
-        continue
-      }
-      continue
-    }
-
-    // 无前缀的 CIDR：当成精确 IP 等值匹配
-    if (ip === normalized)
-      return true
-  }
-
-  return false
 }
 
 /**
@@ -90,27 +32,21 @@ export function createMetricsRoutes(config: ServerConfig) {
       const xff = request.headers.get('x-forwarded-for')
       const remoteIp = xff?.split(',')[0]?.trim() ?? ''
 
-      const ipAllowed = isAllowedIp(remoteIp, config.metricsAllowedCidrs)
-      const hasToken = Boolean(config.metricsAccessToken)
-
-      // 1. IP 不在白名单时：未配置 token → 403；配置了 token → 进入 token 校验
-      if (!ipAllowed && !hasToken) {
-        set.status = 403
-        return 'Forbidden'
+      // 访问策略下沉到 @excuse/metrics（与 worker /metrics 共用）
+      const access = evaluateMetricsAccess({
+        remoteIp,
+        authHeader: request.headers.get('authorization'),
+        allowedCidrs: config.metricsAllowedCidrs,
+        token: config.metricsAccessToken,
+      })
+      if (!access.allowed) {
+        set.status = access.denyStatus
+        if (access.wwwAuthenticate)
+          set.headers['www-authenticate'] = access.wwwAuthenticate
+        return access.denyBody
       }
 
-      // 2. 配置了 token 时：必须 Bearer 匹配（IP 白名单通过的也要带 token，避免误开放）
-      if (hasToken) {
-        const auth = request.headers.get('authorization') ?? ''
-        const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : ''
-        if (token !== config.metricsAccessToken) {
-          set.status = 401
-          set.headers['www-authenticate'] = 'Bearer realm="metrics"'
-          return 'Unauthorized'
-        }
-      }
-
-      // 3. 序列化为 prometheus exposition format
+      // 序列化为 prometheus exposition format
       const uptime = Math.floor((Date.now() - startTime) / 1000)
       const snapshot = getMetrics(getOnlineUserCount(), uptime)
       const inProcessMetrics = snapshotToPrometheus(snapshot)

@@ -1,19 +1,32 @@
 import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
-import { ASRClient, checkFFmpegAsync } from '@excuse/provider'
+import { ASRClient, checkFFmpegAsync, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { loadConfig } from './config'
 import { createHealthServer } from './health'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
+import { getProviderCallsSnapshot, recordProviderCall } from './services/metrics'
 import { processASRTask } from './subtitle-processor'
 import { handleTask, handleTaskError } from './task-handler'
 import { createTaskProcessor } from './task-processor'
 
 const config = loadConfig()
 const processor = createTaskProcessor(config)
+
+/**
+ * 把 DashScopeClient 的所有调用接入 worker 进程内 metrics 收集器。
+ *
+ * 与 server（`apps/server/src/index.ts`）平行：每个进程独立注册 observer 到各自的
+ * `MetricsCollector`。worker 侧覆盖 canvas 全链路 + 视频任务轮询的 provider 调用，
+ * 经 worker `/metrics`（端口 5100）暴露给 Prometheus，与 server `/metrics`（5007）
+ * 多 target 抓取聚合。
+ */
+registerProviderCallObserver((model, durationMs, success) => {
+  recordProviderCall(model, durationMs, success)
+})
 const asrClient = new ASRClient({
   apiKey: config.dashscopeApiKey,
   baseUrl: config.dashscopeBaseUrl,
@@ -51,7 +64,11 @@ const healthState: WorkerHealthState = {
 }
 
 const healthPort = Number(process.env.WORKER_HEALTH_PORT) || 5100
-createHealthServer(healthState, healthPort)
+createHealthServer(healthState, healthPort, {
+  providerCallsSnapshot: getProviderCallsSnapshot,
+  metricsAllowedCidrs: config.metricsAllowedCidrs,
+  metricsAccessToken: config.metricsAccessToken,
+})
 
 // ── 优雅退出 ──────────────────────────────────────────
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

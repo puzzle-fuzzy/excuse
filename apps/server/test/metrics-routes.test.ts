@@ -1,7 +1,7 @@
 import type { MetricsSnapshot } from '@excuse/metrics'
 import { describe, expect, it, mock } from 'bun:test'
 import { Elysia } from 'elysia'
-import { createMetricsRoutes, isAllowedIp } from '../src/routes/metrics'
+import { createMetricsRoutes } from '../src/routes/metrics'
 import { makeTestConfig } from './helpers/test-factory'
 
 /** 结构类型 — 避免与 Elysia 携带路由元数据的全泛型实例冲突 */
@@ -166,39 +166,6 @@ describe('GET /metrics', () => {
       expect(body).toContain(`# HELP ${name}`)
       expect(body).toMatch(new RegExp(`# TYPE ${name} (counter|gauge)`))
     }
-  })
-})
-
-describe('isAllowedIp', () => {
-  it('默认回环白名单接受 127.x.x.x', () => {
-    expect(isAllowedIp('127.0.0.1', ['127.0.0.0/8'])).toBe(true)
-    expect(isAllowedIp('127.255.255.255', ['127.0.0.0/8'])).toBe(true)
-  })
-
-  it('默认回环白名单接受 ::1', () => {
-    expect(isAllowedIp('::1', ['::1/128'])).toBe(true)
-  })
-
-  it('非白名单 IP 拒绝', () => {
-    expect(isAllowedIp('8.8.8.8', ['127.0.0.0/8', '::1/128'])).toBe(false)
-  })
-
-  it('完整 IPv4 /32 等值匹配', () => {
-    expect(isAllowedIp('10.0.0.5', ['10.0.0.5/32'])).toBe(true)
-    expect(isAllowedIp('10.0.0.6', ['10.0.0.5/32'])).toBe(false)
-  })
-
-  it('无前缀 CIDR 按精确 IP 等值匹配', () => {
-    expect(isAllowedIp('10.0.0.5', ['10.0.0.5'])).toBe(true)
-    expect(isAllowedIp('10.0.0.6', ['10.0.0.5'])).toBe(false)
-  })
-
-  it('不支持的 IPv4 段（/24）→ 即使命中前缀也拒绝', () => {
-    expect(isAllowedIp('10.0.0.5', ['10.0.0.0/24'])).toBe(false)
-  })
-
-  it('空字符串 IP 拒绝', () => {
-    expect(isAllowedIp('', ['127.0.0.0/8'])).toBe(false)
   })
 })
 

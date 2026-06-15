@@ -230,6 +230,8 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, idx)]!
 }
 
+export * from './access'
 export * from './db-derived'
 export * from './prometheus'
 export * from './provider-derived'
+export * from './worker-derived'
