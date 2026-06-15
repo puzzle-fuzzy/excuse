@@ -13,23 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { formatRelativeTime } from '@/lib/format-time'
 import { formatCents } from '@/lib/generation-utils'
-
-function formatRelativeTime(iso: string | null): string {
-  if (!iso)
-    return '从未使用'
-  const diff = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diff / 60000)
-  if (min < 1)
-    return '刚刚'
-  if (min < 60)
-    return `${min} 分钟前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24)
-    return `${hr} 小时前`
-  const day = Math.floor(hr / 24)
-  return `${day} 天前`
-}
 
 async function copyToClipboard(text: string) {
   try {
@@ -240,7 +225,7 @@ export default function ApiKeys() {
                         {formatRelativeTime(key.createdAt)}
                         {'  '}
                         上次使用：
-                        {formatRelativeTime(key.lastUsedAt)}
+                        {key.lastUsedAt ? formatRelativeTime(key.lastUsedAt) : '从未使用'}
                       </p>
                       {/* 限流和额度信息 */}
                       <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">

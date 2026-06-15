@@ -29,6 +29,7 @@ import {
   markNotificationRead,
 } from '@/api/notifications'
 import { notificationQueryKeys } from '@/api/query-client'
+import { formatRelativeTime } from '@/lib/format-time'
 import { resolveNotificationTarget } from '@/lib/notification-target'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from './ui/button'
@@ -55,20 +56,6 @@ const TYPE_META: Record<string, { icon: typeof Bell, color: string }> = {
   api_key_quota: { icon: Gauge, color: 'text-orange-600' },
   provider_anomaly: { icon: AlertTriangle, color: 'text-red-600' },
   system: { icon: Bell, color: 'text-muted-foreground' },
-}
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const min = Math.floor(diff / 60000)
-  if (min < 1)
-    return '刚刚'
-  if (min < 60)
-    return `${min} 分钟前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24)
-    return `${hr} 小时前`
-  const day = Math.floor(hr / 24)
-  return `${day} 天前`
 }
 
 export default function Navbar() {
