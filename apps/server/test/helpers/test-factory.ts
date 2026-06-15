@@ -59,6 +59,8 @@ export function makeRecord(overrides: Partial<GenerationRecordRow> = {}): Genera
     cost: { unit: 'token', totalPriceCents: 1, totalPrice: 0.01 },
     errorMessage: null,
     dedupeKey: null,
+    cancelRequestedAt: null,
+    providerCancelStatus: 'not_requested',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,

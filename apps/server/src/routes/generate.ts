@@ -53,6 +53,14 @@ export function createGenerateRoutes(config: ServerConfig) {
   })
   const deps: svc.GenerationDependencies = { client, storage }
 
+  const PROVIDER_CANCEL_STATUSES = ['not_requested', 'no_task', 'requested', 'succeeded', 'failed'] as const
+
+  function serializeProviderCancelStatus(status: string): GenerationRecord['providerCancelStatus'] {
+    return (PROVIDER_CANCEL_STATUSES as readonly string[]).includes(status)
+      ? status as GenerationRecord['providerCancelStatus']
+      : 'not_requested'
+  }
+
   /** 从 DB 行序列化为前端兼容的 GenerationRecord（Date→string） */
   function serializeRecord(record: GenerationRecordRow): GenerationRecord {
     return {
@@ -60,6 +68,8 @@ export function createGenerateRoutes(config: ServerConfig) {
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
       hiddenAt: record.hiddenAt?.toISOString() ?? null,
+      cancelRequestedAt: record.cancelRequestedAt?.toISOString() ?? null,
+      providerCancelStatus: serializeProviderCancelStatus(record.providerCancelStatus),
     }
   }
 

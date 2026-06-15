@@ -133,6 +133,8 @@ export interface GenerationRecord {
   traceId: string | null
   dedupeKey: string | null
   hiddenAt: string | null
+  cancelRequestedAt: string | null
+  providerCancelStatus: 'not_requested' | 'no_task' | 'requested' | 'succeeded' | 'failed'
   createdAt: string
   updatedAt: string
 }

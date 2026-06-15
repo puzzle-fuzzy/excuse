@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Provider 取消状态可见化 (P1-1，本提交)**：`generation_records` 新增 `cancel_requested_at` 与 `provider_cancel_status`（migration `0030_steady_cancel_visibility`），取消路径会记录 `no_task` / `succeeded` / `failed`，即使 provider 取消失败也保留本地取消和退款语义；`GenerationRecord` DTO 与序列化补出 `cancelRequestedAt`、`providerCancelStatus`。Workspace 生成记录卡片在 cancelled 状态下展示“本地已取消 / provider 已确认取消 / provider 取消失败，后续结果会被忽略”等提示。补 server cancel route 测试覆盖 provider 取消成功、无 provider task、provider 取消失败三类路径。对应 TODO 已删除。
+
 - **Canvas videos worker 提交幂等 (P1-1 部分完成，本提交)**：`canvas_assets` repository 新增 `findReusableCanvasAssetForPipelineTarget()`，worker 执行 Canvas `videos` phase 时按 `pipelineRunId + shotId + category` 复用已有非失败 `shotVideo` asset；如果既有 asset 已绑定 provider task、shot 已有 `videoTaskId` 或资产已成功，则跳过再次调用 provider，避免 worker 崩溃重试时为同一 run/shot 生成重复 Canvas asset 或重复提交已绑定任务。若已有 queued asset 但尚未绑定 provider task，则复用同一 asset 继续提交。补 `apps/worker/test/canvas-videos.test.ts` 覆盖已绑定跳过、queued 复用、新建提交三条路径；TODO 已收窄为剩余 provider 取消状态可见化。
 
 - **生产数据迁移和资产一致性门禁 (P0-4，本提交)**：新增只读 `bun run check:assets` 脚本，扫描 `generation_records` / `canvas_assets` / `uploaded_files` 与本地 `STORAGE_ROOT` 的一致性，报告 `missing_file`、`dangling_file`、`hidden_but_referenced`，并支持 `--json`、`--fail-on-issues`、`--storage-root`；纯函数覆盖 URL 提取、本地路径映射、shot 引用收集和综合报告。`docs/deployment.md` 补生产 migration-only 发布顺序：发布前 `pg_dump` 备份、只运行 `db:migrate`、新进程启动前跑资产检查、失败时停止发布或按备份 `pg_restore` 回滚，并明确高风险 schema 变更使用 expand/migrate/contract。对应 TODO 已删除。

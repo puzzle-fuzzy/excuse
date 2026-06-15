@@ -10,6 +10,8 @@ function normalizeRecord(raw: GenerationRecord): GenerationRecord {
     ...raw,
     outputResult: raw.outputResult ? parseOutputResult(raw.outputResult) : raw.outputResult,
     cost: raw.cost ? parseCostDetail(raw.cost) : raw.cost,
+    cancelRequestedAt: raw.cancelRequestedAt ?? null,
+    providerCancelStatus: raw.providerCancelStatus ?? 'not_requested',
   }
 }
 

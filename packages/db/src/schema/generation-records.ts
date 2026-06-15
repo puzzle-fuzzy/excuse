@@ -93,6 +93,12 @@ export const generationRecords = pgTable('generation_records', {
   /** 从资产中心隐藏的时间（null = 未隐藏，仍出现在资产列表） */
   hiddenAt: timestamp('hidden_at', { withTimezone: true }),
 
+  /** 用户请求取消的时间（null = 未请求取消） */
+  cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
+
+  /** provider 侧取消状态：not_requested / no_task / requested / succeeded / failed */
+  providerCancelStatus: varchar('provider_cancel_status', { length: 50 }).default('not_requested').notNull(),
+
   /** 创建时间 */
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 

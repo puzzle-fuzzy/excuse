@@ -234,11 +234,17 @@ export async function cancelGeneration(
   const { client } = deps
 
   // 尝试在 provider 侧取消（best-effort）
+  let providerCancelStatus: 'no_task' | 'succeeded' | 'failed' = 'no_task'
   if (record.taskId) {
-    await client.cancelTask(record.taskId)
+    try {
+      providerCancelStatus = await client.cancelTask(record.taskId) ? 'succeeded' : 'failed'
+    }
+    catch {
+      providerCancelStatus = 'failed'
+    }
   }
 
-  await cancelGenerationRecord(recordId)
+  await cancelGenerationRecord(recordId, providerCancelStatus)
   recordGenerationStatus('cancelled')
   await refundReservedCredit({
     accountId,

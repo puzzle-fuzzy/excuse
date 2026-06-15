@@ -40,6 +40,7 @@ const mockCalculateCost = mock<() => Record<string, unknown>>(() => ({ unit: 'to
 const mockGenerate = mock<(model: string, params: Record<string, unknown>, refs?: string[]) => Promise<MockProviderResult>>(() =>
   Promise.resolve({ type: 'failed', success: false, error: 'mock error' }),
 )
+const mockCancelTask = mock(() => Promise.resolve(true))
 const mockNotifyStatus = mock<(payload: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetUploadedFilesByIdsForAccount = mock<(ids: string[], accountId: string) => Promise<unknown[]>>(() => Promise.resolve([]))
 const mockCancelRecord = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
@@ -67,7 +68,7 @@ mock.module('@excuse/db', () => ({
 mock.module('@excuse/provider', () => ({
   DashScopeClient: class {
     generate = mockGenerate
-    cancelTask = mock(() => Promise.resolve(undefined))
+    cancelTask = mockCancelTask
   },
   getModelById: (id: string) => {
     const models: Record<string, unknown> = {
@@ -93,6 +94,13 @@ mock.module('@excuse/provider', () => ({
 
 mock.module('@excuse/billing', () => ({
   calculateCost: mockCalculateCost,
+  getBillingPolicy: mock(() => ({
+    mode: 'credit-ledger',
+    lifecycle: ['reserve', 'debit', 'refund'],
+    usageEventRequired: true,
+    generationRecordRequired: true,
+  })),
+  assertCreditLedgerPolicy: mock(() => undefined),
 }))
 
 // eslint-disable-next-line import/first
@@ -135,6 +143,7 @@ describe('generate 路由 — 重试与取消', () => {
       mockRefundCredit,
       mockCalculateCost,
       mockGenerate,
+      mockCancelTask,
       mockNotifyStatus,
       mockGetUploadedFilesByIdsForAccount,
       mockCancelRecord,
@@ -146,6 +155,7 @@ describe('generate 路由 — 重试与取消', () => {
 
     const app = createGenerateRoutes(testConfig)
     client = treaty(app)
+    mockCancelTask.mockResolvedValue(true)
   })
 
   // ═══════════════════════════════════════════════════
@@ -358,7 +368,8 @@ describe('generate 路由 — 重试与取消', () => {
       )
 
       expect(data?.success).toBe(true)
-      expect(mockCancelRecord).toHaveBeenCalledWith('rec-proc-001')
+      expect(mockCancelTask).toHaveBeenCalledWith('gen_proc_task')
+      expect(mockCancelRecord).toHaveBeenCalledWith('rec-proc-001', 'succeeded')
       expect(mockRefundCredit).toHaveBeenCalledWith(expect.objectContaining({
         accountId: 'acc-001',
         generationRecordId: 'rec-proc-001',
@@ -366,11 +377,17 @@ describe('generate 路由 — 重试与取消', () => {
       expect(mockNotifyStatus).toHaveBeenCalled()
     })
 
-    it('成功取消 pending 任务', async () => {
-      const record = makeProcessingRecord({ status: 'pending' })
+    it('成功取消 pending 任务并记录 no_task', async () => {
+      const record = makeProcessingRecord({ status: 'pending', taskId: null, outputResult: null })
       mockGetRecordById
         .mockResolvedValueOnce(record)
-        .mockResolvedValueOnce({ ...record, status: 'failed', errorMessage: '用户取消' })
+        .mockResolvedValueOnce({
+          ...record,
+          status: 'cancelled',
+          errorMessage: '用户取消',
+          cancelRequestedAt: new Date('2026-06-16T00:00:00.000Z'),
+          providerCancelStatus: 'no_task',
+        })
 
       const { data } = await client.api.records({ id: 'rec-proc-001' }).cancel.post(
         null,
@@ -378,7 +395,33 @@ describe('generate 路由 — 重试与取消', () => {
       )
 
       expect(data?.success).toBe(true)
-      expect(mockCancelRecord).toHaveBeenCalledWith('rec-proc-001')
+      expect(new Date(data!.record.cancelRequestedAt!).toISOString()).toBe('2026-06-16T00:00:00.000Z')
+      expect(data?.record.providerCancelStatus).toBe('no_task')
+      expect(mockCancelTask).not.toHaveBeenCalled()
+      expect(mockCancelRecord).toHaveBeenCalledWith('rec-proc-001', 'no_task')
+    })
+
+    it('provider 取消失败时仍本地取消并记录 failed', async () => {
+      mockCancelTask.mockResolvedValueOnce(false)
+      const record = makeProcessingRecord({ cost: { unit: 'video', totalPriceCents: 1, totalPrice: 0.01 } })
+      mockGetRecordById
+        .mockResolvedValueOnce(record)
+        .mockResolvedValueOnce({
+          ...record,
+          status: 'cancelled',
+          errorMessage: '用户取消',
+          providerCancelStatus: 'failed',
+          cancelRequestedAt: new Date('2026-06-16T00:01:00.000Z'),
+        })
+
+      const { data } = await client.api.records({ id: 'rec-proc-001' }).cancel.post(
+        null,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
+      expect(data?.success).toBe(true)
+      expect(data?.record.providerCancelStatus).toBe('failed')
+      expect(mockCancelRecord).toHaveBeenCalledWith('rec-proc-001', 'failed')
     })
   })
 })

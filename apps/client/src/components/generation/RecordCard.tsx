@@ -52,6 +52,13 @@ export default function RecordCard({
   )
   const isPending = record.status === 'pending' || record.status === 'submitting' || record.status === 'processing' || record.status === 'saving_output'
   const duration = formatDuration(record.createdAt, isPending ? null : record.updatedAt)
+  const providerCancelLabel = {
+    no_task: '本地已取消，尚未提交到 provider',
+    requested: '已请求 provider 取消',
+    succeeded: 'provider 已确认取消',
+    failed: 'provider 取消失败，后续结果会被忽略',
+    not_requested: null,
+  }[record.providerCancelStatus ?? 'not_requested']
 
   // 获取下载用的 URLs（image 或 video 输出）
   const downloadUrls = record.outputResult
@@ -152,6 +159,10 @@ export default function RecordCard({
         {/* 错误信息 */}
         {record.status === 'failed' && record.errorMessage && (
           <p className="mt-2 text-xs text-destructive">{record.errorMessage}</p>
+        )}
+
+        {record.status === 'cancelled' && providerCancelLabel && (
+          <p className="mt-2 text-xs text-muted-foreground">{providerCancelLabel}</p>
         )}
 
         {/* 操作按钮 */}

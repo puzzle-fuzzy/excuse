@@ -208,11 +208,20 @@ export async function resetGenerationToPending(id: string) {
     .where(eq(generationRecords.id, id))
 }
 
+export type ProviderCancelStatus = 'not_requested' | 'no_task' | 'requested' | 'succeeded' | 'failed'
+
 /** 取消生成记录（用户主动取消，状态直接设为 cancelled） */
-export async function cancelGenerationRecord(id: string) {
+export async function cancelGenerationRecord(id: string, providerCancelStatus: ProviderCancelStatus = 'not_requested') {
   await getDb()
     .update(generationRecords)
-    .set({ status: 'cancelled', errorMessage: '用户取消', dedupeKey: null, updatedAt: new Date() })
+    .set({
+      status: 'cancelled',
+      errorMessage: '用户取消',
+      dedupeKey: null,
+      cancelRequestedAt: new Date(),
+      providerCancelStatus,
+      updatedAt: new Date(),
+    })
     .where(eq(generationRecords.id, id))
 }
 
@@ -230,10 +239,18 @@ const ACTIVE_GENERATION_STATUSES = ['pending', 'submitting', 'processing', 'savi
 export async function cancelGenerationRecordIfActive(
   id: string,
   errorMessage = '管理员取消任务',
+  providerCancelStatus: ProviderCancelStatus = 'not_requested',
 ): Promise<boolean> {
   const [updated] = await getDb()
     .update(generationRecords)
-    .set({ status: 'cancelled', errorMessage, dedupeKey: null, updatedAt: new Date() })
+    .set({
+      status: 'cancelled',
+      errorMessage,
+      dedupeKey: null,
+      cancelRequestedAt: new Date(),
+      providerCancelStatus,
+      updatedAt: new Date(),
+    })
     .where(and(
       eq(generationRecords.id, id),
       inArray(generationRecords.status, [...ACTIVE_GENERATION_STATUSES]),
