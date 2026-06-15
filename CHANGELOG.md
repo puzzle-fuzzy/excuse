@@ -9,10 +9,13 @@ All notable changes to this project will be documented in this file.
 - canvas-runtime phases + `regenerate.ts` 完成 zod schema 迁移：`@excuse/canvas-engine` 导出 `novelAnalysisSchema` / `characterProfileSchema` / `locationProfileSchema` / `shotDraftsSchema` 四个 zod schema，`canvas-runtime/src/phases/*.ts`（analysis / characters / locations / storyboard）从两步 `validateX(parseLLMJson(...))` 模式改为单次 `parseLLMJsonWithSchema(text, schema)` 调用，`apps/server/src/modules/canvas/regenerate.ts` 同步迁移（commit: `e8c47f7`）。这是 `e797419` / `600e0cf` 两轮 zod 迁移遗留的独立任务，至此 canvas-runtime 全部四阶段 + server regenerate 均已使用 zod schema 进行 LLM 输出校验。
 - 修复 `scripts/scan-en.mjs` 中 `node:` protocol、brace-style、prefer-template 等 6 处 lint 错误，修复 `packages/shared/test/canvas-failure.test.ts` import 排序 lint 错误（commit: `cc825bb`）。
 - `docs/metrics.md` 新增线上排障检查清单：覆盖服务存活 / DB 可用 / Worker 状态 / 任务积压 / Provider 异常 / Canvas 阶段耗时 / HTTP 概览 7 个场景的操作命令与判断标准（commit: `0df806f`）。
+- 管理后台项目细粒度检索：`@excuse/shared` 新增 `AdminProjectItem` / `AdminProjectListQuery` / `AdminProjectListResponse` DTO；`packages/db` 新增 `listAdminProjects`（CTE 镜头统计 + 标题 ilike 搜索 + 状态过滤 + 分页）；`apps/server` 新增 `GET /api/admin/projects`（route 层从 `modelPreferencesJson` 提取模型偏好摘要）；`apps/client` Admin 页面新增「项目」tab，含搜索 / 状态筛选 / 项目表格（标题 / 用户 / 状态 / 镜头 / 模型 / 时间）（commit: `b0f5983`）。
 
 ### Testing
 
 - 修复 `packages/canvas-engine/test/schema.test.ts` 中 `validateCharacterProfile` 测试的遗漏断言（测试描述中文化过程中 `expect(validateCharacterProfile(valid)).toEqual(valid)` 被误删，已恢复；commit: `e8c47f7`）。
+- `apps/server/test/canvas-service-helpers.test.ts` 新增 18 条测试覆盖 `getTextModel` / `getImageModel` / `getVideoModel` / `assertNotGenerating` 四个纯辅助函数（commit: `0e3a1ef`）。
+- `apps/client/test/client-api.test.ts` 新增 5 条测试覆盖 `getActivePipelineRun` 状态判断逻辑（commit: `0e3a1ef`）。
 
 ### Added
 

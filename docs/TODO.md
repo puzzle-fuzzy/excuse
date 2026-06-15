@@ -170,7 +170,7 @@
 
 待办：
 
-- 项目细粒度检索（全局只读概览已完成）。
+- ✅ 项目细粒度检索（admin 新增「项目」tab + `GET /api/admin/projects`：按标题搜索、状态过滤、分页，显示镜头数 / 完成数 / 模型偏好；commit: `b0f5983`）。
 - 任务队列细粒度检索、失败重排和运行中取消已完成；后续补项目级检索和跨业务状态联动修复。
 - ✅ 用户级用量和成本统计（admin 后台新增「用户」tab + 用户详情：余额 / 30 天成本趋势 / 模型分解 / 最近记录；commit: `1c5dfeb`）。
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
@@ -261,11 +261,8 @@
 
 高 ROI 待补：
 
-1. `apps/server/src/modules/canvas/*` 阶段处理器 helper
-   - pipeline 改造时回归风险高，建议 helper 级单测。
-
-2. `apps/client/src/api/client.ts`
-   - Eden unwrap / auth 失效处理是客户端容错核心。
+1. ✅ `apps/server/src/modules/canvas/*` 阶段处理器 helper（`canvas-service-helpers.test.ts` 18 条，覆盖 `getTextModel` / `getImageModel` / `getVideoModel` / `assertNotGenerating`；commit: `0e3a1ef`）。
+2. ✅ `apps/client/src/api/client.ts` 纯函数（`client-api.test.ts` 5 条，覆盖 `getActivePipelineRun`；`unwrapEden`/`normalizeApiBaseUrl` 等未导出暂无法独立单测；commit: `0e3a1ef`）。
 
 不建议补：
 
