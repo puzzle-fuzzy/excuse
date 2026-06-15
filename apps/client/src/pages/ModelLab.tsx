@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { buildModelLabSchema } from '@/lib/form-schemas'
@@ -469,11 +469,18 @@ export default function ModelLab() {
     if (param.type === 'select') {
       return (
         <Select
-          id={inputId}
           value={String(value ?? '')}
-          onChange={event => form.setValue(param.name, event.target.value, { shouldDirty: true, shouldValidate: true })}
-          options={param.options?.map(option => ({ label: option.label, value: String(option.value) }))}
-        />
+          onValueChange={val => form.setValue(param.name, val, { shouldDirty: true, shouldValidate: true })}
+        >
+          <SelectTrigger id={inputId}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {param.options?.map(option => (
+              <SelectItem key={String(option.value)} value={String(option.value)}>{option.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )
     }
 
@@ -569,12 +576,23 @@ export default function ModelLab() {
                 <Select
                   value={selectedModelId}
                   disabled={loadingModels}
-                  onChange={event => chooseModel(event.target.value)}
-                  options={categoryModels.map(model => ({
-                    label: `${model.name} - ${model.id}`,
-                    value: model.id,
-                  }))}
-                />
+                  onValueChange={chooseModel}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categoryModels.map(model => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                        {' '}
+                        -
+                        {' '}
+                        {model.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Badge variant="outline" className="flex h-8 items-center justify-center">
                   {selectedModel?.requestType || '未声明 requestType'}
                 </Badge>

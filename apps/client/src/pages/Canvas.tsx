@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCanvasModelPreferences } from '../api/client'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -207,13 +207,18 @@ export default function Canvas() {
             )}
       </div>
 
-      <ConfirmDialog
-        open={deleteConfirm.open}
-        onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}
-        title="确认删除该项目？"
-        description="删除后项目数据将无法恢复。"
-        onConfirm={confirmDelete}
-      />
+      <AlertDialog open={deleteConfirm.open} onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除该项目？</AlertDialogTitle>
+            <AlertDialogDescription>删除后项目数据将无法恢复。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

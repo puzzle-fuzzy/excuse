@@ -44,7 +44,7 @@ import { deleteUploadedFile, listCanvasProjects, updateUploadedFile } from '@/ap
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -945,14 +945,18 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
 
         {/* 操作确认弹窗 */}
         {(deletable || hideable) && (
-          <ConfirmDialog
-            open={confirmOpen}
-            onOpenChange={setConfirmOpen}
-            title={confirmTitle}
-            description={confirmDescription}
-            confirmText={confirmText}
-            onConfirm={handleAction}
-          />
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+                {confirmDescription && <AlertDialogDescription>{confirmDescription}</AlertDialogDescription>}
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={handleAction}>{confirmText}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
 
         {/* 编辑弹窗（仅 uploaded_file） */}
@@ -1117,17 +1121,22 @@ function TagManagementModal({
               ))}
         </div>
       </DialogContent>
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (!open)
-            setDeleteTarget(null)
-        }}
-        title={`删除标签「${deleteTarget?.name ?? ''}」？`}
-        description="该标签下的所有打标将一并取消，且无法恢复。"
-        confirmText="删除"
-        onConfirm={handleDeleteConfirm}
-      />
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              删除标签「
+              {deleteTarget?.name ?? ''}
+              」？
+            </AlertDialogTitle>
+            <AlertDialogDescription>该标签下的所有打标将一并取消，且无法恢复。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

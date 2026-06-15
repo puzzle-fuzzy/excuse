@@ -10,8 +10,9 @@ import { apiKeyQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCents } from '@/lib/generation-utils'
 
 function formatRelativeTime(iso: string | null): string {
@@ -142,20 +143,23 @@ export default function ApiKeys() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">访问范围</label>
-                <select
-                  value={createScope}
-                  onChange={e => setCreateScope(e.target.value)}
-                  disabled={isSubmitting}
-                  className="mt-1 flex h-8 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {SCOPE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                      {' — '}
-                      {opt.desc}
-                    </option>
-                  ))}
-                </select>
+                <Select value={createScope} onValueChange={setCreateScope} disabled={isSubmitting}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCOPE_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <span className="font-medium">{opt.label}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          —
+                          {' '}
+                          {opt.desc}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center gap-3">
                 <Button type="submit" size="sm" disabled={isSubmitting}>
@@ -279,17 +283,18 @@ export default function ApiKeys() {
 
       {/* 撤销确认 */}
       {revokeTarget && (
-        <ConfirmDialog
-          open={!!revokeTarget}
-          onOpenChange={(open) => {
-            if (!open)
-              setRevokeTarget(null)
-          }}
-          title="确认撤销密钥？"
-          description="撤销后密钥立即失效，无法恢复。正在使用该密钥的所有请求都将被拒绝。"
-          confirmText="撤销"
-          onConfirm={() => revokeMutation.mutate(revokeTarget.id)}
-        />
+        <AlertDialog open={!!revokeTarget} onOpenChange={open => !open && setRevokeTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认撤销密钥？</AlertDialogTitle>
+              <AlertDialogDescription>撤销后密钥立即失效，无法恢复。正在使用该密钥的所有请求都将被拒绝。</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => revokeMutation.mutate(revokeTarget.id)}>撤销</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   )

@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { uploadFile } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useSubtitleStore } from '@/stores/subtitle'
 
 /** 状态中文标签 */
@@ -222,12 +222,17 @@ export default function Subtitle() {
         </div>
       )}
 
-      <ConfirmDialog
-        open={deleteConfirm.open}
-        onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}
-        title="确定要删除这个字幕项目吗？"
-        onConfirm={confirmDelete}
-      />
+      <AlertDialog open={deleteConfirm.open} onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要删除这个字幕项目吗？</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

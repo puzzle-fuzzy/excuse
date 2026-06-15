@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteCanvasCharacter, deleteCanvasLocation, deleteCanvasShot, regenerateCanvasCharacter, regenerateCanvasLocation, regenerateCanvasShot, retryCanvasShot, updateCanvasCharacter, updateCanvasLocation, updateCanvasProject, updateCanvasShot, uploadFile } from '../../api/client'
 import { Button } from '../ui/button'
-import { ConfirmDialog } from '../ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
 import { Input } from '../ui/input'
 import AssetHistory from './AssetHistory'
 import { PromptEditor } from './PromptEditor'
@@ -538,13 +538,18 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
         </p>
       )}
 
-      <ConfirmDialog
-        open={confirmState.open}
-        onOpenChange={open => !open && setConfirmState(prev => ({ ...prev, open: false }))}
-        title={confirmState.title}
-        description={confirmState.description}
-        onConfirm={confirmState.onConfirm}
-      />
+      <AlertDialog open={confirmState.open} onOpenChange={open => !open && setConfirmState(prev => ({ ...prev, open: false }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmState.title}</AlertDialogTitle>
+            {confirmState.description && <AlertDialogDescription>{confirmState.description}</AlertDialogDescription>}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmState.onConfirm}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -27,6 +27,6 @@ export default antfu({
     '**/dist',
     // Drizzle 迁移文件由工具自动生成，无需 lint
     '**/drizzle',
-    'ui',
+    'apps/client/components/ui',
   ],
 })

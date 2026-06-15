@@ -13,10 +13,10 @@ import RecordCard from '@/components/generation/RecordCard'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { CATEGORY_CONFIG } from '@/lib/generation-utils'
 import { useGenerationStore } from '@/stores/generation'
@@ -169,9 +169,17 @@ export default function Workspace() {
           <Select
             key={param.name}
             value={String(value ?? param.defaultValue ?? '')}
-            onChange={e => setParameter(param.name, e.target.value)}
-            options={param.options?.map(o => ({ label: o.label, value: String(o.value) }))}
-          />
+            onValueChange={val => setParameter(param.name, val)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {param.options?.map(o => (
+                <SelectItem key={String(o.value)} value={String(o.value)}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )
       case 'boolean':
         return (
@@ -238,12 +246,23 @@ export default function Workspace() {
             <CardContent>
               <Select
                 value={selectedModelId}
-                onChange={e => setModelId(e.target.value)}
-                options={categoryModels.map(m => ({
-                  label: `${m.name} — ${m.description}`,
-                  value: m.id,
-                }))}
-              />
+                onValueChange={setModelId}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryModels.map(m => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                      {' '}
+                      —
+                      {' '}
+                      {m.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {selectedModel?.pricing.note && (
                 <p className="mt-2 text-xs text-muted-foreground">{selectedModel.pricing.note}</p>
               )}
@@ -366,12 +385,17 @@ export default function Workspace() {
 
       <MediaPreviewDialog url={previewUrl} onClose={() => setPreviewUrl(null)} />
 
-      <ConfirmDialog
-        open={deleteConfirm.open}
-        onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}
-        title="确定要删除这条记录吗？"
-        onConfirm={confirmDelete}
-      />
+      <AlertDialog open={deleteConfirm.open} onOpenChange={open => !open && setDeleteConfirm({ open: false, id: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要删除这条记录吗？</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

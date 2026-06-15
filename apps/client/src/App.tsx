@@ -3,7 +3,7 @@ import { Route, Routes } from 'react-router'
 import { getAuthToken } from './api/client'
 import { sseClient } from './api/sse'
 import { ProtectedRoute } from './auth/ProtectedRoute'
-import { ErrorBoundary } from './components/ui/error-boundary'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { Toaster } from './components/ui/sonner'
 import { useRealtimeSync } from './stores/realtime-sync'
 

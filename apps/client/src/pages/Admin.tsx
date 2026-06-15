@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatLatencyMs, formatNumber, formatPercent, pipelinePhaseLabel } from '@/lib/admin-format'
 import { formatCents } from '@/lib/generation-utils'
 
@@ -413,8 +413,26 @@ function AdminOverviewTab({
         </CardHeader>
         <CardContent>
           <div className="mb-3 grid gap-2 md:grid-cols-[180px_180px_1fr]">
-            <Select value={taskStatus} onChange={event => setTaskStatus(event.target.value)} options={TASK_STATUS_OPTIONS} />
-            <Select value={taskDomain} onChange={event => setTaskDomain(event.target.value)} options={TASK_DOMAIN_OPTIONS} />
+            <Select value={taskStatus} onValueChange={setTaskStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="全部状态" />
+              </SelectTrigger>
+              <SelectContent>
+                {TASK_STATUS_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={taskDomain} onValueChange={setTaskDomain}>
+              <SelectTrigger>
+                <SelectValue placeholder="全部领域" />
+              </SelectTrigger>
+              <SelectContent>
+                {TASK_DOMAIN_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" />
               <Input
@@ -514,11 +532,16 @@ function AdminUsersTab() {
                 aria-label="搜索用户"
               />
             </div>
-            <Select
-              value={statusFilter}
-              onChange={event => setStatusFilter(event.target.value)}
-              options={USER_STATUS_OPTIONS}
-            />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="全部状态" />
+              </SelectTrigger>
+              <SelectContent>
+                {USER_STATUS_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {isLoading
@@ -1027,11 +1050,16 @@ function AdminProvidersTab() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select
-              value={String(windowHours)}
-              onChange={event => setWindowHours(Number(event.target.value))}
-              options={PROVIDER_WINDOW_OPTIONS}
-            />
+            <Select value={String(windowHours)} onValueChange={v => setWindowHours(Number(v))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDER_WINDOW_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </CardHeader>
@@ -1148,12 +1176,18 @@ function AdminProjectsTab() {
               className="h-9 pl-8"
             />
           </div>
-          <Select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-            options={PROJECT_STATUS_OPTIONS}
-            className="w-28"
-          />
+          <div className="w-28">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="全部状态" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROJECT_STATUS_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <p className="text-xs text-muted-foreground whitespace-nowrap">
             {data?.total ?? 0}
             {' '}
@@ -1291,12 +1325,20 @@ function AdminAuditLogsTab() {
         <div className="mb-3 grid gap-2 md:grid-cols-[200px_200px_180px_180px]">
           <Select
             value={actionFilter}
-            onChange={(event) => {
-              setActionFilter(event.target.value)
+            onValueChange={(value) => {
+              setActionFilter(value)
               setPage(0)
             }}
-            options={AUDIT_ACTION_OPTIONS}
-          />
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="全部操作" />
+            </SelectTrigger>
+            <SelectContent>
+              {AUDIT_ACTION_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" />
             <Input
