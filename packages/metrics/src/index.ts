@@ -231,5 +231,5 @@ function percentile(sorted: number[], p: number): number {
 }
 
 export * from './db-derived'
-export * from './provider-derived'
 export * from './prometheus'
+export * from './provider-derived'

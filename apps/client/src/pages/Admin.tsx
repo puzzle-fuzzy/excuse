@@ -660,7 +660,11 @@ function AdminTaskDetailDialog({
                   <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
                     <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">尝试</p>
-                      <p className="mt-1 font-mono">{task.attempts}/{task.maxAttempts}</p>
+                      <p className="mt-1 font-mono">
+                        {task.attempts}
+                        /
+                        {task.maxAttempts}
+                      </p>
                     </div>
                     <div className="rounded-lg border p-3">
                       <p className="text-xs text-muted-foreground">开始</p>
@@ -694,7 +698,11 @@ function AdminTaskDetailDialog({
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-sm font-medium">Canvas pipeline run 时间线</p>
-                      <span className="text-xs text-muted-foreground">{runs.length} 条</span>
+                      <span className="text-xs text-muted-foreground">
+                        {runs.length}
+                        {' '}
+                        条
+                      </span>
                     </div>
                     {runs.length === 0
                       ? (

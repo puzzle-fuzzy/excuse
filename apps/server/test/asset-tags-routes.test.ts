@@ -47,8 +47,6 @@ async function getAuthToken(): Promise<string> {
   return signTestToken(testConfig.jwtSecret, 'acc-001')
 }
 
-const AUTH = (token: string) => ({ headers: { Authorization: `Bearer ${token}` } })
-
 // ─── 测试 ────────────────────────────────────────────────
 
 describe('asset-tags routes', () => {

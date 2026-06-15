@@ -37,10 +37,6 @@ const {
   queryAssetLibrary,
   toggleAssetFavorite,
   listAssetTags,
-  createAssetTag,
-  deleteAssetTag,
-  assignAssetTag,
-  unassignAssetTag,
 } = await import('../src/api/asset-library')
 const { toast } = await import('sonner')
 

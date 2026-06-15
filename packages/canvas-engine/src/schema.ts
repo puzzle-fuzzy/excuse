@@ -1,3 +1,9 @@
+import type {
+  CharacterProfile,
+  LocationProfile,
+  NovelAnalysis,
+  ShotDraft,
+} from '@excuse/shared'
 /**
  * Canvas LLM 输出 schema 校验器（纯函数，不调用 LLM/DB/provider）
  *
@@ -20,12 +26,6 @@
  * 参考 `./continuity.ts` 的纯领域函数风格：仅依赖 `@excuse/shared` 类型。
  */
 import { z } from 'zod'
-import type {
-  CharacterProfile,
-  LocationProfile,
-  NovelAnalysis,
-  ShotDraft,
-} from '@excuse/shared'
 
 /** Canvas LLM 输出不符合 schema 时抛出，携带字段名与原因，便于上游 catch 后回传给用户 */
 export class CanvasSchemaError extends Error {
@@ -45,7 +45,8 @@ function throwSchemaError(
   prefix = '',
 ): never {
   const issue = result.error.issues[0]
-  if (!issue) throw new CanvasSchemaError(prefix || '(root)', '校验失败')
+  if (!issue)
+    throw new CanvasSchemaError(prefix || '(root)', '校验失败')
   const path = issue.path.length > 0 ? issue.path.join('.') : '(root)'
   throw new CanvasSchemaError(
     prefix ? `${prefix}.${path}` : path,

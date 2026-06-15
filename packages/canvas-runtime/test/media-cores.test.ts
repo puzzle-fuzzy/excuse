@@ -1,8 +1,8 @@
 import type { CanvasProjectDetail } from '../src/normalize'
 import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { recommendCanvasVideoModel, resolveShotVideoReferences } from '../src/index'
 import { buildCharacterPortraitPrompt, buildCharacterTurnaroundPrompt, generateCharacterRefAssets } from '../src/phases/character-refs'
 import { buildLocationRefPrompt, generateLocationRefAsset } from '../src/phases/location-refs'
-import { recommendCanvasVideoModel, resolveShotVideoReferences } from '../src/index'
 
 // ─── Mock @excuse/db（refs 用 updateCanvasCharacter / updateCanvasLocation，videos 用 bindAssetTaskId + updateCanvasShot + createGenerationRecord） ─────
 

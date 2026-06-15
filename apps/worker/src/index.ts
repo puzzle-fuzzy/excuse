@@ -82,6 +82,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 
 // ── Orphan sweep 定时任务 ──────────────────────────────────
 // 启动时立即 sweep 一次，然后每隔 sweepIntervalMs 毫秒运行一次
+let sweepTimer: NodeJS.Timeout
 async function runOrphanSweep() {
   try {
     const recovered = await sweepOrphanTasksWithAdapter({ timeoutMinutes: 5, adapter: { sweepOrphanTasks } }) // 5 分钟 grace period
@@ -103,7 +104,7 @@ async function runOrphanSweep() {
 }
 
 runOrphanSweep()
-const sweepTimer = setInterval(runOrphanSweep, config.sweepIntervalMs)
+sweepTimer = setInterval(runOrphanSweep, config.sweepIntervalMs)
 
 // ── 轮询循环 ──────────────────────────────────────────
 /**

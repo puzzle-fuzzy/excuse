@@ -1,6 +1,6 @@
 import type { DashScopeConfig } from '../src/types'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
-import { DashScopeClient } from '../src/dashscope-client'
+import { __resetProviderCallObservers, DashScopeClient, registerProviderCallObserver } from '../src/dashscope-client'
 
 // ── 测试配置 ──────────────────────────────────────────────
 
@@ -415,7 +415,6 @@ describe('DashScopeClient', () => {
     let unregister: () => void
 
     beforeEach(() => {
-      const { registerProviderCallObserver, __resetProviderCallObservers } = require('../src/dashscope-client')
       __resetProviderCallObservers()
       calls = []
       unregister = registerProviderCallObserver((model, durationMs, success) => {
@@ -425,7 +424,6 @@ describe('DashScopeClient', () => {
 
     afterEach(() => {
       unregister()
-      const { __resetProviderCallObservers } = require('../src/dashscope-client')
       __resetProviderCallObservers()
     })
 
@@ -491,7 +489,6 @@ describe('DashScopeClient', () => {
     })
 
     it('未注册 observer → 调用仍正常完成（不抛错）', async () => {
-      const { __resetProviderCallObservers } = require('../src/dashscope-client')
       __resetProviderCallObservers()
       withMock(200, {
         output: { choices: [{ message: { content: [{ text: 'ok' }] } }] },
@@ -504,7 +501,6 @@ describe('DashScopeClient', () => {
     })
 
     it('observer 抛错不影响主流程', async () => {
-      const { registerProviderCallObserver, __resetProviderCallObservers } = require('../src/dashscope-client')
       __resetProviderCallObservers()
       registerProviderCallObserver(() => {
         throw new Error('observer boom')

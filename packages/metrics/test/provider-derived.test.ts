@@ -1,5 +1,4 @@
-import type { PrometheusMetric } from '../src'
-import type { ProviderCallStats } from '../src'
+import type { PrometheusMetric, ProviderCallStats } from '../src'
 import { describe, expect, it } from 'bun:test'
 import { aggregateProviderMetrics } from '../src'
 

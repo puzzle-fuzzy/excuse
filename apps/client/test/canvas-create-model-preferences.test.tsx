@@ -84,7 +84,7 @@ beforeEach(() => {
 
 // ── Tests ─────────────────────────────────────────────────
 
-describe('Canvas handleCreate — Model Lab 默认偏好接入', () => {
+describe('canvas handleCreate — Model Lab 默认偏好接入', () => {
   it('localStorage 有偏好时，创建后调 updateCanvasModelPreferences 并导航', async () => {
     const user = userEvent.setup()
     setLocalStoragePrefs({ textModel: 'qwen3-max', imageModel: 'flux-pro' })
