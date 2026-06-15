@@ -43,6 +43,7 @@
     "currency.js": "^2.0.4",
     "drizzle-orm": "^0.45.2",
     "elysia-rate-limit": "^4.6.2",
+    "p-limit": "^7.3.0",
     "pg": "^8.21.0"
   },
   "devDependencies": {

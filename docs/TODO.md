@@ -54,8 +54,8 @@
 待办：
 
 - ✅ 回收站/恢复能力 UI（第一版：生成记录和 Canvas 资产支持软隐藏，资产列表默认排除隐藏项；commit: `1be3ce9`）。
-- uploaded_files metadata 编辑产品流程（重命名、用途已完成）。
-- 高级筛选 UI 优化：排序、收藏、标签已完成（颜色 / 重命名 / 使用计数等扩展留待后续）。
+- ✅ uploaded_files metadata 编辑（重命名、用途更新；commit: `a0e5c4f`）。
+- ✅ 高级筛选 UI 优化：排序（commit: `dd888e5`）、收藏（commit: `efeaa11`）、标签（commit: `f74b9bb`）。颜色/重命名/使用计数等扩展留待后续。
 
 验收：
 
@@ -123,8 +123,8 @@
 
 - ✅ 决策：正式开放给用户。
 - Gateway scope、quota、rate limit 实现。
-- 完善开发者文档页面（已有入口第一版，需补充自助接入流程、定价说明）。
-- 明确开放策略和计费模式。
+- ✅ 开发者文档页面已完善：streaming 标记已支持、Python 示例、用量概览展示、文本模型定价表。
+- ✅ 开放策略和计费模式已明确：正式开放 + 按 Token 计费 + beta 阶段不扣费。
 
 验收：
 
@@ -140,7 +140,7 @@
 - ✅ provider 错误率、模型耗时（`excuse_provider_calls_total{model,status}` + `excuse_provider_latency_seconds{model,quantile}`，in-process collector + DashScopeClient observer hook 注入）（commit: `9b0a37a`）。
 - ✅ 任务队列积压、Canvas 阶段耗时（`excuse_task_queue_depth` + `excuse_canvas_phase_total` / `excuse_canvas_phase_duration_seconds`，DB-derived，commit: `30c5d41`）。
 - ✅ 线上排障检查命令或文档（`docs/metrics.md` §线上排障检查；cover 7 个场景：存活/DB/Worker/积压/Provider/Canvas/HTTP；commit: `0df806f`）。
-- Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
+- ✅ Prometheus 指标当前是 server 进程内单实例；跨 worker 进程聚合待后续推进。
 
 验收：
 
@@ -183,7 +183,7 @@
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
 - ✅ 失败任务深度诊断 — Canvas pipeline run 级联（admin 后台新增 `GET /api/admin/tasks/:id` 单任务详情 endpoint，`getAdminTaskDetail` JOIN `canvas_pipeline_runs.taskId = tasks.id`，返回 pipeline run 时间线 phase/status/durationMs/errorMessage/outputSummary；Admin.tsx 任务行点击「详情」展开 dialog + 重排/取消按钮；commit: `86ca4b4`）。generation record 级联因数据模型阻塞（`tasks.generationRecordId` 字段声明但代码库无写入路径，恒为 null；`generation_records.taskId` 是 provider 字符串 ID 非 tasks uuid）—— 待后续补 `tasks.generationRecordId` 写入路径或改用 accountId+时间窗口间接关联。
 - ✅ provider 错误率和模型成本统计（admin 后台新增「Provider」tab，DB 聚合 + server 进程内 metrics 合并 avg/p50/p95 latency；commit: `1c5dfeb`）。
-- API Key 和 Gateway 客户管理（管理后台用户详情中展示 API Key 列表、用量、状态；与 P2.6 scope/quota/rate-limit 实现联动）。
+- ✅ API Key 管理（管理后台用户详情中展示 API Key 列表：前缀/名称/状态/最近使用/创建时间；`GET /api/admin/users/:id/api-keys` 端点 + `AdminUserApiKeysSection` 组件）。Gateway 客户管理、scope/quota/rate-limit 联动待后续补。
 - 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
 
 验收：
@@ -309,7 +309,7 @@
 3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情、审计日志 tab —— 已完成。
 4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成。
 5. ✅ Package 治理剩余项：events 分层已定型、workflow pause/resume adapter 接口已定义、Gateway streaming + usage + 开发者文档已补齐。
-6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路管理后台客户管理。
+6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路、Gateway 客户管理。
 7. Metrics / Health 生产级可观测性（跨进程聚合）。
 8. Package 治理深化：媒体处理任务化、Storage/Asset 分层、Gateway provider 调用 service 提取。
 
