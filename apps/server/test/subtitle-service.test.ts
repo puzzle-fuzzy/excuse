@@ -15,8 +15,7 @@
  *   - retryProject 智能跳过（sentences/audioFileUrl 存在时）
  */
 import type { SubtitleProjectRow, UploadedFileRow } from '@excuse/db'
-import type { ASRClient, AssetStorage } from '@excuse/provider'
-import type { ServerConfig } from '../src/config'
+import type { ASRClient } from '@excuse/provider'
 import { describe, expect, it, mock } from 'bun:test'
 
 // ── Mock 依赖 ──────────────────────────────────────────
@@ -111,13 +110,15 @@ mock.module('@excuse/db', () => ({
   markAllNotificationsRead: async () => 0,
   findApiKeyByHash: async () => null,
   touchApiKeyLastUsed: async () => {},
+  createTask: async (values: Record<string, unknown>) => ({
+    id: `task-${crypto.randomUUID().slice(0, 8)}`,
+    ...values,
+  }),
 }))
 
 mock.module('@excuse/provider', () => ({
-  extractAudioFromVideo: async () => ({ audioPath: '/tmp/test.wav', durationMs: 30000 }),
-  getMediaDurationMs: async () => 30000,
-  AssetStorage: class {
-    async uploadGenerated() { return 'https://cdn/audio.wav' }
+  ASRClient: class {
+    submitTranscription = async () => ({ success: true, taskId: 'asr-task-001' })
   },
 }))
 
@@ -182,32 +183,12 @@ function makeProject(overrides: Partial<SubtitleProjectRow> = {}): SubtitleProje
   } as SubtitleProjectRow
 }
 
-function makeConfig(): ServerConfig {
-  return {
-    port: 5007,
-    databaseUrl: '',
-    dashscopeApiKey: 'test-key',
-    dashscopeBaseUrl: '',
-    storageRoot: '/tmp/test-storage',
-    frontendUrl: '',
-    workerPollIntervalMs: 5000,
-    jwtSecret: 'test-secret',
-    jwtExpiresIn: '1h',
-    oss: undefined,
-    metricsAccessToken: undefined,
-    metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
-  }
-}
-
-function makeDeps(asrOverrides: Partial<ASRClient> = {}): { asrClient: ASRClient, storage: AssetStorage } {
+function makeDeps(asrOverrides: Partial<ASRClient> = {}): { asrClient: ASRClient } {
   return {
     asrClient: {
       submitTranscription: async () => ({ success: true, taskId: 'asr-task-001' }),
       ...asrOverrides,
     } as unknown as ASRClient,
-    storage: {
-      uploadGenerated: async () => 'https://cdn/audio.wav',
-    } as unknown as AssetStorage,
   }
 }
 
@@ -218,7 +199,7 @@ describe('createAndStartProject', () => {
     resetState()
 
     await expect(
-      createAndStartProject('acc-test', 'nonexistent', makeConfig(), makeDeps()),
+      createAndStartProject('acc-test', 'nonexistent'),
     ).rejects.toThrow('视频文件不存在或不属于当前用户')
   })
 
@@ -227,7 +208,7 @@ describe('createAndStartProject', () => {
     dbState.files.push(makeUploadedFile({ accountId: 'other-user' }))
 
     await expect(
-      createAndStartProject('acc-test', 'file-001', makeConfig(), makeDeps()),
+      createAndStartProject('acc-test', 'file-001'),
     ).rejects.toThrow('视频文件不存在或不属于当前用户')
   })
 })
@@ -245,7 +226,7 @@ describe('retryProject', () => {
     })
     dbState.projects.push(project)
 
-    const result = await retryProject(project, 'acc-test', makeConfig(), makeDeps())
+    const result = await retryProject(project, 'acc-test', makeDeps())
 
     expect(result.status).toBe('subtitle_editing')
     expect(result.errorMessage).toBeNull()
@@ -261,7 +242,7 @@ describe('retryProject', () => {
     dbState.projects.push(project)
 
     const deps = makeDeps()
-    const result = await retryProject(project, 'acc-test', makeConfig(), deps)
+    const result = await retryProject(project, 'acc-test', deps)
 
     expect(result.status).toBe('asr_processing')
     expect(dbState.records.length).toBeGreaterThanOrEqual(1)
@@ -278,7 +259,7 @@ describe('retryProject', () => {
     })
     dbState.projects.push(project)
 
-    await retryProject(project, 'acc-test', makeConfig(), makeDeps())
+    await retryProject(project, 'acc-test', makeDeps())
 
     // 验证计费计算 — paraformer-v2 0.008 分/秒 × 30秒 = 0.24 分
     const record = dbState.records[0]
@@ -299,7 +280,7 @@ describe('retryProject', () => {
       submitTranscription: async () => ({ success: false, taskId: '', error: 'ASR 内部错误' }),
     })
 
-    const result = await retryProject(project, 'acc-test', makeConfig(), deps)
+    const result = await retryProject(project, 'acc-test', deps)
 
     expect(result.status).toBe('failed')
   })
@@ -317,7 +298,7 @@ describe('retryProject', () => {
       submitTranscription: async () => ({ success: false, taskId: '', error: 'ASR 连接超时' }),
     })
 
-    await retryProject(project, 'acc-test', makeConfig(), deps)
+    await retryProject(project, 'acc-test', deps)
 
     // ASR 失败后 updateSubtitleProjectStatus 会设置 errorMessage
     // createGenerationRecord 只在 ASR 成功时创建
@@ -327,26 +308,26 @@ describe('retryProject', () => {
     expect(dbState.records).toHaveLength(0)
   })
 
-  it('从头开始但视频文件不存在 → 抛出错误', async () => {
+  it('从头开始 → 创建 media.extract-audio 任务', async () => {
     resetState()
 
     const project = makeProject()
     dbState.projects.push(project)
 
-    await expect(
-      retryProject(project, 'acc-test', makeConfig(), makeDeps()),
-    ).rejects.toThrow('视频文件不存在或不属于当前用户')
+    await retryProject(project, 'acc-test', makeDeps())
+
+    expect(project.status).toBe('extracting_audio')
+    expect(project.errorMessage).toBeNull()
   })
 
-  it('从头开始但视频文件不属于当前用户 → 抛出错误', async () => {
+  it('从头开始但视频文件不存在 → 创建 media.extract-audio 任务（不校验文件）', async () => {
     resetState()
-    dbState.files.push(makeUploadedFile({ accountId: 'other-user' }))
 
     const project = makeProject()
     dbState.projects.push(project)
 
-    await expect(
-      retryProject(project, 'acc-test', makeConfig(), makeDeps()),
-    ).rejects.toThrow('视频文件不存在或不属于当前用户')
+    await retryProject(project, 'acc-test', makeDeps())
+
+    expect(project.status).toBe('extracting_audio')
   })
 })

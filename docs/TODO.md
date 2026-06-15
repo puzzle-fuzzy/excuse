@@ -250,7 +250,7 @@
 
 待办：
 
-- 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。（待实现）
+- ✅ 媒体处理任务化：视频合成、字幕烧录、缩略图提取等耗时操作必须走 worker task，成功后进入统一资产模型。（已完成：`media.extract-audio` + `media.burn-subtitle` task 类型已实现，音频提取和字幕烧录从 server 同步 / 独立轮询迁移到统一 task queue。）
 - ✅ Storage 与 Asset 分层：`packages/storage` 只负责对象存取（`AssetStorage` 仅提供 OSS/本地存储）；资产记录、业务绑定、SSE 通知由 worker/service 完成。`@excuse/provider` 为方便 re-export `AssetStorage`，分层边界清晰。
 - ✅ Events：domain event 与 user notification 分层已定型（generation_status / notification 两通道，SSE 桥接由 events package 统一处理）。业务 service 通过 notifyNotifyGeneration/notifyNotification 发布 domain event，不直接关心 SSE。
 - ✅ Workflow / Task：pause/resume/cancel/retry 的纯规则 guard 函数已完善（`canPausePipelineRun` / `canResumePipelineRun` / `canCancelPipelineRun` / `canRetryPipelineRun`）。`cancel` 有完整 adapter 实现；`pause`/`resume` adapter 接口已定义（`TaskPauseAdapter` + `pauseTaskWithAdapter`/`resumeTaskWithAdapter`），DB migration 待实际需要时补入。
@@ -312,7 +312,7 @@
 5. ✅ Package 治理剩余项：events 分层已定型、workflow pause/resume adapter 接口已定义、Gateway streaming + usage + 开发者文档已补齐。
 6. Gateway + API Key 开放实现：scope / quota / rate limit、API Key 鉴权链路、Gateway 客户管理。
 7. Metrics / Health 生产级可观测性（跨进程聚合）。
-8. Package 治理深化：媒体处理任务化、Storage/Asset 分层、Gateway provider 调用 service 提取。
+8. ✅ Package 治理深化：媒体处理任务化（`media.extract-audio` + `media.burn-subtitle` 已完成）、Storage/Asset 分层、Gateway provider 调用 service 提取。
 
 ## 验收命令
 

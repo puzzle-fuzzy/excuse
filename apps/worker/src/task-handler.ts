@@ -85,6 +85,22 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerConfig, WorkerTask
       return handleCanvasVideos(task, workerConfig)
     },
   },
+
+  // ── Media tasks ──────────────────────────────────────
+  {
+    type: 'media.extract-audio',
+    handler: async (task, workerConfig) => {
+      const { handleMediaExtractAudio } = await import('./media-handlers')
+      return handleMediaExtractAudio(task, workerConfig)
+    },
+  },
+  {
+    type: 'media.burn-subtitle',
+    handler: async (task, workerConfig) => {
+      const { handleMediaBurnSubtitle } = await import('./media-handlers')
+      return handleMediaBurnSubtitle(task, workerConfig)
+    },
+  },
 ])
 
 /**

@@ -17,6 +17,7 @@ import type { SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectLis
 import type { ServerConfig } from '../config'
 import {
   createGenerationRecord,
+  createTask,
   deleteSubtitleProject,
   getSubtitleProjectForAccount,
   listSubtitleProjectsByAccount,
@@ -25,7 +26,7 @@ import {
   updateSubtitleSentences,
   updateSubtitleStyle,
 } from '@excuse/db'
-import { ASRClient, AssetStorage } from '@excuse/provider'
+import { ASRClient } from '@excuse/provider'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/subtitle/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -36,11 +37,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
     apiKey: config.dashscopeApiKey,
     baseUrl: config.dashscopeBaseUrl,
   })
-  const storage = new AssetStorage({
-    storageRoot: config.storageRoot,
-    oss: config.oss,
-  })
-  const deps: svc.SubtitleDependencies = { asrClient, storage }
+  const deps: svc.SubtitleDependencies = { asrClient }
 
   /** 从 DB 行序列化为前端兼容格式（Date→string） */
   function serializeProject(project: SubtitleProjectRow): SubtitleProjectDTO {
@@ -54,13 +51,11 @@ export function createSubtitleRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api/subtitle' })
     .use(createRequireAuthPlugin(config))
 
-    // 创建字幕项目 — 上传视频 → 提取音频 → 提交 ASR
+    // 创建字幕项目 — 上传视频 → 创建项目记录 → 调度 media.extract-audio 任务
     .post('/projects', async ({ body, userId }) => {
       const project = await svc.createAndStartProject(
         userId,
         body.videoFileId,
-        config,
-        deps,
       )
       return { success: true, data: serializeProject(project) } satisfies SubtitleProjectResponse
     }, {
@@ -69,7 +64,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       }),
       detail: {
         summary: '创建字幕项目',
-        description: '上传视频文件，自动提取音频并提交 ASR 转录任务',
+        description: '上传视频文件，创建项目记录并调度 Worker 异步提取音频和处理 ASR',
         tags: ['字幕'],
         security: [{ bearerAuth: [] }],
       },
@@ -166,7 +161,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       },
     })
 
-    // 提交导出任务 — fire-and-forget（创建 record → 状态改为 exporting → Worker 处理）
+    // 提交导出任务 — 创建 generation_record + media.burn-subtitle 任务
     .post('/projects/:id/export', async ({ params: { id }, userId, set }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
@@ -178,7 +173,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       if (['draft', 'extracting_audio', 'asr_processing', 'exporting'].includes(project.status))
         return notFound(set, '项目正在处理或尚未完成字幕识别，无法导出')
 
-      // 创建导出 generation_record，Worker 通过 exportRecordId 关联
+      // 创建导出 generation_record
       const exportRecord = await createGenerationRecord({
         accountId: userId,
         taskId: `export_${crypto.randomUUID()}_${project.id}`,
@@ -192,9 +187,23 @@ export function createSubtitleRoutes(config: ServerConfig) {
         } as Record<string, unknown>,
       })
 
-      // 设置 exportRecordId + 状态为 exporting → Worker 轮询处理
+      // 设置 exportRecordId + 状态为 exporting
       await updateSubtitleExport(project.id, exportRecord.id)
       await updateSubtitleProjectStatus(project.id, 'exporting')
+
+      // 创建 media.burn-subtitle 任务（Worker 异步执行）
+      await createTask({
+        accountId: userId,
+        type: 'media.burn-subtitle',
+        domain: 'subtitle',
+        priority: 5,
+        projectId: project.id,
+        targetType: 'subtitle_project',
+        targetId: project.id,
+        input: {
+          exportRecordId: exportRecord.id,
+        },
+      })
 
       return { success: true } satisfies SubtitleMutationOkResponse
     }, {
@@ -216,7 +225,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       if (project.status !== 'failed')
         return notFound(set, '只有失败状态的项目才能重试')
 
-      const retried = await svc.retryProject(project, userId, config, deps)
+      const retried = await svc.retryProject(project, userId, deps)
 
       return { success: true, data: serializeProject(retried) } satisfies SubtitleProjectResponse
     }, {

@@ -1,6 +1,6 @@
 import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
-import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollExportingProjects, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
+import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
 import { ASRClient, checkFFmpegAsync } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
@@ -8,7 +8,7 @@ import { loadConfig } from './config'
 import { createHealthServer } from './health'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
-import { processASRTask, processExportTask } from './subtitle-processor'
+import { processASRTask } from './subtitle-processor'
 import { handleTask, handleTaskError } from './task-handler'
 import { createTaskProcessor } from './task-processor'
 
@@ -114,7 +114,6 @@ sweepTimer = setInterval(runOrphanSweep, config.sweepIntervalMs)
  *   1. claimNextTask() → handler dispatch → heartbeat → 完成或失败
  *   2. pollPendingVideoTasks() → processor.processTask() → 根据 action 结果处理
  *   3. pollPendingASRProjects() → processASRTask()
- *   4. pollExportingProjects() → processExportTask()
  * 退出: SIGINT/SIGTERM → running=false → 当前任务完成后退出（最长 30s）
  */
 async function main() {
@@ -229,20 +228,6 @@ async function main() {
         }
         catch (err) {
           logger.error({ err, projectId: project.id }, 'ASR task processing error')
-        }
-      }
-
-      // ── 轮询字幕导出任务 ──────────────────────────────────
-      const exportProjects = await pollExportingProjects()
-      for (const project of exportProjects) {
-        if (!running)
-          break
-        try {
-          await processExportTask(project, config)
-          healthState.totalTasksProcessed++
-        }
-        catch (err) {
-          logger.error({ err, projectId: project.id }, 'Export task processing error')
         }
       }
     }

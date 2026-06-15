@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **媒体处理任务化 (P4.2)**：将字幕管线的耗时媒体操作迁移到统一 task 队列。新增 `apps/worker/src/media-handlers.ts` 提供 `handleMediaExtractAudio` + `handleMediaBurnSubtitle` 两个 task handler；`apps/server/src/modules/subtitle/service.ts` 重构 — 创建项目时不再同步调用 ffmpeg 提取音频（曾阻塞 HTTP 请求数秒），改为创建 `media.extract-audio` task 后立即返回；`POST /api/subtitle/projects/:id/export` 路由创建 `media.burn-subtitle` task 替代原独立轮询；`apps/worker/src/task-handler.ts` 注册两个新 task 类型；`apps/worker/src/subtitle-processor.ts` 移除 `processExportTask`；`apps/worker/src/index.ts` 移除 `pollExportingProjects` 独立轮询循环。所有媒体操作现在都通过统一 task queue 调度，享有 retry/heartbeat/orphan-sweep/Admin 可见性。新增 `apps/worker/test/media-handlers.test.ts` 6 条 handler 测试。
+
 ### Changed
 
 - Gateway API Key scope/quota/rate-limit 全栈实现：`api_keys` 表新增 `scope`/`rate_limit_per_minute`/`quota_max_cents`/`total_spend_cents`/`quota_reset_at` 列 + Drizzle migration；`packages/db` API Key 仓库新增 `incrementApiKeySpend`/`checkAndResetApiKeyQuota`/`isApiKeyQuotaExceeded`/`updateApiKeyConfig`；`apps/server` auth 插件新增 per-key 滑动窗口限流 + `apiKeyMeta` 上下文注入；Gateway 路由新增 scope 门禁（'all'|'gateway'）+ 额度检查 + 调用后追踪 spend；管理后台新增 `PATCH /api/admin/api-keys/:id/config` 配置端点和 Admin UI 展示 scope/限流/额度列；`packages/gateway` 新增 `apiKeyScopeNotAllowedError`/`apiKeyQuotaExceededError` 错误工厂；`packages/shared` API Key DTO 新增 scope/quota/rate-limit 字段；用户端 API Keys 页面新增 scope 选择创建 + 列表展示 scope/限流/额度信息。
