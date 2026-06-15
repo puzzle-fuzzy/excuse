@@ -208,3 +208,36 @@ export interface AdminTaskDetailResponse {
   success: true
   data: AdminTaskDetail
 }
+
+// ── 项目细粒度检索 ───────────────────────────────────────────────────────────
+
+export interface AdminProjectItem {
+  id: string
+  accountId: string
+  username: string | null
+  title: string
+  status: string
+  /** 镜头总数 */
+  shotCount: number
+  /** 已完成的镜头数 */
+  completedShotCount: number
+  /** 模型偏好摘要（从 modelPreferencesJson 提取） */
+  modelSummary: string
+  isDeleted: boolean
+  createdAt: string
+  updatedAt: string | null
+}
+
+export interface AdminProjectListQuery {
+  search?: string
+  status?: string
+  isDeleted?: boolean
+  limit?: number
+  offset?: number
+}
+
+export interface AdminProjectListResponse {
+  success: true
+  items: AdminProjectItem[]
+  total: number
+}

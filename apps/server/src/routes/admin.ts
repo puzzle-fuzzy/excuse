@@ -1,7 +1,7 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminOverviewResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminTasks, listAdminUsers, requeueAdminTask } from '@excuse/db'
+import { cancelAdminTask, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminProjects, listAdminTasks, listAdminUsers, requeueAdminTask } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { getProviderCallsSnapshot } from '../services/metrics'
@@ -250,6 +250,59 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '查询 provider 错误率与模型成本统计',
         description: '合并 generation_records 聚合（count/cost/tokens）与 server 进程内 metricsCollector（延迟 p50/p95/avg），帮助定位高失败率或高成本模型。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/projects', async ({ adminAllowed, adminDenied, query }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const result = await listAdminProjects({
+        search: query.search,
+        status: query.status,
+        isDeleted: query.isDeleted,
+        limit: query.limit,
+        offset: query.offset,
+      })
+
+      const items: AdminProjectItem[] = result.items.map((row) => {
+        const prefs = row.modelPreferencesJson as Record<string, string> | null
+        const parts: string[] = []
+        if (prefs?.textModel) parts.push(`文本:${prefs.textModel}`)
+        if (prefs?.imageModel) parts.push(`图片:${prefs.imageModel}`)
+        if (prefs?.videoModel) parts.push(`视频:${prefs.videoModel}`)
+        return {
+          id: row.id,
+          accountId: row.accountId,
+          username: row.username,
+          title: row.title ?? '',
+          status: row.status,
+          shotCount: row.shotCount,
+          completedShotCount: row.completedShotCount,
+          modelSummary: parts.join(' ') || '默认',
+          isDeleted: row.isDeleted,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt?.toISOString() ?? null,
+        }
+      })
+
+      return {
+        success: true,
+        items,
+        total: result.total,
+      } satisfies AdminProjectListResponse
+    }, {
+      query: t.Object({
+        search: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        isDeleted: t.Optional(t.Boolean()),
+        limit: t.Optional(t.Numeric()),
+        offset: t.Optional(t.Numeric()),
+      }),
+      detail: {
+        summary: '查询 Canvas 项目列表',
+        description: '管理后台项目细粒度检索：按标题搜索、按状态过滤、分页，返回镜头数/完成数/模型偏好摘要。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

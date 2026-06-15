@@ -1,4 +1,6 @@
 import type {
+  AdminProjectListQuery,
+  AdminProjectListResponse,
   AdminProviderStatsResponse,
   AdminTaskDetailResponse,
   AdminUserDetailResponse,
@@ -93,4 +95,22 @@ export const adminProvidersQueryKeys = {
 
 export const adminTasksQueryKeys = {
   detail: (taskId: string) => ['admin', 'tasks', 'detail', taskId] as const,
+}
+
+export async function fetchAdminProjects(params?: AdminProjectListQuery): Promise<AdminProjectListResponse> {
+  return unwrap<AdminProjectListResponse>(
+    await api.api.admin.projects.get({
+      query: {
+        search: params?.search,
+        status: params?.status,
+        isDeleted: params?.isDeleted,
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+    }),
+  )
+}
+
+export const adminProjectsQueryKeys = {
+  list: (params: AdminProjectListQuery) => ['admin', 'projects', params] as const,
 }
