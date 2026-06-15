@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **生产数据迁移和资产一致性门禁 (P0-4，本提交)**：新增只读 `bun run check:assets` 脚本，扫描 `generation_records` / `canvas_assets` / `uploaded_files` 与本地 `STORAGE_ROOT` 的一致性，报告 `missing_file`、`dangling_file`、`hidden_but_referenced`，并支持 `--json`、`--fail-on-issues`、`--storage-root`；纯函数覆盖 URL 提取、本地路径映射、shot 引用收集和综合报告。`docs/deployment.md` 补生产 migration-only 发布顺序：发布前 `pg_dump` 备份、只运行 `db:migrate`、新进程启动前跑资产检查、失败时停止发布或按备份 `pg_restore` 回滚，并明确高风险 schema 变更使用 expand/migrate/contract。对应 TODO 已删除。
+
 - **Credit 正式计费策略闭环 (P0-3，本提交)**：新增 `@excuse/billing` 纯计费策略模块，声明 `workspace.generate` 与 `openai.gateway.chat` 为正式 `credit-ledger` surface，统一要求 `reserve -> debit | refund`、`generation_records` 与 `usage_events` 关联；Canvas 前置流水线明确为 `beta/free quota`，Subtitle ASR 明确为 `cost-only`，避免误判为已进入用户余额扣款。普通生成、Gateway non-stream 编排器和 Gateway stream 路径接入 `assertCreditLedgerPolicy`，新增策略单元测试与 `docs/billing.md` 资金状态机文档。对应 TODO 已删除。
 
 - **生产安全基线门禁 (P0-2，本提交)**：server 新增可单测的 `validateProductionConfig()`，`NODE_ENV=production` 下强制 `DATABASE_URL` / `DASHSCOPE_API_KEY` / `FRONTEND_URL` / `JWT_SECRET` 显式配置，拒绝开发默认 JWT 和短密钥；server/worker 在 metrics CIDR 公开到 `0.0.0.0/0`、`::/0` 或 `*` 时强制要求 `METRICS_ACCESS_TOKEN`。认证层在 JWT/API Key 成功解析后查询账号并拒绝不存在或已禁用用户；管理后台仅允许 JWT 会话且 account.id 位于 `ADMIN_USER_IDS`，API Key 即使属于管理员也被拒绝。补 server/worker 配置测试、auth-plugin 活跃/禁用账号测试、admin API Key/禁用管理员拒绝测试；`.env.example` 与 `docs/deployment.md` 同步生产安全基线、上传限制和反向代理建议。对应 TODO 已删除。

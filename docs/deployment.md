@@ -118,6 +118,55 @@ bun run build:client
 - 存储 key 由服务端生成；客户端传入的原始文件名只作为元数据保存。
 - 删除上传文件前会检查字幕项目和生成记录引用，使用中的文件不能删除。
 
+### 数据库迁移、备份和回滚
+
+生产环境只允许 migration-only 流程，不使用 `db:push`。推荐发布顺序：
+
+```bash
+# 1. 记录当前版本
+git rev-parse HEAD
+
+# 2. 备份数据库（文件名建议带日期、环境和 commit）
+mkdir -p backups
+pg_dump "$DATABASE_URL" --format=custom --file "backups/excuse_$(date +%Y%m%d_%H%M%S)_$(git rev-parse --short HEAD).dump"
+
+# 3. 在启动新 server/worker 前执行 migration
+bun run --cwd packages/db db:migrate
+
+# 4. 检查资产引用与本地 storage 一致性（只读）
+bun run check:assets -- --fail-on-issues
+
+# 5. 启动或重启 server / worker / client
+```
+
+失败处理：
+
+- `db:migrate` 失败：停止发布，不启动新进程；保留日志并使用备份恢复到发布前状态。
+- 新进程启动失败且 migration 已成功：优先回滚应用镜像/代码；如果 schema 变更不兼容旧代码，使用发布前备份恢复数据库后再回滚应用。
+- 高风险 schema 变更必须拆成 expand / migrate / contract 三步：先加兼容字段或表，再迁移数据，最后删除旧结构。
+
+恢复命令示例：
+
+```bash
+pg_restore --clean --if-exists --dbname "$DATABASE_URL" backups/excuse_YYYYMMDD_HHMMSS_commit.dump
+```
+
+资产一致性检查：
+
+```bash
+bun run check:assets
+bun run check:assets -- --json
+bun run check:assets -- --storage-root=/data/excuse/uploads --fail-on-issues
+```
+
+报告类型：
+
+- `missing_file`：DB 记录指向本地 storage 文件，但文件不存在。
+- `dangling_file`：本地 storage 文件没有被 `generation_records`、`canvas_assets` 或 `uploaded_files` 引用。
+- `hidden_but_referenced`：已隐藏的生成记录或 Canvas 资产仍被 Canvas shot 参考资产引用。
+
+当前脚本默认只检查可映射到 `PUBLIC_UPLOAD_BASE_PATH`（默认 `/api/uploads`）的本地文件；OSS URL 和 provider 临时 URL 会被列为 `skipped`，不作为失败处理。
+
 ### Nginx 配置参考
 
 ```nginx
@@ -248,8 +297,11 @@ bun run typecheck          # 全部三个 app
 cd packages/db
 bun run db:generate        # 从 schema 变更生成 migration
 bun run db:migrate         # 执行 migration
-bun run db:push            # 直接推送 schema（开发用）
+bun run db:push            # 直接推送 schema（仅开发用，生产禁止）
 bun run db:studio          # Drizzle Studio GUI
+
+# 资产一致性
+bun run check:assets       # 只读检查本地 storage 与 DB 资产引用
 
 # 代码质量
 bun run lint

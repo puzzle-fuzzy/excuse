@@ -36,26 +36,6 @@
 
 ## P0：上线阻断项
 
-### 1. 数据备份、迁移和回滚流程不足
-
-问题：
-
-- 开发环境常用 `db:push`，但生产上线需要 migration-only 流程、备份、回滚策略。
-- 目前部署文档没有说明 migration 在 server/worker 启动前如何执行，也没有失败后如何停止发布。
-- 生成资产和 DB 记录是双系统状态，缺少“DB 已成功但 OSS/local 文件缺失”或“文件存在但记录隐藏/删除”的修复流程。
-
-解决办法：
-
-- 生产只允许 `db:migrate`，禁止 `db:push`；部署脚本先备份 DB，再执行 migration，再启动新进程。
-- 给 migration 增加 dry-run/日志说明；高风险 schema 变更拆成 expand/migrate/contract 三步。
-- 增加资产一致性检查脚本：抽样或全量扫描 `generation_records` / `canvas_assets` / `uploaded_files` 的 URL 与 storage 是否一致，输出可修复报告。
-
-验收：
-
-- 文档中有生产 migration 顺序、备份命令、失败回滚策略。
-- CI 或 release checklist 覆盖 migration 检查。
-- 资产一致性脚本能报告 missing file、dangling file、hidden-but-referenced 三类问题。
-
 ## P1：核心生产可靠性
 
 ### 1. Worker 幂等和重复提交风险
