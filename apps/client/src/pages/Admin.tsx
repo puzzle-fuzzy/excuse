@@ -1,4 +1,4 @@
-import type { AdminAuditLogItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
+import type { AdminApiKeyItem, AdminAuditLogItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -17,7 +17,7 @@ import {
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { adminAuditLogQueryKeys, adminTasksQueryKeys, fetchAdminAuditLogs, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
+import { adminAuditLogQueryKeys, adminTasksQueryKeys, adminUserApiKeysQueryKeys, fetchAdminAuditLogs, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserApiKeys, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '@/api/client'
 import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
@@ -912,6 +912,9 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
                         )}
                   </div>
 
+                  {/* API Key 列表 */}
+                  <AdminUserApiKeysSection userId={userId} />
+
                   <div className="flex justify-end">
                     <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
                   </div>
@@ -920,6 +923,59 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
         </div>
       </div>
     </Dialog>
+  )
+}
+
+function AdminUserApiKeysSection({ userId }: { userId: string | null }) {
+  const { data, isLoading } = useQuery({
+    queryKey: adminUserApiKeysQueryKeys.list(userId ?? ''),
+    queryFn: () => fetchAdminUserApiKeys(userId!),
+    enabled: !!userId,
+  })
+
+  const keys: AdminApiKeyItem[] = data?.items ?? []
+
+  return (
+    <div>
+      <p className="mb-2 text-sm font-medium">API Key 列表</p>
+      {isLoading
+        ? <p className="text-xs text-muted-foreground">加载中...</p>
+        : keys.length === 0
+          ? <p className="text-xs text-muted-foreground">该用户暂无 API Key</p>
+          : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-1.5 font-medium">前缀</th>
+                      <th className="py-1.5 font-medium">名称</th>
+                      <th className="py-1.5 font-medium">状态</th>
+                      <th className="py-1.5 font-medium">最近使用</th>
+                      <th className="py-1.5 font-medium">创建时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {keys.map(key => (
+                      <tr key={key.id} className="border-b last:border-b-0">
+                        <td className="py-1.5 font-mono text-xs">
+                          {key.prefix}
+                          ...
+                        </td>
+                        <td className="py-1.5 text-xs">{key.name ?? '-'}</td>
+                        <td className="py-1.5">
+                          <Badge variant={key.revokedAt ? 'outline' : 'default'}>
+                            {key.revokedAt ? '已撤销' : '启用'}
+                          </Badge>
+                        </td>
+                        <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td>
+                        <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+    </div>
   )
 }
 

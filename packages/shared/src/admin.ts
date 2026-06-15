@@ -268,3 +268,19 @@ export interface AdminAuditLogListResponse {
   items: AdminAuditLogItem[]
   total: number
 }
+
+// ── 管理后台 API Key 展示 ─────────────────────────────────────────────────────
+
+export interface AdminApiKeyItem {
+  id: string
+  prefix: string
+  name: string | null
+  lastUsedAt: string | null
+  createdAt: string
+  revokedAt: string | null
+}
+
+export interface AdminApiKeyListResponse {
+  success: true
+  items: AdminApiKeyItem[]
+}

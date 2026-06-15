@@ -1,7 +1,7 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminAuditLogItem, AdminAuditLogListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { getProviderCallsSnapshot } from '../services/metrics'
@@ -364,6 +364,34 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '查询审计日志',
         description: '管理后台审计日志检索：按用户/操作类型/时间范围过滤分页，仅展示，不做删除/修改。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/users/:id/api-keys', async ({ adminAllowed, adminDenied, params }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const keys = await listAdminApiKeysByAccount(params.id)
+
+      const items = keys.map(key => ({
+        id: key.id,
+        prefix: key.prefix,
+        name: key.name,
+        lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+        createdAt: key.createdAt.toISOString(),
+        revokedAt: key.revokedAt?.toISOString() ?? null,
+      }))
+
+      return {
+        success: true,
+        items,
+      } satisfies AdminApiKeyListResponse
+    }, {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        summary: '查询用户 API Key 列表',
+        description: '管理后台查询指定用户的所有 API Key（含已撤销的）。与 P2.6 scope/quota/rate-limit 联动。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

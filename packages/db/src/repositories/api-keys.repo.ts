@@ -69,3 +69,19 @@ export async function touchApiKeyLastUsed(id: string) {
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, id))
 }
+
+/** 管理员查询指定用户的所有 API Key（含已撤销的），按创建时间倒序 */
+export async function listAdminApiKeysByAccount(accountId: string) {
+  return getDb()
+    .select({
+      id: apiKeys.id,
+      prefix: apiKeys.prefix,
+      name: apiKeys.name,
+      lastUsedAt: apiKeys.lastUsedAt,
+      createdAt: apiKeys.createdAt,
+      revokedAt: apiKeys.revokedAt,
+    })
+    .from(apiKeys)
+    .where(eq(apiKeys.accountId, accountId))
+    .orderBy(desc(apiKeys.createdAt))
+}

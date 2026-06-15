@@ -1,4 +1,5 @@
 import type {
+  AdminApiKeyListResponse,
   AdminAuditLogListQuery,
   AdminAuditLogListResponse,
   AdminProjectListQuery,
@@ -12,6 +13,7 @@ import type {
 import { api } from './client'
 
 export type {
+  AdminApiKeyItem,
   AdminPipelineRun,
   AdminProviderStatsItem,
   AdminProviderStatsResponse,
@@ -134,4 +136,14 @@ export async function fetchAdminAuditLogs(params?: AdminAuditLogListQuery): Prom
 
 export const adminAuditLogQueryKeys = {
   list: (params: AdminAuditLogListQuery) => ['admin', 'audit-logs', params] as const,
+}
+
+export async function fetchAdminUserApiKeys(accountId: string): Promise<AdminApiKeyListResponse> {
+  return unwrap<AdminApiKeyListResponse>(
+    await api.api.admin.users({ id: accountId })['api-keys'].get(),
+  )
+}
+
+export const adminUserApiKeysQueryKeys = {
+  list: (accountId: string) => ['admin', 'users', accountId, 'api-keys'] as const,
 }
