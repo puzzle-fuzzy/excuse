@@ -77,12 +77,12 @@ describe('getAdminTaskDetail', () => {
     return row!
   }
 
-  it('returns null for unknown taskId', async () => {
+  it('未知 taskId 返回 null', async () => {
     const detail = await getAdminTaskDetail('00000000-0000-0000-0000-000000000000')
     expect(detail).toBeNull()
   })
 
-  it('returns task with empty pipelineRuns when no runs linked', async () => {
+  it('无关联 pipeline run 时返回空 pipelineRuns', async () => {
     const task = await seedTask({ type: 'generate.video', domain: 'generate' })
     const detail = await getAdminTaskDetail(task.id)
 
@@ -92,7 +92,7 @@ describe('getAdminTaskDetail', () => {
     expect(detail!.pipelineRuns).toEqual([])
   })
 
-  it('returns linked pipeline runs ordered by createdAt asc with computed durationMs', async () => {
+  it('返回关联的 pipeline run 并按 createdAt asc 排序且计算 durationMs', async () => {
     const project = await seedProject()
     const baseTime = new Date('2026-06-14T00:00:00.000Z')
     const task = await seedTask({ projectId: project.id })
@@ -132,7 +132,7 @@ describe('getAdminTaskDetail', () => {
     expect(detail!.pipelineRuns[1]!.errorMessage).toBe('LLM 输出校验失败')
   })
 
-  it('returns null durationMs when finishedAt is missing', async () => {
+  it('finishedAt 缺失时 durationMs 为 null', async () => {
     const project = await seedProject()
     const task = await seedTask({ projectId: project.id })
 
@@ -151,7 +151,7 @@ describe('getAdminTaskDetail', () => {
     expect(detail!.pipelineRuns[0]!.finishedAt).toBeNull()
   })
 
-  it('passes through outputSummary jsonb', async () => {
+  it('透传 outputSummary jsonb', async () => {
     const project = await seedProject()
     const task = await seedTask({ projectId: project.id })
     const summary = { shotCount: 12, characterCount: 3 }

@@ -7,7 +7,7 @@ describe('canvasCharacterSchema', () => {
     identityPrompt: 'a boy with glasses',
   }
 
-  it('accepts minimal character (only required fields)', () => {
+  it('接受最小角色（仅必填字段）', () => {
     const result = canvasCharacterSchema.safeParse(validCharacter)
     expect(result.success).toBe(true)
     if (result.success) {
@@ -16,7 +16,7 @@ describe('canvasCharacterSchema', () => {
     }
   })
 
-  it('accepts full character with all nested fields', () => {
+  it('接受包含所有嵌套字段的完整角色', () => {
     const result = canvasCharacterSchema.safeParse({
       name: '小明',
       role: '主角',
@@ -34,22 +34,22 @@ describe('canvasCharacterSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects missing name', () => {
+  it('拒绝缺少 name', () => {
     const result = canvasCharacterSchema.safeParse({ identityPrompt: 'x' })
     expect(result.success).toBe(false)
   })
 
-  it('rejects missing identityPrompt', () => {
+  it('拒绝缺少 identityPrompt', () => {
     const result = canvasCharacterSchema.safeParse({ name: 'foo' })
     expect(result.success).toBe(false)
   })
 
-  it('rejects non-string name', () => {
+  it('拒绝非字符串 name', () => {
     const result = canvasCharacterSchema.safeParse({ name: 42, identityPrompt: 'x' })
     expect(result.success).toBe(false)
   })
 
-  it('preserves unknown top-level fields via .loose()', () => {
+  it('通过 .loose() 透传未知顶层字段', () => {
     const result = canvasCharacterSchema.safeParse({ ...validCharacter, unknownField: 'extra' })
     expect(result.success).toBe(true)
     if (result.success) {
@@ -57,7 +57,7 @@ describe('canvasCharacterSchema', () => {
     }
   })
 
-  it('preserves unknown nested face fields via .loose()', () => {
+  it('通过 .loose() 透传未知 face 嵌套字段', () => {
     const result = canvasCharacterSchema.safeParse({
       ...validCharacter,
       face: { shape: 'round', extraFaceField: 'x' },
@@ -65,7 +65,7 @@ describe('canvasCharacterSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('optional role defaults to undefined when missing', () => {
+  it('可选 role 缺失时默认为 undefined', () => {
     const result = canvasCharacterSchema.safeParse(validCharacter)
     expect(result.success).toBe(true)
     if (result.success) {
@@ -73,7 +73,7 @@ describe('canvasCharacterSchema', () => {
     }
   })
 
-  it('accepts empty string name (LLM 抖动容忍，与 canvas-engine validateCharacterProfile 一致)', () => {
+  it('接受空字符串 name（LLM 抖动容忍，与 canvas-engine validateCharacterProfile 一致）', () => {
     const result = canvasCharacterSchema.safeParse({ name: '', identityPrompt: 'x' })
     expect(result.success).toBe(true)
   })
@@ -85,7 +85,7 @@ describe('canvasLocationSchema', () => {
     scenePrompt: 'a school',
   }
 
-  it('accepts minimal location (only required fields)', () => {
+  it('接受最小场景（仅必填字段）', () => {
     const result = canvasLocationSchema.safeParse(validLocation)
     expect(result.success).toBe(true)
     if (result.success) {
@@ -94,7 +94,7 @@ describe('canvasLocationSchema', () => {
     }
   })
 
-  it('accepts full location with all nested fields', () => {
+  it('接受包含所有嵌套字段的完整场景', () => {
     const result = canvasLocationSchema.safeParse({
       name: '学校',
       type: 'interior',
@@ -119,17 +119,17 @@ describe('canvasLocationSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects missing name', () => {
+  it('拒绝缺少 name', () => {
     const result = canvasLocationSchema.safeParse({ scenePrompt: 'x' })
     expect(result.success).toBe(false)
   })
 
-  it('rejects missing scenePrompt', () => {
+  it('拒绝缺少 scenePrompt', () => {
     const result = canvasLocationSchema.safeParse({ name: 'foo' })
     expect(result.success).toBe(false)
   })
 
-  it('rejects unknown type enum value', () => {
+  it('拒绝未知 type 枚举值', () => {
     const result = canvasLocationSchema.safeParse({
       ...validLocation,
       type: 'unknown_type',
@@ -137,14 +137,14 @@ describe('canvasLocationSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('accepts valid type values (interior / exterior / mixed)', () => {
+  it('接受有效 type 值（interior / exterior / mixed）', () => {
     for (const type of ['interior', 'exterior', 'mixed'] as const) {
       const result = canvasLocationSchema.safeParse({ ...validLocation, type })
       expect(result.success).toBe(true)
     }
   })
 
-  it('preserves unknown fields via .loose()', () => {
+  it('通过 .loose() 透传未知字段', () => {
     const result = canvasLocationSchema.safeParse({
       ...validLocation,
       customField: 'extra',

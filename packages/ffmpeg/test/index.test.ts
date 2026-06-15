@@ -8,7 +8,7 @@ import {
 } from '../src'
 
 describe('@excuse/ffmpeg exports', () => {
-  it('exposes media probing and processing functions', () => {
+  it('暴露媒体探测和处理函数', () => {
     expect(typeof checkFFmpegAsync).toBe('function')
     expect(typeof extractAudioFromVideo).toBe('function')
     expect(typeof getMediaDurationMs).toBe('function')

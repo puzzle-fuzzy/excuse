@@ -57,9 +57,9 @@ function makeDeps(modelConfig: ModelConfig, overrides?: {
   }
 }
 
-describe('canvas video runtime', () => {
+describe('canvas 视频运行时', () => {
   describe('prepareCanvasVideoParams', () => {
-    it('omits negative_prompt when the selected video model does not declare it', () => {
+    it('视频模型未声明 negative_prompt 时省略该字段', () => {
       const { params } = prepareCanvasVideoParams('test-video', {
         videoPrompt: 'stable cinematic shot',
         negativePrompt: 'no shake',
@@ -72,7 +72,7 @@ describe('canvas video runtime', () => {
       expect(params.negative_prompt).toBeUndefined()
     })
 
-    it('keeps negative_prompt when the selected video model declares it', () => {
+    it('视频模型声明 negative_prompt 时保留该字段', () => {
       const { params } = prepareCanvasVideoParams('test-video-negative', {
         videoPrompt: 'stable cinematic shot',
         negativePrompt: 'no shake',
@@ -83,7 +83,7 @@ describe('canvas video runtime', () => {
       expect(params.negative_prompt).toBe('no shake')
     })
 
-    it('rejects invalid duration before submitting a provider task', () => {
+    it('提交 provider 任务前拒绝无效 duration', () => {
       expect(() =>
         prepareCanvasVideoParams('test-video', {
           videoPrompt: 'stable cinematic shot',
@@ -92,7 +92,7 @@ describe('canvas video runtime', () => {
       ).toThrow('视频参数校验失败')
     })
 
-    it('rejects malformed parameters after provider defaults are merged', () => {
+    it('provider 默认值合并后拒绝格式错误的参数', () => {
       expect(() =>
         prepareCanvasVideoParams('test-video', {
           videoPrompt: 'stable cinematic shot',

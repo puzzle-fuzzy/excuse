@@ -267,7 +267,7 @@ beforeEach(() => {
 })
 
 describe('admin routes', () => {
-  it('returns overview for configured admin user', async () => {
+  it('已配置的管理员用户返回概览', async () => {
     const { app, config } = makeApp(['admin-1'])
     const token = await signTestToken(config.jwtSecret, 'admin-1')
     const client = treaty(app)
@@ -282,7 +282,7 @@ describe('admin routes', () => {
     expect(mockGetAdminOverview).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects non-admin user', async () => {
+  it('拒绝非管理员用户', async () => {
     const { app, config } = makeApp(['admin-1'])
     const token = await signTestToken(config.jwtSecret, 'user-1')
     const client = treaty(app)
@@ -296,7 +296,7 @@ describe('admin routes', () => {
     expect(mockGetAdminOverview).not.toHaveBeenCalled()
   })
 
-  it('lists tasks for admin users with filters', async () => {
+  it('管理员可按条件筛选任务列表', async () => {
     const { app, config } = makeApp(['admin-1'])
     const token = await signTestToken(config.jwtSecret, 'admin-1')
     const client = treaty(app)
@@ -315,7 +315,7 @@ describe('admin routes', () => {
     }))
   })
 
-  it('requeues an admin task', async () => {
+  it('重新入队管理任务', async () => {
     const { app, config } = makeApp(['admin-1'])
     const token = await signTestToken(config.jwtSecret, 'admin-1')
     const client = treaty(app)
@@ -330,7 +330,7 @@ describe('admin routes', () => {
     expect(mockRequeueAdminTask).toHaveBeenCalledWith('task-1')
   })
 
-  it('cancels an admin task', async () => {
+  it('取消管理任务', async () => {
     const { app, config } = makeApp(['admin-1'])
     const token = await signTestToken(config.jwtSecret, 'admin-1')
     const client = treaty(app)
@@ -346,8 +346,8 @@ describe('admin routes', () => {
 
   // ── 新增：task detail endpoint ─────────────
 
-  describe('admin task detail endpoint', () => {
-    it('rejects non-admin user', async () => {
+  describe('管理任务详情端点', () => {
+    it('拒绝非管理员用户', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'user-1')
       const client = treaty(app)
@@ -361,7 +361,7 @@ describe('admin routes', () => {
       expect(mockGetAdminTaskDetail).not.toHaveBeenCalled()
     })
 
-    it('returns 404 for missing task', async () => {
+    it('缺失任务返回 404', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -375,7 +375,7 @@ describe('admin routes', () => {
       expect(mockGetAdminTaskDetail).toHaveBeenCalledWith('missing-task')
     })
 
-    it('returns task + pipeline runs cascade with durationMs', async () => {
+    it('返回任务 + pipeline runs 级联含 durationMs', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -413,8 +413,8 @@ describe('admin routes', () => {
 
   // ── 新增：users / providers endpoints ─────────────
 
-  describe('admin users endpoints', () => {
-    it('rejects non-admin user from listing users', async () => {
+  describe('管理用户端点', () => {
+    it('拒绝非管理员用户列出用户', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'user-1')
       const client = treaty(app)
@@ -428,7 +428,7 @@ describe('admin routes', () => {
       expect(mockListAdminUsers).not.toHaveBeenCalled()
     })
 
-    it('lists users with search + isActive + pagination params', async () => {
+    it('支持 search + isActive + 分页参数的用户列表', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -451,7 +451,7 @@ describe('admin routes', () => {
       }))
     })
 
-    it('returns 404 for missing user', async () => {
+    it('缺失用户返回 404', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -464,7 +464,7 @@ describe('admin routes', () => {
       expect((res.error as { status?: number } | null)?.status).toBe(404)
     })
 
-    it('returns user detail with daily cost + model breakdown + recent records', async () => {
+    it('返回用户详情含 daily cost + 模型分布 + 近期记录', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -490,8 +490,8 @@ describe('admin routes', () => {
     })
   })
 
-  describe('admin providers endpoint', () => {
-    it('rejects non-admin user', async () => {
+  describe('管理 provider 端点', () => {
+    it('拒绝非管理员用户', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'user-1')
       const client = treaty(app)
@@ -505,7 +505,7 @@ describe('admin routes', () => {
       expect(mockGetAdminProviderStats).not.toHaveBeenCalled()
     })
 
-    it('merges DB cost/count + metrics latency', async () => {
+    it('合并 DB cost/count + metrics latency', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -538,7 +538,7 @@ describe('admin routes', () => {
       expect(mockProviderCallsSnapshot).toHaveBeenCalledTimes(1)
     })
 
-    it('clamps windowHours below 1 to 1', async () => {
+    it('windowHours 小于 1 时钳制为 1', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -553,7 +553,7 @@ describe('admin routes', () => {
       expect(data?.windowHours).toBe(1)
     })
 
-    it('clamps windowHours above 720 to 720', async () => {
+    it('windowHours 超过 720 时钳制为 720', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
       const client = treaty(app)
@@ -568,7 +568,7 @@ describe('admin routes', () => {
       expect(data?.windowHours).toBe(720)
     })
 
-    it('returns null latency when metricsCollector has no samples', async () => {
+    it('metricsCollector 无样本时返回 null latency', async () => {
       mockProviderCallsSnapshot.mockReturnValueOnce({})
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')

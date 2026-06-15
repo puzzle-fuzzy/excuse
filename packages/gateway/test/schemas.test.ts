@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { gatewayUsageRecordSchema, openaiChatRequestSchema } from '../src/schemas'
 
 describe('openaiChatRequestSchema', () => {
-  it('accepts valid minimal request', () => {
+  it('接受有效的最小请求', () => {
     const valid = {
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'hi' }],
@@ -16,7 +16,7 @@ describe('openaiChatRequestSchema', () => {
     }
   })
 
-  it('accepts request with all optional fields', () => {
+  it('接受包含所有可选字段的请求', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: 'hi' }],
@@ -28,7 +28,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects non-array messages', () => {
+  it('拒绝非数组 messages', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: 'foo',
@@ -36,7 +36,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects message missing role', () => {
+  it('拒绝缺少 role 的 message', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ content: 'hi' }],
@@ -44,7 +44,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects message missing content', () => {
+  it('拒绝缺少 content 的 message', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'user' }],
@@ -52,7 +52,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects unknown role enum value', () => {
+  it('拒绝未知的 role 枚举值', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'developer', content: 'hi' }],
@@ -60,7 +60,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects empty messages array (.min(1))', () => {
+  it('拒绝空 messages 数组（.min(1)）', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [],
@@ -68,14 +68,14 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects missing model', () => {
+  it('拒绝缺少 model', () => {
     const result = openaiChatRequestSchema.safeParse({
       messages: [{ role: 'user', content: 'hi' }],
     })
     expect(result.success).toBe(false)
   })
 
-  it('rejects string temperature', () => {
+  it('拒绝字符串 temperature', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'hi' }],
@@ -84,7 +84,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects non-positive max_tokens', () => {
+  it('拒绝非正数 max_tokens', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'hi' }],
@@ -93,7 +93,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects float max_tokens (must be int)', () => {
+  it('拒绝浮点数 max_tokens（必须为整数）', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'hi' }],
@@ -102,7 +102,7 @@ describe('openaiChatRequestSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('preserves unknown fields via .loose() passthrough', () => {
+  it('通过 .loose() 透传未知字段', () => {
     const result = openaiChatRequestSchema.safeParse({
       model: 'gpt-4',
       messages: [{ role: 'user', content: 'hi' }],
@@ -129,12 +129,12 @@ describe('gatewayUsageRecordSchema', () => {
     createdAt: new Date('2024-06-13T00:00:00Z'),
   }
 
-  it('accepts valid record', () => {
+  it('接受有效记录', () => {
     const result = gatewayUsageRecordSchema.safeParse(baseValid)
     expect(result.success).toBe(true)
   })
 
-  it('accepts record with null cost', () => {
+  it('接受 cost 为 null 的记录', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       cost: null,
@@ -143,7 +143,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts record with partial cost (only inputTokens)', () => {
+  it('接受部分 cost（仅 inputTokens）的记录', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       cost: { inputTokens: 100 },
@@ -151,7 +151,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts record with null inputParams', () => {
+  it('接受 inputParams 为 null 的记录', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       inputParams: null,
@@ -159,7 +159,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects record with unknown status enum value', () => {
+  it('拒绝未知 status 枚举值的记录', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       status: 'unknown_status',
@@ -167,7 +167,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects record with string totalPriceCents', () => {
+  it('拒绝字符串 totalPriceCents 的记录', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       totalPriceCents: '12',
@@ -175,7 +175,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects record with string cost.inputTokens (type guard)', () => {
+  it('拒绝字符串 cost.inputTokens 的记录（类型守卫）', () => {
     const result = gatewayUsageRecordSchema.safeParse({
       ...baseValid,
       cost: { inputTokens: '100', outputTokens: 50 },
@@ -183,7 +183,7 @@ describe('gatewayUsageRecordSchema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects record with missing createdAt', () => {
+  it('拒绝缺少 createdAt 的记录', () => {
     const { createdAt: _omit, ...rest } = baseValid
     const result = gatewayUsageRecordSchema.safeParse(rest)
     expect(result.success).toBe(false)

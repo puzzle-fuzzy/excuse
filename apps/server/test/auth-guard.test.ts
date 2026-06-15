@@ -145,7 +145,7 @@ async function getValidToken(client: ReturnType<typeof treaty>) {
 
 // ─── 测试 ──────────────────────────────────────────
 
-describe('route auth guards', () => {
+describe('路由认证守卫', () => {
   let generateClient: ReturnType<typeof treaty>
   let _uploadClient: ReturnType<typeof treaty>
   let authClient: ReturnType<typeof treaty>
@@ -181,7 +181,7 @@ describe('route auth guards', () => {
   // ═══════════════════════════════════════════════════
 
   describe('POST /api/generate — auth guard', () => {
-    it('should reject request without token', async () => {
+    it('无 token 时拒绝请求', async () => {
       const res = await generateClient.api.generate.post({
         model: 'test-model',
         parameters: { prompt: 'test' },
@@ -196,7 +196,7 @@ describe('route auth guards', () => {
       expect(mockCreateGenerationRecord).not.toHaveBeenCalled()
     })
 
-    it('should reject request with invalid token', async () => {
+    it('无效 token 时拒绝请求', async () => {
       const res = await generateClient.api.generate.post(
         { model: 'test-model', parameters: { prompt: 'test' } },
         { headers: { Authorization: 'Bearer invalid.token.here' } },
@@ -207,7 +207,7 @@ describe('route auth guards', () => {
       expect(err!.error).toContain('登录')
     })
 
-    it('should accept request with valid token and pass userId', async () => {
+    it('有效 token 时接受请求并传递 userId', async () => {
       const token = await getValidToken(authClient)
 
       // 模拟 DashScope 返回失败（只测认证守卫，不测完整流程）
@@ -235,7 +235,7 @@ describe('route auth guards', () => {
   // ═══════════════════════════════════════════════════
 
   describe('GET /api/records — auth guard', () => {
-    it('should reject request without token', async () => {
+    it('无 token 时拒绝请求', async () => {
       const res = await generateClient.api.records.get()
 
       const err = extractEdenError(res)
@@ -245,7 +245,7 @@ describe('route auth guards', () => {
       expect(mockListGenerationRecords).not.toHaveBeenCalled()
     })
 
-    it('should accept request with valid token and filter by userId', async () => {
+    it('有效 token 时接受请求并按 userId 过滤', async () => {
       const token = await getValidToken(authClient)
       mockListGenerationRecords.mockResolvedValue([])
 
@@ -264,7 +264,7 @@ describe('route auth guards', () => {
   // ═══════════════════════════════════════════════════
 
   describe('POST /api/upload — auth guard', () => {
-    it('should reject request without token', async () => {
+    it('无 token 时拒绝请求', async () => {
       // 使用原生 Request 直接调用，绕过 Eden Treaty 的 FormData 序列化问题
       const uploadApp = createUploadRoutes(testConfig)
       const formData = new FormData()
@@ -284,7 +284,7 @@ describe('route auth guards', () => {
       expect(mockCreateUploadedFile).not.toHaveBeenCalled()
     })
 
-    it('should accept request with valid token and pass userId', async () => {
+    it('有效 token 时接受请求并传递 userId', async () => {
       const token = await getValidToken(authClient)
       mockSaveUploadedFile.mockResolvedValue({
         storagePath: '/uploads/test.png',

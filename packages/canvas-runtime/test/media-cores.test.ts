@@ -92,7 +92,7 @@ const baseCharacter = {
 } as unknown as CanvasProjectDetail['characters'][number]
 
 describe('generateCharacterRefAssets', () => {
-  it('generates portrait + turnaround and persists both URLs on the character row', async () => {
+  it('生成 portrait + turnaround 并持久化两个 URL 到角色行', async () => {
     let callCounter = 0
     // 两次 generate 调用共用同一个 client（实际生产也是如此）
     const client = {
@@ -123,7 +123,7 @@ describe('generateCharacterRefAssets', () => {
     expect(updateCharacter).toHaveBeenCalledTimes(2)
   })
 
-  it('returns undefined URLs when image generation yields no result (null from generateCanvasImageAsset)', async () => {
+  it('图片生成无结果时返回 undefined URLs（generateCanvasImageAsset 返回 null）', async () => {
     // client 返回空 urls → generateCanvasImageAsset 返回 null → 不写 character
     const client = {
       generateImage: async () => ({ type: 'success', success: true, output: { urls: [] } }),
@@ -146,7 +146,7 @@ describe('generateCharacterRefAssets', () => {
 })
 
 describe('buildCharacterPortraitPrompt / buildCharacterTurnaroundPrompt', () => {
-  it('builds deterministic prompts from identityPrompt', () => {
+  it('从 identityPrompt 构建确定性 prompts', () => {
     const p = buildCharacterPortraitPrompt('少年')
     expect(p).toContain('portrait photo')
     expect(p).toContain('少年')
@@ -167,7 +167,7 @@ const baseLocation = {
 } as unknown as CanvasProjectDetail['locations'][number]
 
 describe('generateLocationRefAsset', () => {
-  it('generates a ref image and persists the URL on the location row', async () => {
+  it('生成参考图片并持久化 URL 到场景行', async () => {
     const client = makeImageClient(['https://cdn.example.com/loc-ref.png'])
     const { refUrl } = await generateLocationRefAsset({
       location: baseLocation,
@@ -185,7 +185,7 @@ describe('generateLocationRefAsset', () => {
     expect(patch).toMatchObject({ referenceImageUrl: 'https://cdn.example.com/loc-ref.png' })
   })
 
-  it('returns undefined refUrl when image generation yields no result', async () => {
+  it('图片生成无结果时返回 undefined refUrl', async () => {
     const client = {
       generateImage: async () => ({ type: 'success', success: true, output: { urls: [] } }),
     } as unknown as import('@excuse/provider').DashScopeClient
@@ -205,7 +205,7 @@ describe('generateLocationRefAsset', () => {
 })
 
 describe('buildLocationRefPrompt', () => {
-  it('builds the establishing-shot prompt from scenePrompt', () => {
+  it('从 scenePrompt 构建建立镜头 prompt', () => {
     const p = buildLocationRefPrompt('青石板')
     expect(p).toContain('establishing shot')
     expect(p).toContain('青石板')
@@ -279,7 +279,7 @@ async function submitShotVideoEntityLocal(input: {
 }
 
 describe('submitShotVideoEntity', () => {
-  it('resolves referenceUrls from characters + location and submits with ref-resolved model (-r2v)', async () => {
+  it('从角色 + 场景解析 referenceUrls 并用 ref 解析后的模型提交（-r2v）', async () => {
     const client = makeVideoClient()
     const { taskId, model, referenceUrls } = await submitShotVideoEntityLocal({
       projectId: 'p1',
@@ -301,7 +301,7 @@ describe('submitShotVideoEntity', () => {
     expect(updateShot).toHaveBeenCalledTimes(1)
   })
 
-  it('uses -t2v suffix when no referenceUrls are available', async () => {
+  it('无 referenceUrls 时使用 -t2v 后缀', async () => {
     const characterNoRef = { id: 'char-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['characters'][number]
     const locationNoRef = { id: 'loc-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['locations'][number]
     const client = makeVideoClient()
@@ -322,7 +322,7 @@ describe('submitShotVideoEntity', () => {
     expect(model).toContain('-t2v')
   })
 
-  it('merges extra referenceAssetsJson URLs after char/loc auto refs, deduped', async () => {
+  it('合并额外 referenceAssetsJson URLs（角色/场景自动引用之后），并去重', async () => {
     const shotWithExtraRefs = {
       ...baseShot,
       referenceAssetsJson: [
@@ -357,7 +357,7 @@ describe('submitShotVideoEntity', () => {
     ])
   })
 
-  it('extra referenceAssetsJson works without auto char/loc refs', async () => {
+  it('无自动角色/场景引用时额外 referenceAssetsJson 仍可工作', async () => {
     const characterNoRef = { id: 'char-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['characters'][number]
     const locationNoRef = { id: 'loc-1', referenceImageUrl: null } as unknown as CanvasProjectDetail['locations'][number]
     const shotWithExtraRefs = {
@@ -386,7 +386,7 @@ describe('submitShotVideoEntity', () => {
     expect(model).toContain('-i2v')
   })
 
-  it('no extra referenceAssetsJson preserves old behavior', async () => {
+  it('无额外 referenceAssetsJson 时保持原有行为', async () => {
     const shotWithoutExtraRefs = {
       ...baseShot,
       referenceAssetsJson: [],

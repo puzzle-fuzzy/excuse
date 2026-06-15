@@ -20,7 +20,7 @@ import {
 } from '../src'
 
 describe('@excuse/workflow-engine', () => {
-  it('defines the canonical canvas phase order', () => {
+  it('定义标准 canvas 阶段顺序', () => {
     expect(CANVAS_PHASE_ORDER).toEqual([
       'analyze',
       'characters',
@@ -36,20 +36,20 @@ describe('@excuse/workflow-engine', () => {
     expect(CANVAS_PAUSE_BEFORE.has('videos')).toBe(true)
   })
 
-  it('maps between phases and canvas task types', () => {
+  it('阶段与 canvas 任务类型双向映射', () => {
     expect(phaseToTaskType('characters')).toBe('canvas.characters')
     expect(getCanvasPhaseFromTaskType('canvas.characters')).toBe('characters')
     expect(getCanvasPhaseFromTaskType('canvas.unknown')).toBeNull()
     expect(getCanvasPhaseFromTaskType('generate.video')).toBeNull()
   })
 
-  it('returns the next phase when one exists', () => {
+  it('存在下一阶段时返回下一阶段', () => {
     expect(getNextCanvasPhase('analyze')).toBe('characters')
     expect(getNextCanvasPhase('rebuild')).toBe('videos')
     expect(getNextCanvasPhase('videos')).toBeNull()
   })
 
-  it('decides not to advance non-canvas or incomplete tasks', () => {
+  it('非 canvas 或未完成任务不自动推进', () => {
     expect(decideCanvasAutoAdvance({
       type: 'canvas.analyze',
       domain: 'generate',
@@ -61,7 +61,7 @@ describe('@excuse/workflow-engine', () => {
     })
   })
 
-  it('decides not to advance when auto progress is disabled', () => {
+  it('自动推进关闭时不推进', () => {
     expect(decideCanvasAutoAdvance({
       type: 'canvas.analyze',
       domain: 'canvas',
@@ -75,7 +75,7 @@ describe('@excuse/workflow-engine', () => {
     })
   })
 
-  it('pauses before user confirmation phases', () => {
+  it('用户确认阶段前暂停', () => {
     expect(decideCanvasAutoAdvance({
       type: 'canvas.locationRefs',
       domain: 'canvas',
@@ -89,7 +89,7 @@ describe('@excuse/workflow-engine', () => {
     })
   })
 
-  it('allows ordinary automatic phase advancement', () => {
+  it('普通阶段允许自动推进', () => {
     expect(decideCanvasAutoAdvance({
       type: 'canvas.analyze',
       domain: 'canvas',
@@ -102,7 +102,7 @@ describe('@excuse/workflow-engine', () => {
     })
   })
 
-  it('creates and links the next canvas pipeline task through an adapter', async () => {
+  it('通过 adapter 创建并关联下一个 pipeline 任务', async () => {
     const calls: string[] = []
     const result = await createNextCanvasPipelineTask({
       projectId: 'project-1',
@@ -146,30 +146,30 @@ describe('@excuse/workflow-engine', () => {
   })
 })
 
-describe('canvas pipeline run state rules', () => {
-  it('treats pending and running as active', () => {
+describe('canvas pipeline 运行状态规则', () => {
+  it('pending 和 running 视为活跃', () => {
     expect(isActivePipelineRun({ status: 'pending' })).toBe(true)
     expect(isActivePipelineRun({ status: 'running' })).toBe(true)
   })
 
-  it('treats succeeded, failed and cancelled as not active', () => {
+  it('succeeded、failed、cancelled 视为非活跃', () => {
     expect(isActivePipelineRun({ status: 'succeeded' })).toBe(false)
     expect(isActivePipelineRun({ status: 'failed' })).toBe(false)
     expect(isActivePipelineRun({ status: 'cancelled' })).toBe(false)
   })
 
-  it('treats succeeded, failed and cancelled as terminal', () => {
+  it('succeeded、failed、cancelled 视为终态', () => {
     expect(isTerminalPipelineRun({ status: 'succeeded' })).toBe(true)
     expect(isTerminalPipelineRun({ status: 'failed' })).toBe(true)
     expect(isTerminalPipelineRun({ status: 'cancelled' })).toBe(true)
   })
 
-  it('treats pending and running as not terminal', () => {
+  it('pending 和 running 视为非终态', () => {
     expect(isTerminalPipelineRun({ status: 'pending' })).toBe(false)
     expect(isTerminalPipelineRun({ status: 'running' })).toBe(false)
   })
 
-  it('filters a run list down to active runs, preserving order and extra fields', () => {
+  it('过滤运行列表仅保留活跃项，保持顺序和额外字段', () => {
     const runs = [
       { id: 'r1', status: 'succeeded' as const },
       { id: 'r2', status: 'running' as const },
@@ -183,7 +183,7 @@ describe('canvas pipeline run state rules', () => {
     ])
   })
 
-  it('returns an empty array when no runs are active', () => {
+  it('无活跃运行时返回空数组', () => {
     const runs = [
       { id: 'r1', status: 'succeeded' as const },
       { id: 'r2', status: 'failed' as const },
@@ -191,45 +191,45 @@ describe('canvas pipeline run state rules', () => {
     expect(filterActivePipelineRuns(runs)).toEqual([])
   })
 
-  it('treats failed and cancelled runs as retryable', () => {
+  it('failed 和 cancelled 视为可重试', () => {
     expect(isRetryablePipelineRun({ status: 'failed' })).toBe(true)
     expect(isRetryablePipelineRun({ status: 'cancelled' })).toBe(true)
   })
 
-  it('treats succeeded, pending and running runs as not retryable', () => {
+  it('succeeded、pending、running 视为不可重试', () => {
     expect(isRetryablePipelineRun({ status: 'succeeded' })).toBe(false)
     expect(isRetryablePipelineRun({ status: 'pending' })).toBe(false)
     expect(isRetryablePipelineRun({ status: 'running' })).toBe(false)
   })
 })
 
-describe('canvas phase decision rules', () => {
-  it('flags storyboard and videos as pause-before phases', () => {
+describe('canvas 阶段决策规则', () => {
+  it('storyboard 和 videos 标记为暂停前阶段', () => {
     expect(isPauseBeforePhase('storyboard')).toBe(true)
     expect(isPauseBeforePhase('videos')).toBe(true)
   })
 
-  it('does not flag ordinary phases as pause-before', () => {
+  it('普通阶段不标记为暂停前', () => {
     expect(isPauseBeforePhase('analyze')).toBe(false)
     expect(isPauseBeforePhase('characters')).toBe(false)
     expect(isPauseBeforePhase('rebuild')).toBe(false)
   })
 
-  it('allows advancing to an ordinary phase when there is no active run', () => {
+  it('无活跃运行时允许推进到普通阶段', () => {
     expect(canAdvanceToPhase('characters')).toBe(true)
     expect(canAdvanceToPhase('characters', { hasActiveRun: false })).toBe(true)
   })
 
-  it('blocks advancing to a pause-before phase even without an active run', () => {
+  it('即使无活跃运行也阻止推进到暂停前阶段', () => {
     expect(canAdvanceToPhase('storyboard')).toBe(false)
     expect(canAdvanceToPhase('videos', { hasActiveRun: false })).toBe(false)
   })
 
-  it('blocks advancing when the target phase already has an active run', () => {
+  it('目标阶段已有活跃运行时阻止推进', () => {
     expect(canAdvanceToPhase('characters', { hasActiveRun: true })).toBe(false)
   })
 
-  it('decideCanvasAutoAdvance still pauses before storyboard (regression)', () => {
+  it('decideCanvasAutoAdvance 在 storyboard 前仍暂停（回归测试）', () => {
     expect(decideCanvasAutoAdvance({
       type: 'canvas.locationRefs',
       domain: 'canvas',
@@ -243,12 +243,12 @@ describe('canvas phase decision rules', () => {
   })
 })
 
-describe('batch outcome rules', () => {
-  it('classifies an empty batch as empty', () => {
+describe('批次结果规则', () => {
+  it('空批次分类为 empty', () => {
     expect(decideBatchOutcome([])).toEqual({ type: 'empty' })
   })
 
-  it('classifies a fully succeeded batch', () => {
+  it('全部成功的批次分类为 all_succeeded', () => {
     const items = [{ status: 'succeeded' as const }, { status: 'succeeded' as const }]
     expect(decideBatchOutcome(items)).toEqual({
       type: 'all_succeeded',
@@ -258,7 +258,7 @@ describe('batch outcome rules', () => {
     })
   })
 
-  it('classifies a fully failed batch', () => {
+  it('全部失败的批次分类为 all_failed', () => {
     const items = [{ status: 'failed' as const }, { status: 'failed' as const }]
     expect(decideBatchOutcome(items)).toEqual({
       type: 'all_failed',
@@ -268,7 +268,7 @@ describe('batch outcome rules', () => {
     })
   })
 
-  it('classifies a mixed succeeded/failed batch as partial_failed', () => {
+  it('成功/失败混合批次分类为 partial_failed', () => {
     const items = [
       { status: 'succeeded' as const },
       { status: 'failed' as const },
@@ -282,7 +282,7 @@ describe('batch outcome rules', () => {
     })
   })
 
-  it('treats a batch with pending/processing items as in_progress', () => {
+  it('含 pending/processing 的批次视为 in_progress', () => {
     expect(decideBatchOutcome([
       { status: 'succeeded' as const },
       { status: 'pending' as const },
@@ -294,7 +294,7 @@ describe('batch outcome rules', () => {
     ])).toMatchObject({ type: 'in_progress' })
   })
 
-  it('counts cancelled items toward the failed count', () => {
+  it('cancelled 计入失败数量', () => {
     const items = [
       { status: 'cancelled' as const },
       { status: 'failed' as const },
@@ -319,7 +319,7 @@ describe('batch outcome rules', () => {
     })
   })
 
-  it('keeps an all-cancelled batch as all_failed', () => {
+  it('全 cancelled 批次仍为 all_failed', () => {
     expect(decideBatchOutcome([
       { status: 'cancelled' as const },
       { status: 'cancelled' as const },
@@ -327,35 +327,35 @@ describe('batch outcome rules', () => {
   })
 })
 
-describe('pipeline command rules', () => {
-  it('allows cancelling pending and running runs', () => {
+describe('pipeline 命令规则', () => {
+  it('允许取消 pending 和 running 运行', () => {
     expect(canCancelPipelineRun({ status: 'pending' })).toBe(true)
     expect(canCancelPipelineRun({ status: 'running' })).toBe(true)
   })
 
-  it('forbids cancelling terminal runs', () => {
+  it('禁止取消终态运行', () => {
     expect(canCancelPipelineRun({ status: 'succeeded' })).toBe(false)
     expect(canCancelPipelineRun({ status: 'failed' })).toBe(false)
     expect(canCancelPipelineRun({ status: 'cancelled' })).toBe(false)
   })
 
-  it('allows retrying failed and cancelled runs', () => {
+  it('允许重试 failed 和 cancelled 运行', () => {
     expect(canRetryPipelineRun({ status: 'failed' })).toBe(true)
     expect(canRetryPipelineRun({ status: 'cancelled' })).toBe(true)
   })
 
-  it('forbids retrying pending, running and succeeded runs', () => {
+  it('禁止重试 pending、running、succeeded 运行', () => {
     expect(canRetryPipelineRun({ status: 'pending' })).toBe(false)
     expect(canRetryPipelineRun({ status: 'running' })).toBe(false)
     expect(canRetryPipelineRun({ status: 'succeeded' })).toBe(false)
   })
 
-  it('allows resume only from pause-before phases (storyboard / videos)', () => {
+  it('仅允许从暂停前阶段恢复（storyboard / videos）', () => {
     expect(canResumeFromPhase('storyboard')).toBe(true)
     expect(canResumeFromPhase('videos')).toBe(true)
   })
 
-  it('forbids resume from ordinary phases', () => {
+  it('禁止从普通阶段恢复', () => {
     expect(canResumeFromPhase('analyze')).toBe(false)
     expect(canResumeFromPhase('characters')).toBe(false)
     expect(canResumeFromPhase('rebuild')).toBe(false)

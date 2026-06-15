@@ -410,7 +410,7 @@ describe('DashScopeClient', () => {
 
   // ── provider call observer（metrics 埋点） ──
 
-  describe('provider call observer', () => {
+  describe('provider 调用观察者', () => {
     let calls: Array<{ model: string, durationMs: number, success: boolean }>
     let unregister: () => void
 

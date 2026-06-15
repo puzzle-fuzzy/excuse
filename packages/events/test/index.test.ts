@@ -16,7 +16,7 @@ import {
 } from '../src'
 
 describe('@excuse/events', () => {
-  it('parses generation notify JSON payload', () => {
+  it('解析 generation notify JSON 负载', () => {
     const payload = parseGenerationNotifyPayload(JSON.stringify({
       accountId: 'acc-1',
       recordId: 'rec-1',
@@ -30,7 +30,7 @@ describe('@excuse/events', () => {
     expect(GENERATION_STATUS_CHANNEL).toBe('generation_status')
   })
 
-  it('maps generation notify payload to user SSE event', () => {
+  it('将 generation notify 负载映射为用户 SSE 事件', () => {
     const events = mapGenerationNotifyToSSEEvents({
       accountId: 'acc-1',
       recordId: 'rec-1',
@@ -57,7 +57,7 @@ describe('@excuse/events', () => {
     ])
   })
 
-  it('adds canvas pipeline events when canvas metadata exists', () => {
+  it('canvas 元数据存在时添加 canvas pipeline 事件', () => {
     const events = mapGenerationNotifyToSSEEvents({
       accountId: 'acc-1',
       recordId: 'rec-1',
@@ -85,7 +85,7 @@ describe('@excuse/events', () => {
     })
   })
 
-  it('tracks user event hub connections and dispatches to all tabs', () => {
+  it('跟踪用户事件 hub 连接并向所有标签页分发', () => {
     const hub = new UserEventHub()
     const received: Array<{ event: string, data: unknown }> = []
     const first = (event: string, data: unknown) => received.push({ event, data })
@@ -107,7 +107,7 @@ describe('@excuse/events', () => {
     expect(hub.getOnlineUserCount()).toBe(0)
   })
 
-  it('continues dispatching when one sender throws', () => {
+  it('某个 sender 抛出异常时继续分发', () => {
     const hub = new UserEventHub()
     const errors: unknown[] = []
     const received: string[] = []
@@ -121,7 +121,7 @@ describe('@excuse/events', () => {
     expect(received).toEqual(['hello'])
   })
 
-  it('dispatches generation NOTIFY payloads through the provided transport', () => {
+  it('通过提供的 transport 分发 generation NOTIFY 负载', () => {
     const dispatched: Array<{ userId: string, event: string, data: unknown }> = []
     const handleNotify = createGenerationNotifyDispatcher({
       dispatchToUser: (userId, event, data) => dispatched.push({ userId, event, data }),
@@ -155,7 +155,7 @@ describe('@excuse/events', () => {
     ])
   })
 
-  it('reports invalid NOTIFY payloads without dispatching', () => {
+  it('报告无效 NOTIFY 负载但不分发', () => {
     const errors: Array<{ error: unknown, rawPayload: string }> = []
     const handleNotify = createGenerationNotifyDispatcher({
       dispatchToUser: () => {
@@ -171,12 +171,12 @@ describe('@excuse/events', () => {
 
   // ===== Notification channel（P2-2） =====
 
-  it('exposes the notification channel name', () => {
+  it('暴露通知频道名称', () => {
     expect(NOTIFICATION_CHANNEL).toBe('notification')
     expect(SSE_NOTIFICATION_EVENT).toBe('notification')
   })
 
-  it('parses notification notify JSON payload', () => {
+  it('解析 notification notify JSON 负载', () => {
     const payload = parseNotificationNotifyPayload(JSON.stringify({
       id: 'n-1',
       accountId: 'acc-1',
@@ -193,7 +193,7 @@ describe('@excuse/events', () => {
     expect(payload.meta?.recordId).toBe('rec-1')
   })
 
-  it('maps notification payload to SSE event, dropping accountId and keeping meta', () => {
+  it('将 notification 负载映射为 SSE 事件，丢弃 accountId 并保留 meta', () => {
     const event = mapNotificationNotifyToSSEEvent({
       id: 'n-1',
       accountId: 'acc-1',
@@ -216,7 +216,7 @@ describe('@excuse/events', () => {
     expect('accountId' in event).toBe(false)
   })
 
-  it('dispatches notification NOTIFY payloads through the provided transport', () => {
+  it('通过提供的 transport 分发 notification NOTIFY 负载', () => {
     const dispatched: Array<{ userId: string, event: string, data: unknown }> = []
     const handleNotification = createNotificationDispatcher({
       dispatchToUser: (userId, event, data) => dispatched.push({ userId, event, data }),
@@ -249,7 +249,7 @@ describe('@excuse/events', () => {
     ])
   })
 
-  it('reports invalid notification payloads without dispatching', () => {
+  it('报告无效 notification 负载但不分发', () => {
     const errors: Array<{ error: unknown, rawPayload: string }> = []
     const handleNotification = createNotificationDispatcher({
       dispatchToUser: () => {
@@ -275,7 +275,7 @@ describe('@excuse/events', () => {
     return { transport, handlers }
   }
 
-  it('subscribes to the generation_status channel through the transport', async () => {
+  it('通过 transport 订阅 generation_status 频道', async () => {
     const { transport, handlers } = createFakeTransport()
 
     await startNotifyListeners({
@@ -288,7 +288,7 @@ describe('@excuse/events', () => {
     expect(handlers.has(NOTIFICATION_CHANNEL)).toBe(true)
   })
 
-  it('forwards raw payload as-is to the matching handler', async () => {
+  it('将原始负载原样转发到匹配的 handler', async () => {
     const { transport, handlers } = createFakeTransport()
     const genPayloads: string[] = []
     const notifPayloads: string[] = []
@@ -306,7 +306,7 @@ describe('@excuse/events', () => {
     expect(notifPayloads).toEqual(['{"id":"n-1"}'])
   })
 
-  it('awaits transport.listen when it returns a Promise', async () => {
+  it('transport.listen 返回 Promise 时等待其完成', async () => {
     let resolveListen: (() => void) | undefined
     const listenPromise = new Promise<void>((resolve) => {
       resolveListen = resolve

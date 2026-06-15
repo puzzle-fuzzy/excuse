@@ -241,3 +241,30 @@ export interface AdminProjectListResponse {
   items: AdminProjectItem[]
   total: number
 }
+
+// ── 审计日志 ──────────────────────────────────────────────────────────────────
+
+export interface AdminAuditLogItem {
+  id: string
+  accountId: string | null
+  action: string
+  targetId: string | null
+  detail: Record<string, unknown> | null
+  ip: string | null
+  createdAt: string
+}
+
+export interface AdminAuditLogListQuery {
+  accountId?: string
+  action?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+}
+
+export interface AdminAuditLogListResponse {
+  success: true
+  items: AdminAuditLogItem[]
+  total: number
+}

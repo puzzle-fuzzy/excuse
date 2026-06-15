@@ -3,81 +3,81 @@ import { z } from 'zod'
 import { LLMSchemaValidationError, parseLLMJson, parseLLMJsonWithSchema } from '../src'
 
 describe('parseLLMJson', () => {
-  it('should parse clean JSON object', () => {
+  it('解析干净的 JSON 对象', () => {
     const input = '{"name":"test","value":42}'
     const result = parseLLMJson<{ name: string, value: number }>(input)
     expect(result).toEqual({ name: 'test', value: 42 })
   })
 
-  it('should parse clean JSON array', () => {
+  it('解析干净的 JSON 数组', () => {
     const input = '[1,2,3]'
     const result = parseLLMJson<number[]>(input)
     expect(result).toEqual([1, 2, 3])
   })
 
-  it('should strip markdown json code fence', () => {
+  it('去除 markdown json 代码块围栏', () => {
     const input = '```json\n{"key":"value"}\n```'
     const result = parseLLMJson<{ key: string }>(input)
     expect(result).toEqual({ key: 'value' })
   })
 
-  it('should strip markdown code fence without language tag', () => {
+  it('去除无语言标签的 markdown 代码块围栏', () => {
     const input = '```\n{"key":"value"}\n```'
     const result = parseLLMJson<{ key: string }>(input)
     expect(result).toEqual({ key: 'value' })
   })
 
-  it('should extract JSON from surrounding text', () => {
+  it('从周围文本中提取 JSON', () => {
     const input = 'Here is the result:\n{"summary":"hello"}\nEnd of result.'
     const result = parseLLMJson<{ summary: string }>(input)
     expect(result).toEqual({ summary: 'hello' })
   })
 
-  it('should extract JSON array of primitives from surrounding text', () => {
+  it('从周围文本中提取基本类型 JSON 数组', () => {
     const input = 'Result:\n["a","b","c"]\nDone.'
     const result = parseLLMJson<string[]>(input)
     expect(result).toEqual(['a', 'b', 'c'])
   })
 
-  it('should extract JSON array of objects from code fence', () => {
+  it('从代码块围栏中提取 JSON 对象数组', () => {
     const input = '```json\n[{"id":1},{"id":2}]\n```'
     const result = parseLLMJson<Array<{ id: number }>>(input)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
 
-  it('should extract JSON array of objects from surrounding text', () => {
+  it('从周围文本中提取 JSON 对象数组', () => {
     const input = 'Result:\n[{"id":1},{"id":2}]\nDone.'
     const result = parseLLMJson<Array<{ id: number }>>(input)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
 
-  it('should handle nested JSON objects', () => {
+  it('处理嵌套 JSON 对象', () => {
     const input = '{"outer":{"inner":{"deep":true}},"arr":[1,2]}'
     const result = parseLLMJson<{ outer: { inner: { deep: boolean } }, arr: number[] }>(input)
     expect(result.outer.inner.deep).toBe(true)
     expect(result.arr).toEqual([1, 2])
   })
 
-  it('should throw when no JSON found', () => {
+  it('找不到 JSON 时抛出异常', () => {
     expect(() => parseLLMJson('no json here')).toThrow('Failed to extract JSON')
   })
 
-  it('should throw with truncated input preview', () => {
+  it('抛出异常时包含截断输入预览', () => {
     const longInput = 'x'.repeat(300)
     expect(() => parseLLMJson(longInput)).toThrow(longInput.slice(0, 200))
   })
 
-  it('should handle whitespace-only input', () => {
+  it('处理纯空白输入', () => {
     expect(() => parseLLMJson('   ')).toThrow('Failed to extract JSON')
   })
 
-  it('should handle JSON in code fence with extra whitespace', () => {
+  it('处理代码块围栏中带额外空白的 JSON', () => {
     const input = '```json\n  \n  {"a": 1}  \n  \n```'
     const result = parseLLMJson<{ a: number }>(input)
     expect(result).toEqual({ a: 1 })
   })
 
-  it('should handle real-world LLM output with preamble', () => {
+  it('处理真实 LLM 输出（带前导文本）', () => {
     const input = `根据您的要求，分析结果如下：
 
 \`\`\`json
@@ -106,19 +106,19 @@ describe('parseLLMJson', () => {
 describe('parseLLMJsonWithSchema', () => {
   const schema = z.object({ name: z.string(), value: z.number() })
 
-  it('returns typed value on valid JSON', () => {
+  it('有效 JSON 时返回带类型的值', () => {
     const result = parseLLMJsonWithSchema('{"name":"foo","value":42}', schema)
     expect(result.name).toBe('foo')
     expect(result.value).toBe(42)
   })
 
-  it('parses JSON wrapped in markdown fence', () => {
+  it('解析 markdown 围栏包裹的 JSON', () => {
     const result = parseLLMJsonWithSchema('```json\n{"name":"foo","value":42}\n```', schema)
     expect(result.name).toBe('foo')
     expect(result.value).toBe(42)
   })
 
-  it('parses JSON extracted from surrounding text', () => {
+  it('从周围文本中提取 JSON', () => {
     const result = parseLLMJsonWithSchema(
       'Result:\n{"name":"foo","value":42}\nDone.',
       schema,
@@ -126,19 +126,19 @@ describe('parseLLMJsonWithSchema', () => {
     expect(result.name).toBe('foo')
   })
 
-  it('throws LLMSchemaValidationError on schema mismatch (wrong field type)', () => {
+  it('schema 不匹配（字段类型错误）时抛出 LLMSchemaValidationError', () => {
     expect(() =>
       parseLLMJsonWithSchema('{"name":"foo","value":"not a number"}', schema),
     ).toThrow(LLMSchemaValidationError)
   })
 
-  it('throws LLMSchemaValidationError on missing required field', () => {
+  it('缺少必填字段时抛出 LLMSchemaValidationError', () => {
     expect(() =>
       parseLLMJsonWithSchema('{"name":"foo"}', schema),
     ).toThrow(LLMSchemaValidationError)
   })
 
-  it('error carries zodError + rawPreview (≤ 200 chars)', () => {
+  it('错误携带 zodError + rawPreview（≤ 200 字符）', () => {
     const raw = '{"name":"foo","value":"x"} extra padding '.repeat(20)
     try {
       parseLLMJsonWithSchema(raw, schema)
@@ -165,12 +165,12 @@ describe('parseLLMJsonWithSchema', () => {
     }
   })
 
-  it('preserves parseLLMJson behavior on non-JSON input (throws base Error)', () => {
+  it('非 JSON 输入时保留 parseLLMJson 行为（抛出基础 Error）', () => {
     expect(() => parseLLMJsonWithSchema('no json here', schema)).toThrow('Failed to extract JSON')
     expect(() => parseLLMJsonWithSchema('no json here', schema)).not.toThrow(LLMSchemaValidationError)
   })
 
-  it('distinguishes schema error from JSON parse error via instanceof', () => {
+  it('通过 instanceof 区分 schema 错误与 JSON 解析错误', () => {
     let caught: unknown
     try {
       parseLLMJsonWithSchema('{"name":"foo","value":"x"}', schema)
@@ -193,13 +193,13 @@ describe('parseLLMJsonWithSchema', () => {
     expect(jsonError).toBeInstanceOf(Error)
   })
 
-  it('works with array schema (z.array)', () => {
+  it('支持 array schema（z.array）', () => {
     const arrSchema = z.array(z.object({ id: z.number() }))
     const result = parseLLMJsonWithSchema('[{"id":1},{"id":2}]', arrSchema)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
 
-  it('works with .loose() schema — extra fields passthrough', () => {
+  it('支持 .loose() schema — 额外字段透传', () => {
     const looseSchema = z.object({ name: z.string() }).loose()
     const result = parseLLMJsonWithSchema('{"name":"foo","extra":"bar"}', looseSchema)
     expect(result.name).toBe('foo')

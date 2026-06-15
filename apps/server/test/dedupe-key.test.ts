@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { __test, createDedupeKey } from '../src/utils/dedupe-key'
 
 describe('dedupe key', () => {
-  it('uses canonical object key order', async () => {
+  it('使用规范对象键顺序', async () => {
     const first = await createDedupeKey({
       accountId: 'acc-001',
       model: 'qwen-max',
@@ -19,7 +19,7 @@ describe('dedupe key', () => {
     expect(first).toStartWith('sha256:')
   })
 
-  it('changes when reference files change', async () => {
+  it('引用文件变化时改变', async () => {
     const base = {
       accountId: 'acc-001',
       model: 'qwen-image-2.0-pro',
@@ -32,7 +32,7 @@ describe('dedupe key', () => {
     expect(withReference).not.toBe(withoutReference)
   })
 
-  it('drops undefined object fields like JSON.stringify but keeps array positions stable', () => {
+  it('丢弃 undefined 对象字段但保持数组位置稳定', () => {
     expect(__test.canonicalStringify({ b: 2, a: undefined, c: [1, undefined] })).toBe('{"b":2,"c":[1,null]}')
   })
 })

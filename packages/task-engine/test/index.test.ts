@@ -17,7 +17,7 @@ import {
 } from '../src'
 
 describe('@excuse/task-engine', () => {
-  it('classifies unimplemented tasks as validation and non-retriable', () => {
+  it('未实现任务分类为 validation 且不可重试', () => {
     const decision = classifyTaskError(new TaskNotImplementedError('generate.video'))
 
     expect(decision).toEqual({
@@ -27,7 +27,7 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('marks provider transient errors as retriable', () => {
+  it('provider 瞬时错误标记为可重试', () => {
     const error = new Error('provider throttled', { cause: { code: 'Throttling' } })
 
     expect(classifyTaskError(error)).toEqual({
@@ -38,7 +38,7 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('marks invalid parameter errors as non-retriable system errors', () => {
+  it('无效参数错误标记为不可重试的 system 错误', () => {
     const error = new Error('bad request', { cause: { code: 'InvalidParameter' } })
 
     expect(classifyTaskError(error)).toEqual({
@@ -49,14 +49,14 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('checks retry budget', () => {
+  it('检查重试预算', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 
     expect(shouldRetryTask(error, 1, 3)).toBe(true)
     expect(shouldRetryTask(error, 3, 3)).toBe(false)
   })
 
-  it('exposes admin-safe task operation guards', () => {
+  it('暴露管理安全的任务操作守卫', () => {
     expect(canRequeueTask({ status: 'failed' })).toBe(true)
     expect(canRequeueTask({ status: 'retrying' })).toBe(true)
     expect(canRequeueTask({ status: 'queued' })).toBe(true)
@@ -70,13 +70,13 @@ describe('@excuse/task-engine', () => {
     expect(canCancelTask({ status: 'succeeded' })).toBe(false)
   })
 
-  it('uses longer exponential delay for video tasks', () => {
+  it('视频任务使用更长的指数延迟', () => {
     expect(computeRetryDelay('canvas.videos', 1)).toBe(60_000)
     expect(computeRetryDelay('generate.video', 3)).toBe(240_000)
     expect(computeRetryDelay('canvas.analyze', 3)).toBe(30_000)
   })
 
-  it('dispatches tasks through a typed handler registry', async () => {
+  it('通过类型化 handler 注册表分发任务', async () => {
     const registry = createTaskHandlerRegistry<
       { type: string, payload: string },
       { suffix: string },
@@ -95,13 +95,13 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('throws TaskNotImplementedError for unregistered task types', async () => {
+  it('未注册任务类型抛出 TaskNotImplementedError', async () => {
     const registry = createTaskHandlerRegistry<{ type: string }, undefined>()
 
     await expect(registry.handle({ type: 'missing.task' }, undefined)).rejects.toThrow(TaskNotImplementedError)
   })
 
-  it('allows later registrations to replace handlers for a task type', async () => {
+  it('后续注册可替换任务类型的 handler', async () => {
     const registry = createTaskHandlerRegistry<{ type: string }, undefined, string>()
       .register({ type: 'demo.task', handler: () => 'first' })
       .register({ type: 'demo.task', handler: () => 'second' })
@@ -109,7 +109,7 @@ describe('@excuse/task-engine', () => {
     await expect(registry.handle({ type: 'demo.task' }, undefined)).resolves.toBe('second')
   })
 
-  it('decides retry action with the task retry delay policy', () => {
+  it('根据任务重试延迟策略决定重试动作', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 
     expect(decideTaskFailureAction({
@@ -128,7 +128,7 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('decides fail action when retry budget is exhausted', () => {
+  it('重试预算耗尽时决定失败动作', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 
     expect(decideTaskFailureAction({
@@ -146,7 +146,7 @@ describe('@excuse/task-engine', () => {
     })
   })
 
-  it('completes a task through an adapter and notifies when updated', async () => {
+  it('通过 adapter 完成任务并在更新时通知', async () => {
     const calls: string[] = []
     const updated = await completeTaskWithAdapter({
       task: { id: 'task-1' },
@@ -166,7 +166,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual(['succeed:task-1:{"ok":true}', 'notify:task-1'])
   })
 
-  it('does not notify when complete adapter returns null', async () => {
+  it('complete adapter 返回 null 时不通知', async () => {
     const calls: string[] = []
     const updated = await completeTaskWithAdapter({
       task: { id: 'task-1' },
@@ -185,7 +185,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual(['succeed:task-1'])
   })
 
-  it('claims the next task through an adapter', async () => {
+  it('通过 adapter 领取下一个任务', async () => {
     const calls: Array<[string, number]> = []
     const claimed = { id: 'task-1', type: 'canvas.analyze' }
     const result = await claimNextTaskWithAdapter({
@@ -203,7 +203,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual([['worker-1', 30_000]])
   })
 
-  it('returns null when claim adapter has no eligible task', async () => {
+  it('claim adapter 无符合条件任务时返回 null', async () => {
     const result = await claimNextTaskWithAdapter({
       workerId: 'worker-1',
       claimTtlMs: 30_000,
@@ -215,7 +215,7 @@ describe('@excuse/task-engine', () => {
     expect(result).toBeNull()
   })
 
-  it('sweeps orphan tasks through an adapter and returns recovered count', async () => {
+  it('通过 adapter 清扫孤立任务并返回恢复数量', async () => {
     const calls: Array<[number | undefined]> = []
     const result = await sweepOrphanTasksWithAdapter({
       timeoutMinutes: 5,
@@ -231,7 +231,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual([[5]])
   })
 
-  it('forwards undefined timeoutMinutes to the sweep adapter default', async () => {
+  it('undefined timeoutMinutes 转发给 sweep adapter 默认值', async () => {
     const calls: Array<[number | undefined]> = []
     const result = await sweepOrphanTasksWithAdapter({
       adapter: {
@@ -246,7 +246,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual([[undefined]])
   })
 
-  it('extends a task lock through an adapter with task/worker/ttl args', async () => {
+  it('通过 adapter 延长任务锁，传入 task/worker/ttl 参数', async () => {
     const calls: Array<[string, string, number]> = []
     const updated = { id: 'task-1', status: 'running' }
     const result = await extendTaskLockWithAdapter({
@@ -265,7 +265,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual([['task-1', 'worker-1', 30_000]])
   })
 
-  it('returns null when extend lock adapter reports task no longer running', async () => {
+  it('extend lock adapter 报告任务不再运行时返回 null', async () => {
     const result = await extendTaskLockWithAdapter({
       taskId: 'task-1',
       workerId: 'worker-1',
@@ -278,7 +278,7 @@ describe('@excuse/task-engine', () => {
     expect(result).toBeNull()
   })
 
-  it('cancels a task through an adapter and returns the cancelled task', async () => {
+  it('通过 adapter 取消任务并返回已取消的任务', async () => {
     const calls: string[] = []
     const cancelled = { id: 'task-1', status: 'cancelled' }
     const result = await cancelTaskWithAdapter({
@@ -295,7 +295,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual(['task-1'])
   })
 
-  it('returns null when cancel adapter reports task already in terminal state', async () => {
+  it('cancel adapter 报告任务已处于终态时返回 null', async () => {
     const result = await cancelTaskWithAdapter({
       taskId: 'task-1',
       adapter: {
@@ -306,7 +306,7 @@ describe('@excuse/task-engine', () => {
     expect(result).toBeNull()
   })
 
-  it('applies retry failure action through an adapter', async () => {
+  it('通过 adapter 应用重试失败动作', async () => {
     const error = new Error('throttled', { cause: { code: 'Throttling' } })
     const calls: string[] = []
     const result = await applyTaskFailureWithAdapter({
@@ -330,7 +330,7 @@ describe('@excuse/task-engine', () => {
     expect(calls).toEqual(['retry:task-1:61000'])
   })
 
-  it('applies fail action through an adapter when retry budget is exhausted', async () => {
+  it('重试预算耗尽时通过 adapter 应用失败动作', async () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
     const calls: unknown[] = []
     const result = await applyTaskFailureWithAdapter({

@@ -49,7 +49,7 @@ function makeLocation(overrides: Partial<NormalizedLocation> = {}): NormalizedLo
 }
 
 describe('validateShotContinuity', () => {
-  it('should return no issues for valid shots', () => {
+  it('有效镜头无问题', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -84,7 +84,7 @@ describe('validateShotContinuity', () => {
     expect(issues).toHaveLength(0)
   })
 
-  it('should return no issues for empty shots', () => {
+  it('空镜头无问题', () => {
     const issues = validateShotContinuity({
       shots: [],
       characters: [makeCharacter()],
@@ -95,7 +95,7 @@ describe('validateShotContinuity', () => {
 
   // ── MISSING_SCENE ──────────────────────────────────
 
-  it('should detect MISSING_SCENE for invalid locationId', () => {
+  it('无效 locationId 时检测 MISSING_SCENE', () => {
     const shot = makeShot({ locationId: 'nonexistent-loc' })
     const issues = validateShotContinuity({
       shots: [shot],
@@ -111,7 +111,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should not flag null locationId', () => {
+  it('null locationId 不标记', () => {
     const shot = makeShot({ locationId: null })
     const issues = validateShotContinuity({
       shots: [shot],
@@ -124,7 +124,7 @@ describe('validateShotContinuity', () => {
 
   // ── MISSING_CHARACTER ─────────────────────────────
 
-  it('should detect MISSING_CHARACTER when no characters assigned', () => {
+  it('无角色分配时检测 MISSING_CHARACTER', () => {
     const shot = makeShot({ characterIds: [] })
     const issues = validateShotContinuity({
       shots: [shot],
@@ -140,7 +140,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should detect MISSING_CHARACTER for invalid characterId', () => {
+  it('无效 characterId 时检测 MISSING_CHARACTER', () => {
     const shot = makeShot({ characterIds: ['char-1', 'nonexistent'] })
     const issues = validateShotContinuity({
       shots: [shot],
@@ -154,7 +154,7 @@ describe('validateShotContinuity', () => {
 
   // ── FORBIDDEN_CAMERA_ANGLE ────────────────────────
 
-  it('should detect FORBIDDEN_CAMERA_ANGLE', () => {
+  it('检测 FORBIDDEN_CAMERA_ANGLE', () => {
     const location = makeLocation({
       cameraRules: {
         axisDirection: 'left_to_right',
@@ -178,7 +178,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should not flag when angle is allowed', () => {
+  it('角度允许时不标记', () => {
     const location = makeLocation({
       cameraRules: {
         axisDirection: 'left_to_right',
@@ -199,7 +199,7 @@ describe('validateShotContinuity', () => {
 
   // ── FACING_CHANGE ─────────────────────────────────
 
-  it('should detect FACING_CHANGE for same-scene consecutive shots', () => {
+  it('同场景连续镜头检测 FACING_CHANGE', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -240,7 +240,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should not flag FACING_CHANGE when screen direction changes', () => {
+  it('屏幕方向变化时不标记 FACING_CHANGE', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -275,7 +275,7 @@ describe('validateShotContinuity', () => {
     expect(issues.filter(i => i.code === 'FACING_CHANGE')).toHaveLength(0)
   })
 
-  it('should skip FACING_CHANGE for different scenes', () => {
+  it('不同场景时跳过 FACING_CHANGE', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -314,7 +314,7 @@ describe('validateShotContinuity', () => {
 
   // ── ACTION_MISMATCH ───────────────────────────────
 
-  it('should detect ACTION_MISMATCH for same-scene shots', () => {
+  it('同场景镜头检测 ACTION_MISMATCH', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -354,7 +354,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should not flag ACTION_MISMATCH when actions are consistent', () => {
+  it('动作一致时不标记 ACTION_MISMATCH', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -389,7 +389,7 @@ describe('validateShotContinuity', () => {
     expect(issues.filter(i => i.code === 'ACTION_MISMATCH')).toHaveLength(0)
   })
 
-  it('should tolerate punctuation differences in action matching', () => {
+  it('动作匹配时容忍标点差异', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -426,7 +426,7 @@ describe('validateShotContinuity', () => {
 
   // ── EMOTION_MISMATCH ──────────────────────────────
 
-  it('should detect EMOTION_MISMATCH for same-scene shots', () => {
+  it('同场景镜头检测 EMOTION_MISMATCH', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -466,7 +466,7 @@ describe('validateShotContinuity', () => {
     })
   })
 
-  it('should not flag EMOTION_MISMATCH when emotions match', () => {
+  it('情绪匹配时不标记 EMOTION_MISMATCH', () => {
     const shots = [
       makeShot({
         id: 's1',
@@ -503,7 +503,7 @@ describe('validateShotContinuity', () => {
 
   // ── Multiple issues combined ──────────────────────
 
-  it('should detect multiple issue types across shots', () => {
+  it('跨镜头检测多种问题类型', () => {
     const shots = [
       makeShot({
         id: 's1',

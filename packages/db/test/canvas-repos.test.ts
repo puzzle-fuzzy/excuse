@@ -65,7 +65,7 @@ describe('canvas repositories', () => {
   // ═══════════════════════════════════════════════════════
 
   describe('canvas-projects.repo', () => {
-    it('should create and get a project', async () => {
+    it('创建并获取项目', async () => {
       const project = await createCanvasProject({
         accountId,
         storyText: '一段测试故事文本',
@@ -82,7 +82,7 @@ describe('canvas repositories', () => {
       expect(found!.id).toBe(project.id)
     })
 
-    it('should create project with title and analysis', async () => {
+    it('创建含 title 和 analysis 的项目', async () => {
       const project = await createCanvasProject({
         accountId,
         title: '测试项目',
@@ -94,7 +94,7 @@ describe('canvas repositories', () => {
       expect(project.analysisJson).toEqual({ summary: '摘要', mainConflict: '冲突', timeline: [], characterNames: [], sceneNames: [] })
     })
 
-    it('should list projects by account', async () => {
+    it('按账户列出项目', async () => {
       await createCanvasProject({ accountId, storyText: '故事1' })
       await createCanvasProject({ accountId, storyText: '故事2' })
 
@@ -102,7 +102,7 @@ describe('canvas repositories', () => {
       expect(list).toHaveLength(2)
     })
 
-    it('should update project fields', async () => {
+    it('更新项目字段', async () => {
       const project = await createCanvasProject({ accountId, storyText: '原始故事' })
 
       const updated = await updateCanvasProject(project.id, {
@@ -116,7 +116,7 @@ describe('canvas repositories', () => {
       expect(updated!.status).toBe('analyzed')
     })
 
-    it('should soft-delete project (isDeleted=true)', async () => {
+    it('软删除项目（isDeleted=true）', async () => {
       const project = await createCanvasProject({ accountId, storyText: '故事' })
       await softDeleteCanvasProject(project.id)
 
@@ -125,12 +125,12 @@ describe('canvas repositories', () => {
       expect(found).toBeNull()
     })
 
-    it('should return null for nonexistent project', async () => {
+    it('不存在的项目返回 null', async () => {
       const found = await getCanvasProjectById('00000000-0000-0000-0000-000000000000')
       expect(found).toBeNull()
     })
 
-    it('should return project detail with children', async () => {
+    it('返回项目详情及子资源', async () => {
       const project = await createCanvasProject({ accountId, storyText: '故事' })
       await createCanvasCharacter({ projectId: project.id, name: '角色A' })
       await createCanvasLocation({ projectId: project.id, name: '场景A' })
@@ -154,7 +154,7 @@ describe('canvas repositories', () => {
       projectId = project.id
     })
 
-    it('should create and get a character', async () => {
+    it('创建并获取角色', async () => {
       const character = await createCanvasCharacter({
         projectId,
         name: '小明',
@@ -174,7 +174,7 @@ describe('canvas repositories', () => {
       expect(found!.name).toBe('小明')
     })
 
-    it('should list characters by project', async () => {
+    it('按项目列出角色', async () => {
       await createCanvasCharacter({ projectId, name: '角色1' })
       await createCanvasCharacter({ projectId, name: '角色2' })
 
@@ -182,7 +182,7 @@ describe('canvas repositories', () => {
       expect(list).toHaveLength(2)
     })
 
-    it('should update character fields', async () => {
+    it('更新角色字段', async () => {
       const character = await createCanvasCharacter({ projectId, name: '原名' })
 
       const updated = await updateCanvasCharacter(character.id, {
@@ -195,7 +195,7 @@ describe('canvas repositories', () => {
       expect(updated!.locked).toBe(true)
     })
 
-    it('should delete characters by project', async () => {
+    it('按项目删除角色', async () => {
       await createCanvasCharacter({ projectId, name: '角色A' })
       await deleteCanvasCharactersByProject(projectId)
 
@@ -203,7 +203,7 @@ describe('canvas repositories', () => {
       expect(list).toHaveLength(0)
     })
 
-    it('should delete characters excluding locked', async () => {
+    it('删除角色时排除已锁定的', async () => {
       const c1 = await createCanvasCharacter({ projectId, name: '未锁定' })
       await updateCanvasCharacter(c1.id, { locked: false })
       const c2 = await createCanvasCharacter({ projectId, name: '已锁定' })
@@ -229,7 +229,7 @@ describe('canvas repositories', () => {
       projectId = project.id
     })
 
-    it('should create and get a location', async () => {
+    it('创建并获取场景', async () => {
       const location = await createCanvasLocation({
         projectId,
         name: '古城',
@@ -249,12 +249,12 @@ describe('canvas repositories', () => {
       expect(found!.name).toBe('古城')
     })
 
-    it('should default type to mixed', async () => {
+    it('type 默认为 mixed', async () => {
       const location = await createCanvasLocation({ projectId, name: '混合场景' })
       expect(location.type).toBe('mixed')
     })
 
-    it('should list locations by project', async () => {
+    it('按项目列出场景', async () => {
       await createCanvasLocation({ projectId, name: '场景1' })
       await createCanvasLocation({ projectId, name: '场景2' })
 
@@ -262,7 +262,7 @@ describe('canvas repositories', () => {
       expect(list).toHaveLength(2)
     })
 
-    it('should update location fields', async () => {
+    it('更新场景字段', async () => {
       const location = await createCanvasLocation({ projectId, name: '原名' })
 
       const updated = await updateCanvasLocation(location.id, {
@@ -290,7 +290,7 @@ describe('canvas repositories', () => {
       projectId = project.id
     })
 
-    it('should create and get a shot', async () => {
+    it('创建并获取镜头', async () => {
       const shot = await createCanvasShot({
         projectId,
         shotIndex: 1,
@@ -312,7 +312,7 @@ describe('canvas repositories', () => {
       expect(found!.shotIndex).toBe(1)
     })
 
-    it('should batch create shots', async () => {
+    it('批量创建镜头', async () => {
       const shots = await batchCreateCanvasShots([
         { projectId, shotIndex: 1, narrative: '镜头1', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } },
         { projectId, shotIndex: 2, narrative: '镜头2', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } },
@@ -323,7 +323,7 @@ describe('canvas repositories', () => {
       expect(shots[1]!.shotIndex).toBe(2)
     })
 
-    it('should list shots by project ordered by shotIndex', async () => {
+    it('按项目列出镜头并按 shotIndex 排序', async () => {
       await createCanvasShot({ projectId, shotIndex: 3, narrative: '镜头3', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
       await createCanvasShot({ projectId, shotIndex: 1, narrative: '镜头1', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
       await createCanvasShot({ projectId, shotIndex: 2, narrative: '镜头2', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
@@ -335,7 +335,7 @@ describe('canvas repositories', () => {
       expect(list[2]!.shotIndex).toBe(3)
     })
 
-    it('should update shot fields', async () => {
+    it('更新镜头字段', async () => {
       const shot = await createCanvasShot({ projectId, shotIndex: 1, narrative: '原始', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
 
       const updated = await updateCanvasShot(shot.id, {
@@ -349,7 +349,7 @@ describe('canvas repositories', () => {
       expect(updated!.status).toBe('ready')
     })
 
-    it('should reset shot to draft', async () => {
+    it('重置镜头为 draft', async () => {
       const shot = await createCanvasShot({ projectId, shotIndex: 1, narrative: '镜头', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
       await updateCanvasShot(shot.id, { status: 'generating', videoTaskId: 'task-123' })
 
@@ -362,7 +362,7 @@ describe('canvas repositories', () => {
       expect(found!.errorMessage).toBeNull()
     })
 
-    it('should delete shots by project', async () => {
+    it('按项目删除镜头', async () => {
       await createCanvasShot({ projectId, shotIndex: 1, narrative: '镜头', cameraJson: { shotSize: '中景', angle: '正面', movement: '固定', lens: '35mm' }, continuityJson: { screenDirection: '左→右', characterFacing: {}, actionStart: '', actionEnd: '', emotionStart: '', emotionEnd: '' } })
       await deleteCanvasShotsByProject(projectId)
 
@@ -383,7 +383,7 @@ describe('canvas repositories', () => {
       projectId = project.id
     })
 
-    it('should create and retrieve latest report', async () => {
+    it('创建并获取最新连贯性报告', async () => {
       const report = await createContinuityReport({
         projectId,
         issuesJson: [{ code: 'MISSING_SCENE', severity: 'error', message: '缺少场景' }],
@@ -398,7 +398,7 @@ describe('canvas repositories', () => {
       expect(latest!.id).toBe(report.id)
     })
 
-    it('should return one of the created reports', async () => {
+    it('返回已创建的报告之一', async () => {
       await createContinuityReport({ projectId, issuesJson: [{ code: 'FIRST', severity: 'warning', message: '报告1' }] })
       await createContinuityReport({ projectId, issuesJson: [{ code: 'SECOND', severity: 'error', message: '报告2' }] })
 
@@ -408,7 +408,7 @@ describe('canvas repositories', () => {
       expect(latest!.issuesJson).toHaveLength(1)
     })
 
-    it('should return null when no reports exist', async () => {
+    it('无报告时返回 null', async () => {
       const latest = await getLatestContinuityReport(projectId)
       expect(latest).toBeNull()
     })

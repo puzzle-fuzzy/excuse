@@ -24,7 +24,7 @@ function asValidated(params: Record<string, unknown>): ValidatedModelParameters 
 }
 
 describe('runTextLlmOnce', () => {
-  it('builds the prompt, validates params, calls chat, and returns the raw text', async () => {
+  it('构建 prompt、验证参数、调用 chat 并返回原始文本', async () => {
     const chatCompletion = mock<(model: string, params: ValidatedModelParameters) => Promise<unknown>>(() =>
       Promise.resolve({ type: 'text', success: true, model: 'qwen-test', output: { text: 'LLM 原始输出' } }),
     )
@@ -50,7 +50,7 @@ describe('runTextLlmOnce', () => {
     expect((params as Record<string, unknown>).max_tokens).toBe(4096)
   })
 
-  it('throws when the text model is unknown', async () => {
+  it('文本模型未知时抛出异常', async () => {
     await expect(runTextLlmOnce({
       client: {} as never,
       textModel: 'missing',
@@ -65,7 +65,7 @@ describe('runTextLlmOnce', () => {
     })).rejects.toThrow('未知文本模型')
   })
 
-  it('throws on provider validation failure with field detail', async () => {
+  it('provider 校验失败时抛出异常并包含字段详情', async () => {
     await expect(runTextLlmOnce({
       client: {} as never,
       textModel: 'qwen-test',
@@ -80,7 +80,7 @@ describe('runTextLlmOnce', () => {
     })).rejects.toThrow('参数校验失败：max_tokens: too large')
   })
 
-  it('throws the failureMessage when chat returns a failed result', async () => {
+  it('chat 返回失败结果时抛出 failureMessage', async () => {
     const client = {
       chatCompletion: () => Promise.resolve({ type: 'failed', success: false, error: 'provider down' }),
     } as never

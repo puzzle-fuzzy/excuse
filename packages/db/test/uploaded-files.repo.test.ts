@@ -49,7 +49,7 @@ describe('uploaded-files repository', () => {
   // ─── createUploadedFile ────────────────────────────────
 
   describe('createUploadedFile', () => {
-    it('should insert and return the file record', async () => {
+    it('插入并返回文件记录', async () => {
       const result = await createUploadedFile(validFileInsert())
 
       expect(result.id).toBeDefined()
@@ -65,7 +65,7 @@ describe('uploaded-files repository', () => {
   // ─── getUploadedFileById ───────────────────────────────
 
   describe('getUploadedFileById', () => {
-    it('should return the file record when found', async () => {
+    it('找到时返回文件记录', async () => {
       const created = await createUploadedFile(validFileInsert())
       const found = await getUploadedFileById(created.id)
 
@@ -74,7 +74,7 @@ describe('uploaded-files repository', () => {
       expect(found!.fileName).toBe('photo.png')
     })
 
-    it('should return null for nonexistent ID', async () => {
+    it('不存在的 ID 返回 null', async () => {
       const result = await getUploadedFileById('00000000-0000-0000-0000-000000000000')
       expect(result).toBeNull()
     })
@@ -83,7 +83,7 @@ describe('uploaded-files repository', () => {
   // ─── 约束验证 ─────────────────────────────────────────
 
   describe('constraints', () => {
-    it('should reject invalid accountId (FK constraint)', async () => {
+    it('无效 accountId 时拒绝（FK 约束）', async () => {
       await expect(
         createUploadedFile(validFileInsert({ accountId: '00000000-0000-0000-0000-000000000000' })),
       ).rejects.toThrow()

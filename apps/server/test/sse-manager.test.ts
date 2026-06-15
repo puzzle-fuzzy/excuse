@@ -28,13 +28,13 @@ afterEach(() => {
 })
 
 describe('SSE Manager — connection lifecycle', () => {
-  it('adds a connection for a user', () => {
+  it('为用户添加连接', () => {
     const sender: Sender = () => {}
     trackedAdd('user-1', sender)
     expect(getOnlineUserCount()).toBe(1)
   })
 
-  it('supports multiple connections for same user', () => {
+  it('同一用户支持多个连接', () => {
     const sender1: Sender = () => {}
     const sender2: Sender = () => {}
     trackedAdd('user-1', sender1)
@@ -42,7 +42,7 @@ describe('SSE Manager — connection lifecycle', () => {
     expect(getOnlineUserCount()).toBe(1) // same user
   })
 
-  it('removes user entry when last connection is removed', () => {
+  it('最后一个连接移除时移除用户条目', () => {
     const sender1: Sender = () => {}
     const sender2: Sender = () => {}
     trackedAdd('user-1', sender1)
@@ -55,13 +55,13 @@ describe('SSE Manager — connection lifecycle', () => {
     addedConnections.length = 0
   })
 
-  it('removeConnection is no-op for non-existent user', () => {
+  it('不存在的用户调用 removeConnection 无副作用', () => {
     expect(() => removeConnection('nobody', (() => {}) as Sender)).not.toThrow()
   })
 })
 
 describe('SSE Manager — dispatchToUser', () => {
-  it('dispatches to all connections of a user', () => {
+  it('向用户的所有连接广播', () => {
     const received: Array<{ event: string, data: unknown }> = []
     const sender1: Sender = (event, data) => {
       received.push({ event, data })
@@ -81,11 +81,11 @@ describe('SSE Manager — dispatchToUser', () => {
     ])
   })
 
-  it('is no-op when user has no connections', () => {
+  it('用户无连接时无副作用', () => {
     expect(() => dispatchToUser('nobody', 'test', {})).not.toThrow()
   })
 
-  it('one failing sender does not block others', () => {
+  it('一个 sender 失败不阻塞其他 sender', () => {
     let received = false
     const badSender = () => {
       throw new Error('boom')

@@ -118,7 +118,7 @@ describe('auth routes', () => {
   // ═══════════════════════════════════════════════════
 
   describe('POST /register', () => {
-    it('should register a new account and return token + user', async () => {
+    it('注册新账户并返回 token + user', async () => {
       mockGetAccountByEmail.mockResolvedValue(null)
       mockGetAccountByUsername.mockResolvedValue(null)
       mockCreateAccount.mockResolvedValue(makeAccount())
@@ -143,7 +143,7 @@ describe('auth routes', () => {
       expect(String(createCallArg.password).startsWith('$2b$')).toBe(true)
     })
 
-    it('should reject duplicate email', async () => {
+    it('拒绝重复邮箱', async () => {
       mockGetAccountByEmail.mockResolvedValue(makeAccount())
 
       const res = await client.api.auth.register.post({
@@ -160,7 +160,7 @@ describe('auth routes', () => {
       expect(mockCreateAccount).not.toHaveBeenCalled()
     })
 
-    it('should reject duplicate username', async () => {
+    it('拒绝重复用户名', async () => {
       mockGetAccountByEmail.mockResolvedValue(null)
       mockGetAccountByUsername.mockResolvedValue(makeAccount())
 
@@ -177,7 +177,7 @@ describe('auth routes', () => {
       expect(mockCreateAccount).not.toHaveBeenCalled()
     })
 
-    it('should reject when password is too short (validation)', async () => {
+    it('密码太短时拒绝（validation）', async () => {
       const { data, error } = await client.api.auth.register.post({
         username: 'testuser',
         email: 'test@example.com',
@@ -190,7 +190,7 @@ describe('auth routes', () => {
       expect(data).toBeNull()
     })
 
-    it('should reject when email format is invalid (validation)', async () => {
+    it('email 格式无效时拒绝（validation）', async () => {
       const { data, error } = await client.api.auth.register.post({
         username: 'testuser',
         email: 'not-an-email',
@@ -208,7 +208,7 @@ describe('auth routes', () => {
   // ═══════════════════════════════════════════════════
 
   describe('POST /login', () => {
-    it('should login with correct credentials', async () => {
+    it('正确凭据登录成功', async () => {
       mockGetAccountByEmail.mockResolvedValue(
         makeAccount({ password: testPasswordHash }),
       )
@@ -225,7 +225,7 @@ describe('auth routes', () => {
       expect((data as AuthData | null)?.data?.user?.password).toBeUndefined()
     })
 
-    it('should reject non-existent email', async () => {
+    it('拒绝不存在的邮箱', async () => {
       mockGetAccountByEmail.mockResolvedValue(null)
 
       const res = await client.api.auth.login.post({
@@ -239,7 +239,7 @@ describe('auth routes', () => {
       expect(err!.error).toContain('邮箱或密码错误')
     })
 
-    it('should reject wrong password', async () => {
+    it('拒绝错误密码', async () => {
       mockGetAccountByEmail.mockResolvedValue(
         makeAccount({ password: testPasswordHash }),
       )
@@ -255,7 +255,7 @@ describe('auth routes', () => {
       expect(err!.error).toContain('邮箱或密码错误')
     })
 
-    it('should reject inactive account even with correct password', async () => {
+    it('即使密码正确也拒绝禁用账户', async () => {
       mockGetAccountByEmail.mockResolvedValue(
         makeAccount({ password: testPasswordHash, isActive: false }),
       )
@@ -277,7 +277,7 @@ describe('auth routes', () => {
   // ═══════════════════════════════════════════════════
 
   describe('GET /me', () => {
-    it('should return current user with valid token', async () => {
+    it('有效 token 返回当前用户', async () => {
       // 先注册获取 token
       mockGetAccountByEmail.mockResolvedValue(null)
       mockGetAccountByUsername.mockResolvedValue(null)
@@ -306,7 +306,7 @@ describe('auth routes', () => {
       expect(mockGetAccountById).toHaveBeenCalledWith('acc-001')
     })
 
-    it('should reject without token', async () => {
+    it('无 token 时拒绝', async () => {
       const res = await client.api.auth.me.get()
 
       const err = extractEdenError(res)
@@ -315,7 +315,7 @@ describe('auth routes', () => {
       expect(err!.error).toContain('未登录')
     })
 
-    it('should reject with invalid token', async () => {
+    it('无效 token 时拒绝', async () => {
       const res = await client.api.auth.me.get({
         headers: { Authorization: 'Bearer this.is.invalid' },
       })
@@ -326,7 +326,7 @@ describe('auth routes', () => {
       expect(err!.error).toContain('未登录')
     })
 
-    it('should reject when user no longer exists in DB', async () => {
+    it('用户已从 DB 删除时拒绝', async () => {
       // 先注册获取 token
       mockGetAccountByEmail.mockResolvedValue(null)
       mockGetAccountByUsername.mockResolvedValue(null)

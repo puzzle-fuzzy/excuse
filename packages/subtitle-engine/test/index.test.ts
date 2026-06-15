@@ -7,13 +7,13 @@ import {
 } from '../src'
 
 describe('@excuse/subtitle-engine', () => {
-  it('returns style presets', () => {
+  it('返回样式预设', () => {
     expect(getDefaultStyleConfig().templateId).toBe('cinema')
     expect(getPresetById('anime')?.config.bold).toBe(true)
     expect(getPresetById('missing')).toBeUndefined()
   })
 
-  it('converts sentences to ASS content', () => {
+  it('将句子转换为 ASS 内容', () => {
     const ass = sentencesToAss([
       { id: 's1', text: '你好', beginTime: 1000, endTime: 2500 },
     ], getDefaultStyleConfig(), 1280, 720)
@@ -23,7 +23,7 @@ describe('@excuse/subtitle-engine', () => {
     expect(ass).toContain('Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,你好')
   })
 
-  it('parses ASR transcript JSON into editable sentences', () => {
+  it('将 ASR 转录 JSON 解析为可编辑句子', () => {
     const sentences = parseAsrTranscription({
       transcripts: [
         {

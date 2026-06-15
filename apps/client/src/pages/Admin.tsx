@@ -1,4 +1,4 @@
-import type { AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
+import type { AdminAuditLogItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
@@ -6,6 +6,7 @@ import {
   Ban,
   ClipboardList,
   Coins,
+  FileText,
   FolderKanban,
   RefreshCw,
   RotateCcw,
@@ -16,7 +17,7 @@ import {
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { adminTasksQueryKeys, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
+import { adminAuditLogQueryKeys, adminTasksQueryKeys, fetchAdminAuditLogs, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '@/api/client'
 import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
@@ -84,7 +85,7 @@ const PROVIDER_WINDOW_OPTIONS = [
   { label: '近 7 天', value: '168' },
 ]
 
-type AdminTab = 'overview' | 'users' | 'providers' | 'projects'
+type AdminTab = 'overview' | 'users' | 'providers' | 'projects' | 'audit'
 
 function statusLabel(status: string) {
   return STATUS_LABELS[status] ?? status
@@ -1133,11 +1134,244 @@ function AdminProjectsTab() {
   )
 }
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  login: '登录',
+  register: '注册',
+  generate: '生成',
+  file_delete: '删除文件',
+  file_update: '更新文件',
+  billing_transaction: '计费交易',
+  api_key_create: '创建 API Key',
+  api_key_revoke: '撤销 API Key',
+  admin_action: '管理员操作',
+  canvas_project_create: '创建项目',
+  canvas_project_delete: '删除项目',
+  canvas_phase_run: '运行阶段',
+  canvas_cancel: '取消操作',
+  canvas_asset_regenerate: '重新生成资产',
+  canvas_apply_reference_assets: '应用参考资产',
+  asset_hide: '隐藏资产',
+  gateway_call: 'Gateway 调用',
+  generation_retry: '重试生成',
+  generation_cancel: '取消生成',
+  credit_reserve: '预留额度',
+  credit_debit: '扣费',
+  credit_refund: '退款',
+}
+
+function auditActionLabel(action: string) {
+  return AUDIT_ACTION_LABELS[action] ?? action
+}
+
+function AdminAuditLogsTab() {
+  const [actionFilter, setActionFilter] = useState('')
+  const [accountSearch, setAccountSearch] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [page, setPage] = useState(0)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const PAGE_SIZE = 50
+
+  const queryParams = useMemo(() => ({
+    action: actionFilter || undefined,
+    accountId: accountSearch.trim() || undefined,
+    from: fromDate || undefined,
+    to: toDate || undefined,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  }), [actionFilter, accountSearch, fromDate, toDate, page])
+
+  const { data, isLoading } = useQuery({
+    queryKey: adminAuditLogQueryKeys.list(queryParams),
+    queryFn: () => fetchAdminAuditLogs(queryParams),
+    refetchInterval: 30_000,
+  })
+
+  const items: AdminAuditLogItem[] = data?.items ?? []
+  const total = data?.total ?? 0
+
+  const AUDIT_ACTION_OPTIONS = [
+    { label: '全部操作', value: '' },
+    ...Object.entries(AUDIT_ACTION_LABELS).map(([value, label]) => ({ label, value })),
+  ]
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm">审计日志</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">仅展示关键操作的审计记录，数据保留 365 天。</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-3 grid gap-2 md:grid-cols-[200px_200px_180px_180px]">
+          <Select
+            value={actionFilter}
+            onChange={(event) => {
+              setActionFilter(event.target.value)
+              setPage(0)
+            }}
+            options={AUDIT_ACTION_OPTIONS}
+          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" />
+            <Input
+              value={accountSearch}
+              onChange={(event) => {
+                setAccountSearch(event.target.value)
+                setPage(0)
+              }}
+              className="pl-8"
+              placeholder="搜索用户 ID"
+              aria-label="搜索用户 ID"
+            />
+          </div>
+          <Input
+            type="date"
+            value={fromDate}
+            onChange={(event) => {
+              setFromDate(event.target.value)
+              setPage(0)
+            }}
+            placeholder="开始日期"
+            aria-label="开始日期"
+          />
+          <Input
+            type="date"
+            value={toDate}
+            onChange={(event) => {
+              setToDate(event.target.value)
+              setPage(0)
+            }}
+            placeholder="结束日期"
+            aria-label="结束日期"
+          />
+        </div>
+
+        {isLoading
+          ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">正在读取审计日志...</p>
+            )
+          : items.length === 0
+            ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">没有匹配的审计记录</p>
+              )
+            : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1000px] text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="py-2 font-medium">时间</th>
+                        <th className="py-2 font-medium">用户</th>
+                        <th className="py-2 font-medium">操作</th>
+                        <th className="py-2 font-medium">对象</th>
+                        <th className="py-2 font-medium">IP</th>
+                        <th className="py-2 font-medium">详情</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map(item => (
+                        <tr key={item.id} className="border-b last:border-b-0">
+                          <td className="py-2 text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDate(item.createdAt)}
+                          </td>
+                          <td className="py-2">
+                            <span className="font-mono text-xs" title={item.accountId ?? undefined}>
+                              {shortId(item.accountId)}
+                            </span>
+                          </td>
+                          <td className="py-2">
+                            <Badge variant="outline">{auditActionLabel(item.action)}</Badge>
+                          </td>
+                          <td className="py-2">
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {shortId(item.targetId)}
+                            </span>
+                          </td>
+                          <td className="py-2 text-xs text-muted-foreground">{item.ip || '-'}</td>
+                          <td className="py-2">
+                            {item.detail && Object.keys(item.detail).length > 0
+                              ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                                  >
+                                    <FileText className="size-3.5 mr-1" />
+                                    {expandedId === item.id ? '收起' : '查看'}
+                                  </Button>
+                                )
+                              : <span className="text-xs text-muted-foreground">-</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Expanded detail rows */}
+                  {items.map(item =>
+                    expandedId === item.id && item.detail && Object.keys(item.detail).length > 0
+                      ? (
+                          <div key={`detail-${item.id}`} className="border-b bg-muted/20 px-4 py-3">
+                            <pre className="overflow-x-auto text-xs whitespace-pre-wrap break-all">
+                              {JSON.stringify(item.detail, null, 2)}
+                            </pre>
+                          </div>
+                        )
+                      : null,
+                  )}
+                </div>
+              )}
+
+        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            第
+            {' '}
+            {total === 0 ? 0 : page * PAGE_SIZE + 1}
+            {' '}
+            -
+            {' '}
+            {Math.min((page + 1) * PAGE_SIZE, total)}
+            {' '}
+            条 / 共
+            {' '}
+            {total}
+            {' '}
+            条
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 0}
+              onClick={() => setPage(prev => Math.max(0, prev - 1))}
+            >
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={(page + 1) * PAGE_SIZE >= total}
+              onClick={() => setPage(prev => prev + 1)}
+            >
+              下一页
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 const TABS: { id: AdminTab, label: string }[] = [
   { id: 'overview', label: '概览' },
   { id: 'users', label: '用户' },
   { id: 'providers', label: 'Provider' },
   { id: 'projects', label: '项目' },
+  { id: 'audit', label: '审计' },
 ]
 
 export default function Admin() {
@@ -1292,6 +1526,8 @@ export default function Admin() {
       {activeTab === 'providers' && <AdminProvidersTab />}
 
       {activeTab === 'projects' && <AdminProjectsTab />}
+
+      {activeTab === 'audit' && <AdminAuditLogsTab />}
     </div>
   )
 }

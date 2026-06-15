@@ -65,7 +65,7 @@ function makeDetail(shots = [baseShot]): CanvasProjectDetail {
 }
 
 describe('runContinuityPhase', () => {
-  it('runs the pure validator and persists a continuity report, without an LLM client', async () => {
+  it('运行纯验证器并持久化连续性报告，无需 LLM client', async () => {
     const { issues } = await runContinuityPhase({
       projectId: 'p1',
       detail: makeDetail(),
@@ -79,7 +79,7 @@ describe('runContinuityPhase', () => {
     expect(values.issuesJson).toBe(issues)
   })
 
-  it('flags a forbidden camera angle as an issue', async () => {
+  it('将禁止的镜头角度标记为问题', async () => {
     const forbiddenShot = {
       ...baseShot,
       cameraJson: { ...baseShot.cameraJson, angle: 'back' },
@@ -96,7 +96,7 @@ describe('runContinuityPhase', () => {
 })
 
 describe('buildShotVideoPromptEntity', () => {
-  it('returns a non-empty videoPrompt and negativePrompt from the normalized shot', () => {
+  it('从规范化镜头返回非空的 videoPrompt 和 negativePrompt', () => {
     const { videoPrompt, negativePrompt } = buildShotVideoPromptEntity({
       shot: baseShot as unknown as CanvasProjectDetail['shots'][number],
       characters: [baseCharacter] as unknown as CanvasProjectDetail['characters'][number][],
@@ -111,7 +111,7 @@ describe('buildShotVideoPromptEntity', () => {
     expect(typeof negativePrompt).toBe('string')
   })
 
-  it('is pure (no DB or client call) and deterministic for identical input', () => {
+  it('纯计算（无 DB 或 client 调用）且相同输入确定性输出', () => {
     const input = {
       shot: baseShot as unknown as CanvasProjectDetail['shots'][number],
       characters: [baseCharacter] as unknown as CanvasProjectDetail['characters'][number][],

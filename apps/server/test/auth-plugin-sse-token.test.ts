@@ -42,7 +42,7 @@ function createTestApp() {
 }
 
 describe('auth plugin — SSE authentication', () => {
-  it('should extract userId from httpOnly auth cookie', async () => {
+  it('从 httpOnly auth cookie 中提取 userId', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()
     const client = treaty(app)
@@ -59,7 +59,7 @@ describe('auth plugin — SSE authentication', () => {
     expect(data).toEqual({ userId: 'sse-cookie-user' })
   })
 
-  it('should extract userId from Bearer header', async () => {
+  it('从 Bearer header 中提取 userId', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()
     const client = treaty(app)
@@ -78,7 +78,7 @@ describe('auth plugin — SSE authentication', () => {
     expect(data).toEqual({ userId: 'sse-user-123' })
   })
 
-  it('should return 401 for invalid Bearer token', async () => {
+  it('无效 Bearer token 时返回 401', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()
     const client = treaty(app)
@@ -92,7 +92,7 @@ describe('auth plugin — SSE authentication', () => {
     expect(error?.value).toEqual({ success: false, error: '请先登录' })
   })
 
-  it('should return 401 when no token is provided', async () => {
+  it('未提供 token 时返回 401', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()
     const client = treaty(app)
@@ -104,7 +104,7 @@ describe('auth plugin — SSE authentication', () => {
     expect(error?.value).toEqual({ success: false, error: '请先登录' })
   })
 
-  it('should NOT accept query ?token= (removed)', async () => {
+  it('不接受 query ?token=（已移除）', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()
     const client = treaty(app)

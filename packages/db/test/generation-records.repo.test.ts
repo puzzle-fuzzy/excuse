@@ -53,7 +53,7 @@ describe('generation-records repository', () => {
   // ─── createGenerationRecord ───────────────────────────
 
   describe('createGenerationRecord', () => {
-    it('should insert and return a record with all fields', async () => {
+    it('插入并返回包含所有字段的记录', async () => {
       const result = await createGenerationRecord(validInsert({
         taskId: 'task-001',
       }))
@@ -71,7 +71,7 @@ describe('generation-records repository', () => {
   // ─── getGenerationRecordById ───────────────────────────
 
   describe('getGenerationRecordById', () => {
-    it('should return the record when found', async () => {
+    it('找到时返回记录', async () => {
       const created = await createGenerationRecord(validInsert())
       const found = await getGenerationRecordById(created.id)
 
@@ -80,7 +80,7 @@ describe('generation-records repository', () => {
       expect(found!.model).toBe('qwen-vl')
     })
 
-    it('should return null for nonexistent ID', async () => {
+    it('不存在的 ID 返回 null', async () => {
       const result = await getGenerationRecordById('00000000-0000-0000-0000-000000000000')
       expect(result).toBeNull()
     })
@@ -89,7 +89,7 @@ describe('generation-records repository', () => {
   // ─── listGenerationRecords ─────────────────────────────
 
   describe('listGenerationRecords', () => {
-    it('should return records ordered by createdAt desc', async () => {
+    it('按 createdAt 降序返回记录', async () => {
       await createGenerationRecord(validInsert({ category: 'image' }))
       await createGenerationRecord(validInsert({ category: 'text' }))
 
@@ -101,7 +101,7 @@ describe('generation-records repository', () => {
       )
     })
 
-    it('should filter by category', async () => {
+    it('按 category 过滤', async () => {
       await createGenerationRecord(validInsert({ category: 'image' }))
       await createGenerationRecord(validInsert({ category: 'text' }))
 
@@ -110,7 +110,7 @@ describe('generation-records repository', () => {
       expect(images.every(r => r.category === 'image')).toBe(true)
     })
 
-    it('should filter by status', async () => {
+    it('按 status 过滤', async () => {
       await createGenerationRecord(validInsert({ status: 'pending' }))
 
       const pending = await listGenerationRecords({ status: 'pending' })
@@ -118,7 +118,7 @@ describe('generation-records repository', () => {
       expect(pending.every(r => r.status === 'pending')).toBe(true)
     })
 
-    it('should respect limit and offset', async () => {
+    it('遵守 limit 和 offset', async () => {
       // 创建 3 条记录
       for (let i = 0; i < 3; i++) {
         await createGenerationRecord(validInsert())
@@ -131,7 +131,7 @@ describe('generation-records repository', () => {
       expect(page2).toHaveLength(1)
     })
 
-    it('should return empty array when no records match filter', async () => {
+    it('无匹配记录时返回空数组', async () => {
       // 'video' 是合法 category enum，但此测试只插入 text/image 记录
       const results = await listGenerationRecords({ category: 'video' })
       expect(results).toHaveLength(0)
@@ -141,7 +141,7 @@ describe('generation-records repository', () => {
   // ─── markGenerationFailed ──────────────────────────────
 
   describe('markGenerationFailed', () => {
-    it('should update status to failed and set error message', async () => {
+    it('更新状态为 failed 并设置错误信息', async () => {
       const record = await createGenerationRecord(validInsert())
       await markGenerationFailed(record.id, 'Out of credits')
 
@@ -154,7 +154,7 @@ describe('generation-records repository', () => {
   // ─── markGenerationProcessing ──────────────────────────
 
   describe('markGenerationProcessing', () => {
-    it('should update status to processing', async () => {
+    it('更新状态为 processing', async () => {
       const record = await createGenerationRecord(validInsert())
       await markGenerationProcessing(record.id)
 
@@ -162,7 +162,7 @@ describe('generation-records repository', () => {
       expect(updated!.status).toBe('processing')
     })
 
-    it('should set taskId and outputResult when provided', async () => {
+    it('提供时设置 taskId 和 outputResult', async () => {
       const record = await createGenerationRecord(validInsert())
       await markGenerationProcessing(record.id, {
         taskId: 'provider-123',
@@ -179,7 +179,7 @@ describe('generation-records repository', () => {
   // ─── markGenerationSucceeded ───────────────────────────
 
   describe('markGenerationSucceeded', () => {
-    it('should update status and set output and cost', async () => {
+    it('更新状态并设置 output 和 cost', async () => {
       const record = await createGenerationRecord(validInsert())
       await markGenerationSucceeded(record.id, { url: 'result.png' }, { totalPrice: 0.01 })
 
@@ -189,7 +189,7 @@ describe('generation-records repository', () => {
       expect(updated!.cost!.totalPrice).toBe(0.01)
     })
 
-    it('should succeed without cost', async () => {
+    it('无 cost 时也能成功', async () => {
       const record = await createGenerationRecord(validInsert())
       await markGenerationSucceeded(record.id, { text: 'hello' })
 
@@ -202,7 +202,7 @@ describe('generation-records repository', () => {
   // ─── pollPendingVideoTasks ─────────────────────────────
 
   describe('pollPendingVideoTasks', () => {
-    it('should return pending and processing video tasks only', async () => {
+    it('仅返回 pending 和 processing 的视频任务', async () => {
       await createGenerationRecord(validInsert({ category: 'video', status: 'pending' }))
       await createGenerationRecord(validInsert({ category: 'video', status: 'processing' }))
       // 非视频任务，不应返回
@@ -214,7 +214,7 @@ describe('generation-records repository', () => {
       expect(tasks.every(t => ['pending', 'processing'].includes(t.status))).toBe(true)
     })
 
-    it('should return empty array when no video tasks', async () => {
+    it('无视频任务时返回空数组', async () => {
       await createGenerationRecord(validInsert({ category: 'text' }))
 
       const tasks = await pollPendingVideoTasks()
@@ -225,7 +225,7 @@ describe('generation-records repository', () => {
   // ─── getCostRecords ────────────────────────────────────
 
   describe('getCostRecords', () => {
-    it('should return only records with numeric totalPrice in cost', async () => {
+    it('仅返回 cost 中含数字 totalPrice 的记录', async () => {
       const r1 = await createGenerationRecord(validInsert())
       await markGenerationSucceeded(r1.id, { url: 'a.png' }, { totalPrice: 0.01 })
 
@@ -244,7 +244,7 @@ describe('generation-records repository', () => {
       })
     })
 
-    it('should return empty when no cost records exist', async () => {
+    it('无费用记录时返回空', async () => {
       await createGenerationRecord(validInsert({ status: 'pending' }))
 
       const costs = await getCostRecords(accountId)
@@ -256,7 +256,7 @@ describe('generation-records repository', () => {
   // ─── 约束验证 ─────────────────────────────────────────
 
   describe('constraints', () => {
-    it('should reject duplicate taskId (unique constraint)', async () => {
+    it('重复 taskId 时拒绝（唯一约束）', async () => {
       await createGenerationRecord(validInsert({ taskId: 'unique-task-001' }))
 
       const error = await expectDbConstraintError(() =>
@@ -265,7 +265,7 @@ describe('generation-records repository', () => {
       expect(error).toBeInstanceOf(Error)
     })
 
-    it('should reject invalid accountId (FK constraint)', async () => {
+    it('无效 accountId 时拒绝（FK 约束）', async () => {
       const error = await expectDbConstraintError(() =>
         createGenerationRecord(validInsert({ accountId: '00000000-0000-0000-0000-000000000000' })),
       )

@@ -210,7 +210,7 @@ async function getAuthToken(): Promise<string> {
 
 // ─── 测试 ────────────────────────────────────────────────
 
-describe('canvas routes — extended', () => {
+describe('canvas 路由 — 扩展', () => {
   let client: ReturnType<typeof treaty>
   let token: string
 

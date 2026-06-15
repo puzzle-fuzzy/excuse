@@ -6,7 +6,7 @@ describe('audit service', () => {
     resetAuditWriter()
   })
 
-  it('uses an injected writer when explicitly enabled', async () => {
+  it('显式启用时使用注入的 writer', async () => {
     const writer = mock(() => Promise.resolve())
     setAuditWriter(writer)
 

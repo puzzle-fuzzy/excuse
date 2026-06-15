@@ -96,7 +96,7 @@ beforeEach(() => {
 })
 
 describe('model lab page', () => {
-  it('loads models and renders the internal lab title', async () => {
+  it('加载模型并渲染内部 lab 标题', async () => {
     render(<ModelLab />)
 
     expect(await screen.findByText('Model Lab')).toBeInTheDocument()
@@ -105,7 +105,7 @@ describe('model lab page', () => {
     expect(screen.getByLabelText(/提示词/)).toBeInTheDocument()
   })
 
-  it('submits selected model parameters and shows returned record', async () => {
+  it('提交选中模型参数并显示返回的记录', async () => {
     const user = userEvent.setup()
     render(<ModelLab />)
 
@@ -127,7 +127,7 @@ describe('model lab page', () => {
     expect(screen.getByText(/#record-1/)).toBeInTheDocument()
   })
 
-  it('shows model loading error', async () => {
+  it('显示模型加载错误', async () => {
     mockFetchModels.mockRejectedValueOnce(new Error('模型服务不可用'))
 
     render(<ModelLab />)
@@ -135,7 +135,7 @@ describe('model lab page', () => {
     expect(await screen.findByText('模型服务不可用')).toBeInTheDocument()
   })
 
-  it('runs same prompt comparison across selected models', async () => {
+  it('同一 prompt 跨选中模型运行对比', async () => {
     const user = userEvent.setup()
     mockGenerate.mockImplementation(async ({ model }) => ({
       success: true,
@@ -161,7 +161,7 @@ describe('model lab page', () => {
     expect(screen.getByText(/qwen-turbo 输出/)).toBeInTheDocument()
   })
 
-  it('saves selected model as canvas default and applies it back', async () => {
+  it('保存选中模型为 canvas 默认并回写应用', async () => {
     const user = userEvent.setup()
     render(<ModelLab />)
 

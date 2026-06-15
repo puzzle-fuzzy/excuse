@@ -54,7 +54,7 @@ const testConfig = makeTestConfig({
   jwtSecret: 'test-api-keys-secret',
 })
 
-describe('api key routes', () => {
+describe('API key 路由', () => {
   let app: ReturnType<typeof createApiKeyRoutes>
   let token: string
 

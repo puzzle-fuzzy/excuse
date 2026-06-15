@@ -22,7 +22,7 @@ function makeModel(overrides: Partial<ModelConfig> = {}): ModelConfig {
   }
 }
 
-describe('workspace store parameters', () => {
+describe('workspace store 参数', () => {
   beforeEach(() => {
     useWorkspaceStore.setState({
       models: [],
@@ -36,7 +36,7 @@ describe('workspace store parameters', () => {
     })
   })
 
-  it('builds typed initial parameters from model config defaults', () => {
+  it('从模型配置默认值构建类型化初始参数', () => {
     expect(buildInitialParameters(makeModel())).toEqual({
       prompt: '',
       n: 2,
@@ -45,14 +45,14 @@ describe('workspace store parameters', () => {
     })
   })
 
-  it('checks required parameters against workspace parameters', () => {
+  it('检查工作区参数的必填参数', () => {
     const model = makeModel()
 
     expect(checkCanGenerate(model, buildInitialParameters(model))).toBe(false)
     expect(checkCanGenerate(model, { ...buildInitialParameters(model), prompt: 'hello' })).toBe(true)
   })
 
-  it('normalizes setParameter values using the selected model parameter type', () => {
+  it('使用选中模型参数类型规范化 setParameter 值', () => {
     const model = makeModel()
     useWorkspaceStore.setState({
       models: [model],

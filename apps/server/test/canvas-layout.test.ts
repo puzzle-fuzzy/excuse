@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { parseCanvasLayout } from '../src/modules/canvas/layout'
 
-describe('canvas layout parser', () => {
-  it('parses a React Flow style layout DTO', () => {
+describe('canvas 布局解析器', () => {
+  it('解析 React Flow 风格的 layout DTO', () => {
     const layout = parseCanvasLayout({
       nodes: [{
         id: 'shot-1',
@@ -24,11 +24,11 @@ describe('canvas layout parser', () => {
     expect(layout.viewport?.zoom).toBe(1)
   })
 
-  it('rejects layouts without nodes array', () => {
+  it('缺少 nodes 数组时拒绝', () => {
     expect(() => parseCanvasLayout({ edges: [] })).toThrow('nodes')
   })
 
-  it('rejects invalid node coordinates', () => {
+  it('无效节点坐标时拒绝', () => {
     expect(() =>
       parseCanvasLayout({
         nodes: [{ id: 'shot-1', position: { x: '100', y: 200 } }],
@@ -37,7 +37,7 @@ describe('canvas layout parser', () => {
     ).toThrow('nodes[0].position.x')
   })
 
-  it('rejects invalid edge endpoints', () => {
+  it('无效边端点时拒绝', () => {
     expect(() =>
       parseCanvasLayout({
         nodes: [],

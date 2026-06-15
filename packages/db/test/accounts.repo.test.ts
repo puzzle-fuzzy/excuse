@@ -36,7 +36,7 @@ describe('accounts repository', () => {
   // ─── createAccount ─────────────────────────────────
 
   describe('createAccount', () => {
-    it('should insert and return an account with all fields', async () => {
+    it('插入并返回包含所有字段的账户', async () => {
       const result = await createAccount({
         username: 'newuser',
         email: 'new@example.com',
@@ -54,7 +54,7 @@ describe('accounts repository', () => {
       expect(result.updatedAt).toBeInstanceOf(Date)
     })
 
-    it('should default isActive to true', async () => {
+    it('isActive 默认为 true', async () => {
       const result = await createAccount({
         username: 'defaultactive',
         email: 'default@example.com',
@@ -64,7 +64,7 @@ describe('accounts repository', () => {
       expect(result.isActive).toBe(true)
     })
 
-    it('should create account with avatar', async () => {
+    it('创建带 avatar 的账户', async () => {
       const result = await createAccount({
         username: 'avataruser',
         email: 'avatar@example.com',
@@ -79,7 +79,7 @@ describe('accounts repository', () => {
   // ─── getAccountByEmail ─────────────────────────────
 
   describe('getAccountByEmail', () => {
-    it('should return the account when found', async () => {
+    it('找到时返回账户', async () => {
       const created = await createAccount({
         username: 'emailuser',
         email: 'find@example.com',
@@ -94,12 +94,12 @@ describe('accounts repository', () => {
       expect(found!.username).toBe('emailuser')
     })
 
-    it('should return null when email not found', async () => {
+    it('邮箱不存在时返回 null', async () => {
       const result = await getAccountByEmail('nonexistent@example.com')
       expect(result).toBeNull()
     })
 
-    it('should be case-sensitive for email lookup', async () => {
+    it('邮箱查找区分大小写', async () => {
       await createAccount({
         username: 'casesensitive',
         email: 'Case@Example.com',
@@ -118,7 +118,7 @@ describe('accounts repository', () => {
   // ─── getAccountByUsername ──────────────────────────
 
   describe('getAccountByUsername', () => {
-    it('should return the account when found', async () => {
+    it('找到时返回账户', async () => {
       const created = await createAccount({
         username: 'findme',
         email: 'findme@example.com',
@@ -132,7 +132,7 @@ describe('accounts repository', () => {
       expect(found!.username).toBe('findme')
     })
 
-    it('should return null when username not found', async () => {
+    it('用户名不存在时返回 null', async () => {
       const result = await getAccountByUsername('nonexistent_user')
       expect(result).toBeNull()
     })
@@ -141,14 +141,14 @@ describe('accounts repository', () => {
   // ─── getAccountById ────────────────────────────────
 
   describe('getAccountById', () => {
-    it('should return the account when found', async () => {
+    it('找到时返回账户', async () => {
       const found = await getAccountById(accountId)
 
       expect(found).not.toBeNull()
       expect(found!.id).toBe(accountId)
     })
 
-    it('should return null for nonexistent ID', async () => {
+    it('ID 不存在时返回 null', async () => {
       const result = await getAccountById('00000000-0000-0000-0000-000000000000')
       expect(result).toBeNull()
     })
@@ -157,7 +157,7 @@ describe('accounts repository', () => {
   // ─── 约束验证 ─────────────────────────────────────
 
   describe('constraints', () => {
-    it('should reject duplicate email (unique constraint)', async () => {
+    it('拒绝重复邮箱（唯一约束）', async () => {
       await createAccount({
         username: 'user1',
         email: 'dup@example.com',
@@ -174,7 +174,7 @@ describe('accounts repository', () => {
       expect(error).toBeInstanceOf(Error)
     })
 
-    it('should reject duplicate username (unique constraint)', async () => {
+    it('拒绝重复用户名（唯一约束）', async () => {
       await createAccount({
         username: 'dupuser',
         email: 'a@example.com',

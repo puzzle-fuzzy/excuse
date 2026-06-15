@@ -81,24 +81,24 @@ function createRecord(overrides: Record<string, unknown> = {}) {
 // ─── extractVideoUrl ──────────────────────────────────
 
 describe('extractVideoUrl', () => {
-  it('should extract video_url', () => {
+  it('提取 video_url', () => {
     expect(extractVideoUrl({ video_url: 'https://cdn/video.mp4' }))
       .toBe('https://cdn/video.mp4')
   })
 
-  it('should extract first result url as fallback', () => {
+  it('提取首个 result url 作为回退', () => {
     expect(extractVideoUrl({ results: [{ url: 'https://cdn/result.mp4' }] }))
       .toBe('https://cdn/result.mp4')
   })
 
-  it('should prefer video_url over results', () => {
+  it('video_url 优先于 results', () => {
     expect(extractVideoUrl({
       video_url: 'https://cdn/video.mp4',
       results: [{ url: 'https://cdn/other.mp4' }],
     })).toBe('https://cdn/video.mp4')
   })
 
-  it('should return undefined for empty output', () => {
+  it('空 output 时返回 undefined', () => {
     expect(extractVideoUrl(undefined)).toBeUndefined()
     expect(extractVideoUrl({})).toBeUndefined()
   })
@@ -114,7 +114,7 @@ describe('processTask', () => {
 
   // ── 跳过：没有 taskId ──────────────────────────────
 
-  it('should skip records without taskId', async () => {
+  it('跳过没有 taskId 的记录', async () => {
     const deps = createMockDeps()
     const { processTask } = createTestProcessor(deps)
     const result = await processTask(createRecord({ taskId: null }))
@@ -127,7 +127,7 @@ describe('processTask', () => {
 
   // ── 超时 ──────────────────────────────────────────
 
-  it('should mark as failed when task is stale', async () => {
+  it('任务超时时标记为失败', async () => {
     const failed: Array<{ id: string, msg: string }> = []
     const refunds: Array<{ generationRecordId: string }> = []
     const deps = createMockDeps({
@@ -155,7 +155,7 @@ describe('processTask', () => {
 
   // ── SUCCEEDED ─────────────────────────────────────
 
-  it('should download, calculate cost and mark succeeded', async () => {
+  it('下载、计算费用并标记成功', async () => {
     const succeeded: Array<{ id: string, output: OutputResult }> = []
     const downloaded: string[][] = []
     const debits: Array<{ generationRecordId: string, actualCents: number }> = []
@@ -191,7 +191,7 @@ describe('processTask', () => {
     expect(debits).toEqual([{ generationRecordId: 'rec-001', actualCents: 1 }])
   })
 
-  it('should handle SUCCEEDED with no video URL', async () => {
+  it('处理 SUCCEEDED 但无视频 URL 的情况', async () => {
     const succeeded: Array<{ id: string }> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -213,7 +213,7 @@ describe('processTask', () => {
 
   // ── FAILED ────────────────────────────────────────
 
-  it('should mark as failed with error message', async () => {
+  it('用错误信息标记为失败', async () => {
     const failed: Array<{ id: string, msg: string }> = []
     const refunds: Array<{ generationRecordId: string }> = []
     const deps = createMockDeps({
@@ -238,7 +238,7 @@ describe('processTask', () => {
     expect(refunds).toEqual([{ generationRecordId: 'rec-001' }])
   })
 
-  it('should use default error message when missing', async () => {
+  it('缺少错误信息时使用默认错误信息', async () => {
     const failed: Array<{ id: string, msg: string }> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -257,7 +257,7 @@ describe('processTask', () => {
 
   // ── PENDING / RUNNING ─────────────────────────────
 
-  it('should mark as processing when record is pending and task is PENDING', async () => {
+  it('记录为 pending 且任务为 PENDING 时标记为 processing', async () => {
     const processingCalls: string[] = []
     const deps = createMockDeps({
       queryTask: async () => ({ status: 'PENDING' }),
@@ -273,7 +273,7 @@ describe('processTask', () => {
     expect(processingCalls).toEqual(['rec-001'])
   })
 
-  it('should NOT call markProcessing when record is already processing', async () => {
+  it('记录已为 processing 时不调用 markProcessing', async () => {
     const processingCalls: string[] = []
     const deps = createMockDeps({
       queryTask: async () => ({ status: 'RUNNING' }),
@@ -291,7 +291,7 @@ describe('processTask', () => {
 
   // ── 未知状态 ──────────────────────────────────────
 
-  it('should return ignored for unknown status', async () => {
+  it('未知状态返回 ignored', async () => {
     const deps = createMockDeps({
       queryTask: async () => ({ status: 'CANCELLING' }),
     })
@@ -307,7 +307,7 @@ describe('processTask', () => {
 
   // ── Canvas pipeline: canvasMeta propagation ────────
 
-  it('should pass canvasMeta in succeeded notification for canvas-sourced records', async () => {
+  it('canvas 来源记录成功时在通知中传递 canvasMeta', async () => {
     const notifications: Array<GenerationNotifyPayload> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -339,7 +339,7 @@ describe('processTask', () => {
     })
   })
 
-  it('should pass canvasMeta in failed notification for canvas-sourced records', async () => {
+  it('canvas 来源记录失败时在通知中传递 canvasMeta', async () => {
     const notifications: Array<GenerationNotifyPayload> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -370,7 +370,7 @@ describe('processTask', () => {
     })
   })
 
-  it('should NOT include canvasMeta for non-canvas records', async () => {
+  it('非 canvas 来源记录不包含 canvasMeta', async () => {
     const notifications: Array<GenerationNotifyPayload> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -395,7 +395,7 @@ describe('processTask', () => {
 
   // ── 异常处理：queryTask 抛出异常 ────────────────────
 
-  it('should propagate error when queryTask throws', async () => {
+  it('queryTask 抛出异常时向上传播错误', async () => {
     const deps = createMockDeps({
       queryTask: async () => { throw new Error('Network timeout') },
     })
@@ -408,7 +408,7 @@ describe('processTask', () => {
 
   // ── 异常处理：downloadAndMap 抛出异常 ──────────────
 
-  it('should propagate error when downloadAndMap throws on SUCCEEDED', async () => {
+  it('SUCCEEDED 时 downloadAndMap 抛出异常向上传播', async () => {
     const deps = createMockDeps({
       queryTask: async () => ({
         status: 'SUCCEEDED',
@@ -425,7 +425,7 @@ describe('processTask', () => {
 
   // ── 异常处理：markGenerationFailed 抛出异常 ────────
 
-  it('should propagate error when markGenerationFailed throws', async () => {
+  it('markGenerationFailed 抛出异常时向上传播', async () => {
     const deps = createMockDeps({
       queryTask: async () => ({
         status: 'FAILED',
@@ -441,7 +441,7 @@ describe('processTask', () => {
 
   // ── RUNNING + stale 记录也应超时 ──────────────────
 
-  it('should mark as failed when RUNNING task is stale', async () => {
+  it('RUNNING 任务超时时标记为失败', async () => {
     const failed: Array<{ id: string, msg: string }> = []
     const deps = createMockDeps({
       markGenerationFailed: async (id, msg) => {
@@ -462,7 +462,7 @@ describe('processTask', () => {
 
   // ── extractVideoDuration ──────────────────────────
 
-  it('should extract video duration from output', async () => {
+  it('从 output 中提取视频时长', async () => {
     const succeeded: Array<{ id: string, output: OutputResult }> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -483,7 +483,7 @@ describe('processTask', () => {
 
   // ── P2-2 通知触发器 ──────────────────────────────────
 
-  it('should push task_completed notification on SUCCEEDED (P2-2)', async () => {
+  it('SUCCEEDED 时推送 task_completed 通知（P2-2）', async () => {
     const notifications: Array<{ type: string, meta?: { recordId?: string, category?: string } }> = []
     const deps = createMockDeps({
       queryTask: async () => ({
@@ -506,7 +506,7 @@ describe('processTask', () => {
     expect(completed!.meta?.category).toBe('video')
   })
 
-  it('should push task_failed notification on FAILED (P2-2)', async () => {
+  it('FAILED 时推送 task_failed 通知（P2-2）', async () => {
     const notifications: Array<{ type: string, body?: string }> = []
     const deps = createMockDeps({
       queryTask: async () => ({ status: 'FAILED', errorMessage: 'Model error' }),
@@ -520,7 +520,7 @@ describe('processTask', () => {
     expect(notifications).toContainEqual({ type: 'task_failed', body: 'Model error' })
   })
 
-  it('should push canvas_completed when all project shots are completed (P2-2)', async () => {
+  it('项目所有镜头完成时推送 canvas_completed（P2-2）', async () => {
     // 模拟该 shot 完成后，项目所有镜头均已完成 → projectStatus='completed'
     listCanvasShotsByProjectMock.mockImplementation(() => [
       { status: 'completed' },

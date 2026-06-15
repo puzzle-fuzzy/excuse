@@ -113,7 +113,7 @@ function makeProjectRow(overrides: Partial<CanvasProjectRow> = {}): CanvasProjec
 // ── mapCharacter ──────────────────────────────────────
 
 describe('mapCharacter', () => {
-  it('should map all fields correctly', () => {
+  it('正确映射所有字段', () => {
     const row = makeCharacterRow()
     const dto = mapCharacter(row)
 
@@ -131,20 +131,20 @@ describe('mapCharacter', () => {
     expect(dto.updatedAt).toBe('2025-01-01T12:00:00.000Z')
   })
 
-  it('should parse profileJson', () => {
+  it('解析 profileJson', () => {
     const dto = mapCharacter(makeCharacterRow())
     expect(dto.profile).not.toBeNull()
     expect(dto.profile!.name).toBe('Alice')
     expect(dto.profile!.face.shape).toBe('oval')
   })
 
-  it('should handle null profileJson', () => {
+  it('处理 null profileJson', () => {
     const row = makeCharacterRow({ profileJson: null })
     const dto = mapCharacter(row)
     expect(dto.profile).toBeNull()
   })
 
-  it('should handle null optional fields', () => {
+  it('处理 null 可选字段', () => {
     const row = makeCharacterRow({
       role: null,
       description: null,
@@ -166,7 +166,7 @@ describe('mapCharacter', () => {
 // ── mapLocation ──────────────────────────────────────
 
 describe('mapLocation', () => {
-  it('should map all fields correctly', () => {
+  it('正确映射所有字段', () => {
     const row = makeLocationRow()
     const dto = mapLocation(row)
 
@@ -182,19 +182,19 @@ describe('mapLocation', () => {
     expect(dto.updatedAt).toBe('2025-01-01T12:00:00.000Z')
   })
 
-  it('should parse profileJson', () => {
+  it('解析 profileJson', () => {
     const dto = mapLocation(makeLocationRow())
     expect(dto.profile).not.toBeNull()
     expect(dto.profile!.name).toBe('Dark Forest')
     expect(dto.profile!.atmosphere).toBe('mysterious')
   })
 
-  it('should handle null profileJson', () => {
+  it('处理 null profileJson', () => {
     const dto = mapLocation(makeLocationRow({ profileJson: null }))
     expect(dto.profile).toBeNull()
   })
 
-  it('should handle null optional fields', () => {
+  it('处理 null 可选字段', () => {
     const row = makeLocationRow({
       scenePrompt: null,
       negativePrompt: null,
@@ -210,7 +210,7 @@ describe('mapLocation', () => {
 // ── mapShot ──────────────────────────────────────────
 
 describe('mapShot', () => {
-  it('should map all fields correctly', () => {
+  it('正确映射所有字段', () => {
     const row = makeShotRow()
     const dto = mapShot(row)
 
@@ -236,7 +236,7 @@ describe('mapShot', () => {
     expect(dto.updatedAt).toBe('2025-01-01T12:00:00.000Z')
   })
 
-  it('should handle null optional fields', () => {
+  it('处理 null 可选字段', () => {
     const row = makeShotRow({
       locationId: null,
       characterIdsJson: [],
@@ -265,7 +265,7 @@ describe('mapShot', () => {
 // ── mapProjectDetail ─────────────────────────────────
 
 describe('mapProjectDetail', () => {
-  it('should compose full project detail', () => {
+  it('组合完整项目详情', () => {
     const project = makeProjectRow()
     const characters = [makeCharacterRow()]
     const locations = [makeLocationRow()]
@@ -292,7 +292,7 @@ describe('mapProjectDetail', () => {
     expect(dto.updatedAt).toBe('2025-01-01T12:00:00.000Z')
   })
 
-  it('should handle continuity issues', () => {
+  it('处理连贯性问题', () => {
     const report: CanvasContinuityRow = {
       id: 'report-1',
       projectId: 'proj-1',
@@ -308,25 +308,25 @@ describe('mapProjectDetail', () => {
     expect(dto.continuityIssues[0]!.severity).toBe('error')
   })
 
-  it('should handle null continuity report', () => {
+  it('处理 null 连贯性报告', () => {
     const dto = mapProjectDetail(makeProjectRow(), [], [], [], null)
     expect(dto.continuityIssues).toEqual([])
   })
 
-  it('should handle empty collections', () => {
+  it('处理空集合', () => {
     const dto = mapProjectDetail(makeProjectRow(), [], [], [], null)
     expect(dto.characters).toEqual([])
     expect(dto.locations).toEqual([])
     expect(dto.shots).toEqual([])
   })
 
-  it('should handle null title', () => {
+  it('处理 null title', () => {
     const project = makeProjectRow({ title: null })
     const dto = mapProjectDetail(project, [], [], [], null)
     expect(dto.title).toBeNull()
   })
 
-  it('should handle null analysisJson', () => {
+  it('处理 null analysisJson', () => {
     const project = makeProjectRow({ analysisJson: null })
     const dto = mapProjectDetail(project, [], [], [], null)
     expect(dto.analysis).toBeNull()

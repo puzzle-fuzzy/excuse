@@ -26,7 +26,7 @@ describe('loadConfig', () => {
     process.env = { ...originalEnv }
   })
 
-  it('should use defaults when no env vars set', () => {
+  it('无环境变量时使用默认值', () => {
     delete process.env.DASHSCOPE_API_KEY
     delete process.env.DASHSCOPE_BASE_URL
     delete process.env.STORAGE_ROOT
@@ -42,7 +42,7 @@ describe('loadConfig', () => {
     expect(config.staleTimeoutMs).toBe(4 * 60 * 60 * 1000)
   })
 
-  it('should read values from environment', () => {
+  it('从环境变量读取值', () => {
     process.env.DASHSCOPE_API_KEY = 'sk-test-123'
     process.env.DASHSCOPE_BASE_URL = 'https://custom.api.com'
     process.env.STORAGE_ROOT = '/data/files'
@@ -58,7 +58,7 @@ describe('loadConfig', () => {
     expect(config.staleTimeoutMs).toBe(7200000)
   })
 
-  it('should handle invalid numeric env vars gracefully', () => {
+  it('无效数字环境变量时优雅回退', () => {
     process.env.WORKER_POLL_INTERVAL_MS = 'not-a-number'
     process.env.WORKER_STALE_TIMEOUT_MS = ''
 

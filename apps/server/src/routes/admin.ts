@@ -1,7 +1,7 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminAuditLogItem, AdminAuditLogListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminProjects, listAdminTasks, listAdminUsers, requeueAdminTask } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { getProviderCallsSnapshot } from '../services/metrics'
@@ -269,9 +269,15 @@ export function createAdminRoutes(config: ServerConfig) {
       const items: AdminProjectItem[] = result.items.map((row) => {
         const prefs = row.modelPreferencesJson as Record<string, string> | null
         const parts: string[] = []
-        if (prefs?.textModel) parts.push(`文本:${prefs.textModel}`)
-        if (prefs?.imageModel) parts.push(`图片:${prefs.imageModel}`)
-        if (prefs?.videoModel) parts.push(`视频:${prefs.videoModel}`)
+        if (prefs?.textModel) {
+          parts.push(`文本:${prefs.textModel}`)
+        }
+        if (prefs?.imageModel) {
+          parts.push(`图片:${prefs.imageModel}`)
+        }
+        if (prefs?.videoModel) {
+          parts.push(`视频:${prefs.videoModel}`)
+        }
         return {
           id: row.id,
           accountId: row.accountId,
@@ -303,6 +309,61 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '查询 Canvas 项目列表',
         description: '管理后台项目细粒度检索：按标题搜索、按状态过滤、分页，返回镜头数/完成数/模型偏好摘要。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/audit-logs', async ({ adminAllowed, adminDenied, query }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const from = query.from ? new Date(query.from) : undefined
+      const to = query.to ? new Date(query.to) : undefined
+
+      const [rows, total] = await Promise.all([
+        queryAuditLogs({
+          accountId: query.accountId,
+          action: query.action,
+          from,
+          to,
+          limit: query.limit,
+          offset: query.offset,
+        }),
+        countAuditLogs({
+          accountId: query.accountId,
+          action: query.action,
+          from,
+          to,
+        }),
+      ])
+
+      const items: AdminAuditLogItem[] = rows.map(row => ({
+        id: row.id,
+        accountId: row.accountId,
+        action: row.action,
+        targetId: row.targetId,
+        detail: row.detail as Record<string, unknown> | null,
+        ip: row.ip,
+        createdAt: row.createdAt.toISOString(),
+      }))
+
+      return {
+        success: true,
+        items,
+        total,
+      } satisfies AdminAuditLogListResponse
+    }, {
+      query: t.Object({
+        accountId: t.Optional(t.String()),
+        action: t.Optional(t.String()),
+        from: t.Optional(t.String()),
+        to: t.Optional(t.String()),
+        limit: t.Optional(t.Numeric()),
+        offset: t.Optional(t.Numeric()),
+      }),
+      detail: {
+        summary: '查询审计日志',
+        description: '管理后台审计日志检索：按用户/操作类型/时间范围过滤分页，仅展示，不做删除/修改。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

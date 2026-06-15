@@ -5,7 +5,7 @@ import { extractImageUrls, parseProviderOutput } from '../src/modules/generation
 describe('parseProviderOutput', () => {
   // ── 1. TextProviderOutput ────────────────────────────────
 
-  it('text provider output → TextOutputResult', () => {
+  it('文本 provider output → TextOutputResult', () => {
     const input: TextProviderOutput = {
       type: 'text',
       text: 'Hello world',
@@ -17,7 +17,7 @@ describe('parseProviderOutput', () => {
 
   // ── 2. ImageProviderOutput ────────────────────────────────
 
-  it('image provider output → ImageOutputResult', () => {
+  it('图片 provider output → ImageOutputResult', () => {
     const input: ImageProviderOutput = {
       type: 'image',
       urls: ['https://img1.jpg', 'https://img2.jpg'],
@@ -33,7 +33,7 @@ describe('parseProviderOutput', () => {
 
   // ── 3. VideoTaskProviderOutput ────────────────────────────
 
-  it('processing provider output → ProcessingOutputResult', () => {
+  it('处理中 provider output → ProcessingOutputResult', () => {
     const input: VideoTaskProviderOutput = {
       type: 'processing',
       taskId: 'task-123',
@@ -50,7 +50,7 @@ describe('parseProviderOutput', () => {
 
   // ── 4. DashScopeTaskOutput — video completed ──────────────
 
-  it('DashScope video completed → VideoOutputResult', () => {
+  it('DashScope 视频完成 → VideoOutputResult', () => {
     const input: DashScopeTaskOutput = {
       video_url: 'https://video.mp4',
     }
@@ -63,7 +63,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope video completed with savedUrls filters non-string', () => {
+  it('DashScope 视频完成且 savedUrls 过滤非字符串项', () => {
     const input: DashScopeTaskOutput = {
       video_url: 'https://video.mp4',
       savedUrls: ['https://saved1.jpg', 42, null, 'https://saved2.jpg'],
@@ -74,7 +74,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope video completed with string originalUrl preserved', () => {
+  it('DashScope 视频完成且 string 类型 originalUrl 保留', () => {
     const input: DashScopeTaskOutput = {
       video_url: 'https://video.mp4',
       originalUrl: 'https://original.mp4',
@@ -85,7 +85,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope video completed with non-string originalUrl dropped', () => {
+  it('DashScope 视频完成且非 string 类型 originalUrl 丢弃', () => {
     const input: DashScopeTaskOutput = {
       video_url: 'https://video.mp4',
       originalUrl: 123,
@@ -98,7 +98,7 @@ describe('parseProviderOutput', () => {
 
   // ── 5. DashScopeTaskOutput — image completed ──────────────
 
-  it('DashScope image completed from url results', () => {
+  it('DashScope 图片完成（来自 url results）', () => {
     const input: DashScopeTaskOutput = {
       results: [{ url: 'https://img1.jpg' }, { url: 'https://img2.jpg' }],
     }
@@ -110,7 +110,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope image completed from b64_image results', () => {
+  it('DashScope 图片完成（来自 b64_image results）', () => {
     const input: DashScopeTaskOutput = {
       results: [{ b64_image: 'base64data1' }, { url: 'https://img1.jpg' }],
     }
@@ -120,7 +120,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope image results filters non-string items', () => {
+  it('DashScope image results 过滤非字符串项', () => {
     // DashScopeTaskOutput has index signature, so runtime values may not match declared type
     const input: DashScopeTaskOutput = {
       results: [{ url: 'https://img1.jpg' }, { b64_image: 'data:image/png;base64,abc' }],
@@ -133,7 +133,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope empty results array → fallback text', () => {
+  it('DashScope 空 results 数组 → 回退为文本', () => {
     const input: DashScopeTaskOutput = {
       results: [],
     }
@@ -145,7 +145,7 @@ describe('parseProviderOutput', () => {
 
   // ── 6. DashScopeTaskOutput — intermediate state ───────────
 
-  it('DashScope with taskId → ProcessingOutputResult', () => {
+  it('DashScope 带 taskId → ProcessingOutputResult', () => {
     const input: DashScopeTaskOutput = {
       taskId: 'async-task-456',
     }
@@ -157,7 +157,7 @@ describe('parseProviderOutput', () => {
     })
   })
 
-  it('DashScope with status → ProcessingOutputResult', () => {
+  it('DashScope 带 status → ProcessingOutputResult', () => {
     const input: DashScopeTaskOutput = {
       status: 'RUNNING',
     }
@@ -169,7 +169,7 @@ describe('parseProviderOutput', () => {
     }
   })
 
-  it('DashScope with taskId and status → ProcessingOutputResult', () => {
+  it('DashScope 带 taskId 和 status → ProcessingOutputResult', () => {
     const input: DashScopeTaskOutput = {
       taskId: 'async-task-789',
       status: 'SUCCEEDED',
@@ -184,12 +184,12 @@ describe('parseProviderOutput', () => {
 
   // ── 7. Boundary / fallback ────────────────────────────────
 
-  it('undefined input → fallback text with empty string', () => {
+  it('undefined 输入 → 回退为空字符串文本', () => {
     const result = parseProviderOutput(undefined)
     expect(result).toEqual({ type: 'text', text: '' })
   })
 
-  it('unrecognizable object → fallback text with empty string', () => {
+  it('不可识别对象 → 回退为空字符串文本', () => {
     const result = parseProviderOutput({ random: 'data' } as DashScopeTaskOutput)
     expect(result).toEqual({ type: 'text', text: '' })
   })
@@ -198,7 +198,7 @@ describe('parseProviderOutput', () => {
 // ── extractImageUrls ────────────────────────────────────────
 
 describe('extractImageUrls', () => {
-  it('image provider output → returns urls', () => {
+  it('image provider output → 返回 urls', () => {
     const input: ImageProviderOutput = {
       type: 'image',
       urls: ['https://a.jpg', 'https://b.jpg'],
@@ -207,18 +207,18 @@ describe('extractImageUrls', () => {
     expect(extractImageUrls(input)).toEqual(['https://a.jpg', 'https://b.jpg'])
   })
 
-  it('DashScope urls array → returns string items only', () => {
+  it('DashScope urls 数组 → 仅返回 string 项', () => {
     const input: DashScopeTaskOutput = {
       urls: ['https://a.jpg', 42, 'https://b.jpg', null],
     }
     expect(extractImageUrls(input)).toEqual(['https://a.jpg', 'https://b.jpg'])
   })
 
-  it('undefined → returns []', () => {
+  it('undefined → 返回 []', () => {
     expect(extractImageUrls(undefined)).toEqual([])
   })
 
-  it('DashScope without urls → returns []', () => {
+  it('DashScope 无 urls → 返回 []', () => {
     const input: DashScopeTaskOutput = { taskId: 'some-task' }
     expect(extractImageUrls(input)).toEqual([])
   })

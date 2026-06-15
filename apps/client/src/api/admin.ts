@@ -1,4 +1,6 @@
 import type {
+  AdminAuditLogListQuery,
+  AdminAuditLogListResponse,
   AdminProjectListQuery,
   AdminProjectListResponse,
   AdminProviderStatsResponse,
@@ -113,4 +115,23 @@ export async function fetchAdminProjects(params?: AdminProjectListQuery): Promis
 
 export const adminProjectsQueryKeys = {
   list: (params: AdminProjectListQuery) => ['admin', 'projects', params] as const,
+}
+
+export async function fetchAdminAuditLogs(params?: AdminAuditLogListQuery): Promise<AdminAuditLogListResponse> {
+  return unwrap<AdminAuditLogListResponse>(
+    await api.api.admin['audit-logs'].get({
+      query: {
+        accountId: params?.accountId,
+        action: params?.action,
+        from: params?.from,
+        to: params?.to,
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+    }),
+  )
+}
+
+export const adminAuditLogQueryKeys = {
+  list: (params: AdminAuditLogListQuery) => ['admin', 'audit-logs', params] as const,
 }

@@ -52,7 +52,7 @@ function createTestApp(config: ServerConfig = testConfig) {
 describe('auth plugin (createAuthPlugin)', () => {
   // ─── 无 Bearer token ────────────────────────────────
 
-  it('should set userId=null when no Authorization header', async () => {
+  it('无 Authorization header 时设置 userId=null', async () => {
     const app = createTestApp()
     const client = treaty(app)
 
@@ -64,7 +64,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 有效 JWT ───────────────────────────────────────
 
-  it('should extract userId from a valid JWT', async () => {
+  it('从有效 JWT 中提取 userId', async () => {
     const app = createTestApp()
     const client = treaty(app)
 
@@ -84,7 +84,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 不同 sub 值 ────────────────────────────────────
 
-  it('should correctly extract different userId values', async () => {
+  it('正确提取不同的 userId 值', async () => {
     const app = createTestApp()
     const client = treaty(app)
 
@@ -102,7 +102,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 无效 JWT ───────────────────────────────────────
 
-  it('should set userId=null for malformed JWT', async () => {
+  it('畸形 JWT 时设置 userId=null', async () => {
     const app = createTestApp()
     const client = treaty(app)
 
@@ -116,7 +116,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 空 Bearer ──────────────────────────────────────
 
-  it('should set userId=null for empty Bearer value', async () => {
+  it('空 Bearer 值时设置 userId=null', async () => {
     const app = createTestApp()
     const client = treaty(app)
 
@@ -130,7 +130,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 错误 secret ───────────────────────────────────
 
-  it('should set userId=null for JWT signed with wrong secret', async () => {
+  it('错误 secret 签发的 JWT 时设置 userId=null', async () => {
     const signConfig = { ...testConfig, jwtSecret: 'signing-secret-A' }
     const verifyConfig = { ...testConfig, jwtSecret: 'verify-secret-B' }
 
@@ -152,7 +152,7 @@ describe('auth plugin (createAuthPlugin)', () => {
 
   // ─── 非法 Authorization 头格式 ──────────────────────
 
-  it('should set userId=null for non-Bearer Authorization header', async () => {
+  it('非 Bearer Authorization header 时设置 userId=null', async () => {
     const app = createTestApp()
     const client = treaty(app)
 

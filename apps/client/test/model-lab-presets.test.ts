@@ -32,15 +32,15 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-describe('model lab presets', () => {
-  it('maps model category to canvas preference key', () => {
+describe('model lab 预设', () => {
+  it('映射模型类别到 canvas 偏好键', () => {
     expect(modelToCanvasPreferencePatch(makeModel('text', 'qwen-plus'))).toEqual({ textModel: 'qwen-plus' })
     expect(modelToCanvasPreferencePatch(makeModel('image', 'qwen-image'))).toEqual({ imageModel: 'qwen-image' })
     expect(modelToCanvasPreferencePatch(makeModel('video', 'wanx'))).toEqual({ videoModel: 'wanx' })
     expect(modelToCanvasPreferencePatch(makeModel('subtitle', 'asr'))).toEqual({})
   })
 
-  it('saves and merges canvas defaults', () => {
+  it('保存并合并 canvas 默认值', () => {
     const storage = makeStorage()
 
     saveCanvasModelDefaults({ textModel: 'qwen-plus' }, storage)
@@ -50,7 +50,7 @@ describe('model lab presets', () => {
     expect(loadCanvasModelDefaults(storage)?.preferences).toEqual(saved.preferences)
   })
 
-  it('returns null for invalid stored value', () => {
+  it('无效存储值返回 null', () => {
     const storage = makeStorage()
     storage.setItem('excuse:model-lab:canvas-defaults', '{bad json')
 

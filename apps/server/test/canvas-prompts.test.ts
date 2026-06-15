@@ -9,13 +9,13 @@ const analysis = {
 }
 
 describe('buildAnalysisPrompt', () => {
-  it('should return system and prompt fields', () => {
+  it('返回 system 和 prompt 字段', () => {
     const result = buildAnalysisPrompt(storyText)
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('prompt')
   })
 
-  it('should include JSON format instructions in system', () => {
+  it('system 中包含 JSON 格式指令', () => {
     const { system } = buildAnalysisPrompt(storyText)
     expect(system).toContain('JSON')
     expect(system).toContain('summary')
@@ -23,42 +23,42 @@ describe('buildAnalysisPrompt', () => {
     expect(system).toContain('sceneNames')
   })
 
-  it('should include story text in prompt', () => {
+  it('prompt 中包含故事文本', () => {
     const { prompt } = buildAnalysisPrompt(storyText)
     expect(prompt).toContain(storyText)
   })
 })
 
 describe('buildCharacterPrompt', () => {
-  it('should return system and prompt fields', () => {
+  it('返回 system 和 prompt 字段', () => {
     const result = buildCharacterPrompt(storyText, analysis, '小明')
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('prompt')
   })
 
-  it('should include character name in prompt', () => {
+  it('prompt 中包含角色名称', () => {
     const { prompt } = buildCharacterPrompt(storyText, analysis, '小明')
     expect(prompt).toContain('小明')
   })
 
-  it('should include story text in prompt', () => {
+  it('prompt 中包含故事文本', () => {
     const { prompt } = buildCharacterPrompt(storyText, analysis, '小明')
     expect(prompt).toContain(storyText.slice(0, 3000))
   })
 
-  it('should include analysis summary in prompt', () => {
+  it('prompt 中包含分析摘要', () => {
     const { prompt } = buildCharacterPrompt(storyText, analysis, '小明')
     expect(prompt).toContain(analysis.summary)
     expect(prompt).toContain(analysis.mainConflict)
   })
 
-  it('should include identityPrompt rules in system', () => {
+  it('system 中包含 identityPrompt 规则', () => {
     const { system } = buildCharacterPrompt(storyText, analysis, '小明')
     expect(system).toContain('identityPrompt')
     expect(system).toContain('negativePrompt')
   })
 
-  it('should include JSON output format in system', () => {
+  it('system 中包含 JSON 输出格式', () => {
     const { system } = buildCharacterPrompt(storyText, analysis, '小明')
     expect(system).toContain('face')
     expect(system).toContain('hair')
@@ -67,30 +67,30 @@ describe('buildCharacterPrompt', () => {
 })
 
 describe('buildLocationPrompt', () => {
-  it('should return system and prompt fields', () => {
+  it('返回 system 和 prompt 字段', () => {
     const result = buildLocationPrompt(storyText, analysis, '王城')
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('prompt')
   })
 
-  it('should include scene name in prompt', () => {
+  it('prompt 中包含场景名称', () => {
     const { prompt } = buildLocationPrompt(storyText, analysis, '王城')
     expect(prompt).toContain('王城')
   })
 
-  it('should include analysis summary in prompt', () => {
+  it('prompt 中包含分析摘要', () => {
     const { prompt } = buildLocationPrompt(storyText, analysis, '王城')
     expect(prompt).toContain(analysis.summary)
   })
 
-  it('should include cameraRules in system format', () => {
+  it('system 格式中包含 cameraRules', () => {
     const { system } = buildLocationPrompt(storyText, analysis, '王城')
     expect(system).toContain('cameraRules')
     expect(system).toContain('axisDirection')
     expect(system).toContain('forbiddenAngles')
   })
 
-  it('should include scenePrompt in system format', () => {
+  it('system 格式中包含 scenePrompt', () => {
     const { system } = buildLocationPrompt(storyText, analysis, '王城')
     expect(system).toContain('scenePrompt')
     expect(system).toContain('visualRules')
@@ -107,13 +107,13 @@ describe('buildStoryboardPrompt', () => {
     { id: 'loc-uuid-2', name: '森林', scenePrompt: 'A dark mysterious forest' },
   ]
 
-  it('should return system and prompt fields', () => {
+  it('返回 system 和 prompt 字段', () => {
     const result = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(result).toHaveProperty('system')
     expect(result).toHaveProperty('prompt')
   })
 
-  it('should include character list with IDs in prompt', () => {
+  it('prompt 中包含角色列表及 ID', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(prompt).toContain('char-uuid-1')
     expect(prompt).toContain('小明')
@@ -121,7 +121,7 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('小红')
   })
 
-  it('should include location list with IDs in prompt', () => {
+  it('prompt 中包含场景列表及 ID', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(prompt).toContain('loc-uuid-1')
     expect(prompt).toContain('王城')
@@ -129,12 +129,12 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('森林')
   })
 
-  it('should include story text in prompt', () => {
+  it('prompt 中包含故事文本', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(prompt).toContain(storyText.slice(0, 4000))
   })
 
-  it('should include timeline requirements in system', () => {
+  it('system 中包含时间轴要求', () => {
     const { system } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(system).toContain('timeline')
     expect(system).toContain('duration')
@@ -142,17 +142,17 @@ describe('buildStoryboardPrompt', () => {
     expect(system).toContain('environment')
   })
 
-  it('should include UUID requirement in system', () => {
+  it('system 中包含 UUID 要求', () => {
     const { system } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(system).toContain('UUID')
   })
 
-  it('should handle empty characters and locations', () => {
+  it('处理空角色和场景列表', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, [], [])
     expect(prompt).toContain(storyText)
   })
 
-  it('should include analysis in prompt', () => {
+  it('prompt 中包含分析内容', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, characters, locations)
     expect(prompt).toContain(analysis.summary)
     expect(prompt).toContain(analysis.mainConflict)

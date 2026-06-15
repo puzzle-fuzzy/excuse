@@ -49,7 +49,7 @@ function makeLocation(overrides: Partial<NormalizedLocation> = {}): NormalizedLo
 }
 
 describe('buildShotVideoPrompt', () => {
-  it('should include character consistency section', () => {
+  it('包含角色一致性部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -60,7 +60,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('A young woman with long black hair, wearing a red dress')
   })
 
-  it('should include scene consistency section', () => {
+  it('包含场景一致性部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -70,7 +70,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('A mysterious dark forest with tall ancient trees')
   })
 
-  it('should include narrative', () => {
+  it('包含叙述内容', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -79,7 +79,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('A girl walks through the forest')
   })
 
-  it('should include camera section', () => {
+  it('包含摄像机部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -91,7 +91,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Lens: 35mm')
   })
 
-  it('should include emotion continuity', () => {
+  it('包含情绪连贯性', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -101,7 +101,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('End emotion: determined')
   })
 
-  it('should include character facing section', () => {
+  it('包含角色朝向部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -110,7 +110,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Alice: facing right')
   })
 
-  it('should include environment section when provided', () => {
+  it('提供环境信息时包含环境部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -128,7 +128,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Style: cinematic')
   })
 
-  it('should not include environment section when omitted', () => {
+  it('省略环境信息时不包含环境部分', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -137,7 +137,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).not.toContain('Background motion:')
   })
 
-  it('should include timeline from shot when provided', () => {
+  it('提供时包含镜头时间线', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -150,7 +150,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Frame-by-frame timeline (total 5s):')
   })
 
-  it('should include quality requirements', () => {
+  it('包含质量要求', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -160,7 +160,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('180-degree axis')
   })
 
-  it('should handle multiple characters', () => {
+  it('处理多个角色', () => {
     const char2: NormalizedCharacter = {
       id: 'char-2',
       name: 'Bob',
@@ -179,7 +179,7 @@ describe('buildShotVideoPrompt', () => {
 
   // ── negativePrompt ────────────────────────────────
 
-  it('should combine character and location negative prompts', () => {
+  it('组合角色和场景的负面提示词', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter()],
@@ -189,7 +189,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.negativePrompt).toContain('bright, sunny')
   })
 
-  it('should include default quality negatives', () => {
+  it('包含默认质量负面提示词', () => {
     const result = buildShotVideoPrompt({
       shot: makeShot(),
       characters: [makeCharacter({ negativePrompt: '' })],
@@ -199,7 +199,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.negativePrompt).toContain('watermark')
   })
 
-  it('should use default duration of 5 when not specified', () => {
+  it('未指定时使用默认时长 5', () => {
     const shot = makeShot({ duration: 0 })
     const result = buildShotVideoPrompt({
       shot,
@@ -209,7 +209,7 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('total 5s')
   })
 
-  it('should use character ID as fallback name in facing section', () => {
+  it('朝向部分使用角色 ID 作为回退名称', () => {
     const shot = makeShot({
       characterIds: ['unknown-id'],
       continuity: {

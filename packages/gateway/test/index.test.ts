@@ -350,7 +350,7 @@ describe('@excuse/gateway', () => {
   })
 
   describe('normalizeOpenAIChatRequest — zod runtime guard', () => {
-    it('rejects non-array messages with invalid_parameters', () => {
+    it('非数组 messages 返回 invalid_parameters', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: 'foo',
@@ -364,7 +364,7 @@ describe('@excuse/gateway', () => {
       expect(result.response.error.message).toContain('messages')
     })
 
-    it('rejects message missing role with invalid_parameters', () => {
+    it('message 缺少 role 返回 invalid_parameters', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: [{ content: 'hi' }],
@@ -376,7 +376,7 @@ describe('@excuse/gateway', () => {
       expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
     })
 
-    it('rejects string temperature with invalid_parameters', () => {
+    it('字符串 temperature 返回 invalid_parameters', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: [{ role: 'user', content: 'hi' }],
@@ -390,7 +390,7 @@ describe('@excuse/gateway', () => {
       expect(result.response.error.message).toContain('temperature')
     })
 
-    it('rejects empty messages array', () => {
+    it('拒绝空 messages 数组', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: [],
@@ -402,7 +402,7 @@ describe('@excuse/gateway', () => {
       expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
     })
 
-    it('rejects unknown message role with invalid_parameters', () => {
+    it('未知 message role 返回 invalid_parameters', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: [{ role: 'developer', content: 'hi' }],
@@ -414,7 +414,7 @@ describe('@excuse/gateway', () => {
       expect(result.response.error.code).toBe(OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS)
     })
 
-    it('preserves unknown OpenAI fields on success path (.loose() passthrough)', () => {
+    it('成功路径透传未知 OpenAI 字段（.loose() passthrough）', () => {
       const request = {
         model: 'gpt-4',
         messages: [{ role: 'user', content: 'hi' }],
@@ -431,7 +431,7 @@ describe('@excuse/gateway', () => {
       expect(result.prompt).toBe('hi')
     })
 
-    it('returns missing_user_message when valid messages but no user role', () => {
+    it('有效 messages 但无 user role 时返回 missing_user_message', () => {
       const result = normalizeOpenAIChatRequest({
         model: 'gpt-4',
         messages: [{ role: 'system', content: 'sys' }],

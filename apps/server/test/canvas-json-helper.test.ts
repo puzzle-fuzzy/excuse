@@ -2,81 +2,81 @@ import { parseLLMJson } from '@excuse/prompt-engine'
 import { describe, expect, it } from 'bun:test'
 
 describe('parseLLMJson', () => {
-  it('should parse clean JSON object', () => {
+  it('解析干净的 JSON object', () => {
     const input = '{"name":"test","value":42}'
     const result = parseLLMJson<{ name: string, value: number }>(input)
     expect(result).toEqual({ name: 'test', value: 42 })
   })
 
-  it('should parse clean JSON array', () => {
+  it('解析干净的 JSON array', () => {
     const input = '[1,2,3]'
     const result = parseLLMJson<number[]>(input)
     expect(result).toEqual([1, 2, 3])
   })
 
-  it('should strip markdown json code fence', () => {
+  it('去除 markdown json 代码围栏', () => {
     const input = '```json\n{"key":"value"}\n```'
     const result = parseLLMJson<{ key: string }>(input)
     expect(result).toEqual({ key: 'value' })
   })
 
-  it('should strip markdown code fence without language tag', () => {
+  it('去除无语言标签的 markdown 代码围栏', () => {
     const input = '```\n{"key":"value"}\n```'
     const result = parseLLMJson<{ key: string }>(input)
     expect(result).toEqual({ key: 'value' })
   })
 
-  it('should extract JSON from surrounding text', () => {
+  it('从周围文本中提取 JSON', () => {
     const input = 'Here is the result:\n{"summary":"hello"}\nEnd of result.'
     const result = parseLLMJson<{ summary: string }>(input)
     expect(result).toEqual({ summary: 'hello' })
   })
 
-  it('should extract JSON array of primitives from surrounding text', () => {
+  it('从周围文本中提取原始值 JSON array', () => {
     const input = 'Result:\n["a","b","c"]\nDone.'
     const result = parseLLMJson<string[]>(input)
     expect(result).toEqual(['a', 'b', 'c'])
   })
 
-  it('should extract JSON array of objects from code fence', () => {
+  it('从代码围栏中提取对象 JSON array', () => {
     const input = '```json\n[{"id":1},{"id":2}]\n```'
     const result = parseLLMJson<Array<{ id: number }>>(input)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
 
-  it('should extract JSON array of objects from surrounding text', () => {
+  it('从周围文本中提取对象 JSON array', () => {
     const input = 'Result:\n[{"id":1},{"id":2}]\nDone.'
     const result = parseLLMJson<Array<{ id: number }>>(input)
     expect(result).toEqual([{ id: 1 }, { id: 2 }])
   })
 
-  it('should handle nested JSON objects', () => {
+  it('处理嵌套 JSON object', () => {
     const input = '{"outer":{"inner":{"deep":true}},"arr":[1,2]}'
     const result = parseLLMJson<{ outer: { inner: { deep: boolean } }, arr: number[] }>(input)
     expect(result.outer.inner.deep).toBe(true)
     expect(result.arr).toEqual([1, 2])
   })
 
-  it('should throw when no JSON found', () => {
+  it('未找到 JSON 时抛出异常', () => {
     expect(() => parseLLMJson('no json here')).toThrow('Failed to extract JSON')
   })
 
-  it('should throw with truncated input preview', () => {
+  it('截断输入预览抛出异常', () => {
     const longInput = 'x'.repeat(300)
     expect(() => parseLLMJson(longInput)).toThrow(longInput.slice(0, 200))
   })
 
-  it('should handle whitespace-only input', () => {
+  it('处理纯空白输入', () => {
     expect(() => parseLLMJson('   ')).toThrow('Failed to extract JSON')
   })
 
-  it('should handle JSON in code fence with extra whitespace', () => {
+  it('处理代码围栏中多余空白的 JSON', () => {
     const input = '```json\n  \n  {"a": 1}  \n  \n```'
     const result = parseLLMJson<{ a: number }>(input)
     expect(result).toEqual({ a: 1 })
   })
 
-  it('should handle real-world LLM output with preamble', () => {
+  it('处理带前导文本的真实 LLM 输出', () => {
     const input = `根据您的要求，分析结果如下：
 
 \`\`\`json

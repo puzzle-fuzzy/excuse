@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ':*)",
+      "Bash(git commit:*)",
+      "Bash(rm -f mockdebug.log)",
+      "Bash(grep -rn \"mock.module.*service-helpers\\\\|mock.module.*\\\\\\\\.\\\\\\\\.\" --include=\"*.test.ts\" apps/)",
+      "Bash(bun -e \"const m = require\\('bun:test'\\); console.log\\(Object.keys\\(m\\)\\)\")"
+    ]
+  }
+}

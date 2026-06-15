@@ -12,46 +12,46 @@ import {
 // ===== parseOutputResult =====
 
 describe('parseOutputResult', () => {
-  it('returns null for null/undefined', () => {
+  it('null/undefined 返回 null', () => {
     expect(parseOutputResult(null)).toBeNull()
     expect(parseOutputResult(undefined)).toBeNull()
   })
 
-  it('returns null for non-object', () => {
+  it('非对象返回 null', () => {
     expect(parseOutputResult('string')).toBeNull()
     expect(parseOutputResult(42)).toBeNull()
     expect(parseOutputResult(true)).toBeNull()
   })
 
-  it('returns null for empty object', () => {
+  it('空对象返回 null', () => {
     expect(parseOutputResult({})).toBeNull()
   })
 
-  it('returns null for unrecognized keys', () => {
+  it('无法识别的 key 返回 null', () => {
     expect(parseOutputResult({ foo: 'bar' })).toBeNull()
   })
 
   // ── TextOutputResult ──
 
-  it('parses text output', () => {
+  it('解析文本输出', () => {
     const result = parseOutputResult({ text: '你好' })
     expect(result).toEqual({ type: 'text', text: '你好' })
     expect(isTextOutput(result)).toBe(true)
   })
 
-  it('parses text output with explicit type field', () => {
+  it('解析带显式 type 字段的文本输出', () => {
     const result = parseOutputResult({ type: 'text', text: '你好' })
     expect(result).toEqual({ type: 'text', text: '你好' })
   })
 
-  it('ignores text when value is not string', () => {
+  it('值非字符串时忽略 text', () => {
     const result = parseOutputResult({ text: 123 })
     expect(result).toBeNull()
   })
 
   // ── ImageOutputResult ──
 
-  it('parses image output (savedUrls + urls)', () => {
+  it('解析图片输出（savedUrls + urls）', () => {
     const result = parseOutputResult({
       savedUrls: ['https://saved/1.png'],
       urls: ['https://orig/1.png'],
@@ -64,20 +64,20 @@ describe('parseOutputResult', () => {
     expect(isImageOutput(result)).toBe(true)
   })
 
-  it('parses image output (savedUrls only, no urls)', () => {
+  it('解析图片输出（仅 savedUrls，无 urls）', () => {
     const result = parseOutputResult({ savedUrls: ['https://saved/1.png'] })
     expect(result).toEqual({ type: 'image', savedUrls: ['https://saved/1.png'], urls: undefined })
     expect(isImageOutput(result)).toBe(true)
   })
 
-  it('ignores non-array savedUrls', () => {
+  it('忽略非数组 savedUrls', () => {
     const result = parseOutputResult({ savedUrls: 'not-array' })
     expect(result).toBeNull()
   })
 
   // ── VideoOutputResult ──
 
-  it('parses video output (savedUrls + originalUrl)', () => {
+  it('解析视频输出（savedUrls + originalUrl）', () => {
     const result = parseOutputResult({
       savedUrls: ['https://saved/v.mp4'],
       originalUrl: 'https://cdn/v.mp4',
@@ -90,7 +90,7 @@ describe('parseOutputResult', () => {
     expect(isVideoOutput(result)).toBe(true)
   })
 
-  it('parses video output (savedUrls + video_url)', () => {
+  it('解析视频输出（savedUrls + video_url）', () => {
     const result = parseOutputResult({
       savedUrls: ['https://saved/v.mp4'],
       video_url: 'https://cdn/v.mp4',
@@ -104,7 +104,7 @@ describe('parseOutputResult', () => {
     expect(isVideoOutput(result)).toBe(true)
   })
 
-  it('normalizes non-string originalUrl to undefined', () => {
+  it('非字符串 originalUrl 规范为 undefined', () => {
     const result = parseOutputResult({
       savedUrls: ['https://saved/v.mp4'],
       originalUrl: null,
@@ -118,7 +118,7 @@ describe('parseOutputResult', () => {
 
   // ── ProcessingOutputResult ──
 
-  it('parses processing output (taskId + status)', () => {
+  it('解析处理中输出（taskId + status）', () => {
     const result = parseOutputResult({
       taskId: 'task-123',
       status: 'RUNNING',
@@ -127,36 +127,36 @@ describe('parseOutputResult', () => {
     expect(isProcessingOutput(result)).toBe(true)
   })
 
-  it('parses processing output with only taskId', () => {
+  it('解析仅 taskId 的处理中输出', () => {
     const result = parseOutputResult({ taskId: 'task-123' })
     expect(result).toEqual({ type: 'processing', taskId: 'task-123', status: undefined })
   })
 
-  it('parses processing output with only status', () => {
+  it('解析仅 status 的处理中输出', () => {
     const result = parseOutputResult({ status: 'PENDING' })
     expect(result).toEqual({ type: 'processing', taskId: undefined, status: 'PENDING' })
   })
 
-  it('normalizes non-string taskId/status to undefined', () => {
+  it('非字符串 taskId/status 规范为 undefined', () => {
     const result = parseOutputResult({ taskId: 42, status: null })
     expect(result).toEqual({ type: 'processing', taskId: undefined, status: undefined })
   })
 
   // ── Priority rules ──
 
-  it('text takes priority over savedUrls', () => {
+  it('text 优先于 savedUrls', () => {
     const result = parseOutputResult({ text: 'hello', savedUrls: ['url'] })
     expect(result).toEqual({ type: 'text', text: 'hello' })
   })
 
-  it('savedUrls takes priority over taskId/status', () => {
+  it('savedUrls 优先于 taskId/status', () => {
     const result = parseOutputResult({ savedUrls: ['url'], taskId: 't1' })
     expect(result?.savedUrls).toEqual(['url'])
   })
 
   // ── Explicit type field ──
 
-  it('respects explicit type field for all variants', () => {
+  it('尊重所有变体的显式 type 字段', () => {
     expect(parseOutputResult({ type: 'image', savedUrls: [] })).toEqual({ type: 'image', savedUrls: [], urls: undefined })
     expect(parseOutputResult({ type: 'video', savedUrls: [], originalUrl: 'x' })).toEqual({ type: 'video', savedUrls: [], originalUrl: 'x', video_url: undefined })
     expect(parseOutputResult({ type: 'processing', taskId: 't1' })).toEqual({ type: 'processing', taskId: 't1', status: undefined })
@@ -164,7 +164,7 @@ describe('parseOutputResult', () => {
 
   // ── SubtitleOutputResult ──
 
-  it('parses subtitle output with sentences', () => {
+  it('解析带 sentences 的字幕输出', () => {
     const sentences = [
       { id: 's1', text: '你好世界', beginTime: 0, endTime: 2000 },
       { id: 's2', text: '欢迎来到这里', beginTime: 2000, endTime: 5000, speakerId: 1 },
@@ -178,7 +178,7 @@ describe('parseOutputResult', () => {
     expect(isSubtitleOutput(result)).toBe(true)
   })
 
-  it('parses subtitle output with transcriptionUrl', () => {
+  it('解析带 transcriptionUrl 的字幕输出', () => {
     const sentences = [{ id: 's1', text: '测试', beginTime: 100, endTime: 500 }]
     const result = parseOutputResult({
       type: 'subtitle',
@@ -193,13 +193,13 @@ describe('parseOutputResult', () => {
     expect(isSubtitleOutput(result)).toBe(true)
   })
 
-  it('defaults sentences to empty array when not provided', () => {
+  it('未提供 sentences 时默认为空数组', () => {
     const result = parseOutputResult({ type: 'subtitle' })
     expect(result).toEqual({ type: 'subtitle', sentences: [], transcriptionUrl: undefined })
     expect(isSubtitleOutput(result)).toBe(true)
   })
 
-  it('defaults transcriptionUrl to undefined when not a string', () => {
+  it('transcriptionUrl 非字符串时默认为 undefined', () => {
     const sentences = [{ id: 's1', text: 'a', beginTime: 0, endTime: 100 }]
     const result = parseOutputResult({ type: 'subtitle', sentences, transcriptionUrl: null })
     expect(result?.transcriptionUrl).toBeUndefined()
@@ -209,30 +209,30 @@ describe('parseOutputResult', () => {
 // ===== parseCostDetail =====
 
 describe('parseCostDetail', () => {
-  it('returns null for null/undefined', () => {
+  it('null/undefined 返回 null', () => {
     expect(parseCostDetail(null)).toBeNull()
     expect(parseCostDetail(undefined)).toBeNull()
   })
 
-  it('returns null for non-object', () => {
+  it('非对象返回 null', () => {
     expect(parseCostDetail('string')).toBeNull()
   })
 
-  it('returns null for missing required unit field', () => {
+  it('缺少必填 unit 字段时返回 null', () => {
     expect(parseCostDetail({ totalPrice: 1 })).toBeNull()
     expect(parseCostDetail({ totalPriceCents: 100 })).toBeNull()
   })
 
-  it('returns null for missing totalPrice and totalPriceCents', () => {
+  it('缺少 totalPrice 和 totalPriceCents 时返回 null', () => {
     expect(parseCostDetail({ unit: 'token' })).toBeNull()
   })
 
-  it('defaults unknown unit to token', () => {
+  it('未知 unit 默认为 token', () => {
     const result = parseCostDetail({ unit: 'other', totalPrice: 5 })
     expect(result?.unit).toBe('token')
   })
 
-  it('parses complete text cost with cents', () => {
+  it('解析完整的文本计费（含 cents）', () => {
     const result = parseCostDetail({
       unit: 'token',
       totalPriceCents: 1,
@@ -275,7 +275,7 @@ describe('parseCostDetail', () => {
     })
   })
 
-  it('parses video cost with cents', () => {
+  it('解析视频计费（含 cents）', () => {
     const result = parseCostDetail({
       unit: 'video',
       totalPriceCents: 250,
@@ -309,7 +309,7 @@ describe('parseCostDetail', () => {
     })
   })
 
-  it('defaults totalPriceCents to 0 and totalPrice to totalPriceCents/100 when missing', () => {
+  it('缺少 totalPrice 时默认为 0 且 totalPrice 为 totalPriceCents/100', () => {
     const result = parseCostDetail({
       unit: 'image',
       totalPriceCents: 25,
@@ -318,7 +318,7 @@ describe('parseCostDetail', () => {
     expect(result?.totalPrice).toBe(0.25)
   })
 
-  it('defaults totalPrice to totalPriceCents/100 when only totalPriceCents present', () => {
+  it('仅 totalPriceCents 时 totalPrice 默认为 totalPriceCents/100', () => {
     const result = parseCostDetail({
       unit: 'image',
       totalPriceCents: 100,
@@ -326,7 +326,7 @@ describe('parseCostDetail', () => {
     expect(result?.totalPrice).toBe(1)
   })
 
-  it('defaults totalPriceCents to 0 when totalPrice is non-number', () => {
+  it('totalPrice 非数字时 totalPriceCents 默认为 0', () => {
     const result = parseCostDetail({
       unit: 'image',
       totalPrice: true,
@@ -336,7 +336,7 @@ describe('parseCostDetail', () => {
     expect(result?.totalPrice).toBe(0)
   })
 
-  it('ignores non-string resolution and non-boolean estimated', () => {
+  it('忽略非字符串 resolution 和非布尔 estimated', () => {
     const result = parseCostDetail({
       unit: 'video',
       totalPriceCents: 250,
@@ -350,7 +350,7 @@ describe('parseCostDetail', () => {
 
   // ── audio 计费 ──
 
-  it('parses audio cost with duration and unitPrice', () => {
+  it('解析音频计费（含 duration 和 unitPrice）', () => {
     const result = parseCostDetail({
       unit: 'audio',
       totalPriceCents: 0.48,
@@ -382,7 +382,7 @@ describe('parseCostDetail', () => {
     })
   })
 
-  it('parses audio cost with estimated flag', () => {
+  it('解析带 estimated 标志的音频计费', () => {
     const result = parseCostDetail({
       unit: 'audio',
       totalPriceCents: 0.48,

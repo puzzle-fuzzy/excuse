@@ -73,7 +73,7 @@ beforeEach(() => {
 })
 
 describe('runAnalysisPhase', () => {
-  it('cascade-deletes children on reanalysis and persists analysisJson', async () => {
+  it('重新分析时级联删除子资源并持久化 analysisJson', async () => {
     const { analysis: result } = await runAnalysisPhase({
       projectId: 'p1',
       storyText: 'story',
@@ -94,7 +94,7 @@ describe('runAnalysisPhase', () => {
     expect((patch as Record<string, unknown>).analysisJson).toEqual(result)
   })
 
-  it('does NOT cascade-delete on first analysis (draft)', async () => {
+  it('首次分析时不级联删除（draft）', async () => {
     await runAnalysisPhase({
       projectId: 'p1',
       storyText: 'story',
@@ -111,7 +111,7 @@ describe('runAnalysisPhase', () => {
 })
 
 describe('generateCharacterEntity', () => {
-  it('creates a character row, falling back to the input name when profile.name is absent', async () => {
+  it('创建角色行，profile.name 缺失时回退到输入名称', async () => {
     const { character, profile } = await generateCharacterEntity({
       projectId: 'p1',
       storyText: 'story',
@@ -131,7 +131,7 @@ describe('generateCharacterEntity', () => {
 })
 
 describe('generateLocationEntity', () => {
-  it('returns the created row so hosts can notify by id (pins the bug-fix contract)', async () => {
+  it('返回创建的行以便宿主按 id 通知（锁定 bug 修复契约）', async () => {
     const { location, profile } = await generateLocationEntity({
       projectId: 'p1',
       storyText: 'story',
@@ -149,7 +149,7 @@ describe('generateLocationEntity', () => {
 })
 
 describe('runStoryboardPhase', () => {
-  it('deletes old shots before batch-creating and returns the created rows', async () => {
+  it('批量创建前删除旧镜头并返回创建的行', async () => {
     const llmOutput = JSON.stringify([
       { shotIndex: 0, narrative: '开场', duration: 5, locationId: null, characterIds: [], camera: {}, continuity: {} },
       { shotIndex: 1, narrative: '冲突', duration: 4, locationId: null, characterIds: [], camera: {}, continuity: {} },

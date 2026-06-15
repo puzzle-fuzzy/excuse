@@ -105,13 +105,15 @@
 
 待办：
 
-- 管理后台是否展示 audit。
-- （决策：notification 读取、全部已读等用户行为不进 audit；参照 favorite toggle 等高频内部操作。下一轮如产品要求再开任务。）
+- ✅ 决策：管理后台展示 audit。
+- ✅ 决策：notification 读取、全部已读等用户行为不进 audit；参照 favorite toggle 等高频内部操作。下一轮如产品要求再开任务。
+- ✅ 管理后台新增「审计日志」tab：`GET /api/admin/audit-logs` 接口（按 action / accountId / 时间范围过滤分页）+ admin UI tab（仅展示，不做删除/修改）。
 
 验收：
 
 - 权限、资金、外部 provider 调用、资源删除、批量自动化动作均有审计策略。
 - 审计 payload 使用明确 DTO，不落入随意 JSON 堆叠。
+- 运营人员在管理后台可按 action / 用户 / 时间范围检索审计记录。
 
 ### 4. OpenAI Gateway
 
@@ -119,12 +121,15 @@
 
 待办：
 
-- scope / quota / rate limit。
-- 正式开放还是隐藏入口的最终产品决策。
+- ✅ 决策：正式开放给用户。
+- Gateway scope、quota、rate limit 实现。
+- 完善开发者文档页面（已有入口第一版，需补充自助接入流程、定价说明）。
+- 明确开放策略和计费模式。
 
 验收：
 
-- 不出现“后端已经暴露，但用户看不懂怎么用”的半成品状态。
+- 用户能自助查阅开发者文档、创建凭证、调用 Gateway。
+- 不出现”后端已经暴露，但用户看不懂怎么用”的半成品状态。
 
 ### 5. Metrics / Health
 
@@ -145,14 +150,16 @@
 
 待办：
 
-- scope、rate limit、quota。
+- ✅ 决策：随 OpenAI Gateway 一起开放，作为 Gateway 鉴权方式。
+- API Key scope（可访问哪些模型 / 端点）、rate limit、quota 实现。
 - ✅ lastUsedAt 使用统计增强（schema 已有 `last_used_at` 字段；auth plugin 在 API Key 鉴权成功后 fire-and-forget 调 `touchApiKeyLastUsed`；管理后台 `GET /api/api-keys` 已返回 `lastUsedAt` 字段）（commit: `5cdaaf3` 起完整可用）。
-- 决定是否随 OpenAI Gateway 一起开放。
+- Gateway 路由对接 API Key 鉴权（验证 auth plugin 链路完整，开发者文档展示使用方式）。
 
 验收：
 
-- 如果开放，用户能自助创建、复制、撤销、查看使用说明。
-- 如果不开放，隐藏入口，避免半开放。
+- 用户能自助创建、复制、撤销、查看使用说明。
+- API Key 能限制 scope（模型/端点）、rate limit 和 quota。
+- 开发者可以用 API Key 通过 `Authorization: Bearer <key>` 调用 Gateway。
 
 ## P3：Model Lab、管理后台和运营能力
 
@@ -176,7 +183,7 @@
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；generation record / Canvas pipeline run 级联诊断待补）。
 - ✅ 失败任务深度诊断 — Canvas pipeline run 级联（admin 后台新增 `GET /api/admin/tasks/:id` 单任务详情 endpoint，`getAdminTaskDetail` JOIN `canvas_pipeline_runs.taskId = tasks.id`，返回 pipeline run 时间线 phase/status/durationMs/errorMessage/outputSummary；Admin.tsx 任务行点击「详情」展开 dialog + 重排/取消按钮；commit: `86ca4b4`）。generation record 级联因数据模型阻塞（`tasks.generationRecordId` 字段声明但代码库无写入路径，恒为 null；`generation_records.taskId` 是 provider 字符串 ID 非 tasks uuid）—— 待后续补 `tasks.generationRecordId` 写入路径或改用 accountId+时间窗口间接关联。
 - ✅ provider 错误率和模型成本统计（admin 后台新增「Provider」tab，DB 聚合 + server 进程内 metrics 合并 avg/p50/p95 latency；commit: `1c5dfeb`）。
-- API Key 和 Gateway 客户管理。
+- API Key 和 Gateway 客户管理（管理后台用户详情中展示 API Key 列表、用量、状态；与 P2.6 scope/quota/rate-limit 实现联动）。
 - 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
 
 验收：
@@ -297,12 +304,13 @@
 
 ## 推荐执行顺序
 
-1. 成熟库治理第一批：继续推进 React Query 迁移边界（参考资产选择器 debounce 已收口）。
+1. ✅ 成熟库治理第一批：React Query 迁移、debounce 改造 —— 已完成。
 2. ✅ Model Lab 内部实验页、Canvas 新建项目消费默认偏好 —— 已完成。
 3. ✅ 管理后台和运营统计：全局概览、任务诊断、用户级用量、provider 统计、pipeline run 级联详情 —— 已完成。
-4. Package 治理剩余项：events、workflow command adapter、gateway streaming 协议测试、Canvas domain service 边界收口。
-5. API Key 产品化与 Gateway 开放状态决策。
-6. Metrics / Health 生产级可观测性（线上排障文档、跨进程聚合）。
+4. ✅ Gateway / API Key / Audit 产品化决策 —— 已完成（Gateway 正式开放、API Key 随 Gateway 开放、管理后台展示 audit）。
+5. Package 治理剩余项：events、workflow command adapter、gateway streaming 协议测试、Canvas domain service 边界收口。
+6. Gateway + API Key 开放实现：scope / quota / rate limit、开发者文档、API Key 鉴权链路、管理后台 audit tab。
+7. Metrics / Health 生产级可观测性（线上排障文档、跨进程聚合）。
 
 ## 验收命令
 

@@ -16,7 +16,7 @@ import {
   teardownTestDb,
 } from './helpers/test-db'
 
-describe('admin users / providers repository', () => {
+describe('管理用户 / providers 仓库', () => {
   let accountId: string
 
   beforeAll(async () => {
@@ -66,14 +66,14 @@ describe('admin users / providers repository', () => {
   // ─── listAdminUsers ─────────────────────────────────
 
   describe('listAdminUsers', () => {
-    it('returns empty list when no accounts match', async () => {
+    it('无匹配账户时返回空列表', async () => {
       // beginTestTransaction 已 seed 一个 account，但搜索不匹配的关键字
       const result = await listAdminUsers({ search: 'zzz-no-such-user-zzz' })
       expect(result.items).toEqual([])
       expect(result.total).toBe(0)
     })
 
-    it('returns seeded user with cost + calls aggregated', async () => {
+    it('返回 seed 用户并聚合 cost + calls', async () => {
       await setCreditBalance(accountId, 5000)
       await seedRecord({ totalPriceCents: 100 })
       await seedRecord({ totalPriceCents: 200 })
@@ -87,13 +87,13 @@ describe('admin users / providers repository', () => {
       expect(user!.lastActivityAt).not.toBeNull()
     })
 
-    it('search matches username or email', async () => {
+    it('search 匹配 username 或 email', async () => {
       // beginTestTransaction 创建的 username 形如 test_xxxx
       const result = await listAdminUsers({ search: 'test_' })
       expect(result.total).toBeGreaterThanOrEqual(1)
     })
 
-    it('isActive filter narrows results', async () => {
+    it('isActive 过滤缩小结果范围', async () => {
       const activeResult = await listAdminUsers({ isActive: true })
       const activeCount = activeResult.total
       const inactiveResult = await listAdminUsers({ isActive: false })
@@ -102,7 +102,7 @@ describe('admin users / providers repository', () => {
       expect(inactiveResult.total).toBe(0)
     })
 
-    it('paginates with limit + offset', async () => {
+    it('limit + offset 分页', async () => {
       const page1 = await listAdminUsers({ limit: 1, offset: 0 })
       const page2 = await listAdminUsers({ limit: 1, offset: 1 })
       expect(page1.items.length).toBe(1)
@@ -115,12 +115,12 @@ describe('admin users / providers repository', () => {
   // ─── getAdminUserDetail ─────────────────────────────
 
   describe('getAdminUserDetail', () => {
-    it('returns null for unknown accountId', async () => {
+    it('未知 accountId 返回 null', async () => {
       const detail = await getAdminUserDetail('00000000-0000-0000-0000-000000000000')
       expect(detail).toBeNull()
     })
 
-    it('returns summary + daily + model breakdown + recent records', async () => {
+    it('返回 summary + daily + 模型分布 + 近期记录', async () => {
       await setCreditBalance(accountId, 7500)
       await seedRecord({ model: 'qwen-plus', totalPriceCents: 100 })
       await seedRecord({ model: 'qwen-turbo', totalPriceCents: 50 })
@@ -134,14 +134,14 @@ describe('admin users / providers repository', () => {
       expect(detail!.recentRecords.length).toBe(2)
     })
 
-    it('caps recent records at 10 entries', async () => {
+    it('近期记录最多 10 条', async () => {
       for (let i = 0; i < 12; i++)
         await seedRecord({ model: 'qwen-plus' })
       const detail = await getAdminUserDetail(accountId)
       expect(detail!.recentRecords.length).toBe(10)
     })
 
-    it('caps model breakdown at top 10 by cost', async () => {
+    it('模型分布取 cost 前 10', async () => {
       for (let i = 0; i < 12; i++)
         await seedRecord({ model: `model-${i}`, totalPriceCents: 100 + i })
       const detail = await getAdminUserDetail(accountId)
@@ -156,7 +156,7 @@ describe('admin users / providers repository', () => {
   // ─── getAdminProviderStats ──────────────────────────
 
   describe('getAdminProviderStats', () => {
-    it('groups by model + category with count + cost + tokens', async () => {
+    it('按 model + category 分组，含 count + cost + tokens', async () => {
       await seedRecord({
         model: 'qwen-plus',
         category: 'text',
@@ -198,7 +198,7 @@ describe('admin users / providers repository', () => {
       expect(wanxRow!.totalCostCents).toBe(200)
     })
 
-    it('filters by windowHours — old records excluded', async () => {
+    it('windowHours 过滤旧记录', async () => {
       await seedRecord({ model: 'qwen-plus', createdAt: new Date(Date.now() - 48 * 3600 * 1000) })
       await seedRecord({ model: 'qwen-plus' })
 
@@ -212,7 +212,7 @@ describe('admin users / providers repository', () => {
       expect(allQwen!.totalCalls).toBe(2)
     })
 
-    it('clamps windowHours into [1, 720]', async () => {
+    it('windowHours 钳制到 [1, 720]', async () => {
       // 0 / 负数 → 1；超大数 → 720；不影响 seed 数据（都很近）
       await seedRecord({ model: 'qwen-plus' })
       const tooSmall = await getAdminProviderStats(0)
@@ -224,7 +224,7 @@ describe('admin users / providers repository', () => {
       expect(qwenLarge!.totalCalls).toBeGreaterThanOrEqual(1)
     })
 
-    it('returns empty array when no records in window', async () => {
+    it('窗口内无记录时返回空数组', async () => {
       const rows = await getAdminProviderStats(1)
       // beforeEach 已 seed account，但没 seed generation_records
       // 不过 listAdminUsers 等其他测试可能 seed 过——查到的 rows 至少不抛错
