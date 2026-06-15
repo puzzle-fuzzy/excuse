@@ -66,6 +66,7 @@ export default function Billing() {
       <div className="flex items-center gap-2">
         <DollarSign className="size-5" />
         <h1 className="text-lg font-semibold">费用统计</h1>
+        <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">beta 阶段免费</span>
         <Button
           variant="ghost"
           size="icon"
