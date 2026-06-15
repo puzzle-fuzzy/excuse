@@ -41,7 +41,7 @@ function createTestApp() {
     .get('/sse-check', ({ userId }) => ({ userId }))
 }
 
-describe('auth plugin — SSE authentication', () => {
+describe('auth 插件 — SSE 认证', () => {
   it('从 httpOnly auth cookie 中提取 userId', async () => {
     const { treaty } = await import('@elysia/eden')
     const app = createTestApp()

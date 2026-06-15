@@ -113,7 +113,7 @@ async function getAuthToken(): Promise<string> {
 
 // ─── 测试 ────────────────────────────────────────────────
 
-describe('generate routes — retry & cancel', () => {
+describe('generate 路由 — 重试与取消', () => {
   let client: ReturnType<typeof treaty>
   let token: string
 

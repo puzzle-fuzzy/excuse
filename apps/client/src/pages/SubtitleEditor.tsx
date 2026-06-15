@@ -273,7 +273,7 @@ export default function SubtitleEditor() {
               <CardTitle className="text-sm">字幕时间轴</CardTitle>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[300px]">
+              <ScrollArea className="h-75">
                 <div className="space-y-1">
                   {editingSentences.map((sentence, index) => (
                     <div

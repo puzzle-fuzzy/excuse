@@ -19,7 +19,7 @@ afterEach(() => {
   resetWorkerAuditWriter()
 })
 
-describe('worker audit helper', () => {
+describe('worker 审计辅助', () => {
   it('setWorkerAuditWriter 注入后 audit 调用 customWriter', async () => {
     const writer = mock<(entry: WorkerAuditEntry) => Promise<void>>(() => Promise.resolve())
     setWorkerAuditWriter(writer)

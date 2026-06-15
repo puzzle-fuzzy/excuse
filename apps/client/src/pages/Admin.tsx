@@ -197,7 +197,7 @@ function TaskTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1060px] text-sm">
+      <table className="w-full min-w-265 text-sm">
         <thead>
           <tr className="border-b text-left text-muted-foreground">
             <th className="py-2 font-medium">任务</th>
@@ -531,7 +531,7 @@ function AdminUsersTab() {
                 )
               : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[860px] text-sm">
+                    <table className="w-full min-w-215 text-sm">
                       <thead>
                         <tr className="border-b text-left text-muted-foreground">
                           <th className="py-2 font-medium">用户</th>
@@ -964,7 +964,7 @@ function AdminProvidersTab() {
               )
             : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] text-sm">
+                  <table className="w-full min-w-275 text-sm">
                     <thead>
                       <tr className="border-b text-left text-muted-foreground">
                         <th className="py-2 font-medium">模型</th>
@@ -1260,7 +1260,7 @@ function AdminAuditLogsTab() {
               )
             : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1000px] text-sm">
+                  <table className="w-full min-w-250 text-sm">
                     <thead>
                       <tr className="border-b text-left text-muted-foreground">
                         <th className="py-2 font-medium">时间</th>

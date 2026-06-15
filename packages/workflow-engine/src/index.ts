@@ -197,7 +197,7 @@ function isCanvasPipelinePhase(value: string): value is CanvasPipelinePhase {
 // 纯状态判断，不依赖 DB/provider/server/worker runtime。
 // PipelineRunStatus 镜像 @excuse/db 的 canvasPipelineRunStatusEnum（不 import，避免反向依赖）。
 
-export type PipelineRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+export type PipelineRunStatus = 'pending' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled'
 
 /** 活跃状态 — 排队或执行中，可被取消、可阻止同阶段重复提交 */
 export const CANVAS_ACTIVE_RUN_STATUSES: readonly PipelineRunStatus[] = ['pending', 'running']
@@ -351,6 +351,22 @@ export function canCancelPipelineRun(run: PipelineCommandRunLike): boolean {
  */
 export function canRetryPipelineRun(run: PipelineCommandRunLike): boolean {
   return isRetryablePipelineRun(run)
+}
+
+/**
+ * run 是否可暂停。
+ * 规则：只有活跃 run（pending / running）可暂停；终态或已暂停 run 不重复暂停。
+ */
+export function canPausePipelineRun(run: PipelineCommandRunLike): boolean {
+  return isActivePipelineRun(run)
+}
+
+/**
+ * run 是否可恢复。
+ * 规则：已暂停的 run 可恢复；活跃或终态 run 不需要恢复。
+ */
+export function canResumePipelineRun(run: PipelineCommandRunLike): boolean {
+  return run.status === 'paused'
 }
 
 /**

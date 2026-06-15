@@ -88,7 +88,7 @@ async function getValidToken(): Promise<string> {
 
 // ─── 测试 ────────────────────────────────────────────────
 
-describe('upload routes — DELETE /api/upload/:id', () => {
+describe('upload 路由 — DELETE /api/upload/:id', () => {
   let uploadApp: ReturnType<typeof createUploadRoutes>
 
   beforeEach(() => {

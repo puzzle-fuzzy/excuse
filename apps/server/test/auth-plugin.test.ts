@@ -49,7 +49,7 @@ function createTestApp(config: ServerConfig = testConfig) {
     .get('/check', ({ userId }) => ({ userId }))
 }
 
-describe('auth plugin (createAuthPlugin)', () => {
+describe('auth 插件 (createAuthPlugin)', () => {
   // ─── 无 Bearer token ────────────────────────────────
 
   it('无 Authorization header 时设置 userId=null', async () => {
