@@ -1,32 +1,31 @@
-import { Copy } from 'lucide-react'
+import type { OpenAIGatewayUsageResponse } from '@excuse/shared'
+import { MODEL_ALIASES } from '@excuse/shared'
+import { useQuery } from '@tanstack/react-query'
+import { Copy, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { formatCents } from '@/lib/generation-utils'
 
 const BASE_URL = window.location.origin
 
-const MODEL_ALIASES: Array<{ alias: string, internal: string }> = [
-  { alias: 'gpt-4', internal: 'qwen-max' },
-  { alias: 'gpt-4o', internal: 'qwen-max' },
-  { alias: 'gpt-3.5-turbo', internal: 'qwen-turbo' },
-  { alias: 'gpt-4o-mini', internal: 'qwen-plus' },
-]
+const MODEL_ALIAS_LIST = Object.entries(MODEL_ALIASES).map(([alias, internal]) => ({ alias, internal }))
 
 const ERROR_CODES: Array<{ code: string, status: number, meaning: string, action: string }> = [
   {
     code: 'model_not_found',
     status: 404,
     meaning: '请求的模型不存在或别名无法解析',
-    action: '检查 model 参数,优先使用「支持模型」表中的别名或内部模型名。',
+    action: '检查 model 参数，优先使用「支持模型」表中的别名或内部模型名。',
   },
   {
     code: 'invalid_model',
     status: 400,
     meaning: '模型存在但不是文本模型',
-    action: '文本生成接口仅支持文本模型,请使用 qwen-max / qwen-plus / qwen-turbo。',
+    action: '文本生成接口仅支持文本模型，请使用 qwen-max / qwen-plus / qwen-turbo。',
   },
   {
     code: 'invalid_parameters',
@@ -37,20 +36,20 @@ const ERROR_CODES: Array<{ code: string, status: number, meaning: string, action
   {
     code: 'insufficient_balance',
     status: 402,
-    meaning: '账户余额不足,无法预留本次生成费用',
-    action: '充值后重试,或更换为有余额的 API Key。',
+    meaning: '账户余额不足，无法预留本次生成费用',
+    action: '充值后重试，或更换为有余额的 API Key。',
   },
   {
     code: 'generation_failed',
     status: 500,
     meaning: '上游 provider 调用失败',
-    action: '失败已自动退款,可重试一次;连续失败请检查 provider 状态或联系管理员。',
+    action: '失败已自动退款，可重试一次；连续失败请检查 provider 状态或联系管理员。',
   },
   {
     code: 'stream_not_supported',
     status: 400,
-    meaning: '当前接口不支持 streaming',
-    action: '关闭 stream 参数,使用非流式响应(所有请求均返回完整结果)。',
+    meaning: '当前模型不支持 streaming',
+    action: '部分旧模型不支持 stream；文本模型（qwen-max / qwen-plus / qwen-turbo / qwen-long）均支持。',
   },
   {
     code: 'missing_user_message',
@@ -93,6 +92,31 @@ const JS_EXAMPLE = `const res = await fetch("${BASE_URL}/v1/chat/completions", {
 const data = await res.json();
 console.log(data.choices[0].message.content);`
 
+const PYTHON_EXAMPLE = `import openai
+
+client = openai.OpenAI(
+    base_url="${BASE_URL}/v1",
+    api_key="exc_YOUR_KEY",
+)
+
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+
+print(response.choices[0].message.content)`
+
+const CURL_STREAM_EXAMPLE = `curl ${BASE_URL}/v1/chat/completions \\
+  -H "Authorization: Bearer exc_YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gpt-4o-mini",
+    "stream": true,
+    "messages": [
+      { "role": "user", "content": "Hello!" }
+    ]
+  }'`
+
 async function copyCode(text: string) {
   try {
     await navigator.clipboard.writeText(text)
@@ -101,6 +125,58 @@ async function copyCode(text: string) {
   catch {
     toast.error('复制失败')
   }
+}
+
+function UsageSection() {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['gateway', 'usage'],
+    queryFn: async () => {
+      const res = await fetch(`${BASE_URL}/v1/usage`, { credentials: 'include' })
+      if (!res.ok)
+        throw new Error('获取用量失败')
+      return res.json() as Promise<OpenAIGatewayUsageResponse>
+    },
+    refetchInterval: 60_000,
+  })
+
+  const usage = data
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm">用量概览</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading && <p className="text-sm text-muted-foreground">加载中...</p>}
+        {!isLoading && !usage && <p className="text-sm text-muted-foreground">暂无调用记录</p>}
+        {!isLoading && usage && (
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">总调用</p>
+              <p className="mt-1 font-mono text-lg">{usage.totalCalls}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">成功</p>
+              <p className="mt-1 font-mono text-lg">{usage.succeededCalls}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">失败</p>
+              <p className="mt-1 font-mono text-lg text-destructive">{usage.failedCalls}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">总消耗</p>
+              <p className="mt-1 font-mono text-lg">{formatCents(usage.totalPriceCents)}</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function Developers() {
@@ -116,6 +192,9 @@ export default function Developers() {
       </p>
 
       <Separator />
+
+      {/* 用量概览 */}
+      <UsageSection />
 
       {/* 快速开始 */}
       <Card>
@@ -200,6 +279,30 @@ export default function Developers() {
               <code>{JS_EXAMPLE}</code>
             </pre>
           </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Python (openai SDK)</span>
+              <Button variant="outline" size="sm" onClick={() => copyCode(PYTHON_EXAMPLE)}>
+                <Copy className="size-3" />
+                复制
+              </Button>
+            </div>
+            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+              <code>{PYTHON_EXAMPLE}</code>
+            </pre>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">curl — streaming</span>
+              <Button variant="outline" size="sm" onClick={() => copyCode(CURL_STREAM_EXAMPLE)}>
+                <Copy className="size-3" />
+                复制
+              </Button>
+            </div>
+            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+              <code>{CURL_STREAM_EXAMPLE}</code>
+            </pre>
+          </div>
         </CardContent>
       </Card>
 
@@ -217,7 +320,7 @@ export default function Developers() {
               </tr>
             </thead>
             <tbody>
-              {MODEL_ALIASES.map(({ alias, internal }) => (
+              {MODEL_ALIAS_LIST.map(({ alias, internal }) => (
                 <tr key={alias} className="border-b last:border-b-0">
                   <td className="py-2"><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{alias}</code></td>
                   <td className="py-2"><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{internal}</code></td>
@@ -279,12 +382,20 @@ export default function Developers() {
       {/* 当前限制 */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">当前限制</CardTitle>
+          <CardTitle className="text-sm">能力与限制</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <ul className="list-disc list-inside space-y-1">
-            <li>仅支持文本模型（Chat Completions）。</li>
-            <li>暂不支持 streaming（stream 字段无效，所有请求均返回完整响应）。</li>
+            <li>
+              ✅ 支持文本模型
+              {' '}
+              <Badge variant="outline" className="text-xs">Chat Completions</Badge>
+            </li>
+            <li>
+              ✅ 支持 streaming
+              {' '}
+              <Badge variant="outline" className="text-xs">stream: true</Badge>
+            </li>
             <li>图像和视频生成仍通过产品工作台使用。</li>
             <li>用量查询、额度限制、速率限制说明后续补齐。</li>
           </ul>

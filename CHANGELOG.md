@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Testing
 
+- 全项目测试描述中文化：将约 90 个测试文件中 ~1100 条英文 `describe`/`it`/`test` 描述翻译为中文，覆盖 `apps/server`、`apps/client`、`apps/worker`、`packages/*` 全部测试文件；保留技术术语（函数名、error code、JSON 字段名等）不翻译。
 - 修复 `packages/canvas-engine/test/schema.test.ts` 中 `validateCharacterProfile` 测试的遗漏断言（测试描述中文化过程中 `expect(validateCharacterProfile(valid)).toEqual(valid)` 被误删，已恢复；commit: `e8c47f7`）。
 - `apps/server/test/canvas-service-helpers.test.ts` 新增 18 条测试覆盖 `getTextModel` / `getImageModel` / `getVideoModel` / `assertNotGenerating` 四个纯辅助函数（commit: `0e3a1ef`）。
 - `apps/client/test/client-api.test.ts` 新增 5 条测试覆盖 `getActivePipelineRun` 状态判断逻辑（commit: `0e3a1ef`）。
