@@ -2,11 +2,15 @@ import type { OutputResult } from '@excuse/db'
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
+import type { ApiKeyMeta } from '../plugins/auth'
 import { calculateCost } from '@excuse/billing'
 import {
+  checkAndResetApiKeyQuota,
   createGenerationRecord,
   CreditError,
   debitCredit,
+  incrementApiKeySpend,
+  isApiKeyQuotaExceeded,
   listGatewayUsageRecords,
   markGenerationFailed,
   markGenerationSucceeded,
@@ -15,6 +19,8 @@ import {
 } from '@excuse/db'
 import {
   aggregateGatewayUsage,
+  apiKeyQuotaExceededError,
+  apiKeyScopeNotAllowedError,
   createOpenAIChatResponse,
   createOpenAIModelsResponse,
   createOpenAIStreamChunk,
@@ -36,6 +42,37 @@ import { handleGatewayChatCompletion } from '../services/gateway-service'
 import { recordGenerationStatus } from '../services/metrics'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { notifyInsufficientBalance } from './notifications'
+
+const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
+
+/**
+ * 检查 API Key 是否有权限访问 Gateway。
+ * 返回错误响应对象（含 status + response）或 null（允许通过）。
+ */
+function checkApiKeyGatewayAccess(apiKeyMeta: ApiKeyMeta): { status: number, response: Record<string, unknown> } | null {
+  if (!ALLOWED_API_KEY_SCOPES.includes(apiKeyMeta.scope)) {
+    const err = apiKeyScopeNotAllowedError()
+    return { status: err.status, response: err.response as unknown as Record<string, unknown> }
+  }
+  return null
+}
+
+/**
+ * 检查 API Key 是否超出额度。
+ * 返回错误响应对象或 null（允许通过）。
+ */
+async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<{ status: number, response: Record<string, unknown> } | null> {
+  if (apiKeyMeta.quotaMaxCents === null)
+    return null
+  // 先尝试重置到期额度
+  await checkAndResetApiKeyQuota(apiKeyMeta.id)
+  const exceeded = await isApiKeyQuotaExceeded(apiKeyMeta.id)
+  if (exceeded) {
+    const err = apiKeyQuotaExceededError()
+    return { status: err.status, response: err.response as unknown as Record<string, unknown> }
+  }
+  return null
+}
 
 /**
  * OpenAI 兼容网关 — /v1/chat/completions
@@ -64,8 +101,9 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
     modelConfig: ModelConfig
     validatedParams: ValidatedModelParameters
     request: OpenAIChatRequest
+    apiKeyId?: string
   }): Promise<Response> {
-    const { userId, modelConfig, validatedParams, request } = opts
+    const { userId, modelConfig, validatedParams, request, apiKeyId } = opts
 
     const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
     const traceId = crypto.randomUUID()
@@ -202,6 +240,11 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
               status: 'succeeded',
             },
           })
+
+          // API Key 额度追踪（非阻塞）
+          if (apiKeyId && actualCost.totalPriceCents > 0) {
+            incrementApiKeySpend(apiKeyId, actualCost.totalPriceCents).catch(() => {})
+          }
         }
         catch (error) {
           const message = error instanceof Error ? error.message : String(error)
@@ -245,8 +288,23 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
 
   return new Elysia({ prefix: '/v1' })
     .use(createRequireAuthPlugin(config))
-    .post('/chat/completions', async ({ body, userId, set }) => {
+    .post('/chat/completions', async ({ body, userId, set, authMethod, apiKeyMeta }) => {
       const request = body as OpenAIChatRequest
+
+      // API Key scope 检查
+      if (authMethod === 'api_key' && apiKeyMeta) {
+        const accessErr = checkApiKeyGatewayAccess(apiKeyMeta)
+        if (accessErr) {
+          set.status = accessErr.status
+          return accessErr.response
+        }
+        const quotaErr = await checkApiKeyQuota(apiKeyMeta)
+        if (quotaErr) {
+          set.status = quotaErr.status
+          return quotaErr.response
+        }
+      }
+
       const normalized = normalizeOpenAIChatRequest(request)
       if (isOpenAIGatewayError(normalized)) {
         set.status = normalized.status
@@ -279,7 +337,13 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
 
       // stream 分支
       if (normalized.stream) {
-        return handleStreamChatCompletions({ userId, modelConfig, validatedParams, request })
+        return handleStreamChatCompletions({
+          userId,
+          modelConfig,
+          validatedParams,
+          request,
+          apiKeyId: apiKeyMeta?.id,
+        })
       }
 
       // 非 stream 分支 — 使用统一编排器
@@ -300,6 +364,12 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
       if (!result.success) {
         set.status = result.status
         return result.response
+      }
+
+      // API Key 额度追踪（非阻塞）
+      if (apiKeyMeta && result.usage) {
+        const actualCost = calculateCost(modelConfig, extractBillingParams(validatedParams), result.usage)
+        incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
       }
 
       return createOpenAIChatResponse({

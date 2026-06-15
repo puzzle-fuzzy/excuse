@@ -29,6 +29,8 @@ export const OPENAI_GATEWAY_ERROR_CODES = {
   STREAM_NOT_SUPPORTED: 'stream_not_supported',
   STREAMING_MODEL_NOT_SUPPORTED: 'streaming_model_not_supported',
   MISSING_USER_MESSAGE: 'missing_user_message',
+  API_KEY_SCOPE_NOT_ALLOWED: 'api_key_scope_not_allowed',
+  API_KEY_QUOTA_EXCEEDED: 'api_key_quota_exceeded',
 } as const
 
 export type OpenAIGatewayErrorCode
@@ -157,6 +159,26 @@ export function generationFailedError(message: string): OpenAIGatewayError {
     'server_error',
     OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED,
     500,
+  )
+}
+
+/** API Key scope 不满足端点要求（如 gateway 端点需要 scope=gateway） */
+export function apiKeyScopeNotAllowedError(): OpenAIGatewayError {
+  return createOpenAIError(
+    'This API key does not have permission to access the Gateway. Please create a key with scope set to "gateway" or "all".',
+    'invalid_request_error',
+    OPENAI_GATEWAY_ERROR_CODES.API_KEY_SCOPE_NOT_ALLOWED,
+    403,
+  )
+}
+
+/** API Key 已达额度上限 */
+export function apiKeyQuotaExceededError(): OpenAIGatewayError {
+  return createOpenAIError(
+    'API key quota exceeded. Please wait for quota reset or create a new key with higher limit.',
+    'insufficient_quota',
+    OPENAI_GATEWAY_ERROR_CODES.API_KEY_QUOTA_EXCEEDED,
+    429,
   )
 }
 

@@ -29,6 +29,8 @@ describe('@excuse/gateway', () => {
       STREAM_NOT_SUPPORTED: 'stream_not_supported',
       STREAMING_MODEL_NOT_SUPPORTED: 'streaming_model_not_supported',
       MISSING_USER_MESSAGE: 'missing_user_message',
+      API_KEY_SCOPE_NOT_ALLOWED: 'api_key_scope_not_allowed',
+      API_KEY_QUOTA_EXCEEDED: 'api_key_quota_exceeded',
     })
   })
 

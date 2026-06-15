@@ -949,6 +949,9 @@ function AdminUserApiKeysSection({ userId }: { userId: string | null }) {
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-1.5 font-medium">前缀</th>
                       <th className="py-1.5 font-medium">名称</th>
+                      <th className="py-1.5 font-medium">Scope</th>
+                      <th className="py-1.5 font-medium">限流</th>
+                      <th className="py-1.5 font-medium">额度消耗</th>
                       <th className="py-1.5 font-medium">状态</th>
                       <th className="py-1.5 font-medium">最近使用</th>
                       <th className="py-1.5 font-medium">创建时间</th>
@@ -962,6 +965,29 @@ function AdminUserApiKeysSection({ userId }: { userId: string | null }) {
                           ...
                         </td>
                         <td className="py-1.5 text-xs">{key.name ?? '-'}</td>
+                        <td className="py-1.5">
+                          <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
+                            {key.scope === 'gateway' ? 'Gateway' : 'All'}
+                          </Badge>
+                        </td>
+                        <td className="py-1.5 text-xs text-muted-foreground">
+                          {key.rateLimitPerMinute
+                            ? `${key.rateLimitPerMinute}次/分`
+                            : '-'}
+                        </td>
+                        <td className="py-1.5 text-xs text-muted-foreground">
+                          {key.quotaMaxCents
+                            ? (
+                                <span>
+                                  ¥
+                                  {formatCents(key.totalSpendCents)}
+                                  /
+                                  ¥
+                                  {formatCents(key.quotaMaxCents)}
+                                </span>
+                              )
+                            : '-'}
+                        </td>
                         <td className="py-1.5">
                           <Badge variant={key.revokedAt ? 'outline' : 'default'}>
                             {key.revokedAt ? '已撤销' : '启用'}

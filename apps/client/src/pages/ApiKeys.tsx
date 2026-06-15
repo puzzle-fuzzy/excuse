@@ -7,10 +7,12 @@ import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { createApiKey, listApiKeys, revokeApiKey } from '@/api/api-keys'
 import { apiKeyQueryKeys } from '@/api/query-client'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Input } from '@/components/ui/input'
+import { formatCents } from '@/lib/generation-utils'
 
 function formatRelativeTime(iso: string | null): string {
   if (!iso)
@@ -38,6 +40,11 @@ async function copyToClipboard(text: string) {
   }
 }
 
+const SCOPE_OPTIONS: Array<{ value: string, label: string, desc: string }> = [
+  { value: 'all', label: '完全访问', desc: '拥有账户完整权限，可访问所有接口' },
+  { value: 'gateway', label: '仅 Gateway', desc: '仅允许调用 OpenAI 兼容文本生成接口（/v1/chat/completions）' },
+]
+
 export default function ApiKeys() {
   const queryClient = useQueryClient()
 
@@ -49,6 +56,7 @@ export default function ApiKeys() {
   const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<ApiKeyDTO | null>(null)
+  const [createScope, setCreateScope] = useState('all')
 
   const createMutation = useMutation({
     mutationFn: createApiKey,
@@ -71,7 +79,7 @@ export default function ApiKeys() {
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<{ name: string }>()
 
   function onCreateSubmit(data: { name: string }) {
-    createMutation.mutate({ name: data.name || undefined })
+    createMutation.mutate({ name: data.name || undefined, scope: createScope })
   }
 
   // loading
@@ -123,8 +131,8 @@ export default function ApiKeys() {
       {showCreate && (
         <Card>
           <CardContent className="p-4">
-            <form onSubmit={handleSubmit(onCreateSubmit)} className="flex items-end gap-3">
-              <div className="flex-1">
+            <form onSubmit={handleSubmit(onCreateSubmit)} className="space-y-4">
+              <div>
                 <label className="text-xs text-muted-foreground">名称（可选，最多 100 字符）</label>
                 <Input
                   {...register('name', { maxLength: 100 })}
@@ -132,17 +140,36 @@ export default function ApiKeys() {
                   disabled={isSubmitting}
                 />
               </div>
-              <Button type="submit" size="sm" disabled={isSubmitting}>
-                {isSubmitting ? '创建中...' : '创建'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCreate(false)}
-                disabled={isSubmitting}
-              >
-                取消
-              </Button>
+              <div>
+                <label className="text-xs text-muted-foreground">访问范围</label>
+                <select
+                  value={createScope}
+                  onChange={e => setCreateScope(e.target.value)}
+                  disabled={isSubmitting}
+                  className="mt-1 flex h-8 w-full rounded-lg border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {SCOPE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                      {' — '}
+                      {opt.desc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="submit" size="sm" disabled={isSubmitting}>
+                  {isSubmitting ? '创建中...' : '创建'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCreate(false)}
+                  disabled={isSubmitting}
+                >
+                  取消
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -190,12 +217,17 @@ export default function ApiKeys() {
               {keys.map(key => (
                 <Card key={key.id}>
                   <CardContent className="flex items-center gap-4 p-4">
-                    <KeyRound className="size-4 text-muted-foreground" />
+                    <KeyRound className="size-4 text-muted-foreground shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {key.name || '未命名密钥'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">
+                          {key.name || '未命名密钥'}
+                        </p>
+                        <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
+                          {key.scope === 'gateway' ? 'Gateway' : '完全访问'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         前缀：
                         {key.prefix}
                         ...
@@ -206,6 +238,29 @@ export default function ApiKeys() {
                         上次使用：
                         {formatRelativeTime(key.lastUsedAt)}
                       </p>
+                      {/* 限流和额度信息 */}
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                        {key.rateLimitPerMinute && (
+                          <span>
+                            限流：
+                            {key.rateLimitPerMinute}
+                            {' '}
+                            次/分
+                          </span>
+                        )}
+                        {key.quotaMaxCents && (
+                          <span>
+                            额度：
+                            ¥
+                            {formatCents(key.totalSpendCents)}
+                            {' '}
+                            /
+                            {' '}
+                            ¥
+                            {formatCents(key.quotaMaxCents)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <Button
                       variant="destructive"

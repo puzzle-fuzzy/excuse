@@ -275,6 +275,11 @@ export interface AdminApiKeyItem {
   id: string
   prefix: string
   name: string | null
+  scope: string
+  rateLimitPerMinute: number | null
+  quotaMaxCents: number | null
+  totalSpendCents: number
+  quotaResetAt: string | null
   lastUsedAt: string | null
   createdAt: string
   revokedAt: string | null

@@ -9,7 +9,7 @@ export async function listApiKeys(): Promise<ApiKeyDTO[]> {
   return data.items
 }
 
-export async function createApiKey(input: { name?: string }): Promise<CreatedApiKey> {
+export async function createApiKey(input: { name?: string, scope?: string }): Promise<CreatedApiKey> {
   const res = await api.api.keys.post(input)
   const data = res.data
   if (!data?.success)

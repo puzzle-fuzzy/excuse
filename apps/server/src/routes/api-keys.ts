@@ -1,4 +1,4 @@
-import type { ApiKeyCreateResponse, ApiKeyDTO, ApiKeyListResponse, MutationOkResponse } from '@excuse/shared'
+import type { ApiKeyCreateResponse, ApiKeyDTO, ApiKeyListResponse, ApiKeyScope, MutationOkResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { createApiKeySecret, hashApiKey } from '@excuse/auth'
 import { createApiKey, listApiKeysByAccount, revokeApiKey } from '@excuse/db'
@@ -7,10 +7,17 @@ import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { notFound } from '../utils/errors'
 
+const VALID_SCOPES = ['all', 'gateway'] as const
+
 function serializeApiKey(row: {
   id: string
   prefix: string
   name: string | null
+  scope: string
+  rateLimitPerMinute: number | null
+  quotaMaxCents: number | null
+  totalSpendCents: number
+  quotaResetAt: Date | null
   lastUsedAt: Date | null
   createdAt: Date
   revokedAt: Date | null
@@ -18,6 +25,7 @@ function serializeApiKey(row: {
   return {
     ...row,
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    quotaResetAt: row.quotaResetAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     revokedAt: row.revokedAt?.toISOString() ?? null,
   }
@@ -42,9 +50,14 @@ export function createApiKeyRoutes(config: ServerConfig) {
         prefix,
         keyHash,
         name: body.name,
+        scope: VALID_SCOPES.includes(body.scope as typeof VALID_SCOPES[number])
+          ? (body.scope as ApiKeyScope)
+          : 'all',
+        rateLimitPerMinute: body.rateLimitPerMinute ?? undefined,
+        quotaMaxCents: body.quotaMaxCents ?? undefined,
       })
 
-      audit('api_key_create', { accountId: userId, targetId: key.id })
+      audit('api_key_create', { accountId: userId, targetId: key.id, detail: { scope: key.scope } })
 
       return {
         success: true,
@@ -53,6 +66,9 @@ export function createApiKeyRoutes(config: ServerConfig) {
     }, {
       body: t.Object({
         name: t.Optional(t.String({ maxLength: 100 })),
+        scope: t.Optional(t.String({ maxLength: 20 })),
+        rateLimitPerMinute: t.Optional(t.Nullable(t.Number({ minimum: 1, maximum: 10000 }))),
+        quotaMaxCents: t.Optional(t.Nullable(t.Number({ minimum: 1 }))),
       }),
       detail: {
         summary: '创建 API 密钥',

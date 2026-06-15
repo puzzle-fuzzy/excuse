@@ -147,3 +147,22 @@ export async function fetchAdminUserApiKeys(accountId: string): Promise<AdminApi
 export const adminUserApiKeysQueryKeys = {
   list: (accountId: string) => ['admin', 'users', accountId, 'api-keys'] as const,
 }
+
+export async function fetchAdminUpdateApiKeyConfig(params: {
+  id: string
+  userId: string
+  scope?: string
+  rateLimitPerMinute?: number | null
+  quotaMaxCents?: number | null
+}): Promise<void> {
+  const res = await api.api.admin['api-keys']({ id: params.id }).config.patch({
+    userId: params.userId,
+    scope: params.scope,
+    rateLimitPerMinute: params.rateLimitPerMinute,
+    quotaMaxCents: params.quotaMaxCents,
+  })
+  if (res.error) {
+    const errMsg = (res.error as { value?: { error?: string } })?.value?.error ?? '更新 API Key 配置失败'
+    throw new Error(errMsg)
+  }
+}

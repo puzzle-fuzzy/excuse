@@ -1,7 +1,7 @@
 import type { ProviderCallStats } from '@excuse/metrics'
 import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask, updateApiKeyConfig } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { getProviderCallsSnapshot } from '../services/metrics'
@@ -378,6 +378,11 @@ export function createAdminRoutes(config: ServerConfig) {
         id: key.id,
         prefix: key.prefix,
         name: key.name,
+        scope: key.scope,
+        rateLimitPerMinute: key.rateLimitPerMinute,
+        quotaMaxCents: key.quotaMaxCents,
+        totalSpendCents: key.totalSpendCents,
+        quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
         lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
         createdAt: key.createdAt.toISOString(),
         revokedAt: key.revokedAt?.toISOString() ?? null,
@@ -391,7 +396,35 @@ export function createAdminRoutes(config: ServerConfig) {
       params: t.Object({ id: t.String() }),
       detail: {
         summary: '查询用户 API Key 列表',
-        description: '管理后台查询指定用户的所有 API Key（含已撤销的）。与 P2.6 scope/quota/rate-limit 联动。',
+        description: '管理后台查询指定用户的所有 API Key（含已撤销的）。包含 scope/quota/rate-limit 信息。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .patch('/api-keys/:id/config', async ({ adminAllowed, adminDenied, params, body, set }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const updated = await updateApiKeyConfig(params.id, body.userId, {
+        scope: body.scope as 'all' | 'gateway' | undefined,
+        rateLimitPerMinute: body.rateLimitPerMinute,
+        quotaMaxCents: body.quotaMaxCents,
+      })
+      if (!updated)
+        return notFound(set, 'API Key 不存在')
+
+      return { success: true }
+    }, {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        userId: t.String(),
+        scope: t.Optional(t.String({ maxLength: 20 })),
+        rateLimitPerMinute: t.Optional(t.Nullable(t.Number({ minimum: 1, maximum: 10000 }))),
+        quotaMaxCents: t.Optional(t.Nullable(t.Number({ minimum: 1 }))),
+      }),
+      detail: {
+        summary: '更新 API Key 配置',
+        description: '管理后台更新指定 API Key 的 scope/rate-limit/quota 配置',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

@@ -117,12 +117,12 @@
 
 ### 4. OpenAI Gateway
 
-当前状态：streaming + usage 查询已完成，开发者文档已更新；scope/quota/rate-limit 未实现。
+当前状态：streaming + usage 查询已完成，开发者文档已更新；scope/quota/rate-limit 已完成（2026-06-15）。
 
 待办：
 
 - ✅ 决策：正式开放给用户。
-- Gateway scope、quota、rate limit 实现（待 DB schema 变更）。
+- ✅ Gateway scope、quota、rate limit 实现（api_keys 表新增 scope/rate_limit_per_minute/quota_max_cents/total_spend_cents 列；per-key 限流器 + scope 门禁 + 额度检查；管理后台配置端点；用户端 UI 展示）。
 - ✅ 开发者文档页面已完善：streaming 标记已支持、Python 示例、用量概览展示、文本模型定价表。
 - ✅ 开放策略和计费模式已明确：正式开放 + 按 Token 计费 + beta 阶段不扣费。
 - ✅ provider 调用 service 提取：`apps/server/src/services/gateway-service.ts` 统一编排 credit/record/audit/provider 调用生命周期。
@@ -152,9 +152,9 @@
 待办：
 
 - ✅ 决策：随 OpenAI Gateway 一起开放，作为 Gateway 鉴权方式。
-- API Key scope（可访问哪些模型 / 端点）、rate limit、quota 实现。
+- ✅ API Key scope、rate limit、quota 实现（scope: 'all'|'gateway'; per-key 滑动窗口限流; quota_max_cents + total_spend_cents 额度追踪; Gateway 路由 scope/rate-limit/quota 门禁; 管理后台配置端点 `PATCH /api/admin/api-keys/:id/config`）。
 - ✅ lastUsedAt 使用统计增强（schema 已有 `last_used_at` 字段；auth plugin 在 API Key 鉴权成功后 fire-and-forget 调 `touchApiKeyLastUsed`；管理后台 `GET /api/api-keys` 已返回 `lastUsedAt` 字段）（commit: `5cdaaf3` 起完整可用）。
-- Gateway 路由对接 API Key 鉴权（验证 auth plugin 链路完整，开发者文档展示使用方式）。
+- ✅ Gateway 路由对接 API Key 鉴权（auth plugin 链路完整；scope/rate-limit/quota 检查在 Gateway 路由层完成；开发者文档展示 scope 选项）。
 
 验收：
 
