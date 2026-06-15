@@ -1,9 +1,9 @@
-# Production Docker Compose — Bun runtime, no Node.js
+# Production override for the main compose file.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Requires .env with: DB_PASSWORD, DASHSCOPE_API_KEY, JWT_SECRET
+# Requires .env with at least: DB_PASSWORD, DASHSCOPE_API_KEY, JWT_SECRET
 
 services:
   postgres:
@@ -12,63 +12,36 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-excuse}
     ports:
-      - '5432:5432'
+      - '${DB_PORT:-5432}:5432'
 
   server:
-    build: .
-    container_name: excuse-server
-    restart: unless-stopped
-    ports:
-      - '${SERVER_PORT:-5007}:5007'
+    build:
+      context: .
+      target: server
     environment:
       DATABASE_URL: postgres://${DB_USER:-excuse}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-excuse}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?Set DASHSCOPE_API_KEY}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
       NODE_ENV: production
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - excuse-uploads:/app/uploads
+    ports:
+      - '${SERVER_PORT:-5007}:5007'
 
   worker:
-    build: .
-    container_name: excuse-worker
-    restart: unless-stopped
-    command: [bun, run, apps/worker/src/index.ts]
+    build:
+      context: .
+      target: worker
     environment:
       DATABASE_URL: postgres://${DB_USER:-excuse}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-excuse}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:?Set DASHSCOPE_API_KEY}
       NODE_ENV: production
       WORKER_HEALTH_PORT: '5100'
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - excuse-uploads:/app/uploads
+    ports:
+      - '${WORKER_HEALTH_PORT:-5100}:5100'
 
-  # Build server image, then copy client dist for nginx to serve
-  client-dist:
-    build: .
-    container_name: excuse-client-dist
-    volumes:
-      - /client-dist
-    command: ['true'] # One-shot: exit after providing volume
-
-  nginx:
-    image: nginx:alpine
-    container_name: excuse-nginx
-    restart: unless-stopped
+  client:
+    build:
+      context: .
+      target: client
     ports:
       - '${HTTP_PORT:-80}:80'
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - excuse-client-html:/usr/share/nginx/html:ro
-    depends_on:
-      - server
-      - client-dist
-
-volumes:
-  excuse-uploads:
-  excuse-client-html:

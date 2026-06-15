@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **生产部署产物可靠化 (P0-1，本提交)**：`Dockerfile` 改为 build/runtime 分离并提供 `server` / `worker` / `client` 三个 target；build 阶段安装完整依赖并构建前端，server runtime 只安装生产依赖，worker runtime 额外内置 FFmpeg，启动命令统一为 `bun --env-file .env apps/{server,worker}/src/index.ts`，并补容器 healthcheck。新增 `.dockerignore` 避免 `.env`、上传文件、缓存、CodeGraph 索引进入镜像；`docker-compose.yml` 保留默认开发 Postgres，同时新增 `prod` profile 编排 server、worker、Nginx client、共享 uploads volume 和 Postgres healthcheck；`docker-compose.prod.yml` 同步为主 compose 的生产覆盖文件；`docs/deployment.md` 同步 Docker target、`docker compose --profile prod up --build`、健康检查与生产命令。对应 TODO 已删除。
+
 - **Canvas generation record 诊断元数据**：Canvas worker 提交镜头视频时，将 `workerTaskId` / `pipelineRunId` / `canvasAssetId` 写入 `generation_records.inputParams`，管理后台任务详情优先按这些 JSONB 元数据精确关联生成记录（`worker-task` / `pipeline-run`），仅在缺失诊断元数据时回退到原 `accountId + 时间窗口` 候选。Admin UI 同步区分「统一任务」「Pipeline」「候选·时间窗口」三类来源；补 DB repo 测试和 canvas-runtime 副作用测试。
 
 - **Legacy provider task 诊断标识**：`generate` 域旧视频记录仍使用 `generation_records.taskId` 保存 provider task id，本轮不强行迁入统一 `tasks` 队列，先在管理后台用户详情的最近生成记录中显式暴露 `providerTaskId`，并按 `inline` / `legacy-provider-task` / `canvas-worker` / `gateway` 标识执行来源，避免运营把 provider task id 误判为统一 task id；补 DB repo executionKind 矩阵测试。

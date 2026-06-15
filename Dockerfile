@@ -1,30 +1,46 @@
-FROM oven/bun:1.3 AS base
+FROM oven/bun:1.3 AS build
 WORKDIR /app
 
-# Install ffmpeg for audio extraction and subtitle burning
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-
-# Install dependencies
+# Install all dependencies in the build stage so client build has dev tooling.
 COPY package.json bun.lock ./
-COPY packages/shared/package.json packages/shared/
-COPY packages/db/package.json packages/db/
-COPY packages/provider/package.json packages/provider/
-COPY packages/billing/package.json packages/billing/
-COPY apps/server/package.json apps/server/
-COPY apps/client/package.json apps/client/
-COPY apps/worker/package.json apps/worker/
+COPY tsconfig.json bunfig.toml ./
+COPY apps/ apps/
+COPY packages/ packages/
+RUN bun install --frozen-lockfile
+RUN bun run build:client
+
+FROM oven/bun:1.3 AS runtime-deps
+WORKDIR /app
+COPY package.json bun.lock ./
+COPY tsconfig.json bunfig.toml ./
+COPY apps/ apps/
+COPY packages/ packages/
 RUN bun install --frozen-lockfile --production
 
-# Copy source
-COPY packages/ packages/
-COPY apps/ apps/
-
-# Build client
-RUN bun run --cwd apps/client build
-
+FROM runtime-deps AS server
+WORKDIR /app
+ENV NODE_ENV=production
 EXPOSE 5007
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD bun -e "await fetch('http://127.0.0.1:5007/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+CMD ["bun", "--env-file", ".env", "apps/server/src/index.ts"]
 
-# Copy client dist to shared location for nginx
-RUN cp -r apps/client/dist /client-dist
+FROM runtime-deps AS worker-runtime
+WORKDIR /app
+# ffmpeg is required by subtitle/audio/video processing in the worker.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg \
+  && rm -rf /var/lib/apt/lists/*
 
-CMD ["bun", "run", "apps/server/src/index.ts"]
+FROM worker-runtime AS worker
+WORKDIR /app
+ENV NODE_ENV=production
+EXPOSE 5100
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD bun -e "await fetch('http://127.0.0.1:5100/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+CMD ["bun", "--env-file", ".env", "apps/worker/src/index.ts"]
+
+FROM nginx:1.27-alpine AS client
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/client/dist /usr/share/nginx/html
+EXPOSE 80

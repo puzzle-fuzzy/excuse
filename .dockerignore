@@ -1,0 +1,15 @@
+.codegraph
+.git
+.github
+.env
+.env.*
+**/node_modules
+**/dist
+**/coverage
+**/uploads
+**/*.tsbuildinfo
+coverage
+logs
+*.log
+*.lcov
+uploads

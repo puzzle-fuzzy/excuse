@@ -11,6 +11,59 @@ services:
       POSTGRES_DB: excuse
     volumes:
       - excuse-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U excuse -d excuse']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    profiles: ['prod']
+    build:
+      context: .
+      target: server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://excuse:excuse_dev@postgres:5432/excuse
+      NODE_ENV: production
+    ports:
+      - '5007:5007'
+    volumes:
+      - excuse-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: ['prod']
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://excuse:excuse_dev@postgres:5432/excuse
+      NODE_ENV: production
+    ports:
+      - '5100:5100'
+    volumes:
+      - excuse-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client:
+    profiles: ['prod']
+    build:
+      context: .
+      target: client
+    restart: unless-stopped
+    ports:
+      - '8007:80'
+    depends_on:
+      - server
 
 volumes:
   excuse-pgdata:
+  excuse-uploads:

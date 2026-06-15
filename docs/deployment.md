@@ -34,6 +34,8 @@ docker compose up -d
 
 默认连接：`postgres://excuse:excuse_dev@localhost:5433/excuse`
 
+> `docker compose up -d` 默认只启动开发 PostgreSQL。完整生产式容器编排使用 `prod` profile，见下方 Docker 部署。
+
 ### 3. 配置环境变量
 
 ```bash
@@ -137,27 +139,51 @@ pm2 start "bun --env-file .env apps/worker/src/index.ts" --name excuse-worker
 
 ### Docker 部署（可选）
 
-可扩展 `docker-compose.yml` 添加 server 和 worker 服务：
+仓库内 `Dockerfile` 提供三个明确 target：
 
-```yaml
-services:
-  server:
-    build: .
-    command: bun --env-file .env apps/server/src/index.ts
-    env_file: .env
-    ports:
-      - "5007:5007"
-    depends_on:
-      - postgres
+| Target | 说明 | 默认命令 |
+|--------|------|----------|
+| `server` | Elysia API runtime | `bun --env-file .env apps/server/src/index.ts` |
+| `worker` | 后台任务 worker runtime | `bun --env-file .env apps/worker/src/index.ts` |
+| `client` | Nginx 托管的前端静态文件 | Nginx 默认前台进程 |
 
-  worker:
-    build: .
-    command: bun --env-file .env apps/worker/src/index.ts
-    env_file: .env
-    ports:
-      - "5100:5100"
-    depends_on:
-      - postgres
+镜像构建采用 build/runtime 分离：build 阶段安装完整依赖并构建 client，runtime 阶段只安装生产依赖；仅 worker runtime 额外包含 FFmpeg。
+
+单独构建：
+
+```bash
+docker build --target server -t excuse-server .
+docker build --target worker -t excuse-worker .
+docker build --target client -t excuse-client .
+```
+
+完整本机编排：
+
+```bash
+docker compose --profile prod up --build
+```
+
+使用生产覆盖文件（读取 `DB_PASSWORD`、`DB_PORT`、`HTTP_PORT` 等变量）：
+
+```bash
+docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+该命令会启动：
+
+- `postgres`：PostgreSQL 16，host 端口 `5433`
+- `server`：API，host 端口 `5007`
+- `worker`：health/metrics，host 端口 `5100`
+- `client`：Nginx + SPA，host 端口 `8007`
+
+compose 中 server/worker 会把 `DATABASE_URL` 覆盖为容器网络内的 `postgres:5432`；其他密钥仍从 `.env` 读取。
+
+健康检查：
+
+```bash
+curl http://localhost:5007/api/health
+curl http://localhost:5100/health
+curl http://localhost:8007
 ```
 
 **注意**：不引入 Node.js 运行时兼容路线，所有进程统一使用 Bun。

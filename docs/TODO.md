@@ -36,29 +36,7 @@
 
 ## P0：上线阻断项
 
-### 1. 生产部署产物不够可靠
-
-问题：
-
-- 当前 `Dockerfile` 只复制了部分 workspace 的 `package.json`，但仓库实际依赖更多 packages；生产镜像构建容易与本地 `bun install` 行为不一致。
-- Dockerfile 在 `--production` 安装后再执行 client build，存在构建期 devDependencies 不完整的风险。
-- 当前镜像默认只跑 server，没有明确 worker 镜像/进程编排；client dist 被复制到 `/client-dist`，但部署文档仍建议 Nginx 自行托管，产物边界不够清晰。
-- `docs/deployment.md` 说明 server/worker 直接跑 TS，但 Dockerfile 的 `CMD ["bun", "run", "apps/server/src/index.ts"]` 与文档的 `bun --env-file .env apps/server/src/index.ts` 不一致。
-
-解决办法：
-
-- 拆成明确的 build/runtime 阶段：build 阶段安装完整依赖并构建 client；runtime 阶段只保留 server/worker 运行所需依赖和静态产物。
-- 复制所有 workspace manifest，或直接先复制 `package.json` / `bun.lock` / `apps/*/package.json` / `packages/*/package.json`，保证 Docker install 与 monorepo 一致。
-- 提供两个 runtime target 或两个 Dockerfile command：`server` 与 `worker`；docker-compose 示例补齐 server、worker、postgres、静态 client/nginx 的完整编排。
-- 统一生产启动命令为 `bun --env-file .env apps/server/src/index.ts` 与 `bun --env-file .env apps/worker/src/index.ts`，并补 healthcheck。
-
-验收：
-
-- 本地执行 `docker build .` 成功。
-- docker compose 能启动 server + worker + postgres，`/api/health` 与 worker `:5100/health` 都可用。
-- 生产文档、Dockerfile、compose 示例中的启动命令一致。
-
-### 2. 安全基线还没有形成上线门槛
+### 1. 安全基线还没有形成上线门槛
 
 问题：
 
@@ -80,7 +58,7 @@
 - admin/API Key/普通用户权限路径有测试覆盖。
 - 上传非法类型、超大文件、危险路径、内网 URL 均被拒绝。
 
-### 3. Credit 正式计费闭环仍是上线前条件项
+### 2. Credit 正式计费闭环仍是上线前条件项
 
 当前状态：部分完成；Canvas 前置阶段已决策为 beta/free quota，暂不进 credit。
 
@@ -102,7 +80,7 @@
 - 用户能看到失败任务是否扣费或退款。
 - admin 能按用户、任务、资产、provider task 追踪资金流水。
 
-### 4. 数据备份、迁移和回滚流程不足
+### 3. 数据备份、迁移和回滚流程不足
 
 问题：
 
