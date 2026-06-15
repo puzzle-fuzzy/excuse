@@ -174,6 +174,19 @@ interface EdenErrorResponse {
 }
 
 /**
+ * 从 Eden 响应中提取 data 体
+ *
+ * Eden Treaty 的 data 类型是从 Elysia 路由推导的，与 @excuse/shared 的
+ * 手动类型有细微差异。测试中直接访问 res.data 会遇到类型不兼容问题，
+ * 此 helper 集中处理类型转换，避免各测试文件散落 `as any`。
+ *
+ * @returns Eden 响应中的 data 字段（类型转为 T）
+ */
+export function extractEdenData<T = Record<string, any>>(res: { data: unknown, error: unknown }): T {
+  return res.data as T
+}
+
+/**
  * 从 Eden 响应中提取错误体
  *
  * HTTP 状态码整改后，路由错误响应使用 4xx 状态码。

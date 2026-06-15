@@ -12,7 +12,7 @@ import { treaty } from '@elysia/eden'
 import { jwt } from '@elysia/jwt'
 import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { Elysia } from 'elysia'
-import { extractEdenError, makeTestConfig } from './helpers/test-factory'
+import { extractEdenData, extractEdenError, makeTestConfig } from './helpers/test-factory'
 
 // ===== Mock 设置（必须在 route import 之前） =====
 
@@ -198,7 +198,7 @@ describe('Canvas 资产轮询端点', () => {
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
 
     // Eden 返回结构
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     expect(data.success).toBe(true)
     expect(data.data.scope).toBe('canvas')
     expect(data.data.projectId).toBe('proj-001')
@@ -241,7 +241,7 @@ describe('Canvas 资产轮询端点', () => {
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
 
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     expect(data.success).toBe(true)
 
     const poll = data.data
@@ -305,7 +305,7 @@ describe('Canvas 资产轮询端点', () => {
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
 
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     expect(data.success).toBe(true)
 
     const costs = data.data.costs
@@ -343,7 +343,7 @@ describe('Canvas 资产轮询端点', () => {
     ])
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     expect(data.data.costs[0].state).toBe('failed')
   })
 
@@ -364,7 +364,7 @@ describe('Canvas 资产轮询端点', () => {
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
     const after = Date.now()
 
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     expect(data.data.generatedAt).toBeGreaterThanOrEqual(before)
     expect(data.data.generatedAt).toBeLessThanOrEqual(after)
   })
@@ -396,7 +396,7 @@ describe('Canvas 资产轮询端点', () => {
     mockListTerminalCanvasAssetsByProject.mockResolvedValue([])
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
 
     expect(data.success).toBe(true)
     const poll = data.data
@@ -486,7 +486,7 @@ describe('Canvas 资产轮询端点', () => {
     ])
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     const poll = data.data
 
     // 仅失败/取消记录进入 recentFailures（成功资产排除）
@@ -533,7 +533,7 @@ describe('Canvas 资产轮询端点', () => {
     ])
 
     const res = await client.api.canvas.projects({ projectId: 'proj-001' }).assets.poll.get(headers)
-    const data = (res as any).data ?? res
+    const data = extractEdenData(res)
     const summary = data.data.costSummary
 
     // 总额：estimated=100, final=200+40+30+20=290, failed=15
