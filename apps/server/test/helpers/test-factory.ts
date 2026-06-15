@@ -137,6 +137,7 @@ export function makeTestConfig(overrides: Partial<ServerConfig> = {}): ServerCon
     oss: undefined,
     metricsAccessToken: undefined,
     metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
+    workerMetricsUrl: undefined,
     adminUserIds: [],
     ...overrides,
   }

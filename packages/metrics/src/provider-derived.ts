@@ -65,3 +65,36 @@ function percentile(sorted: number[], p: number): number {
 function msToSeconds(ms: number): number {
   return ms / 1000
 }
+
+/**
+ * 合并两个进程的 provider 调用统计（如 server + worker 跨进程聚合）。
+ *
+ * 按 model 聚合：success/failed 计数相加，`durations` 原始样本拼接 —— 保留原始样本以便
+ * 下游对合并后的集合重新计算精确 p50/p95（已聚合的 quantile 无法跨进程正确合并，
+ * 故必须传原始 durations 而非已算好的分位数）。
+ *
+ * Pure 函数：无副作用、无 IO；不修改入参，返回新对象。
+ *
+ * 典型用法：admin 后台聚合 server 进程内 metrics + worker `/provider-calls` 快照。
+ */
+export function mergeProviderCalls(
+  a: Record<string, ProviderCallStats>,
+  b: Record<string, ProviderCallStats>,
+): Record<string, ProviderCallStats> {
+  const merged: Record<string, ProviderCallStats> = {}
+  for (const [model, stats] of Object.entries(a)) {
+    merged[model] = { success: stats.success, failed: stats.failed, durations: [...stats.durations] }
+  }
+  for (const [model, stats] of Object.entries(b)) {
+    const existing = merged[model]
+    if (existing) {
+      existing.success += stats.success
+      existing.failed += stats.failed
+      existing.durations = [...existing.durations, ...stats.durations]
+    }
+    else {
+      merged[model] = { success: stats.success, failed: stats.failed, durations: [...stats.durations] }
+    }
+  }
+  return merged
+}

@@ -46,6 +46,10 @@ const METRICS_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8'
  * - `GET /health`：返回 JSON 格式的 worker 运行状态（行为与重构前一致）。
  * - `GET /metrics`：返回 Prometheus text exposition 格式的进程指标
  *   （provider 调用统计 + worker 运行时 gauge/counter）。访问策略与 server `/metrics` 共用。
+ * - `GET /provider-calls`：返回 JSON 格式的 provider 调用统计原始快照（keyed by model，
+ *   含 success/failed 计数 + durations 原始样本），供 server admin 后台跨进程聚合
+ *   （server 进程 fetch 后与自身快照 `mergeProviderCalls`，得到 server+worker 合并的 p50/p95）。
+ *   访问策略与 `/metrics` 共用。
  * - 其他：404。
  */
 export function handleHealthRequest(req: Request, state: WorkerHealthState, options: HealthHandlerOptions = {}): Response {
@@ -101,6 +105,29 @@ export function handleHealthRequest(req: Request, state: WorkerHealthState, opti
       }),
     ])
     return new Response(body, { headers: { 'content-type': METRICS_CONTENT_TYPE } })
+  }
+
+  if (req.method === 'GET' && url.pathname === '/provider-calls') {
+    // 访问策略与 /metrics 共用（IP 白名单 + 可选 token）
+    const xff = req.headers.get('x-forwarded-for')
+    const remoteIp = xff?.split(',')[0]?.trim() ?? ''
+    const access = evaluateMetricsAccess({
+      remoteIp,
+      authHeader: req.headers.get('authorization'),
+      allowedCidrs: options.metricsAllowedCidrs ?? ['127.0.0.1/32', '::1/128'],
+      token: options.metricsAccessToken,
+    })
+    if (!access.allowed) {
+      const headers: Record<string, string> = { 'content-type': 'text/plain' }
+      if (access.wwwAuthenticate)
+        headers['www-authenticate'] = access.wwwAuthenticate
+      return new Response(access.denyBody ?? '', { status: access.denyStatus, headers })
+    }
+
+    return Response.json({
+      workerId: state.workerId,
+      providerCalls: options.providerCallsSnapshot?.() ?? {},
+    })
   }
 
   return new Response('Not Found', { status: 404 })

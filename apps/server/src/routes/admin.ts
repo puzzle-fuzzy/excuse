@@ -2,10 +2,12 @@ import type { ProviderCallStats } from '@excuse/metrics'
 import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask, resetApiKeySpend, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
+import { mergeProviderCalls } from '@excuse/metrics'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
+import { fetchWorkerProviderCalls } from '../services/worker-metrics'
 import { conflict, forbidden, notFound } from '../utils/errors'
 import { notifyApiKeyRevoked } from './notifications'
 
@@ -215,10 +217,15 @@ export function createAdminRoutes(config: ServerConfig) {
 
       const requested = Number(query.windowHours ?? 24)
       const windowHours = Math.min(Math.max(Number.isFinite(requested) ? Math.trunc(requested) : 24, 1), 24 * 30)
-      const [dbRows, providerCalls] = await Promise.all([
+      // 聚合 server 进程内 + worker 进程内的 provider 调用统计（durations 原始样本拼接）。
+      // canvas 全链路 provider 调用发生在 worker，仅 server 进程内快照会漏掉它们；
+      // worker `/provider-calls` 不可达时 fetchWorkerProviderCalls best-effort 返回空 map。
+      const [dbRows, serverCalls, workerCalls] = await Promise.all([
         getAdminProviderStats(windowHours),
         Promise.resolve(getProviderCallsSnapshot()),
+        fetchWorkerProviderCalls(config.workerMetricsUrl, config.metricsAccessToken),
       ])
+      const providerCalls = mergeProviderCalls(serverCalls, workerCalls)
 
       const items: AdminProviderStatsItem[] = dbRows.map((row) => {
         const stats: ProviderCallStats | undefined = providerCalls[row.model]
@@ -251,7 +258,7 @@ export function createAdminRoutes(config: ServerConfig) {
       }),
       detail: {
         summary: '查询 provider 错误率与模型成本统计',
-        description: '合并 generation_records 聚合（count/cost/tokens）与 server 进程内 metricsCollector（延迟 p50/p95/avg），帮助定位高失败率或高成本模型。',
+        description: '合并 generation_records 聚合（count/cost/tokens）与 server + worker 跨进程 provider metrics（延迟 p50/p95/avg），帮助定位高失败率或高成本模型。worker 不可达时仅反映 server 进程内调用。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

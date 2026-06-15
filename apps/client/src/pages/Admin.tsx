@@ -1608,7 +1608,7 @@ function AdminProvidersTab() {
           <div>
             <CardTitle className="text-sm">Provider 错误率与模型成本</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              count / cost / tokens 来自 generation_records 聚合；avg / p50 / p95 延迟来自 server 进程内 metrics（重启归零，不含 worker）。
+              count / cost / tokens 来自 generation_records 聚合；avg / p50 / p95 延迟聚合 server + worker 进程内 metrics（重启归零；worker 不可达时仅反映 server）。
             </p>
           </div>
           <div className="flex items-center gap-2">

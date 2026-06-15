@@ -300,6 +300,12 @@ mock.module('../src/services/metrics', () => ({
   resetMetrics: mock(() => {}),
 }))
 
+// worker /provider-calls 聚合 —— 默认返回空（worker 不可达 / 未配置），测试按需覆盖
+const mockFetchWorkerProviderCalls = mock(async (): Promise<Record<string, { success: number, failed: number, durations: number[] }>> => ({}))
+mock.module('../src/services/worker-metrics', () => ({
+  fetchWorkerProviderCalls: mockFetchWorkerProviderCalls,
+}))
+
 function makeApp(adminUserIds: string[]) {
   const config = makeTestConfig({
     jwtSecret: 'admin-routes-secret',
@@ -326,6 +332,7 @@ beforeEach(() => {
   mockResetApiKeySpend.mockClear()
   mockUpdateApiKeyConfig.mockClear()
   mockProviderCallsSnapshot.mockClear()
+  mockFetchWorkerProviderCalls.mockClear()
 })
 
 describe('admin routes', () => {
@@ -648,6 +655,51 @@ describe('admin routes', () => {
       const qwen = data?.items.find(item => item.model === 'qwen-plus')
       expect(qwen?.avgLatencyMs).toBeNull()
       expect(qwen?.p50LatencyMs).toBeNull()
+    })
+
+    it('合并 worker 进程 durations → 跨进程 p95/avg 反映 worker 样本', async () => {
+      // server mock 已有 qwen-plus durations [800,1200,1500,2000,3000]；
+      // worker 再贡献一个极大值 50000 → 合并 6 样本，p95 = 50000
+      mockFetchWorkerProviderCalls.mockResolvedValueOnce({
+        'qwen-plus': { success: 1, failed: 0, durations: [50000] },
+      })
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.providers.get({
+        headers: { authorization: `Bearer ${token}` },
+        query: { windowHours: 24 },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as {
+        success: true
+        items: Array<{ model: string, avgLatencyMs: number | null, p95LatencyMs: number | null }>
+      } | null
+      const qwen = data?.items.find(item => item.model === 'qwen-plus')
+      // 合并后 p95 应为 worker 贡献的极大值（server-only 时 p95=3000）
+      expect(qwen?.p95LatencyMs).toBe(50000)
+      // avg = (800+1200+1500+2000+3000+50000)/6 = 9750
+      expect(qwen?.avgLatencyMs).toBe(9750)
+      expect(mockFetchWorkerProviderCalls).toHaveBeenCalledTimes(1)
+    })
+
+    it('worker 不可达（fetch 返回空）→ 仅 server 数据，不报错', async () => {
+      mockFetchWorkerProviderCalls.mockResolvedValueOnce({})
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.providers.get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as { success: true, items: Array<{ model: string, p95LatencyMs: number | null }> } | null
+      const qwen = data?.items.find(item => item.model === 'qwen-plus')
+      // 仅 server 5 样本 [800,1200,1500,2000,3000] → p95 = 3000
+      expect(qwen?.p95LatencyMs).toBe(3000)
     })
   })
 

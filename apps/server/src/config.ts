@@ -21,6 +21,13 @@ export interface ServerConfig {
   metricsAccessToken?: string
   /** 允许访问 `/metrics` 的 IP CIDR 列表；默认 `['127.0.0.1/32', '::1/128']` */
   metricsAllowedCidrs: string[]
+  /**
+   * Worker health/metrics 服务地址（如 `http://localhost:5100`）。
+   * admin 后台「Provider」tab 据此 fetch worker `/provider-calls` 快照，
+   * 与 server 进程内 metrics 合并得到跨进程 p50/p95（canvas 全链路在 worker 执行）。
+   * 未配置（undefined）时 admin latency 仅反映 server 进程内调用。
+   */
+  workerMetricsUrl?: string
   /** 允许访问内部管理后台的用户 ID 列表；未配置时后台接口默认拒绝 */
   adminUserIds?: string[]
 }
@@ -49,6 +56,7 @@ export function loadConfig(): ServerConfig {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
+    workerMetricsUrl: process.env.WORKER_METRICS_URL || undefined,
     adminUserIds: (process.env.ADMIN_USER_IDS || '')
       .split(',')
       .map(s => s.trim())

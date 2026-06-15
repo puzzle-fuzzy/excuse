@@ -1,6 +1,6 @@
 import type { PrometheusMetric, ProviderCallStats } from '../src'
 import { describe, expect, it } from 'bun:test'
-import { aggregateProviderMetrics } from '../src'
+import { aggregateProviderMetrics, mergeProviderCalls } from '../src'
 
 function metricByName(metrics: PrometheusMetric[], name: string): PrometheusMetric | undefined {
   return metrics.find(m => m.name === name)
@@ -146,5 +146,54 @@ describe('aggregateProviderMetrics', () => {
     aggregateProviderMetrics(input)
 
     expect(input).toEqual(inputSnapshot)
+  })
+})
+
+describe('mergeProviderCalls', () => {
+  it('两侧均为空 → 空 map', () => {
+    expect(mergeProviderCalls({}, {})).toEqual({})
+  })
+
+  it('不同 model 并集保留', () => {
+    const a = { 'qwen-max': { success: 1, failed: 0, durations: [100] } }
+    const b = { 'wanx-v1': { success: 0, failed: 1, durations: [200] } }
+
+    expect(mergeProviderCalls(a, b)).toEqual({
+      'qwen-max': { success: 1, failed: 0, durations: [100] },
+      'wanx-v1': { success: 0, failed: 1, durations: [200] },
+    })
+  })
+
+  it('同 model 跨进程：计数相加、durations 拼接（保序）', () => {
+    const a = { 'qwen-plus': { success: 2, failed: 1, durations: [100, 200] } }
+    const b = { 'qwen-plus': { success: 3, failed: 2, durations: [300, 400, 500] } }
+
+    expect(mergeProviderCalls(a, b)).toEqual({
+      'qwen-plus': { success: 5, failed: 3, durations: [100, 200, 300, 400, 500] },
+    })
+  })
+
+  it('合并后 durations 保留原始样本 → 可精确重算跨进程 p95', () => {
+    // server 进程只见过快调用，worker 进程见过慢调用；合并后 p95 应反映慢调用
+    const a = { 'paraformer-v2': { success: 5, failed: 0, durations: [100, 100, 100, 100, 100] } }
+    const b = { 'paraformer-v2': { success: 1, failed: 0, durations: [5000] } }
+
+    const merged = mergeProviderCalls(a, b)
+    const sorted = [...merged['paraformer-v2']!.durations].sort((x, y) => x - y)
+    // 6 个样本，nearest-rank p95 = ceil(0.95*6)-1 = idx 5 → 最大值 5000
+    const p95 = sorted[Math.ceil(0.95 * sorted.length) - 1]
+    expect(p95).toBe(5000)
+  })
+
+  it('纯函数：不修改入参', () => {
+    const a = { 'qwen-max': { success: 1, failed: 0, durations: [100] } }
+    const b = { 'qwen-max': { success: 1, failed: 0, durations: [200] } }
+    const aSnapshot = JSON.parse(JSON.stringify(a))
+    const bSnapshot = JSON.parse(JSON.stringify(b))
+
+    mergeProviderCalls(a, b)
+
+    expect(a).toEqual(aSnapshot)
+    expect(b).toEqual(bSnapshot)
   })
 })

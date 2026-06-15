@@ -182,3 +182,70 @@ describe('handleHealthRequest — /metrics 输出内容', () => {
     expect(body).toContain('excuse_worker_last_poll_ok 0')
   })
 })
+
+describe('handleHealthRequest — /provider-calls', () => {
+  function providerCallsRequest(opts: { ip?: string, auth?: string } = {}): Request {
+    const headers: Record<string, string> = {}
+    if (opts.ip)
+      headers['x-forwarded-for'] = opts.ip
+    if (opts.auth !== undefined)
+      headers.authorization = opts.auth
+    return new Request('http://worker/provider-calls', { headers })
+  }
+
+  it('回环 IP + 无 token → 200 + JSON providerCalls 快照', async () => {
+    const snapshot: Record<string, ProviderCallStats> = {
+      'paraformer-v2': { success: 3, failed: 1, durations: [800, 1200, 1500, 2000] },
+    }
+    const res = handleHealthRequest(
+      providerCallsRequest({ ip: '127.0.0.1' }),
+      makeState(),
+      { providerCallsSnapshot: () => snapshot },
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('application/json')
+    const body = await res.json()
+    expect(body.workerId).toBe('worker-local-1234')
+    expect(body.providerCalls).toEqual(snapshot)
+  })
+
+  it('无 providerCallsSnapshot → 空 providerCalls', async () => {
+    const res = handleHealthRequest(providerCallsRequest({ ip: '127.0.0.1' }), makeState())
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.providerCalls).toEqual({})
+  })
+
+  it('非回环 IP + 无 token → 403', async () => {
+    const res = handleHealthRequest(providerCallsRequest({ ip: '1.2.3.4' }), makeState())
+    expect(res.status).toBe(403)
+  })
+
+  it('非回环 IP + token 配置 + 正确 Bearer → 200', async () => {
+    const res = handleHealthRequest(
+      providerCallsRequest({ ip: '1.2.3.4', auth: 'Bearer secret-token' }),
+      makeState(),
+      { metricsAccessToken: 'secret-token' },
+    )
+    expect(res.status).toBe(200)
+  })
+
+  it('非回环 IP + token 配置 + 错误 Bearer → 401', async () => {
+    const res = handleHealthRequest(
+      providerCallsRequest({ ip: '1.2.3.4', auth: 'Bearer wrong' }),
+      makeState(),
+      { metricsAccessToken: 'secret-token' },
+    )
+    expect(res.status).toBe(401)
+    expect(res.headers.get('www-authenticate')).toContain('Bearer')
+  })
+
+  it('非 GET → 404', () => {
+    const res = handleHealthRequest(
+      new Request('http://worker/provider-calls', { method: 'POST' }),
+      makeState(),
+    )
+    expect(res.status).toBe(404)
+  })
+})
