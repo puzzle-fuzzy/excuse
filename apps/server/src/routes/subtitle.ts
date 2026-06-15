@@ -192,6 +192,8 @@ export function createSubtitleRoutes(config: ServerConfig) {
       await updateSubtitleProjectStatus(project.id, 'exporting')
 
       // 创建 media.burn-subtitle 任务（Worker 异步执行）
+      // 回填 generationRecordId：建立 tasks ↔ generation_records 直接关联，
+      // 供管理后台任务详情级联诊断（matchReason='direct'）。该字段此前声明但无写入路径。
       await createTask({
         accountId: userId,
         type: 'media.burn-subtitle',
@@ -200,6 +202,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
         projectId: project.id,
         targetType: 'subtitle_project',
         targetId: project.id,
+        generationRecordId: exportRecord.id,
         input: {
           exportRecordId: exportRecord.id,
         },

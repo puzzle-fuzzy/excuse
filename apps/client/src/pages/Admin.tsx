@@ -1,4 +1,4 @@
-import type { AdminApiKeyItem, AdminAuditLogItem, AdminGatewayClientDetail, AdminGatewayClientItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
+import type { AdminApiKeyItem, AdminAuditLogItem, AdminGatewayClientDetail, AdminGatewayClientItem, AdminOverview, AdminPipelineRun, AdminProviderStatsItem, AdminTaskDetail, AdminTaskGenerationRecord, AdminTaskItem, AdminUserDetail } from '@excuse/shared'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -661,6 +661,7 @@ function AdminTaskDetailDialog({
   const detail: AdminTaskDetail | undefined = data?.data
   const task = detail?.task
   const runs: AdminPipelineRun[] = detail?.pipelineRuns ?? []
+  const genRecords: AdminTaskGenerationRecord[] = detail?.generationRecords ?? []
 
   return (
     <Dialog open={!!taskId} onOpenChange={open => !open && onClose()}>
@@ -778,6 +779,64 @@ function AdminTaskDetailDialog({
                                 )}
                               </div>
                             ))}
+                          </div>
+                        )}
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-medium">关联生成记录</p>
+                      <span className="text-xs text-muted-foreground">
+                        {genRecords.length}
+                        {' '}
+                        条
+                      </span>
+                    </div>
+                    {genRecords.length === 0
+                      ? (
+                          <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                            暂无关联生成记录。
+                          </p>
+                        )
+                      : (
+                          <div className="space-y-2">
+                            {genRecords.map(record => (
+                              <div key={record.id} className="rounded-lg border p-3 text-sm">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="outline" className="font-mono">{record.model}</Badge>
+                                    <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                    <Badge variant={record.matchReason === 'direct' ? 'secondary' : 'outline'}>
+                                      {record.matchReason === 'direct' ? '直接关联' : '候选·时间窗口'}
+                                    </Badge>
+                                  </div>
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {record.costCents !== null ? `¥${(record.costCents / 100).toFixed(2)}` : '—'}
+                                  </span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
+                                  <div>
+                                    分类：
+                                    {record.category}
+                                  </div>
+                                  <div>
+                                    创建：
+                                    {formatDate(record.createdAt)}
+                                  </div>
+                                  <div className="font-mono">
+                                    {shortId(record.id)}
+                                  </div>
+                                </div>
+                                {record.errorMessage && (
+                                  <p className="mt-2 break-all text-xs text-destructive">{record.errorMessage}</p>
+                                )}
+                              </div>
+                            ))}
+                            {genRecords.some(r => r.matchReason === 'time-window') && (
+                              <p className="text-xs text-muted-foreground">
+                                候选记录按 accountId + 任务执行时间窗口匹配，可能含并发产生的记录，请结合创建时间人工判断。
+                              </p>
+                            )}
                           </div>
                         )}
                   </div>

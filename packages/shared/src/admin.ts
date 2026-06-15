@@ -202,6 +202,27 @@ export interface AdminTaskDetail {
   task: AdminTaskItem
   /** canvas_pipeline_runs.taskId = tasks.id，按 createdAt asc */
   pipelineRuns: AdminPipelineRun[]
+  /**
+   * 关联生成记录（诊断用），帮助运营定位「任务 → 扣费/产物/错误原因」。
+   * - matchReason='direct'：task.generationRecordId 直接命中（如 subtitle 烧录导出回填）。
+   * - matchReason='time-window'：无直接关联时，按 accountId + 任务执行时间窗口返回候选；
+   *   canvas 等任务的 generation_records 由 worker 在执行期间创建，无 task 列直接关联，
+   *   时间窗口匹配可能含并发记录，前端按候选展示。
+   */
+  generationRecords: AdminTaskGenerationRecord[]
+}
+
+export interface AdminTaskGenerationRecord {
+  id: string
+  model: string
+  category: string
+  status: string
+  /** totalPriceCents（权威整数分）；部分记录未结算时为 null */
+  costCents: number | null
+  createdAt: string
+  errorMessage: string | null
+  /** direct = task.generationRecordId 直接命中；time-window = accountId+时间窗口候选 */
+  matchReason: 'direct' | 'time-window'
 }
 
 export interface AdminTaskDetailResponse {

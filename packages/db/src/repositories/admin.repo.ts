@@ -1,6 +1,6 @@
 import type { SQL } from 'drizzle-orm'
 import type { TaskRow } from '../types'
-import { and, asc, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
+import { and, asc, between, count, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { accounts, apiKeys, canvasPipelineRuns, canvasProjects, canvasShots, creditAccounts, generationRecords, tasks } from '../schema'
 import { listAdminApiKeysByAccount } from './api-keys.repo'
@@ -375,21 +375,34 @@ export interface AdminPipelineRunRow {
   createdAt: string
 }
 
+export interface AdminTaskGenerationRecordRow {
+  id: string
+  model: string
+  category: string
+  status: string
+  costCents: number | null
+  createdAt: string
+  errorMessage: string | null
+  matchReason: 'direct' | 'time-window'
+}
+
 export interface AdminTaskDetailRow {
   task: AdminTaskItem
   pipelineRuns: AdminPipelineRunRow[]
+  generationRecords: AdminTaskGenerationRecordRow[]
 }
 
 /**
- * 单任务详情 + Canvas pipeline run 级联。
+ * 单任务详情 + Canvas pipeline run 级联 + 关联生成记录（诊断用）。
  *
- * 通过 `canvas_pipeline_runs.taskId = tasks.id` 关联（软外键，schema 无 FK 约束）。
- * task 与 pipeline_runs 并发查询；task 不存在返回 null（route 层 404）。
- * 非 canvas 域任务通常无关联 pipeline_run，`pipelineRuns` 返回空数组。
+ * - pipeline_runs：通过 `canvas_pipeline_runs.taskId = tasks.id` 关联（软外键，无 FK 约束）。
+ * - generation_records：两段策略——
+ *   1) `task.generationRecordId` 非空时直接命中（`matchReason='direct'`，如 subtitle 烧录导出回填）；
+ *   2) 否则按 `accountId + 任务执行时间窗口` 返回候选（`matchReason='time-window'`），
+ *      覆盖 canvas 等任务（其 generation_records 由 worker 在执行期间创建，无 task 列直接关联）。
+ *      时间窗口匹配可能含并发记录，前端按候选展示。
  *
- * 注意：不 JOIN generation_records —— `tasks.generationRecordId` 字段声明但代码库
- * 无写入路径（恒为 null），`generation_records.taskId` 是 provider 字符串 ID 非
- * tasks uuid，两表无法直接 JOIN（见 docs/TODO.md P3.2 调研结论）。
+ * task 不存在返回 null（route 层 404）。非 canvas 域任务通常 pipelineRuns 为空。
  */
 export async function getAdminTaskDetail(
   taskId: string,
@@ -441,10 +454,68 @@ export async function getAdminTaskDetail(
     }
   })
 
+  const generationRecords = await fetchTaskGenerationRecords(taskRow)
+
   return {
     task: serializeAdminTask(taskRow),
     pipelineRuns,
+    generationRecords,
   }
+}
+
+/** 生成记录诊断查询的时间窗口前后缓冲（毫秒），覆盖任务执行期间 worker 创建的记录 */
+const GEN_RECORD_WINDOW_PAD_MS = 2 * 60 * 1000
+/** 时间窗口候选返回上限，避免长任务窗口拉回过多并发记录 */
+const GEN_RECORD_CANDIDATE_LIMIT = 10
+
+/**
+ * 取任务关联的生成记录（诊断用）。
+ * - task.generationRecordId 非空 → 精确命中（direct）。
+ * - 否则 → accountId + 时间窗口候选（time-window），按 createdAt asc，limit 上限。
+ */
+async function fetchTaskGenerationRecords(task: TaskRow): Promise<AdminTaskGenerationRecordRow[]> {
+  const projection = {
+    id: generationRecords.id,
+    model: generationRecords.model,
+    category: generationRecords.category,
+    status: generationRecords.status,
+    costCents: generationRecords.totalPriceCents,
+    createdAt: generationRecords.createdAt,
+    errorMessage: generationRecords.errorMessage,
+  }
+
+  if (task.generationRecordId) {
+    const [direct] = await getDb()
+      .select(projection)
+      .from(generationRecords)
+      .where(eq(generationRecords.id, task.generationRecordId))
+      .limit(1)
+    return direct
+      ? [{ ...direct, costCents: direct.costCents ?? null, createdAt: iso(direct.createdAt)!, matchReason: 'direct' as const }]
+      : []
+  }
+
+  // 任务执行时间窗口（createdAt ~ finishedAt，finishedAt 缺失时延伸至 now）
+  const windowStart = new Date(task.createdAt.getTime() - GEN_RECORD_WINDOW_PAD_MS)
+  const windowEnd = new Date(
+    (task.finishedAt ?? new Date()).getTime() + GEN_RECORD_WINDOW_PAD_MS,
+  )
+  const rows = await getDb()
+    .select(projection)
+    .from(generationRecords)
+    .where(and(
+      eq(generationRecords.accountId, task.accountId),
+      between(generationRecords.createdAt, windowStart, windowEnd),
+    ))
+    .orderBy(asc(generationRecords.createdAt))
+    .limit(GEN_RECORD_CANDIDATE_LIMIT)
+
+  return rows.map(row => ({
+    ...row,
+    costCents: row.costCents ?? null,
+    createdAt: iso(row.createdAt)!,
+    matchReason: 'time-window' as const,
+  }))
 }
 
 export async function requeueAdminTask(id: string): Promise<AdminTaskItem | null> {

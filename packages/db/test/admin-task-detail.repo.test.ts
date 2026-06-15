@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { getDb } from '../src/db'
 import { getAdminTaskDetail } from '../src/repositories/admin.repo'
 import { createCanvasProject } from '../src/repositories/canvas-projects.repo'
+import { createGenerationRecord } from '../src/repositories/generation-records.repo'
 import { createTask } from '../src/repositories/tasks.repo'
 import { canvasPipelineRuns } from '../src/schema/canvas-pipeline-runs'
 import {
@@ -166,5 +167,74 @@ describe('getAdminTaskDetail', () => {
 
     const detail = await getAdminTaskDetail(task.id)
     expect(detail!.pipelineRuns[0]!.outputSummary).toEqual(summary)
+  })
+
+  // ── generation record 级联诊断 ──────────────────────────────────────────────
+
+  it('generationRecordId 直接命中时返回 direct 关联生成记录', async () => {
+    const record = await createGenerationRecord({
+      accountId,
+      model: 'ffmpeg-burn',
+      category: 'subtitle' as const,
+      inputParams: { prompt: 'burn export' },
+      totalPriceCents: 80,
+    })
+    const task = await seedTask({
+      type: 'media.burn-subtitle',
+      domain: 'subtitle',
+      generationRecordId: record.id,
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords.length).toBe(1)
+    expect(detail!.generationRecords[0]!.id).toBe(record.id)
+    expect(detail!.generationRecords[0]!.matchReason).toBe('direct')
+    expect(detail!.generationRecords[0]!.model).toBe('ffmpeg-burn')
+    expect(detail!.generationRecords[0]!.costCents).toBe(80)
+  })
+
+  it('generationRecordId 指向已删除记录时返回空数组（不报错）', async () => {
+    const task = await seedTask({
+      generationRecordId: '00000000-0000-0000-0000-000000000000',
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords).toEqual([])
+  })
+
+  it('无直接关联时按 accountId + 时间窗口返回候选（time-window）', async () => {
+    const task = await seedTask({ type: 'canvas.videos', domain: 'canvas' })
+    const inWindow = await createGenerationRecord({
+      accountId,
+      model: 'wanx2.1-t2v',
+      category: 'video' as const,
+      inputParams: { prompt: 'canvas shot' },
+      totalPriceCents: 120,
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords.length).toBe(1)
+    expect(detail!.generationRecords[0]!.id).toBe(inWindow.id)
+    expect(detail!.generationRecords[0]!.matchReason).toBe('time-window')
+    expect(detail!.generationRecords[0]!.costCents).toBe(120)
+  })
+
+  it('时间窗口外的生成记录不返回', async () => {
+    const task = await seedTask({ type: 'canvas.videos', domain: 'canvas' })
+    // 1 小时前创建的记录，超出 ±2min 窗口
+    await createGenerationRecord({
+      accountId,
+      model: 'wanx2.1-t2v',
+      category: 'video' as const,
+      inputParams: { prompt: 'stale' },
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.generationRecords).toEqual([])
   })
 })

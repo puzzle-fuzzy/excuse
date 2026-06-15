@@ -212,6 +212,18 @@ const mockGetAdminTaskDetail = mock(async (taskId: string) => {
         createdAt: '2026-06-14T00:01:00.000Z',
       },
     ],
+    generationRecords: [
+      {
+        id: 'gen-1',
+        model: 'wanx2.1-t2v',
+        category: 'video',
+        status: 'succeeded',
+        costCents: 120,
+        createdAt: '2026-06-14T00:00:45.000Z',
+        errorMessage: null,
+        matchReason: 'time-window',
+      },
+    ],
   }
 })
 
@@ -465,6 +477,11 @@ describe('admin routes', () => {
             errorMessage: string | null
             outputSummary: Record<string, unknown> | null
           }>
+          generationRecords: Array<{
+            id: string
+            model: string
+            matchReason: 'direct' | 'time-window'
+          }>
         }
       } | null
       expect(data?.data.task.id).toBe('task-1')
@@ -476,6 +493,10 @@ describe('admin routes', () => {
       expect(analyze?.outputSummary).toEqual({ summary: '一个故事' })
       expect(storyboard?.status).toBe('failed')
       expect(storyboard?.errorMessage).toBe('LLM 输出校验失败')
+      // 生成记录级联诊断透传
+      expect(data?.data.generationRecords.length).toBe(1)
+      expect(data?.data.generationRecords[0]?.id).toBe('gen-1')
+      expect(data?.data.generationRecords[0]?.matchReason).toBe('time-window')
       expect(mockGetAdminTaskDetail).toHaveBeenCalledWith('task-1')
     })
   })
