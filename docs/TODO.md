@@ -184,7 +184,8 @@
 
 - ✅ 项目细粒度检索（admin 新增「项目」tab + `GET /api/admin/projects`：按标题搜索、状态过滤、分页，显示镜头数 / 完成数 / 模型偏好；commit: `b0f5983`）。
 - ✅ 任务队列细粒度检索、失败重排和运行中取消已完成；项目级检索已完成（见上行 `GET /api/admin/projects`）。
-- 跨业务状态联动修复（取消/重排任务时级联 reconciliation 关联 `generation_records` 状态）—— **显式延后**：当前 beta/free 阶段无计费，且 running 态取消存在 worker 完成覆盖竞态（`media-handlers.ts` 成功路径先 `markGenerationSucceeded` 再由框架 `markTaskSucceeded` no-op），需配合 worker cancel-guarding 设计；queued 态取消确会导致关联 `generation_records` 长期滞留 `processing`，是该能力的真实收益点。待正式收费或确定要补 worker cancel 语义时再推进。
+- ✅ 跨业务状态联动修复 — **取消级联**（`cancelAdminTask` 取消任务后，若 `task.generationRecordId` 非空，经新增 `cancelGenerationRecordIfActive` 级联取消关联 `generation_records`——仅非终态 `pending/submitting/processing/saving_output` 才置 `cancelled`，修复 queued 态取消后记录滞留 `processing` 的悬挂态 bug；running 态取消时若 worker 已 `markGenerationSucceeded` 则跳过、不覆盖成功产物；best-effort 不影响主操作；commit: `3c83220`）。
+- 重排（requeue）级联 reconciliation —— 低优先级留待后续：requeue 后 worker 重跑会自然将关联记录推到终态（succeeded/failed），无滞留 bug，仅为重跑窗口内 UI 一致性可选重置为 `pending`。
 - ✅ 用户级用量和成本统计（admin 后台新增「用户」tab + 用户详情：余额 / 30 天成本趋势 / 模型分解 / 最近记录；commit: `1c5dfeb`）。
 - 失败任务深度诊断（最近失败摘要、tasks 队列检索和基础恢复操作已完成；Canvas pipeline run 级联 + generation record 级联诊断已完成）。
 - ✅ 失败任务深度诊断 — Canvas pipeline run 级联（admin 后台新增 `GET /api/admin/tasks/:id` 单任务详情 endpoint，`getAdminTaskDetail` JOIN `canvas_pipeline_runs.taskId = tasks.id`，返回 pipeline run 时间线 phase/status/durationMs/errorMessage/outputSummary；Admin.tsx 任务行点击「详情」展开 dialog + 重排/取消按钮；commit: `86ca4b4`）。
