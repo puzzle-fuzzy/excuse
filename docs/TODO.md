@@ -190,7 +190,6 @@
 - ✅ 失败任务深度诊断 — generation record 级联（`getAdminTaskDetail` 新增关联生成记录：`task.generationRecordId` 非空时直接命中 `matchReason='direct'`，否则按 `accountId + 任务执行时间窗口(±2min)` 返回候选 `matchReason='time-window'`；subtitle 烧录导出回填 `tasks.generationRecordId`（此前字段声明但无写入路径）；Admin.tsx 任务详情 dialog 新增「关联生成记录」区，候选记录标注「候选·时间窗口」提示并发误匹配；commit: `dc7983b`）。剩余局限：canvas 阶段任务的 generation_records 由 worker 执行期间创建、无 task 列直接关联（1:N），仅能经时间窗口候选呈现；generate 域不经统一 task 队列（用 legacy `generation_records.taskId` provider 字符串），无 task 行可级联。
 - ✅ provider 错误率和模型成本统计（admin 后台新增「Provider」tab，DB 聚合 + server 进程内 metrics 合并 avg/p50/p95 latency；commit: `1c5dfeb`）。
 - ✅ API Key 管理（管理后台用户详情中展示 API Key 列表：前缀/名称/状态/最近使用/创建时间；`GET /api/admin/users/:id/api-keys` 端点 + `AdminUserApiKeysSection` 组件）。Gateway 客户管理已完成：顶层「Gateway 客户」tab + 跨账户聚合列表（`GET /api/admin/gateway-clients`，活跃/总 key 数、Key 消耗、额度上限、最近活动）+ 客户详情（`GET /api/admin/gateway-clients/:accountId`，账户摘要 + 全部 key + 最近 50 条 Gateway 调用记录）+ Key 管理动作（`POST /api/admin/api-keys/:id/reset-quota` 重置额度、`POST /api/admin/api-keys/:id/revoke` 撤销、`PATCH /api/admin/api-keys/:id/config` 编辑配置）+ admin_action / api_key_revoke 审计。scope/quota/rate-limit 联动随 per-key 能力一并具备。
-- 长列表建议使用 `@tanstack/table-core` / `@tanstack/react-virtual`，不要手写复杂表格状态。
 
 验收：
 
