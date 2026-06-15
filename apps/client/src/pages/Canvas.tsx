@@ -2,10 +2,11 @@ import type { ProjectDTO } from '@excuse/shared'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { createCanvasProject, deleteCanvasProject, listCanvasProjects } from '../api/client'
+import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCanvasModelPreferences } from '../api/client'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -74,7 +75,31 @@ export default function Canvas() {
         title: title.trim() || undefined,
         storyText: storyText.trim(),
       })
-      navigate(`/canvas/${res.data.id}`)
+      const projectId = res.data.id
+
+      // 应用 Model Lab 保存的默认模型偏好（best-effort，失败不阻塞创建流程）
+      try {
+        const saved = loadCanvasModelDefaults()
+        if (saved?.preferences) {
+          const p = saved.preferences
+          const patch: { textModel?: string, imageModel?: string, videoModel?: string, autoProgress?: boolean } = {}
+          if (p.textModel)
+            patch.textModel = p.textModel
+          if (p.imageModel)
+            patch.imageModel = p.imageModel
+          if (p.videoModel)
+            patch.videoModel = p.videoModel
+          if (p.autoProgress !== undefined)
+            patch.autoProgress = p.autoProgress
+          if (Object.keys(patch).length > 0)
+            await updateCanvasModelPreferences(projectId, patch)
+        }
+      }
+      catch (err) {
+        console.warn('Failed to apply Model Lab defaults to new canvas project:', err)
+      }
+
+      navigate(`/canvas/${projectId}`)
     }
     catch {
       toast.error('创建项目失败')

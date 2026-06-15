@@ -323,7 +323,7 @@ export default function ModelLab() {
     }
     const saved = saveCanvasModelDefaults(patch)
     setCanvasDefaults(saved)
-    toast.success('已保存为 Canvas 默认模型')
+    toast.success('已保存，新建 Canvas 项目时将自动应用')
   }
 
   function applyCanvasDefaultsToLab() {
@@ -749,7 +749,7 @@ export default function ModelLab() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                先在 Lab 验证模型，再保存为 Canvas 默认偏好；Canvas 项目接入端待当前并行 Canvas 改造稳定后连接。
+                先在 Lab 验证模型，再保存为 Canvas 默认偏好；已接入：新建 Canvas 项目时自动应用（见 Canvas.tsx handleCreate）。
               </p>
             </CardContent>
           </Card>
