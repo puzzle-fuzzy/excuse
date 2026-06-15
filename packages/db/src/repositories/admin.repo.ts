@@ -4,7 +4,7 @@ import { and, asc, between, count, desc, eq, ilike, inArray, ne, or, sql } from 
 import { getDb } from '../db'
 import { accounts, apiKeys, canvasPipelineRuns, canvasProjects, canvasShots, creditAccounts, generationRecords, tasks } from '../schema'
 import { listAdminApiKeysByAccount } from './api-keys.repo'
-import { cancelGenerationRecordIfActive, listGatewayUsageRecords } from './generation-records.repo'
+import { cancelGenerationRecordIfActive, listGatewayUsageRecords, requeueGenerationRecordIfRequeueable } from './generation-records.repo'
 
 export interface AdminOverview {
   summary: AdminSummary
@@ -536,7 +536,19 @@ export async function requeueAdminTask(id: string): Promise<AdminTaskItem | null
     .where(and(eq(tasks.id, id), inArray(tasks.status, REQUEUEABLE_STATUSES)))
     .returning()
 
-  return updated ? serializeAdminTask(updated) : null
+  if (!updated)
+    return null
+
+  // 跨业务状态联动：级联重置关联 generation_record（仅终态 failed/cancelled）。
+  // requeue 后 worker 重跑会自然推到终态，此处仅为重跑窗口内 UI 一致性——把滞留
+  // failed/cancelled 的记录重置为 pending，使其反映"正在重试"。已 active 或 succeeded
+  // 的记录不重置（避免回退/覆盖成功产物）。best-effort：任务已重排，级联失败不影响主操作
+  // （repo 无 logger，静默降级）。cancelGenerationRecordIfActive 的对偶。
+  if (updated.generationRecordId) {
+    await requeueGenerationRecordIfRequeueable(updated.generationRecordId).catch(() => {})
+  }
+
+  return serializeAdminTask(updated)
 }
 
 export async function cancelAdminTask(id: string): Promise<AdminTaskItem | null> {

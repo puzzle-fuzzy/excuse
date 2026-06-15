@@ -242,6 +242,31 @@ export async function cancelGenerationRecordIfActive(
   return !!updated
 }
 
+/** 可被重排级联重置的终态：failed/cancelled（非成功的终态，重跑有意义） */
+const REQUEUEABLE_GENERATION_STATUSES = ['failed', 'cancelled'] as const
+
+/**
+ * 仅当生成记录处于非成功终态（failed/cancelled）时重置为 pending，配合管理后台任务重排。
+ *
+ * `cancelGenerationRecordIfActive` 的对偶：取消级联只动 active 记录，重排级联只动终态记录。
+ * requeue 后 worker 重跑会自然把记录推到终态，此处仅为重跑窗口内的 UI 一致性——
+ * 把滞留 failed/cancelled 的记录重置为 pending（清 errorMessage、递增 retryCount、清 dedupeKey），
+ * 使其反映"正在重试"。已 active（processing 等）或 succeeded 的记录不动（避免回退/覆盖成功产物）。
+ *
+ * @returns 是否实际重置（false = 记录非可重排终态，跳过；true = 已置 pending）
+ */
+export async function requeueGenerationRecordIfRequeueable(id: string): Promise<boolean> {
+  const [updated] = await getDb()
+    .update(generationRecords)
+    .set({ status: 'pending', errorMessage: null, retryCount: sql`${generationRecords.retryCount} + 1`, dedupeKey: null, updatedAt: new Date() })
+    .where(and(
+      eq(generationRecords.id, id),
+      inArray(generationRecords.status, [...REQUEUEABLE_GENERATION_STATUSES]),
+    ))
+    .returning()
+  return !!updated
+}
+
 /**
  * 按 dedupeKey 查询记录，防止同参数重复提交
  */
