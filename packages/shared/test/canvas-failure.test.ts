@@ -1,6 +1,6 @@
+import type { CanvasFailureKind } from '../src/canvas-failure'
 import { describe, expect, it } from 'bun:test'
 import { classifyCanvasFailure } from '../src/canvas-failure'
-import type { CanvasFailureKind } from '../src/canvas-failure'
 
 describe('classifyCanvasFailure', () => {
   // ── status 优先 ──
