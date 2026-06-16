@@ -1,7 +1,7 @@
 import type { UploadedFilePatch } from '@excuse/db'
-import type { MutationOkResponse, UploadedFileDTO, UploadResponse } from '@excuse/shared'
+import type { MutationOkResponse, UploadResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { createUploadedFile, deleteUploadedFileById, getUploadedFileById, getUploadedFileUsage, updateUploadedFile } from '@excuse/db'
+import { createUploadedFile, deleteUploadedFileById, getUploadedFileById, getUploadedFileUsage, serialize, updateUploadedFile } from '@excuse/db'
 import { AssetStorage } from '@excuse/provider'
 import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 import { createLogger } from '@excuse/shared'
@@ -84,30 +84,6 @@ function detectMimeType(buffer: Uint8Array): string | null {
   return null
 }
 
-/**
- * DB row → DTO 序列化（Date → string）
- *
- * 上传文件 DTO 必须包含 createdAt 等 Date 字段的字符串序列化，
- * 与 GenerationRecord / AuthUser 保持一致的模式。
- */
-function serializeUploadedFile(record: {
-  id: string
-  accountId: string
-  fileName: string
-  fileSize: number
-  mimeType: string
-  storagePath: string
-  publicUrl: string
-  purpose: string
-  metadata: Record<string, unknown> | null
-  createdAt: Date
-}): UploadedFileDTO {
-  return {
-    ...record,
-    createdAt: record.createdAt.toISOString(),
-  }
-}
-
 export function createUploadRoutes(config: ServerConfig) {
   const storage = new AssetStorage({
     storageRoot: config.storageRoot,
@@ -170,7 +146,7 @@ export function createUploadRoutes(config: ServerConfig) {
 
       return {
         success: true,
-        data: serializeUploadedFile(record),
+        data: serialize(record),
       } satisfies UploadResponse
     }, {
       body: t.Object({
@@ -261,7 +237,7 @@ export function createUploadRoutes(config: ServerConfig) {
 
       return {
         success: true,
-        data: serializeUploadedFile(updated),
+        data: serialize(updated),
       } satisfies UploadResponse
     }, {
       params: t.Object({ id: t.String() }),

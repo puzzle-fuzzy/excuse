@@ -35,7 +35,7 @@
  *   - 归属校验：所有操作先通过 getXxxForAccount 确认资源属于当前用户
  */
 import type { CanvasPipelinePhase } from '@excuse/db'
-import type { AcceptedResponse, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasPipelineRunResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotReferenceAsset, CanvasShotResponse } from '@excuse/shared'
+import type { AcceptedResponse, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunListResponse, CanvasPipelineRunResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotReferenceAsset, CanvasShotResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
   cancelActiveCanvasAssetsByProject,
@@ -54,6 +54,7 @@ import {
   listCanvasShotsByProject,
   listPipelineRunsByProject,
   markPipelineRunCancelled,
+  serialize,
   setCanvasAssetActive,
   setCanvasAssetLocked,
   updateCanvasProject,
@@ -74,28 +75,6 @@ const logger = createLogger('canvas-routes')
 
 function acceptedResponse(runId?: string): AcceptedResponse {
   return runId ? { accepted: true, runId } : { accepted: true }
-}
-
-function serializePipelineRun(row: {
-  id: string
-  projectId: string
-  phase: CanvasPipelineRunDTO['phase']
-  status: CanvasPipelineRunDTO['status']
-  taskId: string | null
-  startedAt: Date | null
-  finishedAt: Date | null
-  errorMessage: string | null
-  createdBy: string | null
-  inputSnapshotJson: Record<string, unknown> | null
-  outputSummaryJson: Record<string, unknown> | null
-  createdAt: Date
-}): CanvasPipelineRunDTO {
-  return {
-    ...row,
-    startedAt: row.startedAt?.toISOString() ?? null,
-    finishedAt: row.finishedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-  }
 }
 
 /**
@@ -278,7 +257,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!owned)
         throw new NotFoundError('项目不存在或无权访问')
       const runs = await listPipelineRunsByProject(projectId)
-      const serialized = runs.map(serializePipelineRun)
+      const serialized = runs.map(serialize)
       return { success: true, items: serialized, total: serialized.length } satisfies CanvasPipelineRunListResponse
     })
 
@@ -289,7 +268,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       const owned = await getCanvasProjectByIdForAccount(run.projectId, userId)
       if (!owned)
         throw new NotFoundError('项目不存在或无权访问')
-      return { success: true, data: serializePipelineRun(run) } satisfies CanvasPipelineRunResponse
+      return { success: true, data: serialize(run) } satisfies CanvasPipelineRunResponse
     })
 
     // ===== 流水线步骤 =====

@@ -219,7 +219,6 @@
 **横切面（跨全路由，可独立排期，收益最高）**
 
 - **统一错误处理中间件**（审计 #11，复核确认：`validationError/notFound/forbidden` 三 helper 共 **113 处调用 / 10 个路由**，无 `onError` 全局钩子）：引入 Elysia `onError` + 自定义错误类（`ValidationError`/`NotFoundError`/`ForbiddenError`），统一序列化，去掉手写 `set.status` 响应。
-- **序列化函数统一**（审计 #12，复核确认：`serializeRecord`/`serializePipelineRun`/`serializeNotification`/`toHealthSummary` 等各自手写 Date→ISO 映射）：在 `packages/shared` 或 `packages/db` 定义统一 `serialize<T>`，或用 Drizzle 序列化插件，路由层不再手写。
 
 **其他**
 

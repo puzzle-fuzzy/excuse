@@ -162,6 +162,33 @@ export type Serialize<T> = T extends Date
         ? { -readonly [K in keyof T]: Serialize<T[K]> }
         : T
 
+/**
+ * 运行时序列化 — {@link Serialize} 类型工具的运行时对应物。
+ *
+ * 递归把值中的 `Date` 转为 ISO 字符串（数组与普通对象递归遍历），
+ * 用于把 Drizzle 行（含 `Date`）转为前端兼容的 DTO（ISO 字符串），
+ * 取代路由层各自手写的 `serializeXxx` Date→ISO 映射。
+ *
+ * 纯函数，无 IO 依赖：`null`/原始类型原样返回，`Date` → ISO 字符串，
+ * 数组逐元素递归，普通对象逐字段递归。非 Date 的 JSONB 内容结构不变。
+ */
+export function serialize<T>(value: T): Serialize<T> {
+  if (value instanceof Date) {
+    return value.toISOString() as unknown as Serialize<T>
+  }
+  if (Array.isArray(value)) {
+    return value.map(serialize) as unknown as Serialize<T>
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      out[key] = serialize((value as Record<string, unknown>)[key])
+    }
+    return out as unknown as Serialize<T>
+  }
+  return value as unknown as Serialize<T>
+}
+
 /** generation_records 序列化后类型（Date → string） */
 export type GenerationRecordSerialized = Serialize<GenerationRecordRow>
 

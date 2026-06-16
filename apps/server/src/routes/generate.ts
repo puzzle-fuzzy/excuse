@@ -11,6 +11,7 @@ import {
   markGenerationFailed,
   reserveCredit,
   resetGenerationToPending,
+  serialize,
 } from '@excuse/db'
 import { classifyRecovery } from '@excuse/error-recovery'
 import { AssetStorage, DashScopeClient, getModelById, validateAndMerge } from '@excuse/provider'
@@ -76,12 +77,10 @@ export function createGenerateRoutes(config: ServerConfig) {
         })
       : null
 
+    // serialize() 递归处理全部 Date→ISO（createdAt/updatedAt/hiddenAt/cancelRequestedAt），
+    // 此处只补 recovery 派生 + providerCancelStatus 枚举收窄。
     return {
-      ...record,
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString(),
-      hiddenAt: record.hiddenAt?.toISOString() ?? null,
-      cancelRequestedAt: record.cancelRequestedAt?.toISOString() ?? null,
+      ...serialize(record),
       providerCancelStatus: serializeProviderCancelStatus(record.providerCancelStatus),
       recovery,
     }

@@ -1,27 +1,9 @@
-import type { BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CreditTransactionDTO } from '@excuse/shared'
+import type { BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { aggregateStatistics } from '@excuse/billing'
-import { getCostRecords, getOrCreateCreditAccount, listCreditTransactions } from '@excuse/db'
+import { getCostRecords, getOrCreateCreditAccount, listCreditTransactions, serialize } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
-
-function serializeCreditTransaction(row: {
-  id: string
-  accountId: string
-  type: CreditTransactionDTO['type']
-  amountCents: number
-  balanceAfterCents: number
-  frozenAfterCents: number
-  generationRecordId: string | null
-  description: string | null
-  metadata: Record<string, unknown> | null
-  createdAt: Date
-}): CreditTransactionDTO {
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
 
 /**
  * 费用统计与信用账户路由
@@ -75,7 +57,7 @@ export function createBillingRoutes(config: ServerConfig) {
       const transactions = await listCreditTransactions({ accountId: userId, limit, offset })
       return {
         success: true,
-        items: transactions.map(serializeCreditTransaction),
+        items: transactions.map(serialize),
         total: transactions.length,
       } satisfies BillingTransactionsResponse
     }, {

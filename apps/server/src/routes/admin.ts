@@ -2,7 +2,7 @@ import type { ProviderModelHealth } from '@excuse/db'
 import type { ProviderCallStats } from '@excuse/metrics'
 import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminCreditAddResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse, AssetRetentionResult } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, creditBalance, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getOrCreateCreditAccount, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, creditBalance, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getOrCreateCreditAccount, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, serialize, updateApiKeyConfig } from '@excuse/db'
 import { mergeProviderCalls } from '@excuse/metrics'
 import { degradedRemainingMs, isDegraded } from '@excuse/provider-health'
 import { Elysia, t } from 'elysia'
@@ -51,17 +51,9 @@ function serializeApiKey(key: {
   revokedAt: Date | null
 }) {
   return {
-    id: key.id,
-    prefix: key.prefix,
-    name: key.name,
-    scope: key.scope,
-    rateLimitPerMinute: key.rateLimitPerMinute,
-    quotaMaxCents: key.quotaMaxCents,
+    ...serialize(key),
+    // 管理后台聚合的 totalSpendCents 可能为 null，前端按非空 number 渲染
     totalSpendCents: key.totalSpendCents ?? 0,
-    quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
-    lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-    createdAt: key.createdAt.toISOString(),
-    revokedAt: key.revokedAt?.toISOString() ?? null,
   }
 }
 

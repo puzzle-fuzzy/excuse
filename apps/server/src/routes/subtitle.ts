@@ -12,8 +12,8 @@
  *   POST /api/subtitle/projects/:id/retry      — 重试失败项目
  */
 
-import type { SubtitleProjectRow, SubtitleStyleConfig } from '@excuse/db'
-import type { SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse } from '@excuse/shared'
+import type { SubtitleStyleConfig } from '@excuse/db'
+import type { SubtitleMutationOkResponse, SubtitleProjectListResponse, SubtitleProjectResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
   createGenerationRecord,
@@ -21,6 +21,7 @@ import {
   deleteSubtitleProject,
   getSubtitleProjectForAccount,
   listSubtitleProjectsByAccount,
+  serialize,
   updateSubtitleExport,
   updateSubtitleProjectStatus,
   updateSubtitleSentences,
@@ -40,15 +41,6 @@ export function createSubtitleRoutes(config: ServerConfig) {
   })
   const deps: svc.SubtitleDependencies = { asrClient }
 
-  /** 从 DB 行序列化为前端兼容格式（Date→string） */
-  function serializeProject(project: SubtitleProjectRow): SubtitleProjectDTO {
-    return {
-      ...project,
-      createdAt: project.createdAt.toISOString(),
-      updatedAt: project.updatedAt.toISOString(),
-    }
-  }
-
   return new Elysia({ prefix: '/api/subtitle' })
     .use(createRequireAuthPlugin(config))
 
@@ -58,7 +50,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
         userId,
         body.videoFileId,
       )
-      return { success: true, data: serializeProject(project) } satisfies SubtitleProjectResponse
+      return { success: true, data: serialize(project) } satisfies SubtitleProjectResponse
     }, {
       body: t.Object({
         videoFileId: t.String(),
@@ -74,7 +66,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
     // 列出用户的字幕项目
     .get('/projects', async ({ userId }) => {
       const projects = await listSubtitleProjectsByAccount(userId)
-      const serialized = projects.map(serializeProject)
+      const serialized = projects.map(serialize)
       return { success: true, items: serialized, total: serialized.length } satisfies SubtitleProjectListResponse
     }, {
       detail: {
@@ -89,7 +81,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
         throw new NotFoundError('字幕项目不存在或无权访问')
-      return { success: true, data: serializeProject(project) } satisfies SubtitleProjectResponse
+      return { success: true, data: serialize(project) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
       detail: {
@@ -109,7 +101,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       const updated = await getSubtitleProjectForAccount(id, userId)
       if (!updated)
         throw new NotFoundError('字幕项目不存在或无权访问')
-      return { success: true, data: serializeProject(updated) } satisfies SubtitleProjectResponse
+      return { success: true, data: serialize(updated) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
       body: t.Object({
@@ -139,7 +131,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
       const updated = await getSubtitleProjectForAccount(id, userId)
       if (!updated)
         throw new NotFoundError('字幕项目不存在或无权访问')
-      return { success: true, data: serializeProject(updated) } satisfies SubtitleProjectResponse
+      return { success: true, data: serialize(updated) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
       body: t.Object({
@@ -231,7 +223,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
 
       const retried = await svc.retryProject(project, userId, deps)
 
-      return { success: true, data: serializeProject(retried) } satisfies SubtitleProjectResponse
+      return { success: true, data: serialize(retried) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
       detail: {

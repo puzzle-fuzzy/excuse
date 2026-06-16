@@ -1,20 +1,11 @@
-import type { AssetTagCreateResponse, AssetTagDTO, AssetTagListResponse, AssetTagMutationResponse } from '@excuse/shared'
+import type { AssetTagCreateResponse, AssetTagListResponse, AssetTagMutationResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { createAssetTag, deleteAssetTag, listAssetTags } from '@excuse/db'
+import { createAssetTag, deleteAssetTag, listAssetTags, serialize } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { ConflictError, ValidationError } from '../utils/app-errors'
 
 const MAX_NAME_LENGTH = 32
-
-/** AssetTagRow → AssetTagDTO：Date → ISO 字符串 */
-function serializeTag(row: { id: string, name: string, createdAt: Date }): AssetTagDTO {
-  return {
-    id: row.id,
-    name: row.name,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
 
 /**
  * 资产标签 CRUD 路由
@@ -29,7 +20,7 @@ export function createAssetTagRoutes(config: ServerConfig) {
     .use(createRequireAuthPlugin(config))
     .get('/', async ({ userId }) => {
       const rows = await listAssetTags(userId)
-      return { success: true, items: rows.map(serializeTag) } satisfies AssetTagListResponse
+      return { success: true, items: rows.map(serialize) } satisfies AssetTagListResponse
     }, {
       detail: {
         summary: '列出当前用户全部标签',
@@ -48,7 +39,7 @@ export function createAssetTagRoutes(config: ServerConfig) {
 
       try {
         const row = await createAssetTag({ accountId: userId, name })
-        return { success: true, data: serializeTag(row) } satisfies AssetTagCreateResponse
+        return { success: true, data: serialize(row) } satisfies AssetTagCreateResponse
       }
       catch (err) {
         // 23505 = unique_violation：同账号重名

@@ -1,27 +1,11 @@
 import type { NotificationMeta } from '@excuse/db'
-import type { MutationOkResponse, NotificationDTO, NotificationListResponse, NotificationReadAllResponse, NotificationUnreadCountResponse } from '@excuse/shared'
+import type { MutationOkResponse, NotificationListResponse, NotificationReadAllResponse, NotificationUnreadCountResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { getUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead, notifyNotification } from '@excuse/db'
+import { getUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead, notifyNotification, serialize } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { COOLDOWN_MS, shouldSend } from '../services/notification-cooldown'
 import { NotFoundError } from '../utils/app-errors'
-
-function serializeNotification(row: {
-  id: string
-  accountId: string
-  type: NotificationDTO['type']
-  title: string
-  body: string | null
-  meta: NotificationDTO['meta']
-  read: boolean
-  createdAt: Date
-}): NotificationDTO {
-  return {
-    ...row,
-    createdAt: row.createdAt.toISOString(),
-  }
-}
 
 /**
  * 通知路由
@@ -40,7 +24,7 @@ export function createNotificationRoutes(config: ServerConfig) {
         limit: query.limit ?? 50,
         offset: query.offset ?? 0,
       })
-      const serialized = notifications.map(serializeNotification)
+      const serialized = notifications.map(serialize)
       return {
         success: true,
         items: serialized,

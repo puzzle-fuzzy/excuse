@@ -1,35 +1,13 @@
-import type { ApiKeyCreateResponse, ApiKeyDTO, ApiKeyListResponse, ApiKeyScope, MutationOkResponse } from '@excuse/shared'
+import type { ApiKeyCreateResponse, ApiKeyListResponse, ApiKeyScope, MutationOkResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { createApiKeySecret, hashApiKey } from '@excuse/auth'
-import { createApiKey, listApiKeysByAccount, revokeApiKey } from '@excuse/db'
+import { createApiKey, listApiKeysByAccount, revokeApiKey, serialize } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { NotFoundError } from '../utils/app-errors'
 
 const VALID_SCOPES = ['all', 'gateway'] as const
-
-function serializeApiKey(row: {
-  id: string
-  prefix: string
-  name: string | null
-  scope: string
-  rateLimitPerMinute: number | null
-  quotaMaxCents: number | null
-  totalSpendCents: number
-  quotaResetAt: Date | null
-  lastUsedAt: Date | null
-  createdAt: Date
-  revokedAt: Date | null
-}): ApiKeyDTO {
-  return {
-    ...row,
-    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
-    quotaResetAt: row.quotaResetAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    revokedAt: row.revokedAt?.toISOString() ?? null,
-  }
-}
 
 /**
  * API 密钥管理路由
@@ -79,7 +57,7 @@ export function createApiKeyRoutes(config: ServerConfig) {
     })
     .get('/', async ({ userId }) => {
       const keys = await listApiKeysByAccount(userId)
-      const serialized = keys.map(serializeApiKey)
+      const serialized = keys.map(serialize)
       return {
         success: true,
         items: serialized,
