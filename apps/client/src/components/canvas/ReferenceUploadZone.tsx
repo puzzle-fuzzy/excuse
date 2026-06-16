@@ -1,6 +1,23 @@
-import { Pencil, Trash2, Upload } from 'lucide-react'
+import { Pencil, Trash2, Upload, ZoomIn } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+
+/** 图片点击放大查看的简易 lightbox */
+function ImageViewer({ src, alt, onClose }: { src: string, alt: string, onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 cursor-zoom-out"
+      onClick={onClose}
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      />
+    </div>
+  )
+}
 
 interface ReferenceUploadZoneProps {
   currentUrl: string | null
@@ -22,6 +39,7 @@ export function ReferenceUploadZone({
   const [uploading, setUploading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl)
   const [error, setError] = useState<string | null>(null)
+  const [viewerOpen, setViewerOpen] = useState(false)
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -97,13 +115,22 @@ export function ReferenceUploadZone({
               <img
                 src={previewUrl}
                 alt={label}
-                className="w-full h-40 object-cover"
+                className="w-full h-40 object-cover cursor-zoom-in"
+                onClick={() => setViewerOpen(true)}
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <Button
                   variant="secondary"
                   size="xs"
-                  onClick={() => inputRef.current?.click()}
+                  onClick={(e) => { e.stopPropagation(); setViewerOpen(true) }}
+                >
+                  <ZoomIn className="w-3 h-3 mr-1" />
+                  查看
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
                   disabled={uploading}
                 >
                   <Pencil className="w-3 h-3 mr-1" />
@@ -113,7 +140,7 @@ export function ReferenceUploadZone({
                   <Button
                     variant="destructive"
                     size="xs"
-                    onClick={handleRemove}
+                    onClick={(e) => { e.stopPropagation(); handleRemove() }}
                     disabled={uploading}
                   >
                     <Trash2 className="w-3 h-3 mr-1" />
@@ -158,6 +185,10 @@ export function ReferenceUploadZone({
 
       {error && (
         <p className="text-xs text-destructive">{error}</p>
+      )}
+
+      {viewerOpen && previewUrl && (
+        <ImageViewer src={previewUrl} alt={label} onClose={() => setViewerOpen(false)} />
       )}
     </div>
   )

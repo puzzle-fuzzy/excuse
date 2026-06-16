@@ -177,6 +177,7 @@ export async function updateCharacterData(characterId: string, patch: {
   identityPrompt?: string
   negativePrompt?: string
   referenceImageUrl?: string
+  turnaroundSheetUrl?: string
   locked?: boolean
 }): Promise<CharacterDTO> {
   const updated = await updateCanvasCharacter(characterId, patch)

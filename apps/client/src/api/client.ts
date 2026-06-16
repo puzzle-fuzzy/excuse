@@ -422,6 +422,7 @@ export async function updateCanvasCharacter(characterId: string, patch: {
   identityPrompt?: string
   negativePrompt?: string
   referenceImageUrl?: string
+  turnaroundSheetUrl?: string
   locked?: boolean
 }): Promise<CanvasCharacterResponse> {
   return unwrapEden<CanvasCharacterResponse>(

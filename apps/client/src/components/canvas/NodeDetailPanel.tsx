@@ -60,6 +60,15 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
     return res.data.publicUrl
   }, [character, onUpdate])
 
+  const handleCharacterTurnaroundUpload = useCallback(async (file: File) => {
+    if (!character)
+      return ''
+    const res = await uploadFile(file)
+    await updateCanvasCharacter(character.id, { turnaroundSheetUrl: res.data.publicUrl })
+    onUpdate()
+    return res.data.publicUrl
+  }, [character, onUpdate])
+
   const handleLocationUpload = useCallback(async (file: File) => {
     if (!location)
       return ''
@@ -382,6 +391,16 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
               onUpdate()
             }}
             label="角色参考图"
+          />
+
+          <ReferenceUploadZone
+            currentUrl={character.turnaroundSheetUrl}
+            onUpload={handleCharacterTurnaroundUpload}
+            onRemove={async () => {
+              await updateCanvasCharacter(character.id, { turnaroundSheetUrl: '' })
+              onUpdate()
+            }}
+            label="转面图 / 三视图"
           />
 
           <Button

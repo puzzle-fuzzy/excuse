@@ -191,12 +191,14 @@ function CanvasFlowInner(props: {
     // Run dagre layout
     const laidOut = computeLayout(merged, builtEdges)
 
-    // Existing nodes keep their saved positions; new nodes get dagre positions
+    // Existing nodes keep their saved positions; new nodes get dagre positions.
+    // 立即保存 dagre 位置到 ref，避免第二 useEffect 触发前节点全部在 (0,0) 重叠。
     const final = laidOut.map((n) => {
       const saved = savedPositionsRef.current.get(n.id)
       if (saved) {
         return { ...n, position: saved }
       }
+      savedPositionsRef.current.set(n.id, n.position)
       return n
     })
 
