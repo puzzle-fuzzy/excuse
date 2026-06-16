@@ -24,7 +24,11 @@ import { setDb } from '../../src/db'
 
 import * as schema from '../../src/schema'
 
-const TEST_DATABASE_URL = 'postgres://excuse:excuse_dev@localhost:5433/excuse_test'
+/**
+ * 测试库连接串：优先用 DATABASE_URL（CI / 自定义环境），否则回落到本地 Docker 默认（localhost:5433）。
+ * CI 中 DATABASE_URL 指向 GitHub Actions postgres service（端口 5432），本地用 5433 避开宿主 PG。
+ */
+const TEST_DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://excuse:excuse_dev@localhost:5433/excuse_test'
 const MIGRATIONS_FOLDER = resolve(import.meta.dir, '../../drizzle')
 
 /** 单连接 drizzle 实例（max: 1 保证 BEGIN/ROLLBACK 作用域正确） */

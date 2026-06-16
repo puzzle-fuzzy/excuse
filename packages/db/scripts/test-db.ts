@@ -16,11 +16,20 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import postgres from 'postgres'
 
-const TEST_DATABASE_URL = 'postgres://excuse:excuse_dev@localhost:5433/excuse_test'
-const ADMIN_DATABASE_URL = 'postgres://excuse:excuse_dev@localhost:5433/excuse'
+/**
+ * 测试库连接串：优先用 DATABASE_URL（CI），否则回落到本地 Docker 默认（localhost:5433）。
+ */
+const TEST_DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://excuse:excuse_dev@localhost:5433/excuse_test'
+const ADMIN_DATABASE_URL = process.env.DATABASE_URL
+  ? process.env.DATABASE_URL.replace(/\/[^/?]*$/, '/excuse')
+  : 'postgres://excuse:excuse_dev@localhost:5433/excuse'
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 async function terminateStaleTestConnections(): Promise<void> {
+  // CI（DATABASE_URL 已设）postgres service 每个 job 全新，无残留连接需清理；
+  // 且 CI 只有 excuse_test 库、无独立 excuse admin 库，admin 连接会失败。本地才清理。
+  if (process.env.DATABASE_URL)
+    return
   const sql = postgres(ADMIN_DATABASE_URL, {
     max: 1,
     connectTimeout: 5,

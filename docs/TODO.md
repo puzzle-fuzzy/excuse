@@ -103,27 +103,7 @@
 
 ## P4：可观测性、CI 和测试体系
 
-### 1. CI 与本地验收不同口径
-
-问题：
-
-- 本地要求 `bun run test` 跑 server/worker/all packages，但 CI 只跑了部分 packages。
-- CI 没有跑 `bun run build`、`bun run check:boundaries`、`bun run test:db` 的完整口径。
-- Docker build 不在 CI 中，部署问题可能到发布时才发现。
-
-解决办法：
-
-- CI 改为复用根脚本：`bun run typecheck`、`bun run lint`、`bun run build`、`bun run test`、`bun run test:client`、`bun run test:db`、`bun run check:boundaries`。
-- 增加 Docker build job，至少验证 server/worker image target 能 build。
-- 对重任务使用 matrix/cache，但不要降低覆盖口径。
-
-验收：
-
-- CI 与 `docs/TODO.md` 验收命令一致。
-- 任一 package 测试失败都能阻断 PR。
-- Dockerfile 变更必须经过 CI build。
-
-### 2. 缺少端到端冒烟测试
+### 1. 缺少端到端冒烟测试
 
 问题：
 
