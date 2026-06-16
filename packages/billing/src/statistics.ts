@@ -1,5 +1,6 @@
 import type { BillingStatistics, CategoryBreakdown, CostDetail, DailyTrendItem, ModelBreakdown } from '@excuse/shared'
 import currency from 'currency.js'
+import { centsToYuan } from './utils'
 
 export interface CostRecord {
   model: string
@@ -111,8 +112,4 @@ export function aggregateStatistics(records: CostRecord[]): BillingStatistics {
     byModel,
     dailyTrend,
   }
-}
-
-function centsToYuan(cents: number): number {
-  return Math.round(cents * 100) / 10000
 }
