@@ -22,8 +22,7 @@
     "@excuse/shared": "workspace:*",
     "@excuse/subtitle-engine": "workspace:*",
     "@excuse/task-engine": "workspace:*",
-    "@excuse/workflow-engine": "workspace:*",
-    "drizzle-orm": "^0.44.2"
+    "@excuse/workflow-engine": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"
