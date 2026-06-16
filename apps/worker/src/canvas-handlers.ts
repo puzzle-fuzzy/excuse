@@ -7,6 +7,7 @@
 
 import type { TaskRow } from '@excuse/db'
 import type { WorkerConfig } from './config'
+import { createLogger } from '@excuse/shared'
 import {
   getCanvasProjectById,
   markPipelineRunFailed,
@@ -14,6 +15,8 @@ import {
   markPipelineRunSucceeded,
   pgClient,
 } from '@excuse/db'
+
+const logger = createLogger('canvas-handlers')
 import { executeCanvasAnalysis } from './canvas-analysis'
 import { executeCanvasCharacterRefs } from './canvas-character-refs'
 import { executeCanvasCharacters } from './canvas-characters'
@@ -60,7 +63,14 @@ async function markRunRunningAndNotify(task: TaskRow): Promise<string | null> {
   const pid = task.projectId
   if (!pid)
     throw new Error(`task ${task.id} has no projectId`)
-  const project = await getCanvasProjectById(pid)
+  let project
+  try {
+    project = await getCanvasProjectById(pid)
+  }
+  catch (dbErr) {
+    logger.error({ pid, dbErr, taskId: task.id }, 'getCanvasProjectById failed')
+    throw dbErr
+  }
   if (project) {
     const phaseKey = task.type.replace('canvas.', '')
     await notifyNodeViaPgNotify(project.accountId, task.projectId!, 'phase', phaseKey, 'running', undefined, undefined, runId)
