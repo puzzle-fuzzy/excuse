@@ -1,4 +1,5 @@
 import type { OSSConfig } from '@excuse/provider'
+import { isPublicMetricsCidrs, loadOSSConfig } from '@excuse/shared'
 
 /**
  * SMTP 邮件发送配置
@@ -46,10 +47,6 @@ export interface ServerConfig {
 
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production'
 
-function isPublicMetricsCidrs(cidrs: string[]): boolean {
-  return cidrs.some(cidr => cidr === '0.0.0.0/0' || cidr === '::/0' || cidr === '*')
-}
-
 export function validateProductionConfig(config: ServerConfig, env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV !== 'production')
     return
@@ -92,7 +89,7 @@ export function loadConfig(): ServerConfig {
     workerPollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS) || 5000,
     jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    oss: loadOSSConfig(),
+    oss: loadOSSConfig() as OSSConfig | undefined,
     smtp: loadSmtpConfig(),
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128')
@@ -109,33 +106,6 @@ export function loadConfig(): ServerConfig {
   validateProductionConfig(config)
 
   return config
-}
-
-/**
- * 加载阿里云 OSS 配置
- *
- * 四个必需变量（ACCESS_KEY_ID / SECRET / BUCKET / REGION）全部存在时才启用 OSS，
- * 否则返回 undefined，回退到本地磁盘存储。
- */
-function loadOSSConfig(): OSSConfig | undefined {
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET
-  const bucket = process.env.OSS_BUCKET
-  const region = process.env.OSS_REGION
-
-  if (!accessKeyId || !accessKeySecret || !bucket || !region) {
-    return undefined
-  }
-
-  return {
-    accessKeyId,
-    accessKeySecret,
-    bucket,
-    region,
-    endpoint: process.env.OSS_ENDPOINT || undefined,
-    uploadPrefix: process.env.OSS_UPLOAD_PREFIX || 'uploads',
-    generatedPrefix: process.env.OSS_GENERATED_PREFIX || 'generated',
-  }
 }
 
 /**

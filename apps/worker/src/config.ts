@@ -1,4 +1,5 @@
 import type { OSSConfig } from '@excuse/provider'
+import { isPublicMetricsCidrs, loadOSSConfig } from '@excuse/shared'
 
 export interface WorkerConfig {
   /** DashScope API Key */
@@ -21,10 +22,6 @@ export interface WorkerConfig {
   metricsAccessToken: string | undefined
   /** /metrics 端点允许的 CIDR / IP 列表（默认仅回环） */
   metricsAllowedCidrs: string[]
-}
-
-function isPublicMetricsCidrs(cidrs: string[]): boolean {
-  return cidrs.some(cidr => cidr === '0.0.0.0/0' || cidr === '::/0' || cidr === '*')
 }
 
 export function validateProductionConfig(config: WorkerConfig, env: NodeJS.ProcessEnv = process.env): void {
@@ -56,7 +53,7 @@ export function loadConfig(): WorkerConfig {
     staleTimeoutMs: Number(process.env.WORKER_STALE_TIMEOUT_MS) || 4 * 60 * 60 * 1000, // 4h
     claimTtlMs,
     sweepIntervalMs: Number(process.env.WORKER_SWEEP_INTERVAL_MS) || 60_000,
-    oss: loadOSSConfig(),
+    oss: loadOSSConfig() as OSSConfig | undefined,
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128').split(',').map(s => s.trim()).filter(Boolean),
   }
@@ -64,25 +61,4 @@ export function loadConfig(): WorkerConfig {
   validateProductionConfig(config)
 
   return config
-}
-
-function loadOSSConfig(): OSSConfig | undefined {
-  const accessKeyId = process.env.OSS_ACCESS_KEY_ID
-  const accessKeySecret = process.env.OSS_ACCESS_KEY_SECRET
-  const bucket = process.env.OSS_BUCKET
-  const region = process.env.OSS_REGION
-
-  if (!accessKeyId || !accessKeySecret || !bucket || !region) {
-    return undefined
-  }
-
-  return {
-    accessKeyId,
-    accessKeySecret,
-    bucket,
-    region,
-    endpoint: process.env.OSS_ENDPOINT || undefined,
-    uploadPrefix: process.env.OSS_UPLOAD_PREFIX || 'uploads',
-    generatedPrefix: process.env.OSS_GENERATED_PREFIX || 'generated',
-  }
 }
