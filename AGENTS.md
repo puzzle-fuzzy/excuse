@@ -140,9 +140,9 @@ All routes are under `/api`, mounted in `apps/server/src/index.ts`:
 - `/api/sse` — SSE event stream
 - `/api/billing/statistics` — cost stats
 - `/api/openai/*` — OpenAI-compatible gateway (chat completions, normalized via `@excuse/gateway`)
-- `/api/docs` + `/api/swagger` — Swagger UI
+- `/openapi` — OpenAPI 文档（Scalar UI）
 
-Server internals: domain logic in `src/modules/{canvas,generation,subtitle}/`, cross-cutting services in `src/services/{audit,metrics,sse-manager}.ts`, middleware in `src/plugins/`, helpers in `src/utils/`. Global plugins (applied before routes): OpenAPI + Swagger, `loggerPlugin`, `requestIdPlugin`, `rateLimitPlugin` (`@excuse/rate-limit`), CORS, static file serving for uploads. `export type App = typeof app` exported for Eden treaty type inference.
+Server internals: domain logic in `src/modules/{canvas,generation,subtitle}/`, cross-cutting services in `src/services/{audit,metrics,sse-manager}.ts`, middleware in `src/plugins/`, helpers in `src/utils/`. Global plugins (applied before routes): OpenAPI docs, `loggerPlugin`, `requestIdPlugin`, `rateLimitPlugin` (`@excuse/rate-limit`), CORS, static file serving for uploads. `export type App = typeof app` exported for Eden treaty type inference.
 
 ### Worker Structure (`apps/worker/src`)
 

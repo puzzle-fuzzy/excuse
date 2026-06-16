@@ -22,7 +22,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 EXPOSE 5007
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD bun -e "await fetch('http://127.0.0.1:5007/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+  CMD bun -e "await fetch('http://127.0.0.1:5007/api/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 CMD ["bun", "--env-file", ".env", "apps/server/src/index.ts"]
 
 FROM runtime-deps AS worker-runtime

@@ -72,7 +72,7 @@ bun run dev
 
 - 前端访问: http://localhost:8007
 - 后端 API: http://localhost:5007/api
-- API 文档（Swagger）: http://localhost:5007/api/swagger
+- API 文档（OpenAPI）: http://localhost:5007/openapi
 - Worker 健康检查: http://localhost:5100
 
 ## 脚本

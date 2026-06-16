@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { cors } from '@elysia/cors'
 import { staticPlugin } from '@elysia/static'
 import { openapi } from '@elysiajs/openapi'
-import { swagger } from '@elysiajs/swagger'
 import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { isPgTableNotFoundError, logger } from '@excuse/shared'
 import { Elysia } from 'elysia'
@@ -77,7 +76,7 @@ mkdirSync(uploadsDir, { recursive: true })
  * Elysia 应用实例
  *
  * 中间件注册顺序（从上到下依次生效）：
- *   OpenAPI / Swagger → 日志 → CORS → 静态文件 → 认证 → 各业务路由
+ *   OpenAPI → 日志 → CORS → 静态文件 → 认证 → 各业务路由
  */
 const app = new Elysia()
   .use(openapi({
@@ -112,21 +111,15 @@ const app = new Elysia()
     },
     path: '/openapi',
   }))
-  .use(swagger({
-    path: '/api/swagger',
-    documentation: {
-      info: {
-        title: 'Excuse API',
-        version: '0.1.0',
-        description: 'AI 内容生成平台 — 创意流水线 API 文档',
-      },
-    },
-  }))
   .use(loggerPlugin)
   .use(requestIdPlugin)
   .use(rateLimitPlugin)
   .use(cors({
-    origin: [config.frontendUrl, 'http://localhost:8007'],
+    // 生产环境收敛到仅允许配置的前端域名，避免开发地址（localhost:8007）
+    // 在线上仍被加入白名单带来的跨域安全隐患。
+    origin: process.env.NODE_ENV === 'production'
+      ? [config.frontendUrl]
+      : [config.frontendUrl, 'http://localhost:8007'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -198,3 +191,27 @@ checkFFmpegAsync().then((warnings) => {
     logger.warn(w)
   }
 })
+
+// ── 优雅退出 ──────────────────────────────────────────
+// K8s / 负载均衡滚动更新发 SIGTERM 时，等待 in-flight 请求完成后再退出，
+// 避免正在处理的 HTTP 请求和 SSE 长连接被硬中断。与 worker 的退出模式保持一致。
+const SERVER_GRACEFUL_TIMEOUT_MS = 30_000
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    logger.info({ signal }, '🛑 Server shutting down gracefully...')
+    const force = setTimeout(() => {
+      logger.warn('⏰ Graceful timeout exceeded, forcing exit')
+      process.exit(1)
+    }, SERVER_GRACEFUL_TIMEOUT_MS)
+
+    // app.stop() 关闭 HTTP server 并等待 in-flight 请求收尾，成功后正常退出。
+    app.stop().then(() => {
+      clearTimeout(force)
+      process.exit(0)
+    }).catch((err: unknown) => {
+      clearTimeout(force)
+      logger.error({ err }, 'Error during graceful stop')
+      process.exit(1)
+    })
+  })
+}
