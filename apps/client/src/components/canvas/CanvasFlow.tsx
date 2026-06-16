@@ -191,14 +191,13 @@ function CanvasFlowInner(props: {
     // Run dagre layout
     const laidOut = computeLayout(merged, builtEdges)
 
-    // Existing nodes keep their saved positions; new nodes get dagre positions.
-    // 立即保存 dagre 位置到 ref，避免第二 useEffect 触发前节点全部在 (0,0) 重叠。
+    // Existing nodes keep saved positions; new nodes get dagre positions.
+    // 不在此处保存——节点尚未被 DOM 测量（height=200 占位），保存会阻止第二 useEffect 的实测重排。
     const final = laidOut.map((n) => {
       const saved = savedPositionsRef.current.get(n.id)
       if (saved) {
         return { ...n, position: saved }
       }
-      savedPositionsRef.current.set(n.id, n.position)
       return n
     })
 
@@ -208,7 +207,7 @@ function CanvasFlowInner(props: {
     // 否则单次重新生成或在阶段内部图片开始/完成时，节点的「生成中」角标不会刷新（stale closure）。
   }, [project, runningPhase, pollData, getNodes, setNodes, setEdges])
 
-  // After render: capture measurements and re-layout new nodes once
+  // After render: capture measurements and re-layout nodes
   useEffect(() => {
     let timer: number | undefined
     const raf = requestAnimationFrame(() => {
@@ -216,43 +215,36 @@ function CanvasFlowInner(props: {
       if (current.length === 0)
         return
 
-      // Find new nodes that have been measured but don't have saved positions yet
-      const newlyMeasured = current.filter(
+      // 找出未保存位置但已有实测高度的节点（首帧全部未保存，后续只算新增）
+      const unsavedMeasured = current.filter(
         n => !savedPositionsRef.current.has(n.id) && n.measured?.height,
       )
 
-      if (newlyMeasured.length === 0) {
-        if (!fittedOnceRef.current) {
+      if (unsavedMeasured.length > 0) {
+        // 用实测高度重排并保存位置
+        const sig = current.map(n => `${n.id}:${n.measured?.height ?? 0}`).join('|')
+        if (sig !== measuredSigRef.current) {
+          measuredSigRef.current = sig
+          const laidOut = computeLayout(current, getEdges())
+          const final = laidOut.map((n) => {
+            const saved = savedPositionsRef.current.get(n.id)
+            if (saved) {
+              return { ...n, position: saved }
+            }
+            savedPositionsRef.current.set(n.id, n.position)
+            return n
+          })
+          setNodes(final)
+        }
+      }
+
+      // 首帧等所有节点都测量完并布局好后再 fitView
+      if (!fittedOnceRef.current) {
+        const allDone = current.every(n => savedPositionsRef.current.has(n.id))
+        if (allDone) {
           timer = window.setTimeout(fitView, 100, { padding: 0.15, duration: 300 })
           fittedOnceRef.current = true
         }
-        return
-      }
-
-      // Build signature to avoid re-layout loops
-      const sig = current.map(n => `${n.id}:${n.measured?.height ?? 0}`).join('|')
-      if (sig === measuredSigRef.current)
-        return
-      measuredSigRef.current = sig
-
-      // Re-layout with actual measurements
-      const laidOut = computeLayout(current, getEdges())
-
-      // Existing nodes keep positions; new nodes get updated positions and are saved
-      const final = laidOut.map((n) => {
-        const saved = savedPositionsRef.current.get(n.id)
-        if (saved) {
-          return { ...n, position: saved }
-        }
-        savedPositionsRef.current.set(n.id, n.position)
-        return n
-      })
-
-      setNodes(final)
-
-      if (!fittedOnceRef.current) {
-        timer = window.setTimeout(fitView, 100, { padding: 0.15, duration: 300 })
-        fittedOnceRef.current = true
       }
     })
     return () => {
@@ -260,7 +252,9 @@ function CanvasFlowInner(props: {
       if (timer)
         clearTimeout(timer)
     }
-  })
+    // 依赖 nodes：第一 useEffect 设 nodes 后会重跑，有机会捕获测量值
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, getNodes, getEdges])
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     onNodeClick?.(node.id, node.type ?? '')
