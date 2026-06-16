@@ -5,7 +5,7 @@ import { getUnreadCount, listNotifications, markAllNotificationsRead, markNotifi
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { COOLDOWN_MS, shouldSend } from '../services/notification-cooldown'
-import { notFound } from '../utils/errors'
+import { NotFoundError } from '../utils/app-errors'
 
 function serializeNotification(row: {
   id: string
@@ -71,10 +71,10 @@ export function createNotificationRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .patch('/:id/read', async ({ userId, params, set }) => {
+    .patch('/:id/read', async ({ userId, params }) => {
       const updated = await markNotificationRead(params.id, userId)
       if (!updated) {
-        return notFound(set, '通知不存在')
+        throw new NotFoundError('通知不存在')
       }
       return { success: true } satisfies MutationOkResponse
     }, {

@@ -11,7 +11,7 @@ import { runAssetRetentionCleanup } from '../services/asset-retention'
 import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
 import { fetchWorkerProviderCalls } from '../services/worker-metrics'
-import { conflict, forbidden, notFound } from '../utils/errors'
+import { ConflictError, ForbiddenError, NotFoundError } from '../utils/app-errors'
 import { notifyApiKeyRevoked } from './notifications'
 
 function canAccessAdmin(config: ServerConfig, userId: string, authMethod: 'jwt' | 'api_key' | null): boolean {
@@ -66,21 +66,21 @@ function toHealthSummary(record: ProviderModelHealth, now = Date.now()): AdminPr
 export function createAdminRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api/admin' })
     .use(createRequireAuthPlugin(config))
-    .derive(({ userId, authMethod, set }) => {
+    .derive(({ userId, authMethod }) => {
       if (!canAccessAdmin(config, userId, authMethod)) {
         return {
           adminAllowed: false as const,
-          adminDenied: () => forbidden(set, '无权访问管理后台'),
+          adminDenied: () => { throw new ForbiddenError('无权访问管理后台') },
         }
       }
       return {
         adminAllowed: true as const,
-        adminDenied: () => forbidden(set, '无权访问管理后台'),
+        adminDenied: () => { throw new ForbiddenError('无权访问管理后台') },
       }
     })
-    .get('/overview', async ({ userId, authMethod, set }) => {
+    .get('/overview', async ({ userId, authMethod }) => {
       if (!canAccessAdmin(config, userId, authMethod))
-        return forbidden(set, '无权访问管理后台')
+        throw new ForbiddenError('无权访问管理后台')
 
       const overview = await getAdminOverview()
       return {
@@ -126,13 +126,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .get('/tasks/:id', async ({ adminAllowed, adminDenied, params, set }) => {
+    .get('/tasks/:id', async ({ adminAllowed, adminDenied, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const detail = await getAdminTaskDetail(params.id)
       if (!detail)
-        return notFound(set, '任务不存在')
+        throw new NotFoundError('任务不存在')
 
       return {
         success: true,
@@ -147,13 +147,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .post('/tasks/:id/requeue', async ({ adminAllowed, adminDenied, params, set }) => {
+    .post('/tasks/:id/requeue', async ({ adminAllowed, adminDenied, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const task = await requeueAdminTask(params.id)
       if (!task)
-        return conflict(set, '任务不存在或当前状态不允许重排')
+        throw new ConflictError('任务不存在或当前状态不允许重排')
 
       return {
         success: true,
@@ -168,13 +168,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .post('/tasks/:id/cancel', async ({ adminAllowed, adminDenied, params, set }) => {
+    .post('/tasks/:id/cancel', async ({ adminAllowed, adminDenied, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const task = await cancelAdminTask(params.id)
       if (!task)
-        return conflict(set, '任务不存在或当前状态不允许取消')
+        throw new ConflictError('任务不存在或当前状态不允许取消')
 
       return {
         success: true,
@@ -219,13 +219,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .get('/users/:id', async ({ adminAllowed, adminDenied, params, set }) => {
+    .get('/users/:id', async ({ adminAllowed, adminDenied, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const detail = await getAdminUserDetail(params.id)
       if (!detail)
-        return notFound(set, '用户不存在')
+        throw new NotFoundError('用户不存在')
 
       return {
         success: true,
@@ -316,13 +316,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .post('/provider-health/:model/restore', async ({ adminAllowed, adminDenied, userId, params, set }) => {
+    .post('/provider-health/:model/restore', async ({ adminAllowed, adminDenied, userId, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const restored = await restoreProviderModelHealth(params.model)
       if (!restored)
-        return notFound(set, `模型 ${params.model} 无健康记录（从未失败过）`)
+        throw new NotFoundError(`模型 ${params.model} 无健康记录（从未失败过）`)
 
       await audit('admin_action', {
         accountId: userId ?? undefined,
@@ -514,7 +514,7 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .patch('/api-keys/:id/config', async ({ adminAllowed, adminDenied, params, body, set, userId }) => {
+    .patch('/api-keys/:id/config', async ({ adminAllowed, adminDenied, params, body, userId }) => {
       if (!adminAllowed)
         return adminDenied()
 
@@ -524,7 +524,7 @@ export function createAdminRoutes(config: ServerConfig) {
         quotaMaxCents: body.quotaMaxCents,
       })
       if (!updated)
-        return notFound(set, 'API Key 不存在')
+        throw new NotFoundError('API Key 不存在')
 
       audit('admin_action', {
         accountId: userId,
@@ -575,13 +575,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .get('/gateway-clients/:accountId', async ({ adminAllowed, adminDenied, params, set }) => {
+    .get('/gateway-clients/:accountId', async ({ adminAllowed, adminDenied, params }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const detail = await getAdminGatewayClientDetail(params.accountId)
       if (!detail)
-        return notFound(set, 'Gateway 客户不存在')
+        throw new NotFoundError('Gateway 客户不存在')
 
       const items = detail.keys.map(key => ({
         id: key.id,
@@ -635,13 +635,13 @@ export function createAdminRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .post('/api-keys/:id/revoke', async ({ adminAllowed, adminDenied, params, set, userId }) => {
+    .post('/api-keys/:id/revoke', async ({ adminAllowed, adminDenied, params, userId }) => {
       if (!adminAllowed)
         return adminDenied()
 
       const revoked = await revokeApiKeyAdmin(params.id)
       if (!revoked)
-        return conflict(set, 'API Key 不存在或已撤销')
+        throw new ConflictError('API Key 不存在或已撤销')
 
       audit('api_key_revoke', {
         accountId: userId,
@@ -663,7 +663,7 @@ export function createAdminRoutes(config: ServerConfig) {
     })
 
     // ── 管理后台充值 ────────────────────────────────────────────────────────
-    .post('/credit/add', async ({ adminAllowed, adminDenied, userId, body, set }) => {
+    .post('/credit/add', async ({ adminAllowed, adminDenied, userId, body }) => {
       if (!adminAllowed)
         return adminDenied()
 
@@ -679,7 +679,7 @@ export function createAdminRoutes(config: ServerConfig) {
       }
       catch (err) {
         const message = err instanceof Error ? err.message : '充值失败'
-        return conflict(set, message)
+        throw new ConflictError(message)
       }
 
       audit('admin_action', {

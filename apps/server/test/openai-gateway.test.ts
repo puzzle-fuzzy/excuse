@@ -627,9 +627,9 @@ describe('OpenAI 网关', () => {
 
       expect(error).toBeNull()
       expect(data).toBeTruthy()
-      expect(data!.object).toBe('list')
-      expect(data!.data.length).toBeGreaterThanOrEqual(1)
-      expect(data!.data[0].object).toBe('model')
+      expect((data! as { object: string, data: Array<{ object: string }> }).object).toBe('list')
+      expect((data! as { object: string, data: Array<{ object: string }> }).data.length).toBeGreaterThanOrEqual(1)
+      expect((data! as { object: string, data: Array<{ object: string }> }).data[0].object).toBe('model')
     })
   })
 

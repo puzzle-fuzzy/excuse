@@ -5,7 +5,7 @@ import { createApiKey, listApiKeysByAccount, revokeApiKey } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { notFound } from '../utils/errors'
+import { NotFoundError } from '../utils/app-errors'
 
 const VALID_SCOPES = ['all', 'gateway'] as const
 
@@ -93,10 +93,10 @@ export function createApiKeyRoutes(config: ServerConfig) {
         security: [{ bearerAuth: [] }],
       },
     })
-    .delete('/:id', async ({ userId, params, set }) => {
+    .delete('/:id', async ({ userId, params }) => {
       const revoked = await revokeApiKey(params.id, userId)
       if (!revoked)
-        return notFound(set, '密钥不存在或已撤销')
+        throw new NotFoundError('密钥不存在或已撤销')
 
       audit('api_key_revoke', { accountId: userId, targetId: params.id })
 

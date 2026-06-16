@@ -49,7 +49,7 @@ import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { conflict, notFound, validationError } from '../utils/errors'
+import { ConflictError, NotFoundError, ValidationError } from '../utils/app-errors'
 
 /**
  * 统一资产中心路由 — GET /api/assets
@@ -466,11 +466,11 @@ export function createAssetsRoutes(config: ServerConfig) {
     })
 
     // ── 隐藏资产（从资产中心移除，不删除 DB 记录） ──────────────────────────
-    .post('/assets/:source/:id/hide', async ({ params: { source, id }, userId, set }) => {
+    .post('/assets/:source/:id/hide', async ({ params: { source, id }, userId }) => {
       if (source === 'generation_record') {
         const record = await getGenerationRecordByIdForAccount(id, userId)
         if (!record)
-          return notFound(set, '生成记录不存在或无权限访问')
+          throw new NotFoundError('生成记录不存在或无权限访问')
         await hideGenerationRecord(id)
         audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id } })
         return { success: true }
@@ -479,16 +479,16 @@ export function createAssetsRoutes(config: ServerConfig) {
       if (source === 'canvas_asset') {
         const asset = await getCanvasAssetByIdForAccount(id, userId)
         if (!asset)
-          return notFound(set, 'Canvas 资产不存在或无权限访问')
+          throw new NotFoundError('Canvas 资产不存在或无权限访问')
         // 拒绝隐藏正在生成中的资产
         if (asset.status === 'queued' || asset.status === 'running')
-          return conflict(set, '正在生成中的资产不能隐藏')
+          throw new ConflictError('正在生成中的资产不能隐藏')
         await hideCanvasAsset(id)
         audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id } })
         return { success: true }
       }
 
-      return validationError(set, '只支持隐藏 generation_record 或 canvas_asset')
+      throw new ValidationError('只支持隐藏 generation_record 或 canvas_asset')
     }, {
       params: t.Object({
         source: t.Union([t.Literal('generation_record'), t.Literal('canvas_asset')]),
@@ -503,21 +503,21 @@ export function createAssetsRoutes(config: ServerConfig) {
     })
 
     // ── 取消隐藏（恢复误隐藏资产） ──────────────────────────────────────────
-    .post('/assets/:source/:id/unhide', async ({ params: { source, id }, userId, set }) => {
+    .post('/assets/:source/:id/unhide', async ({ params: { source, id }, userId }) => {
       if (source === 'generation_record') {
         const record = await getGenerationRecordByIdForAccount(id, userId)
         if (!record)
-          return notFound(set, '生成记录不存在或无权限访问')
+          throw new NotFoundError('生成记录不存在或无权限访问')
         await unhideGenerationRecord(id)
       }
       else if (source === 'canvas_asset') {
         const asset = await getCanvasAssetByIdForAccount(id, userId)
         if (!asset)
-          return notFound(set, 'Canvas 资产不存在或无权限访问')
+          throw new NotFoundError('Canvas 资产不存在或无权限访问')
         await unhideCanvasAsset(id)
       }
       else {
-        return validationError(set, '只支持取消隐藏 generation_record 或 canvas_asset')
+        throw new ValidationError('只支持取消隐藏 generation_record 或 canvas_asset')
       }
       audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id, action: 'unhide' } })
       return { success: true, source, id } satisfies AssetRestoreResponse
@@ -535,24 +535,24 @@ export function createAssetsRoutes(config: ServerConfig) {
     })
 
     // ── 软删除（引用守卫：仍被引用则 retained，不物理清除） ────────────────────
-    .delete('/assets/:source/:id', async ({ params: { source, id }, userId, set }) => {
+    .delete('/assets/:source/:id', async ({ params: { source, id }, userId }) => {
       // 归属校验 + 正在生成的 canvas_asset 拒绝删除
       if (source === 'canvas_asset') {
         const asset = await getCanvasAssetByIdForAccount(id, userId)
         if (!asset)
-          return notFound(set, 'Canvas 资产不存在或无权限访问')
+          throw new NotFoundError('Canvas 资产不存在或无权限访问')
         if (asset.status === 'queued' || asset.status === 'running')
-          return conflict(set, '正在生成中的资产不能删除')
+          throw new ConflictError('正在生成中的资产不能删除')
       }
       else if (source === 'generation_record') {
         const record = await getGenerationRecordByIdForAccount(id, userId)
         if (!record)
-          return notFound(set, '生成记录不存在或无权限访问')
+          throw new NotFoundError('生成记录不存在或无权限访问')
       }
       else if (source === 'uploaded_file') {
         const file = await getUploadedFileByIdForAccount(id, userId)
         if (!file)
-          return notFound(set, '上传文件不存在或无权限访问')
+          throw new NotFoundError('上传文件不存在或无权限访问')
       }
 
       // 引用守卫：决定 retained 标记（仍被引用 → GC 不物理清除）
@@ -582,7 +582,7 @@ export function createAssetsRoutes(config: ServerConfig) {
     })
 
     // ── 恢复（un-delete）软删除的资产 ────────────────────────────────────────
-    .post('/assets/:source/:id/restore', async ({ params: { source, id }, userId, set }) => {
+    .post('/assets/:source/:id/restore', async ({ params: { source, id }, userId }) => {
       let restored = false
       if (source === 'canvas_asset')
         restored = await restoreCanvasAsset(id, userId)
@@ -592,7 +592,7 @@ export function createAssetsRoutes(config: ServerConfig) {
         restored = await restoreUploadedFile(id, userId)
 
       if (!restored)
-        return notFound(set, '资产不存在或无权限访问')
+        throw new NotFoundError('资产不存在或无权限访问')
 
       audit('admin_action', { accountId: userId, targetId: id, detail: { source, id, action: 'restore' } })
       return { success: true, source, id } satisfies AssetRestoreResponse
@@ -661,10 +661,10 @@ export function createAssetsRoutes(config: ServerConfig) {
     // 不走 audit：与 favorite toggle 一致，避免扩 audit 枚举触碰既有 schema。
     // assign 时校验 tag 属于当前用户（避免给不存在 / 他人的标签打标）。
     // 资产本身的归属校验（assetId 是否属于当前用户）v1 暂不做（与 favorite endpoint 一致）。
-    .post('/assets/:source/:id/tags/:tagId', async ({ params: { source, id, tagId }, userId, set }) => {
+    .post('/assets/:source/:id/tags/:tagId', async ({ params: { source, id, tagId }, userId }) => {
       const tag = await findAssetTagById({ accountId: userId, tagId })
       if (!tag)
-        return notFound(set, '标签不存在')
+        throw new NotFoundError('标签不存在')
       await assignAssetTag({ accountId: userId, tagId, source, assetId: id })
       return { success: true as const }
     }, {

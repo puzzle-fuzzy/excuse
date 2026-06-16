@@ -6,7 +6,7 @@ import { Elysia, t } from 'elysia'
 import { AUTH_COOKIE_NAME, createAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { sendPasswordResetEmail } from '../services/email'
-import { conflict, forbidden, notFound, unauthorized, validationError } from '../utils/errors'
+import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../utils/app-errors'
 
 /**
  * 从账户行中剥离密码哈希并序列化 Date→string，返回 AuthUser DTO
@@ -54,17 +54,17 @@ export function createAuthRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api/auth' })
     .use(createAuthPlugin(config))
     // 注册
-    .post('/register', async ({ body, jwt, set, cookie: cookies }) => {
+    .post('/register', async ({ body, jwt, cookie: cookies }) => {
       const { username, email, password } = body
 
       const existingEmail = await getAccountByEmail(email)
       if (existingEmail) {
-        return conflict(set, '该邮箱已被注册')
+        throw new ConflictError('该邮箱已被注册')
       }
 
       const existingUsername = await getAccountByUsername(username)
       if (existingUsername) {
-        return conflict(set, '该用户名已被使用')
+        throw new ConflictError('该用户名已被使用')
       }
 
       const hashedPassword = await Bun.password.hash(password, 'bcrypt')
@@ -112,21 +112,21 @@ export function createAuthRoutes(config: ServerConfig) {
     })
 
     // 登录
-    .post('/login', async ({ body, jwt, set, request, cookie: cookies }) => {
+    .post('/login', async ({ body, jwt, request, cookie: cookies }) => {
       const { email, password } = body
 
       const account = await getAccountByEmail(email)
       if (!account) {
-        return unauthorized(set, '邮箱或密码错误')
+        throw new UnauthorizedError('邮箱或密码错误')
       }
 
       const valid = await Bun.password.verify(password, account.password, 'bcrypt')
       if (!valid) {
-        return unauthorized(set, '邮箱或密码错误')
+        throw new UnauthorizedError('邮箱或密码错误')
       }
 
       if (!account.isActive) {
-        return forbidden(set, '账户已被禁用')
+        throw new ForbiddenError('账户已被禁用')
       }
 
       const token = await jwt.sign({ sub: account.id })
@@ -167,14 +167,14 @@ export function createAuthRoutes(config: ServerConfig) {
     })
 
     // 获取当前用户信息
-    .get('/me', async ({ userId, set }) => {
+    .get('/me', async ({ userId }) => {
       if (!userId) {
-        return unauthorized(set, '未登录')
+        throw new UnauthorizedError('未登录')
       }
 
       const account = await getAccountById(userId)
       if (!account) {
-        return notFound(set, '用户不存在')
+        throw new NotFoundError('用户不存在')
       }
 
       return {
@@ -238,18 +238,18 @@ export function createAuthRoutes(config: ServerConfig) {
     })
 
     // ── 重置密码 ────────────────────────────────────────────────────────────
-    .post('/reset-password', async ({ body, set }) => {
+    .post('/reset-password', async ({ body }) => {
       const { token, password } = body
 
       if (password.length < 6) {
-        return validationError(set, '密码长度不能少于 6 位')
+        throw new ValidationError('密码长度不能少于 6 位')
       }
 
       // 哈希 token 并查找
       const tokenHash = new Bun.CryptoHasher('sha256').update(token).digest('hex')
       const consumed = await consumePasswordResetToken(tokenHash)
       if (!consumed) {
-        return validationError(set, '重置链接无效或已过期，请重新申请')
+        throw new ValidationError('重置链接无效或已过期，请重新申请')
       }
 
       // 更新密码

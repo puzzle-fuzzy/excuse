@@ -1,5 +1,6 @@
 import type { BillingParams, CostDetail, ModelPricing } from '@excuse/shared'
 import currency from 'currency.js'
+import { centsToYuan } from './utils'
 
 /**
  * currency.js 精度配置 — 4 位小数确保分→元转换和乘法累加时不丢精度
@@ -130,16 +131,4 @@ export function estimateCost(model: { pricing: ModelPricing } | { id: string, ca
   const result = calculateCost(model, params, undefined)
   result.estimated = true
   return result
-}
-
-/**
- * 分 → 元转换（保留 2 位小数）
- *
- * 算术: cents * 100 / 10000 = cents / 100
- * 使用 Math.round 避免浮点误差（例: 1999 → 19.99，而非 19.989999...）
- *
- * 不变量: totalPriceCents（整数分）为权威值，totalPrice（元）仅为展示派生值
- */
-function centsToYuan(cents: number): number {
-  return Math.round(cents * 100) / 10000
 }

@@ -8,6 +8,7 @@ import { hashApiKey, isApiKeySecret } from '@excuse/auth'
 import { findApiKeyByHash, touchApiKeyLastUsed } from '@excuse/db'
 import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 import { status, t } from 'elysia'
+import { errorHandlerPlugin } from './error-handler'
 
 /** httpOnly cookie 名称 */
 export const AUTH_COOKIE_NAME = 'auth_token'
@@ -64,6 +65,7 @@ async function resolveActiveUserId(userId: string): Promise<string | null> {
 export function createAuthPlugin(config: ServerConfig) {
   return (app: Elysia) =>
     app
+      .use(errorHandlerPlugin)
       .use(cookie())
       .use(bearer())
       .use(
@@ -169,6 +171,7 @@ export function createRequireAuthPlugin(config: ServerConfig) {
   return (app: Elysia) =>
     app
       .use(createAuthPlugin(config))
+      .use(errorHandlerPlugin)
       .resolve(({ userId }) => {
         if (!userId) {
           return status(401, { success: false, error: '请先登录' } satisfies ApiErrorResponse)

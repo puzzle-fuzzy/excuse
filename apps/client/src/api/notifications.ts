@@ -11,7 +11,7 @@ function toNotificationItem(row: NotificationDTO): NotificationItem {
 
 export async function fetchNotifications(): Promise<NotificationItem[]> {
   const res = await api.api.notifications.get()
-  const data = res.data
+  const data = res.data as { success: true, items: NotificationDTO[], total: number } | { success: false, error: string } | undefined
   if (!data?.success)
     throw new Error('获取通知列表失败')
   return data.items.map(toNotificationItem)
@@ -19,7 +19,7 @@ export async function fetchNotifications(): Promise<NotificationItem[]> {
 
 export async function fetchNotificationUnreadCount(): Promise<number> {
   const res = await api.api.notifications.unread.get()
-  const data = res.data
+  const data = res.data as { success: true, data: { count: number } } | { success: false, error: string } | undefined
   if (!data?.success)
     throw new Error('获取未读数失败')
   return data.data.count

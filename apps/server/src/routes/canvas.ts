@@ -67,7 +67,7 @@ import * as svc from '../modules/canvas/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { dispatchToUser } from '../services/sse-manager'
-import { conflict, forbidden, notFound, validationError } from '../utils/errors'
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/app-errors'
 import { notifyCanvasPhaseFailed } from './notifications'
 
 const logger = createLogger('canvas-routes')
@@ -225,44 +225,44 @@ export function createCanvasRoutes(config: ServerConfig) {
       }),
     })
 
-    .get('/projects/:projectId', async ({ params: { projectId }, userId, set }) => {
+    .get('/projects/:projectId', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const project = await svc.getProjectDetail(projectId)
       if (!project)
-        return notFound(set, '项目不存在')
+        throw new NotFoundError('项目不存在')
       return { success: true, data: project } satisfies CanvasProjectResponse
     })
 
     // 资产轮询 — SSE 断线或漏事件时的数据 fallback
-    .get('/projects/:projectId/assets/poll', async ({ params: { projectId }, userId, set }) => {
+    .get('/projects/:projectId/assets/poll', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const poll = await svc.getCanvasAssetsPoll(projectId)
       if (!poll)
-        return notFound(set, '项目不存在')
+        throw new NotFoundError('项目不存在')
       return { success: true, data: poll } satisfies CanvasAssetsPollResponse
     })
 
-    .delete('/projects/:projectId', async ({ params: { projectId }, userId, set }) => {
+    .delete('/projects/:projectId', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       await svc.softDeleteProject(projectId)
       audit('canvas_project_delete', { accountId: userId, targetId: projectId, detail: { projectId } })
       return { success: true } satisfies CanvasMutationOkResponse
     })
 
     // 更新项目标题/故事文本
-    .patch('/projects/:projectId', async ({ params: { projectId }, body, userId, set }) => {
+    .patch('/projects/:projectId', async ({ params: { projectId }, body, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const { title, storyText } = body
       if (title === undefined && storyText === undefined)
-        return validationError(set, '至少提供一个字段')
+        throw new ValidationError('至少提供一个字段')
       const project = await svc.updateProjectProperties(projectId, { title, storyText })
       return { success: true, data: project } satisfies CanvasProjectResponse
     }, {
@@ -273,22 +273,22 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // ===== Pipeline Run 查询 =====
-    .get('/projects/:projectId/runs', async ({ params: { projectId }, userId, set }) => {
+    .get('/projects/:projectId/runs', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const runs = await listPipelineRunsByProject(projectId)
       const serialized = runs.map(serializePipelineRun)
       return { success: true, items: serialized, total: serialized.length } satisfies CanvasPipelineRunListResponse
     })
 
-    .get('/runs/:runId', async ({ params: { runId }, userId, set }) => {
+    .get('/runs/:runId', async ({ params: { runId }, userId }) => {
       const run = await getPipelineRunById(runId)
       if (!run)
-        return notFound(set, '运行记录不存在')
+        throw new NotFoundError('运行记录不存在')
       const owned = await getCanvasProjectByIdForAccount(run.projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       return { success: true, data: serializePipelineRun(run) } satisfies CanvasPipelineRunResponse
     })
 
@@ -296,14 +296,14 @@ export function createCanvasRoutes(config: ServerConfig) {
     // 每个 phase 先检查是否有 active run (并发守卫)，
     // 无则创建 run 记录 → 返回 { accepted: true, runId } → 后台执行
     // 有则返回 409 { accepted: false, error, existingRunId }
-    .post('/projects/:projectId/analyze', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/analyze', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'analyze'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       // autoProgress=true → task-driven 模式（Worker 自动推进后续阶段）
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
@@ -314,14 +314,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.analyzeProject(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/characters', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/characters', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'characters'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -331,14 +331,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacters(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/locations', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/locations', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'locations'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -348,14 +348,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocations(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/character-refs', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/character-refs', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'characterRefs'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -365,14 +365,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacterRefs(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/location-refs', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/location-refs', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'locationRefs'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -382,14 +382,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocationRefs(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/storyboard', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/storyboard', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'storyboard'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       // autoProgress=true -> task-driven mode (Worker stepper handles subsequent phases)
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
@@ -400,14 +400,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateStoryboard(projectId, config, runId))
     })
 
-    .post('/projects/:projectId/continuity', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/continuity', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'continuity'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -417,14 +417,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.checkContinuity(projectId, runId))
     })
 
-    .post('/projects/:projectId/rebuild-prompts', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/rebuild-prompts', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'rebuild'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -434,14 +434,14 @@ export function createCanvasRoutes(config: ServerConfig) {
       return createFireAndForgetPhase(userId, projectId, phase, runId => svc.rebuildShotPrompts(projectId, runId))
     })
 
-    .post('/projects/:projectId/generate-videos', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/generate-videos', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const phase: CanvasPipelinePhase = 'videos'
       const activeRun = await findActiveRunForPhase(projectId, phase)
       if (activeRun)
-        return conflict(set, `该阶段已有进行中的任务`)
+        throw new ConflictError(`该阶段已有进行中的任务`)
 
       const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
       if (autoProgress) {
@@ -453,10 +453,10 @@ export function createCanvasRoutes(config: ServerConfig) {
 
     // ── 终止当前活跃阶段 ──────────────────────────────────
     // 取消 pipeline run + 关联 task + 项目所有活跃 canvas_asset
-    .post('/projects/:projectId/cancel-active', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/cancel-active', async ({ params: { projectId }, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
 
       // 查找项目所有可取消的 pipeline runs（pending 或 running 状态）
       const runs = await listPipelineRunsByProject(projectId)
@@ -495,10 +495,10 @@ export function createCanvasRoutes(config: ServerConfig) {
       return { cancelled: cancelledCount, message: `已取消 ${cancelledCount} 个活跃阶段` }
     })
 
-    .post('/projects/:projectId/layout', async ({ params: { projectId }, body, userId, set }) => {
+    .post('/projects/:projectId/layout', async ({ params: { projectId }, body, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       await svc.saveCanvasLayout(projectId, body)
       return { success: true } satisfies CanvasMutationOkResponse
     }, {
@@ -529,10 +529,10 @@ export function createCanvasRoutes(config: ServerConfig) {
       }),
     })
 
-    .patch('/projects/:projectId/model-preferences', async ({ params: { projectId }, body, userId, set }) => {
+    .patch('/projects/:projectId/model-preferences', async ({ params: { projectId }, body, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       const project = await svc.updateModelPreferences(projectId, body)
       return { success: true, data: project } satisfies CanvasProjectResponse
     }, {
@@ -545,10 +545,10 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // ===== 资源 PATCH =====
-    .patch('/characters/:characterId', async ({ params: { characterId }, body, userId, set }) => {
+    .patch('/characters/:characterId', async ({ params: { characterId }, body, userId }) => {
       const character = await getCanvasCharacterForAccount(characterId, userId)
       if (!character)
-        return notFound(set, '角色不存在或无权访问')
+        throw new NotFoundError('角色不存在或无权访问')
       const updated = await svc.updateCharacterData(characterId, body)
       return { success: true, data: updated } satisfies CanvasCharacterResponse
     }, {
@@ -563,10 +563,10 @@ export function createCanvasRoutes(config: ServerConfig) {
       }),
     })
 
-    .patch('/locations/:locationId', async ({ params: { locationId }, body, userId, set }) => {
+    .patch('/locations/:locationId', async ({ params: { locationId }, body, userId }) => {
       const location = await getCanvasLocationForAccount(locationId, userId)
       if (!location)
-        return notFound(set, '场景不存在或无权访问')
+        throw new NotFoundError('场景不存在或无权访问')
       const updated = await svc.updateLocationData(locationId, body)
       return { success: true, data: updated } satisfies CanvasLocationResponse
     }, {
@@ -580,10 +580,10 @@ export function createCanvasRoutes(config: ServerConfig) {
       }),
     })
 
-    .patch('/shots/:shotId', async ({ params: { shotId }, body, userId, set }) => {
+    .patch('/shots/:shotId', async ({ params: { shotId }, body, userId }) => {
       const shot = await getCanvasShotForAccount(shotId, userId)
       if (!shot)
-        return notFound(set, '镜头不存在或无权访问')
+        throw new NotFoundError('镜头不存在或无权访问')
 
       // 参考资产归属与 URL 可信度校验（v0.3）— 不信任前端 source，按 assetId 回查
       // undefined → 不修改；[] → 清空；数组 → 归一化去重后保存
@@ -593,7 +593,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       }
       catch (err) {
         if (err instanceof ReferenceAssetValidationError)
-          return err.status === 403 ? forbidden(set, err.message) : validationError(set, err.message)
+          throw err.status === 403 ? new ForbiddenError(err.message) : new ValidationError(err.message)
         throw err
       }
 
@@ -640,17 +640,17 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // ===== 批量应用参考资产 =====
-    .post('/projects/:projectId/shots/reference-assets/apply', async ({ params: { projectId }, body, userId, set }) => {
+    .post('/projects/:projectId/shots/reference-assets/apply', async ({ params: { projectId }, body, userId }) => {
       const owned = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!owned)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
 
       // 校验所有 targetShotIds 属于该项目
       const projectShots = await listCanvasShotsByProject(projectId)
       const validShotIds = new Set(projectShots.map(s => s.id))
       const invalidIds = body.targetShotIds.filter(id => !validShotIds.has(id))
       if (invalidIds.length > 0)
-        return validationError(set, `镜头 ${invalidIds.join(', ')} 不属于该项目`)
+        throw new ValidationError(`镜头 ${invalidIds.join(', ')} 不属于该项目`)
 
       // 校验 referenceAssetsJson 归属与 URL 可信度
       let validatedAssets: CanvasShotReferenceAsset[]
@@ -659,7 +659,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       }
       catch (err) {
         if (err instanceof ReferenceAssetValidationError)
-          return err.status === 403 ? forbidden(set, err.message) : validationError(set, err.message)
+          throw err.status === 403 ? new ForbiddenError(err.message) : new ValidationError(err.message)
         throw err
       }
 
@@ -700,35 +700,35 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // ===== 资源 DELETE =====
-    .delete('/characters/:characterId', async ({ params: { characterId }, userId, set }) => {
+    .delete('/characters/:characterId', async ({ params: { characterId }, userId }) => {
       const character = await getCanvasCharacterForAccount(characterId, userId)
       if (!character)
-        return notFound(set, '角色不存在或无权访问')
+        throw new NotFoundError('角色不存在或无权访问')
       await svc.deleteCharacter(characterId)
       return { success: true } satisfies CanvasMutationOkResponse
     })
 
-    .delete('/locations/:locationId', async ({ params: { locationId }, userId, set }) => {
+    .delete('/locations/:locationId', async ({ params: { locationId }, userId }) => {
       const location = await getCanvasLocationForAccount(locationId, userId)
       if (!location)
-        return notFound(set, '场景不存在或无权访问')
+        throw new NotFoundError('场景不存在或无权访问')
       await svc.deleteLocation(locationId)
       return { success: true } satisfies CanvasMutationOkResponse
     })
 
-    .delete('/shots/:shotId', async ({ params: { shotId }, userId, set }) => {
+    .delete('/shots/:shotId', async ({ params: { shotId }, userId }) => {
       const shot = await getCanvasShotForAccount(shotId, userId)
       if (!shot)
-        return notFound(set, '镜头不存在或无权访问')
+        throw new NotFoundError('镜头不存在或无权访问')
       await svc.deleteShot(shotId)
       return { success: true } satisfies CanvasMutationOkResponse
     })
 
     // 重试单个失败的镜头视频 — retry 不创建 pipeline run 记录
-    .post('/shots/:shotId/retry', async ({ params: { shotId }, userId, set }) => {
+    .post('/shots/:shotId/retry', async ({ params: { shotId }, userId }) => {
       const shot = await getCanvasShotForAccount(shotId, userId)
       if (!shot)
-        return notFound(set, '镜头不存在或无权访问')
+        throw new NotFoundError('镜头不存在或无权访问')
       svc.retryShotVideo(shotId, config).catch((err) => {
         logger.error({ err, shotId }, 'retry failed')
         updateCanvasProject(shot.projectId, { status: 'failed' }).catch(dbErr =>
@@ -746,10 +746,10 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // 批量重试项目中所有失败的镜头
-    .post('/projects/:projectId/retry-failed-shots', async ({ params: { projectId }, userId, set }) => {
+    .post('/projects/:projectId/retry-failed-shots', async ({ params: { projectId }, userId }) => {
       const project = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!project)
-        return notFound(set, '项目不存在或无权访问')
+        throw new NotFoundError('项目不存在或无权访问')
       svc.retryFailedShots(projectId, userId, config).catch((err) => {
         logger.error({ err, projectId }, 'batch retry failed shots error')
         dispatchToUser(userId, 'pipeline_node_update', {
@@ -766,10 +766,10 @@ export function createCanvasRoutes(config: ServerConfig) {
   // ── 单个实体重新生成（创建同级节点）──────────────────
 
     // 重新生成角色 profile — 创建新角色行（不删除旧角色）
-    .post('/characters/:characterId/regenerate', async ({ params: { characterId }, userId, set }) => {
+    .post('/characters/:characterId/regenerate', async ({ params: { characterId }, userId }) => {
       const character = await getCanvasCharacterForAccount(characterId, userId)
       if (!character)
-        return notFound(set, '角色不存在或无权访问')
+        throw new NotFoundError('角色不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: characterId, detail: { entityType: 'character', entityId: characterId, projectId: character.projectId } })
       svc.regenerateCharacter(characterId, config).catch((err) => {
         logger.error({ err, characterId }, 'regenerate character failed')
@@ -778,10 +778,10 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // 重新生成场景 profile — 创建新场景行（不删除旧场景）
-    .post('/locations/:locationId/regenerate', async ({ params: { locationId }, userId, set }) => {
+    .post('/locations/:locationId/regenerate', async ({ params: { locationId }, userId }) => {
       const location = await getCanvasLocationForAccount(locationId, userId)
       if (!location)
-        return notFound(set, '场景不存在或无权访问')
+        throw new NotFoundError('场景不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: locationId, detail: { entityType: 'location', entityId: locationId, projectId: location.projectId } })
       svc.regenerateLocation(locationId, config).catch((err) => {
         logger.error({ err, locationId }, 'regenerate location failed')
@@ -790,10 +790,10 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // 重新生成镜头视频 — 创建新镜头行（同级变体）并提交视频任务
-    .post('/shots/:shotId/regenerate', async ({ params: { shotId }, userId, set }) => {
+    .post('/shots/:shotId/regenerate', async ({ params: { shotId }, userId }) => {
       const shot = await getCanvasShotForAccount(shotId, userId)
       if (!shot)
-        return notFound(set, '镜头不存在或无权访问')
+        throw new NotFoundError('镜头不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: shotId, detail: { entityType: 'shot', entityId: shotId, projectId: shot.projectId } })
       svc.regenerateShotVideo(shotId, config).catch((err) => {
         logger.error({ err, shotId }, 'regenerate shot video failed')
@@ -804,25 +804,25 @@ export function createCanvasRoutes(config: ServerConfig) {
   // ===== 资产历史与选择 =====
 
     // 查询目标实体（角色/场景/镜头/项目）的历史资产
-    .get('/assets/:targetEntityType/:targetEntityId', async ({ params: { targetEntityType, targetEntityId }, userId, set }) => {
+    .get('/assets/:targetEntityType/:targetEntityId', async ({ params: { targetEntityType, targetEntityId }, userId }) => {
       // 权限校验：通过实体归属检查
       if (targetEntityType === 'character') {
         const character = await getCanvasCharacterForAccount(targetEntityId, userId)
         if (!character)
-          return notFound(set, '角色不存在或无权访问')
+          throw new NotFoundError('角色不存在或无权访问')
       }
       else if (targetEntityType === 'location') {
         const location = await getCanvasLocationForAccount(targetEntityId, userId)
         if (!location)
-          return notFound(set, '场景不存在或无权访问')
+          throw new NotFoundError('场景不存在或无权访问')
       }
       else if (targetEntityType === 'shot') {
         const shot = await getCanvasShotForAccount(targetEntityId, userId)
         if (!shot)
-          return notFound(set, '镜头不存在或无权访问')
+          throw new NotFoundError('镜头不存在或无权访问')
       }
       else {
-        return validationError(set, '不支持的实体类型')
+        throw new ValidationError('不支持的实体类型')
       }
 
       const assets = await listCanvasAssetsByTarget(targetEntityType, targetEntityId)
@@ -830,64 +830,64 @@ export function createCanvasRoutes(config: ServerConfig) {
     })
 
     // 切换资产为当前活跃版本（同时取消其他同类别资产的 isActive）
-    .patch('/asset/:assetId/activate', async ({ params: { assetId }, userId, set }) => {
+    .patch('/asset/:assetId/activate', async ({ params: { assetId }, userId }) => {
       const asset = await getCanvasAssetById(assetId)
       if (!asset)
-        return notFound(set, '资产不存在')
+        throw new NotFoundError('资产不存在')
 
       // 权限校验：通过实体归属间接验证
       if (asset.targetEntityType === 'character') {
         const character = await getCanvasCharacterForAccount(asset.targetEntityId, userId)
         if (!character)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
       else if (asset.targetEntityType === 'location') {
         const location = await getCanvasLocationForAccount(asset.targetEntityId, userId)
         if (!location)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
       else if (asset.targetEntityType === 'shot') {
         const shot = await getCanvasShotForAccount(asset.targetEntityId, userId)
         if (!shot)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
 
       if (asset.status !== 'succeeded')
-        return conflict(set, '只能将成功完成的资产设为活跃版本')
+        throw new ConflictError('只能将成功完成的资产设为活跃版本')
 
       const updated = await setCanvasAssetActive(assetId)
       if (!updated)
-        return notFound(set, '资产激活失败')
+        throw new NotFoundError('资产激活失败')
 
       return { success: true, data: updated }
     })
 
     // 切换资产锁定状态（锁定后不会被后续生成自动覆盖）
-    .patch('/asset/:assetId/lock', async ({ params: { assetId }, body, userId, set }) => {
+    .patch('/asset/:assetId/lock', async ({ params: { assetId }, body, userId }) => {
       const asset = await getCanvasAssetById(assetId)
       if (!asset)
-        return notFound(set, '资产不存在')
+        throw new NotFoundError('资产不存在')
 
       // 权限校验
       if (asset.targetEntityType === 'character') {
         const character = await getCanvasCharacterForAccount(asset.targetEntityId, userId)
         if (!character)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
       else if (asset.targetEntityType === 'location') {
         const location = await getCanvasLocationForAccount(asset.targetEntityId, userId)
         if (!location)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
       else if (asset.targetEntityType === 'shot') {
         const shot = await getCanvasShotForAccount(asset.targetEntityId, userId)
         if (!shot)
-          return notFound(set, '无权访问此资产')
+          throw new NotFoundError('无权访问此资产')
       }
 
       const updated = await setCanvasAssetLocked(assetId, body.locked)
       if (!updated)
-        return notFound(set, '资产更新失败')
+        throw new NotFoundError('资产更新失败')
 
       return { success: true, data: updated }
     }, {

@@ -3,7 +3,7 @@ import type { ServerConfig } from '../config'
 import { createAssetTag, deleteAssetTag, listAssetTags } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
-import { conflict, validationError } from '../utils/errors'
+import { ConflictError, ValidationError } from '../utils/app-errors'
 
 const MAX_NAME_LENGTH = 32
 
@@ -39,12 +39,12 @@ export function createAssetTagRoutes(config: ServerConfig) {
       },
     })
 
-    .post('/', async ({ userId, body, set }) => {
+    .post('/', async ({ userId, body }) => {
       const name = body.name.trim()
       if (!name)
-        return validationError(set, '标签名不能为空')
+        throw new ValidationError('标签名不能为空')
       if (name.length > MAX_NAME_LENGTH)
-        return validationError(set, `标签名最长 ${MAX_NAME_LENGTH} 字符`)
+        throw new ValidationError(`标签名最长 ${MAX_NAME_LENGTH} 字符`)
 
       try {
         const row = await createAssetTag({ accountId: userId, name })
@@ -54,7 +54,7 @@ export function createAssetTagRoutes(config: ServerConfig) {
         // 23505 = unique_violation：同账号重名
         const cause = (err as { cause?: { code?: string } }).cause
         if (cause?.code === '23505')
-          return conflict(set, '同名标签已存在')
+          throw new ConflictError('同名标签已存在')
         throw err
       }
     }, {

@@ -31,7 +31,7 @@ import { getTaskPriority } from '@excuse/task-engine'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/subtitle/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
-import { notFound } from '../utils/errors'
+import { NotFoundError } from '../utils/app-errors'
 
 export function createSubtitleRoutes(config: ServerConfig) {
   const asrClient = new ASRClient({
@@ -85,10 +85,10 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 获取字幕项目详情
-    .get('/projects/:id', async ({ params: { id }, userId, set }) => {
+    .get('/projects/:id', async ({ params: { id }, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
       return { success: true, data: serializeProject(project) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
@@ -100,15 +100,15 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 更新字幕句子（用户编辑后保存）
-    .patch('/projects/:id/sentences', async ({ params: { id }, body, userId, set }) => {
+    .patch('/projects/:id/sentences', async ({ params: { id }, body, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
 
       await updateSubtitleSentences(id, body.sentences)
       const updated = await getSubtitleProjectForAccount(id, userId)
       if (!updated)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
       return { success: true, data: serializeProject(updated) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
@@ -130,15 +130,15 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 更新字幕样式配置
-    .patch('/projects/:id/style', async ({ params: { id }, body, userId, set }) => {
+    .patch('/projects/:id/style', async ({ params: { id }, body, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
 
       await updateSubtitleStyle(id, body.styleConfig as SubtitleStyleConfig)
       const updated = await getSubtitleProjectForAccount(id, userId)
       if (!updated)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
       return { success: true, data: serializeProject(updated) } satisfies SubtitleProjectResponse
     }, {
       params: t.Object({ id: t.String() }),
@@ -163,16 +163,16 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 提交导出任务 — 创建 generation_record + media.burn-subtitle 任务
-    .post('/projects/:id/export', async ({ params: { id }, userId, set }) => {
+    .post('/projects/:id/export', async ({ params: { id }, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
 
       if (!project.sentences || project.sentences.length === 0)
-        return notFound(set, '没有字幕内容，无法导出')
+        throw new NotFoundError('没有字幕内容，无法导出')
 
       if (['draft', 'extracting_audio', 'asr_processing', 'exporting'].includes(project.status))
-        return notFound(set, '项目正在处理或尚未完成字幕识别，无法导出')
+        throw new NotFoundError('项目正在处理或尚未完成字幕识别，无法导出')
 
       // 创建导出 generation_record
       const exportRecord = await createGenerationRecord({
@@ -221,13 +221,13 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 重试失败项目 — 智能跳过已完成的步骤
-    .post('/projects/:id/retry', async ({ params: { id }, userId, set }) => {
+    .post('/projects/:id/retry', async ({ params: { id }, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
 
       if (project.status !== 'failed')
-        return notFound(set, '只有失败状态的项目才能重试')
+        throw new NotFoundError('只有失败状态的项目才能重试')
 
       const retried = await svc.retryProject(project, userId, deps)
 
@@ -243,10 +243,10 @@ export function createSubtitleRoutes(config: ServerConfig) {
     })
 
     // 删除字幕项目
-    .delete('/projects/:id', async ({ params: { id }, userId, set }) => {
+    .delete('/projects/:id', async ({ params: { id }, userId }) => {
       const project = await getSubtitleProjectForAccount(id, userId)
       if (!project)
-        return notFound(set, '字幕项目不存在或无权访问')
+        throw new NotFoundError('字幕项目不存在或无权访问')
 
       await deleteSubtitleProject(id)
       return { success: true } satisfies SubtitleMutationOkResponse

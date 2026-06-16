@@ -19,9 +19,9 @@ import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
+import { ForbiddenError, NotFoundError, PaymentRequiredError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
 import { createDedupeKey } from '../utils/dedupe-key'
-import { forbidden, notFound, paymentRequired, validationError } from '../utils/errors'
 import { notifyInsufficientBalance } from './notifications'
 
 /**
@@ -90,20 +90,20 @@ export function createGenerateRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api' })
     .use(createRequireAuthPlugin(config))
     // 发起生成
-    .post('/generate', async ({ body, userId, set }) => {
+    .post('/generate', async ({ body, userId }) => {
       const { model, parameters, referenceFileIds } = body
 
       // 模型校验 — 只允许模型配置中声明过的参数进入 provider
       const modelConfig = getModelById(model)
       if (!modelConfig) {
-        return validationError(set, `Unknown model: ${model}`)
+        throw new ValidationError(`Unknown model: ${model}`)
       }
 
       // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
       const validationResult = validateAndMerge(modelConfig, parameters)
       if (!validationResult.ok) {
         const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-        return validationError(set, detail)
+        throw new ValidationError(detail)
       }
       const validatedParams = validationResult.params
 
@@ -118,9 +118,7 @@ export function createGenerateRoutes(config: ServerConfig) {
           windowMs: 60 * 1000,
         })
         if (!allowed) {
-          set.status = 429
-          set.headers['Retry-After'] = String(retryAfterSec)
-          return { success: false, error: `视频生成请求过于频繁，请 ${retryAfterSec} 秒后再试` }
+          throw new RateLimitError(`视频生成请求过于频繁，请 ${retryAfterSec} 秒后再试`, retryAfterSec)
         }
       }
 
@@ -129,7 +127,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       if (referenceFileIds?.length) {
         const refResult = await svc.resolveReferenceUrls(referenceFileIds, userId)
         if (!refResult.ok) {
-          return forbidden(set, refResult.error)
+          throw new ForbiddenError(refResult.error)
         }
         referenceUrls = refResult.urls
       }
@@ -188,7 +186,7 @@ export function createGenerateRoutes(config: ServerConfig) {
             await notifyInsufficientBalance(userId).catch(() => {})
           }
           await markGenerationFailed(record.id, message)
-          return paymentRequired(set, message)
+          throw new PaymentRequiredError(message)
         }
       }
 
@@ -263,15 +261,15 @@ export function createGenerateRoutes(config: ServerConfig) {
     })
 
     // 获取单条记录详情
-    .get('/records/:id', async ({ params, userId, set }) => {
+    .get('/records/:id', async ({ params, userId }) => {
       const record = await getGenerationRecordById(params.id)
 
       if (!record) {
-        return notFound(set, '记录不存在')
+        throw new NotFoundError('记录不存在')
       }
 
       if (record.accountId !== userId) {
-        return forbidden(set, '无权查看该记录')
+        throw new ForbiddenError('无权查看该记录')
       }
 
       return { success: true, record: serializeRecord(record) } satisfies GenerationRecordResponse
@@ -288,13 +286,13 @@ export function createGenerateRoutes(config: ServerConfig) {
     })
 
     // 删除单条记录
-    .delete('/records/:id', async ({ params, userId, set }) => {
+    .delete('/records/:id', async ({ params, userId }) => {
       const record = await getGenerationRecordById(params.id)
       if (!record) {
-        return notFound(set, '记录不存在')
+        throw new NotFoundError('记录不存在')
       }
       if (record.accountId !== userId) {
-        return forbidden(set, '无权删除该记录')
+        throw new ForbiddenError('无权删除该记录')
       }
 
       await deleteGenerationRecord(params.id)
@@ -312,19 +310,19 @@ export function createGenerateRoutes(config: ServerConfig) {
     })
 
     // 重试失败任务 — 重走完整的 provider 调用流程（参数校验 → 调用 → 结果处理）
-    .post('/records/:id/retry', async ({ params, userId, set }) => {
+    .post('/records/:id/retry', async ({ params, userId }) => {
       const record = await getGenerationRecordById(params.id)
       if (!record)
-        return notFound(set, '记录不存在')
+        throw new NotFoundError('记录不存在')
       if (record.accountId !== userId)
-        return forbidden(set, '无权操作该记录')
+        throw new ForbiddenError('无权操作该记录')
       // 只能重试 failed 或 cancelled 的任务
       if (record.status !== 'failed' && record.status !== 'cancelled')
-        return validationError(set, '只能重试失败或已取消的任务')
+        throw new ValidationError('只能重试失败或已取消的任务')
 
       const modelConfig = getModelById(record.model)
       if (!modelConfig)
-        return validationError(set, `Unknown model: ${record.model}`)
+        throw new ValidationError(`Unknown model: ${record.model}`)
 
       // 视频模型独立限流 — 重试同样受限于 5 次/分钟
       if (modelConfig.category === 'video') {
@@ -335,9 +333,7 @@ export function createGenerateRoutes(config: ServerConfig) {
           windowMs: 60 * 1000,
         })
         if (!allowed) {
-          set.status = 429
-          set.headers['Retry-After'] = String(retryAfterSec)
-          return { success: false, error: `视频生成请求过于频繁，请 ${retryAfterSec} 秒后再试` }
+          throw new RateLimitError(`视频生成请求过于频繁，请 ${retryAfterSec} 秒后再试`, retryAfterSec)
         }
       }
 
@@ -351,7 +347,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       if (referenceFileIds?.length) {
         const refResult = await svc.resolveReferenceUrls(referenceFileIds, userId)
         if (!refResult.ok) {
-          return forbidden(set, refResult.error)
+          throw new ForbiddenError(refResult.error)
         }
         referenceUrls = refResult.urls
       }
@@ -368,7 +364,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       const validationResult = validateAndMerge(modelConfig, rawParameters)
       if (!validationResult.ok) {
         const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-        return validationError(set, detail)
+        throw new ValidationError(detail)
       }
       const validatedParams = validationResult.params
 
@@ -405,7 +401,7 @@ export function createGenerateRoutes(config: ServerConfig) {
             await notifyInsufficientBalance(userId).catch(() => {})
           }
           await markGenerationFailed(record.id, message)
-          return paymentRequired(set, message)
+          throw new PaymentRequiredError(message)
         }
       }
 
@@ -440,16 +436,16 @@ export function createGenerateRoutes(config: ServerConfig) {
     })
 
     // 取消进行中的任务 — provider 取消(best-effort) + DB 取消 + SSE 推送
-    .post('/records/:id/cancel', async ({ params, userId, set }) => {
+    .post('/records/:id/cancel', async ({ params, userId }) => {
       const record = await getGenerationRecordById(params.id)
       if (!record)
-        return notFound(set, '记录不存在')
+        throw new NotFoundError('记录不存在')
       if (record.accountId !== userId)
-        return forbidden(set, '无权操作该记录')
+        throw new ForbiddenError('无权操作该记录')
       // 可取消的状态：pending、submitting、processing、saving_output
       const CANCELLABLE_STATUSES = ['pending', 'submitting', 'processing', 'saving_output'] as const
       if (!CANCELLABLE_STATUSES.includes(record.status as typeof CANCELLABLE_STATUSES[number])) {
-        return validationError(set, `只能取消进行中的任务（当前状态: ${record.status}）`)
+        throw new ValidationError(`只能取消进行中的任务（当前状态: ${record.status}）`)
       }
 
       const updatedRecord = await svc.cancelGeneration(record.id, userId, record, deps)

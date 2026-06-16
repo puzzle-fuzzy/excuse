@@ -6,7 +6,7 @@ export async function listApiKeys(): Promise<ApiKeyDTO[]> {
   const data = res.data
   if (!data?.success)
     throw new Error('加载 API 密钥列表失败')
-  return data.items
+  return (data as { success: true, items: ApiKeyDTO[], total: number }).items
 }
 
 export async function createApiKey(input: { name?: string, scope?: string }): Promise<CreatedApiKey> {
@@ -14,7 +14,7 @@ export async function createApiKey(input: { name?: string, scope?: string }): Pr
   const data = res.data
   if (!data?.success)
     throw new Error('创建 API 密钥失败')
-  return data.data
+  return (data as { success: true, data: CreatedApiKey }).data
 }
 
 export async function revokeApiKey(id: string): Promise<void> {

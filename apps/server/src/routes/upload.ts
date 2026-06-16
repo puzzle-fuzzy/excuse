@@ -8,7 +8,7 @@ import { createLogger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { conflict, forbidden, notFound, validationError } from '../utils/errors'
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitError, ValidationError } from '../utils/app-errors'
 
 const logger = createLogger('upload')
 
@@ -117,25 +117,25 @@ export function createUploadRoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api' })
     .use(createRequireAuthPlugin(config))
     // 文件上传
-    .post('/upload', async ({ body, userId, set }) => {
+    .post('/upload', async ({ body, userId }) => {
       const file = body.file
       if (!file) {
-        return validationError(set, 'No file provided')
+        throw new ValidationError('No file provided')
       }
 
       if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-        return validationError(set, `不支持的文件类型: ${file.type}，仅允许 PNG/JPEG/WebP/GIF/MP4/WebM/MOV/AVI`)
+        throw new ValidationError(`不支持的文件类型: ${file.type}，仅允许 PNG/JPEG/WebP/GIF/MP4/WebM/MOV/AVI`)
       }
 
       if (file.size > MAX_FILE_SIZE) {
-        return validationError(set, `文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）`)
+        throw new ValidationError(`文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）`)
       }
 
       // Magic bytes 校验 —— 防止客户端伪造 MIME 声明
       const buffer = new Uint8Array(await file.arrayBuffer())
       const detectedType = detectMimeType(buffer)
       if (!detectedType) {
-        return validationError(set, '无法识别的文件类型，请检查文件内容')
+        throw new ValidationError('无法识别的文件类型，请检查文件内容')
       }
 
       // 客户端声明的 MIME 与 magic bytes 不符：拒绝上传
@@ -145,18 +145,14 @@ export function createUploadRoutes(config: ServerConfig) {
         // 放宽：客户端声明 video/quicktime 但实际是 MP4 容器视为允许
         const isVideoRelaxed = clientType.startsWith('video/') && detectedType.startsWith('video/')
         if (!isVideoRelaxed) {
-          return validationError(set, `文件类型不匹配：声明 ${clientType}，实际 ${detectedType}`)
+          throw new ValidationError(`文件类型不匹配：声明 ${clientType}，实际 ${detectedType}`)
         }
       }
 
       // 单用户上传频次限制（per-account 维度，与全局限流分开）
       const rateCheck = UPLOAD_RATE_LIMITER.check({ userId, category: 'upload', maxRequests: UPLOAD_RATE_LIMIT.maxRequests, windowMs: UPLOAD_RATE_LIMIT.windowMs })
       if (!rateCheck.allowed) {
-        set.status = 429
-        return {
-          success: false,
-          error: '上传过于频繁，请稍后再试',
-        }
+        throw new RateLimitError('上传过于频繁，请稍后再试', rateCheck.retryAfterSec)
       }
 
       const subDir = `ref_${Date.now()}`
@@ -189,19 +185,19 @@ export function createUploadRoutes(config: ServerConfig) {
     })
 
     // 删除上传文件（安全语义：先检查使用 → 先删 DB → 后删存储）
-    .delete('/upload/:id', async ({ params: { id }, userId, set }) => {
+    .delete('/upload/:id', async ({ params: { id }, userId }) => {
       const record = await getUploadedFileById(id)
       if (!record) {
-        return notFound(set, '文件不存在')
+        throw new NotFoundError('文件不存在')
       }
       if (record.accountId !== userId) {
-        return forbidden(set, '无权删除该文件')
+        throw new ForbiddenError('无权删除该文件')
       }
 
       // 使用中保护：被字幕项目或生成记录引用时不允许删除
       const usage = await getUploadedFileUsage(userId, id)
       if (usage.subtitleProjectCount > 0 || usage.generationRecordCount > 0) {
-        return conflict(set, '该文件正在被字幕项目或生成记录使用，暂不能删除')
+        throw new ConflictError('该文件正在被字幕项目或生成记录使用，暂不能删除')
       }
 
       // 安全删除顺序：先删 DB 记录，再删存储文件
@@ -231,34 +227,34 @@ export function createUploadRoutes(config: ServerConfig) {
     })
 
     // 编辑上传文件（重命名/用途）
-    .patch('/upload/:id', async ({ params: { id }, body, userId, set }) => {
+    .patch('/upload/:id', async ({ params: { id }, body, userId }) => {
       const record = await getUploadedFileById(id)
       if (!record) {
-        return notFound(set, '文件不存在')
+        throw new NotFoundError('文件不存在')
       }
       if (record.accountId !== userId) {
-        return forbidden(set, '无权编辑该文件')
+        throw new ForbiddenError('无权编辑该文件')
       }
 
       const patch: UploadedFilePatch = {}
       if (body.fileName !== undefined) {
         const trimmed = body.fileName.trim()
         if (!trimmed) {
-          return validationError(set, '文件名不能为空')
+          throw new ValidationError('文件名不能为空')
         }
         patch.fileName = trimmed
       }
       if (body.purpose !== undefined) {
         const trimmed = body.purpose.trim()
         if (!trimmed) {
-          return validationError(set, '用途不能为空')
+          throw new ValidationError('用途不能为空')
         }
         patch.purpose = trimmed
       }
 
       const updated = await updateUploadedFile(id, userId, patch)
       if (!updated) {
-        return notFound(set, '文件不存在')
+        throw new NotFoundError('文件不存在')
       }
 
       audit('file_update', { accountId: userId, targetId: id })

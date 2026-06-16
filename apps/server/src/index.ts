@@ -8,6 +8,7 @@ import { isPgTableNotFoundError, logger } from '@excuse/shared'
 import { Elysia } from 'elysia'
 import { loadConfig } from './config'
 import { createAuthPlugin } from './plugins/auth'
+import { errorHandlerPlugin } from './plugins/error-handler'
 import { loggerPlugin } from './plugins/logger'
 import { rateLimitPlugin } from './plugins/rate-limit'
 import { requestIdPlugin } from './plugins/request-id'
@@ -137,6 +138,8 @@ const app = new Elysia()
     assets: uploadsDir,
     prefix: '/api/uploads',
   }))
+  // 统一错误处理 — 在路由之前注册，捕获所有下游抛出的 AppError
+  .use(errorHandlerPlugin)
   .use(createAuthPlugin(config))
   .use(createAuthRoutes(config))
   .use(createAdminRoutes(config))
