@@ -22,8 +22,9 @@ import {
   updateSubtitleProjectStatus,
 } from '@excuse/db'
 import { ASRClient, AssetStorage, burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/provider'
-import { createLogger } from '@excuse/shared'
+import { createLogger, parseMediaBurnSubtitleInput, parseMediaExtractAudioInput } from '@excuse/shared'
 import { getDefaultStyleConfig, sentencesToAss } from '@excuse/subtitle-engine'
+import { TaskInputError } from '@excuse/task-engine'
 
 const logger = createLogger('media-handlers')
 
@@ -47,11 +48,14 @@ type WorkerTaskOutput = Record<string, unknown> | undefined
  */
 export async function handleMediaExtractAudio(task: TaskRow, config: WorkerConfig): Promise<WorkerTaskOutput> {
   const { projectId, accountId } = task
-  const input = task.input as { videoFileId: string, projectId: string } | undefined
-  const videoFileId = input?.videoFileId
+  // 解析 JSONB task.input（缺字段/类型错 → 分类 validation 永久失败，不重试）
+  const parsed = parseMediaExtractAudioInput(task.input)
+  if (!parsed.ok)
+    throw new TaskInputError(parsed.error)
+  const videoFileId = parsed.input.videoFileId
 
-  if (!projectId || !accountId || !videoFileId) {
-    throw new Error('media.extract-audio: missing projectId, accountId, or videoFileId in task')
+  if (!projectId || !accountId) {
+    throw new TaskInputError('media.extract-audio: missing projectId or accountId in task row')
   }
 
   const storage = new AssetStorage({
@@ -186,11 +190,14 @@ export async function handleMediaExtractAudio(task: TaskRow, config: WorkerConfi
  */
 export async function handleMediaBurnSubtitle(task: TaskRow, config: WorkerConfig): Promise<WorkerTaskOutput> {
   const { projectId, accountId } = task
-  const input = task.input as { exportRecordId: string } | undefined
-  const exportRecordId = input?.exportRecordId
+  // 解析 JSONB task.input（缺字段/类型错 → 分类 validation 永久失败，不重试）
+  const parsed = parseMediaBurnSubtitleInput(task.input)
+  if (!parsed.ok)
+    throw new TaskInputError(parsed.error)
+  const exportRecordId = parsed.input.exportRecordId
 
-  if (!projectId || !accountId || !exportRecordId) {
-    throw new Error('media.burn-subtitle: missing projectId, accountId, or exportRecordId in task')
+  if (!projectId || !accountId) {
+    throw new TaskInputError('media.burn-subtitle: missing projectId or accountId in task row')
   }
 
   const storage = new AssetStorage({

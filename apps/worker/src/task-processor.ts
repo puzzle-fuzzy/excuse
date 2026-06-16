@@ -19,7 +19,7 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import { AssetStorage, DashScopeClient, getModelById } from '@excuse/provider'
-import { createLogger, extractBillingParams } from '@excuse/shared'
+import { createLogger, extractBillingParams, parseGenerationInputParamsMeta } from '@excuse/shared'
 import { audit } from './services/audit'
 
 const logger = createLogger('worker-processor')
@@ -96,8 +96,10 @@ export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskPro
     cost: CostDetail | null
   }): Promise<TaskResult> {
     const inputParams = record.inputParams ?? {}
-    const canvasMeta = inputParams.source === 'canvas'
-      ? { projectId: String(inputParams.projectId), shotId: String(inputParams.shotId) }
+    // 安全提取 inputParams 元字段（source/projectId/shotId），避免 String(undefined)
+    const inputMeta = parseGenerationInputParamsMeta(inputParams)
+    const canvasMeta = inputMeta.source === 'canvas' && inputMeta.projectId
+      ? { projectId: inputMeta.projectId, shotId: inputMeta.shotId ?? '' }
       : undefined
     const taskId = record.taskId
     if (!taskId) {

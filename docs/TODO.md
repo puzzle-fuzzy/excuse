@@ -81,26 +81,7 @@
 
 ## P3：后端 API、数据模型和类型边界
 
-### 1. 运行时请求校验覆盖不均衡
-
-问题：
-
-- Eden treaty 解决 TS 调用体验，但运行时仍需要服务端 schema 保护；部分路由依赖手动解析或隐式类型。
-- JSONB 字段较多，`TaskInput`、`TaskOutput`、`GenerationInputParams`、Canvas references 等若缺少 parser，脏输入会延迟到 worker 才爆。
-
-解决办法：
-
-- 路由入口统一使用 Elysia schema 或 zod/valibot parser；外部输入、admin mutation、worker task input 必须 runtime parse。
-- 为 JSONB domain type 增加 parser/normalizer，禁止在业务代码里直接相信 `Record<string, unknown>`。
-- 对 provider/model 参数继续使用声明式 model config validation，不在 route/worker 写散落判断。
-
-验收：
-
-- 主要 POST/PATCH route 有运行时 schema。
-- worker handler 收到非法 task input 时能分类失败，不会抛未结构化错误。
-- JSONB parser 有单元测试覆盖坏数据、缺字段、旧数据兼容。
-
-### 2. 数据查询性能和索引需要按真实访问路径复核
+### 1. 数据查询性能和索引需要按真实访问路径复核
 
 问题：
 

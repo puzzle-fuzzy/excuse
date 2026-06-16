@@ -14,6 +14,7 @@ import {
   getTaskPriority,
   shouldRetryTask,
   sweepOrphanTasksWithAdapter,
+  TaskInputError,
   TaskNotImplementedError,
 } from '../src'
 
@@ -25,6 +26,16 @@ describe('@excuse/task-engine', () => {
       category: 'validation',
       retriable: false,
       message: 'Task handler not implemented: generate.video',
+    })
+  })
+
+  it('任务输入非法（TaskInputError）分类为 validation 且不可重试', () => {
+    const decision = classifyTaskError(new TaskInputError('media.extract-audio input missing videoFileId'))
+
+    expect(decision).toEqual({
+      category: 'validation',
+      retriable: false,
+      message: 'media.extract-audio input missing videoFileId',
     })
   })
 

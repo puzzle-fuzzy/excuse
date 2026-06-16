@@ -213,13 +213,13 @@ function makeBurnTask(overrides: Partial<TaskRow> = {}): TaskRow {
 // ── Tests ────────────────────────────────────────────
 
 describe('handleMediaBurnSubtitle', () => {
-  it('没有 exportRecordId 时抛出错误', async () => {
+  it('没有 exportRecordId 时抛出 TaskInputError（分类 validation 不重试）', async () => {
     resetState()
     const task = makeBurnTask({ input: {} })
 
     await expect(
       handleMediaBurnSubtitle(task, makeWorkerConfig()),
-    ).rejects.toThrow('missing projectId, accountId, or exportRecordId')
+    ).rejects.toThrow('media.burn-subtitle input missing exportRecordId')
   })
 
   it('项目不存在时抛出错误', async () => {

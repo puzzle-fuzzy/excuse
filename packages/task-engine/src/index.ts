@@ -162,6 +162,19 @@ export class TaskNotImplementedError extends Error {
   }
 }
 
+/**
+ * 任务输入非法 — JSONB task.input 解析失败（缺字段 / 类型错 / 坏数据）。
+ *
+ * 这类错误是输入侧问题，重试不会自愈 → 分类为 validation / retriable=false，
+ * 直接永久失败（markTaskFailed），不进入重试队列。
+ */
+export class TaskInputError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'TaskInputError'
+  }
+}
+
 export function createTaskHandlerRegistry<TTask extends { type: string }, TContext, TOutput = Record<string, unknown> | undefined>(
   definitions: Array<TaskDefinition<TTask, TContext, TOutput>> = [],
 ): TaskHandlerRegistry<TTask, TContext, TOutput> {
@@ -312,6 +325,15 @@ export function classifyTaskError(error: unknown): TaskErrorDecision {
   const message = error instanceof Error ? error.message : String(error)
 
   if (error instanceof TaskNotImplementedError) {
+    return {
+      category: 'validation',
+      retriable: false,
+      message,
+    }
+  }
+
+  // 任务输入非法（JSONB 解析失败）→ validation / 永久失败，重试不会自愈
+  if (error instanceof TaskInputError) {
     return {
       category: 'validation',
       retriable: false,
