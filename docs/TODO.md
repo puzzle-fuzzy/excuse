@@ -228,7 +228,6 @@
 > 来源：审计 `qwen-max-architecture-review` 第八节，逐项复核。
 
 - **`docs/bailian/`（24 个百炼/DashScope 官方文档，已入库）**（复核确认）：属外部厂商参考文档，使 `git clone` 体积膨胀。**裁量项**：阶段二开发仍频繁参考 HappyHorse/FunMusic 文档，是否移外部 wiki / 加入 `.gitignore` 由团队决定，不强制。
-- **`apps/server/src/utils/crypto.ts`（1 行 re-export `hashApiKey`）**（复核确认）：可选内联，让调用方直接 import `@excuse/auth`。非必须。
 - **`CLAUDE.md`（根目录）**（复核为**非问题，审计建议错误**）：审计建议删除，但 `CLAUDE.md` 是 Claude Code 的标准指令入口，内容指向 `AGENTS.md`（见 `AGENTS.md` 第 3 行声明「`CLAUDE.md` 指向本文件，两工具共用单一真相源」）。**删除会破坏 Claude Code 指令发现，保留不动。**
 
 ## P5：成熟库和通用能力治理
