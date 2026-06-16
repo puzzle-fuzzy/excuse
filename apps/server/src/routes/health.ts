@@ -6,8 +6,6 @@ import { Elysia } from 'elysia'
 import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'
 
-let startTime = Date.now()
-
 /** 探测数据库连接是否可用 */
 async function pingDb(): Promise<boolean> {
   try {
@@ -56,7 +54,7 @@ export function createHealthRoutes(config?: ServerConfig) {
       return {
         status: dbOk ? 'ok' : 'degraded',
         timestamp: new Date().toISOString(),
-        uptime: Math.floor((Date.now() - startTime) / 1000),
+        uptime: Math.floor((Date.now() - (config?.processStartTime ?? Date.now())) / 1000),
         db: dbOk ? 'ok' : 'error',
         sseConnections: getOnlineUserCount(),
         version: process.env.npm_package_version ?? '0.1.0',
@@ -114,7 +112,7 @@ export function createHealthRoutes(config?: ServerConfig) {
       },
     })
     .get('/metrics', () => {
-      const uptime = Math.floor((Date.now() - startTime) / 1000)
+      const uptime = Math.floor((Date.now() - (config?.processStartTime ?? Date.now())) / 1000)
       return getMetrics(getOnlineUserCount(), uptime)
     }, {
       detail: {
@@ -123,9 +121,4 @@ export function createHealthRoutes(config?: ServerConfig) {
         tags: ['健康检查'],
       },
     })
-}
-
-/** 重置 uptime 计时起点（测试用） */
-export function resetHealthStartTime() {
-  startTime = Date.now()
 }

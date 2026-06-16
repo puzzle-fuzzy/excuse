@@ -43,6 +43,8 @@ export interface ServerConfig {
   workerMetricsUrl?: string
   /** 允许访问内部管理后台的用户 ID 列表；未配置时后台接口默认拒绝 */
   adminUserIds?: string[]
+  /** 进程启动时间戳（ms），用于 uptime 计算 */
+  processStartTime: number
 }
 
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production'
@@ -101,6 +103,7 @@ export function loadConfig(): ServerConfig {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
+    processStartTime: Date.now(),
   }
 
   validateProductionConfig(config)

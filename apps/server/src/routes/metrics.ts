@@ -7,16 +7,6 @@ import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'
 
 /**
- * metrics route 自维护进程启动时间，避免与 health.ts 共享状态导致测试相互干扰。
- */
-let startTime = Date.now()
-
-/** 测试用：重置 uptime 起点 */
-export function resetMetricsStartTime() {
-  startTime = Date.now()
-}
-
-/**
  * Prometheus metrics 抓取端点
  *
  * GET /metrics — 返回 Prometheus text exposition（v0.0.4）格式的进程指标。
@@ -48,7 +38,7 @@ export function createMetricsRoutes(config: ServerConfig) {
       }
 
       // 序列化为 prometheus exposition format
-      const uptime = Math.floor((Date.now() - startTime) / 1000)
+      const uptime = Math.floor((Date.now() - config.processStartTime) / 1000)
       const snapshot = getMetrics(getOnlineUserCount(), uptime)
       const inProcessMetrics = snapshotToPrometheus(snapshot)
 
