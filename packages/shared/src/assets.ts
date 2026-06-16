@@ -222,4 +222,3 @@ export interface AssetRetentionResult {
   /** 因仍被引用而跳过（retained）的 canvas_asset / uploaded_file id */
   retainedAssets: string[]
 }
-

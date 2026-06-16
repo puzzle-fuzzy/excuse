@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **计费入账闭环 (P0-1，本提交)**：补齐计费系统只有扣款没有入账的缺口。① **管理后台充值端点** `POST /api/admin/credit/add`（目标账号 + 金额 + 备注），写 `credit_transactions` type=`credit`，附带 `admin_action` 审计，仅 JWT + ADMIN_USER_IDS 可访问。② **新用户初始额度赠送**：注册成功时自动赠送 1000 cents（幂等，不阻塞注册流程）。③ **Admin 前端充值入口**：用户详情对话框余额卡旁增加「充值」按钮，弹出充值对话框（输入金额 + 备注），充值成功后刷新用户详情和列表。④ **Billing 页面余额与交易流水 (P1-1 合并)**：顶部新增余额卡片（可用/冻结/总计），底部新增交易流水列表（reserve/debit/refund/credit/admin_adjust 按时间倒序，含类型图标、描述、金额变化）。对应 TODO P0-1 / P1-1 已删除。
+
+- **密码重置 (P0-2，本提交)**：新增账号自助恢复能力。① **`password_reset_tokens` 表**（schema + repository）：token 哈希存储、短时效（30 分钟）、一次性使用（原子 `consumePasswordResetToken`）。② **`POST /api/auth/forgot-password`**：接收邮箱，生成 reset token 发送邮件（当前 dev 模式打印到控制台），不暴露「该邮箱是否存在」。③ **`POST /api/auth/reset-password`**：校验 token + 新密码，更新账户密码，写审计日志。④ **邮件服务 `services/email.ts`**：开发环境打印重置链接到控制台，生产环境预留 SMTP 接入点。⑤ **`updateAccountPassword`** 仓库函数。对应 TODO P0-2 已删除。
+
+- **上传文件真实类型校验 + 单用户频次限制 (P1-3，本提交)**：① **Magic bytes 校验**：上传时读取文件头检测真实 MIME 类型（PNG/JPEG/WebP/GIF/MP4/WebM/MOV/AVI），与客户端声明不符则拒绝，DB 存储探测值而非客户端声明。② **单用户上传频次限制**：复用 `@excuse/rate-limit` `SlidingWindowRateLimiter`，per-account 维度每分钟最多 10 次上传（与全局限流分开）。对应 TODO P1-3 已删除。
+
+- **SSE 连接数上限 (P1-4，本提交)**：`UserEventHub` 新增全局上限（默认 10_000）和单用户上限（默认 3），`addConnection` 超限返回 `{ accepted: false, reason }`，SSE 路由据此返回 503 `error` 事件。复用既有 `getConnectionCount()` 判定。对应 TODO P1-4 已删除。
+
+- **nginx 上传体积上限 + HTTPS 终止说明 (P1-2，本提交)**：`nginx.conf` 增加 `client_max_body_size 200m`（与 upload.ts MAX_FILE_SIZE 对齐）；`docs/deployment.md` 增加 TLS 终止位置说明（CDN/LB 终止 vs Nginx 直接终结 vs 裸部署），Nginx 配置参考块增加 `client_max_body_size` 与 HSTS 头。对应 TODO P1-2 已删除。
+
 - **OpenAPI 文档生产环境门禁 (P1-3，本提交)**：生产环境（`NODE_ENV==='production'`）不再挂载 `/openapi` 端点（Elysia openapi 插件条件注册），避免向匿名调用者泄露全部路由形状、schema 与鉴权方案。非生产环境（开发 / 测试）保持可用。类型链保持稳定（`App` type 不因条件分支而分裂），客户端 Eden treaty 不受影响。补 `apps/server/test/index.test.ts` 1 条（非生产环境 GET /openapi → 200）。对应 TODO P1-3 已删除。
 
 - **资产中心复用验收复核 (P2-2，验收通过)**：复核 P2-2 四条验收标准均已满足，唯一待办（标签颜色/重命名/使用计数扩展）是显式条件项（"如果进入产品需求"），`asset_tags` schema 已声明 v1 不做颜色/图标/重命名（删除后重建即可），属延迟决策而非缺口。验收细节：① **找到素材** — Assets 页面聚合 generation_records / canvas_assets / uploaded_files 三来源，含搜索 / source+status+model+日期过滤 / 收藏 / 标签 CRUD（`apps/client/src/pages/Assets.tsx`）；② **回到 Canvas** — `getCanvasAssetUrl`（`apps/client/src/lib/asset-library.ts`）按 projectId + focus 参数生成项目级 / 实体级深链，PreviewModal 提供定位按钮；③ **删除不误删** — `getAssetReferences`（`packages/db/src/repositories/asset-lifecycle.repo.ts`）在软删前 JSONB `@>` 引用守卫 + `retained` 返回 + GC 侧全局复核（err on the side of retaining）；④ **多参考图模型兼容** — `recommendCanvasVideoModel`（`packages/canvas-runtime`）i2v→r2v→t2v 变体回退 + `submitVideoTaskWithFallback`（`packages/provider`）运行时 fallbackModel 回退（r2v→t2v）。对应 TODO P2-2 标记已验收。

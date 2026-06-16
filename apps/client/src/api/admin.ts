@@ -202,6 +202,21 @@ export async function revokeApiKeyAdmin(id: string): Promise<void> {
   unwrap<{ success: true }>(await api.api.admin['api-keys']({ id }).revoke.post())
 }
 
+// ── 管理后台充值 ──────────────────────────────────────────────────────────
+
+export async function adminCreditAdd(params: { accountId: string, amountCents: number, description?: string }): Promise<{ success: true }> {
+  const res = await api.api.admin.credit.add.post({
+    accountId: params.accountId,
+    amountCents: params.amountCents,
+    description: params.description,
+  })
+  if (res.error) {
+    const errMsg = (res.error as { value?: { error?: string } })?.value?.error ?? '充值失败'
+    throw new Error(errMsg)
+  }
+  return res.data as { success: true }
+}
+
 export const adminGatewayClientsQueryKeys = {
   list: (params: AdminGatewayClientListQuery) => ['admin', 'gateway-clients', 'list', params] as const,
   detail: (accountId: string) => ['admin', 'gateway-clients', 'detail', accountId] as const,

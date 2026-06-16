@@ -420,3 +420,10 @@ export interface AdminGatewayClientDetailResponse {
   success: true
   data: AdminGatewayClientDetail
 }
+
+// ── 管理后台充值 ──────────────────────────────────────────────────────────
+
+export interface AdminCreditAddResponse {
+  success: true
+  data: import('./billing').CreditTransactionDTO
+}

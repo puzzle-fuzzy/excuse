@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingStatisticsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -225,6 +225,23 @@ export async function updateUploadedFile(
 export async function fetchBillingStatistics(): Promise<BillingStatisticsResponse> {
   return unwrapEden<BillingStatisticsResponse>(
     await api.api.billing.statistics.get(),
+  )
+}
+
+export async function fetchBillingBalance(): Promise<BillingBalanceResponse> {
+  return unwrapEden<BillingBalanceResponse>(
+    await api.api.billing.balance.get(),
+  )
+}
+
+export async function fetchBillingTransactions(params?: { limit?: number, offset?: number }): Promise<BillingTransactionsResponse> {
+  return unwrapEden<BillingTransactionsResponse>(
+    await api.api.billing.transactions.get({
+      query: {
+        limit: params?.limit,
+        offset: params?.offset,
+      },
+    }),
   )
 }
 

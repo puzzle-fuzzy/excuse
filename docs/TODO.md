@@ -27,115 +27,12 @@
 
 ## 当前总判断
 
-`excuse` 的核心链路已跑通。**生产可靠性基线已扎实**：本轮已收口上线阻断项（P0 部署/安全门禁/计费扣款闭环）、核心可靠性（P1 任务队列/取消可见性/降级断路器/资产生命周期）、CI 同口径（P4 CI）、JSONB 校验/索引（P3）、用户错误恢复（P2-3）、生产探针（P4 health）、资产中心复用（P2-2）。审计中相关条目经复核确认已完成（见文末审计复核记录）。
-
-但审计同时暴露了**两类此前未在 TODO 中的真实缺口**，是当前真正的推进重点：
-
-1. **产品闭环未合上（P0）**：计费系统只有扣款没有入账 —— `credit_transactions` 已声明 `credit` / `admin_adjust` 入账类型，`credit.repo.ts` 也有写函数 `creditBalance()`，但**没有任何 HTTP 端点调用它**，前端 Billing 页也不展示余额。新用户余额恒为 0，所有生成立即被 `INSUFFICIENT_BALANCE` 拒绝，系统无法产生真实业务。配套账号自助恢复（密码重置）同样缺失。这两项是真正阻断「能做生意」的缺口。
-2. **生产安全加固（P1）**：OpenAPI 文档生产环境裸露、上传文件只校验客户端可控的 MIME、SSE 无连接数上限、nginx 无上传体积上限 —— 上线前后需逐项补齐，单项工作量均在半天到一天。
+`excuse` 的核心链路已跑通。**生产可靠性基线已扎实，产品闭环已合上**：本轮收口了计费入账（P0-1 充值/初始额度）、账号自助恢复（P0-2 密码重置）、上传文件真实类型校验与单用户频次（P1-3）、SSE 连接数上限（P1-4）、nginx 上传体积上限与 HTTPS 终止说明（P1-2）、Billing 页面余额与交易流水展示（P1-1）。安全与产品缺口已补齐，可支撑内测阶段真实业务。
 
 其余为规模化（多实例限流 / 迁移锁 / API 版本）、大文件重构 backlog、阶段二产品路线图，以及已暂缓的 P2-1 Canvas 性能 / P4-1 E2E。
 
 ## P0：上线阻断项
-
-### 1. 用户充值 / 初始额度 — 计费闭环的入账半边缺失
-
-> 审计 `qwen-max-TODO` #1 复核确认。`credit_transactions` 枚举有 `credit` / `admin_adjust`，`credit.repo.ts:creditBalance()` 是唯一写 `type:'credit'` 的函数，但**全仓库无任何调用方**；`billing.ts` 三个端点全是只读；`admin.ts` 无 credit/adjust 路由；无任何支付集成；注册流程不赠初始额度。
-
-**任务（要做什么）**
-
-1. 管理后台手动充值端点（最低可行）：`POST /api/admin/credit/add`（目标账号 + 金额 + 备注），写 `credit_transactions` type=`credit` 或 `admin_adjust`，附带 `admin_action` 审计；管理后台用户详情增加「充值」操作入口。
-2. 新用户初始额度赠送（过渡方案）：注册成功时赠送初始额度（如 1000 cents），复用 `creditBalance()`，避免冷启动无可用余额。
-3. 正式用户自助充值（后续迭代，非上线必须）：接入支付宝 / 微信支付。可在内测阶段用方案 1+2 过渡。
-
-**触及范围（blast radius）**
-
-- 后端：`apps/server/src/routes/billing.ts` 或 `admin.ts` 新增写入端点；`packages/db/src/repositories/credit.repo.ts`（`creditBalance()` 已就绪，接线即可）；`packages/shared/src/billing.ts`（充值相关 DTO）。
-- 前端：`apps/client/src/pages/Billing.tsx`（与 P1-1 余额展示合并做）、`Admin.tsx` 用户详情（充值入口）。
-- 计费策略：`@excuse/billing` 已声明 `credit-ledger` surface，入账路径需与既有 reserve→debit/refund 口径一致（见 `docs/billing.md`）。
-
-**风险**
-
-- 充值写入必须走与扣款对称的事务/审计（`usage_events` 或 `admin_action`），避免资金状态机出现只增不减的旁路。
-- 初始额度赠送要防重复（注册事务内一次性写入，幂等键）。
-- 管理后台充值必须仅限 JWT + `ADMIN_USER_IDS`（沿用既有 admin 门禁，API Key 即便属管理员也拒绝）。
-
-**验收**
-
-- 管理员可给任意账号充值，余额变动有审计记录。
-- 新用户注册后余额为初始赠送值，可成功提交至少一次生成。
-- 充值 / 赠送路径有集成测试覆盖（重复充值幂等、禁用账号拒绝、审计落库）。
-
-### 2. 账号自助恢复 — 密码重置缺失
-
-> 审计 `qwen-max-TODO` #2 复核确认。`auth.ts` 仅 register / login / logout / me 四个端点；全仓库无 forgot-password / reset-password / 邮箱验证 / OAuth。
-
-**任务（要做什么）**
-
-1. 密码重置端点：`POST /api/auth/forgot-password`（生成 reset token）→ `POST /api/auth/reset-password`（token 校验后改密）。token 短时效、一次性、哈希存储。
-2. 邮件发送：最小用 nodemailer 或等价；内测期可降级为「管理员触发重置邮件」或人工通道。
-3. 邮箱验证可后续迭代（初期运营人工审核即可），非上线阻断。
-
-**触及范围**
-
-- `apps/server/src/routes/auth.ts`、新增 reset-token 存储（`accounts` 加字段或单独表 + migration）、邮件 service。
-- 前端：登录/注册页加「忘记密码」入口 + 重置页。
-
-**风险**
-
-- reset token 必须一次性、短 TTL、不可枚举（不暴露「该邮箱是否存在」）。
-- 邮件发送属外部 IO，失败要降级但不阻塞重置流程语义。
-
-**验收**
-
-- 用户可通过邮箱收到一次性重置链接并改密。
-- token 过期 / 已用 / 篡改均被拒绝，且不泄露账号是否存在。
-
-## P1：上线前后需补的生产能力
-
-### 1. Billing 页面展示余额与交易流水
-
-> 审计 `qwen-max-TODO` #4 复核确认。后端已有 `GET /api/billing/balance`（`availableCents`/`frozenCents`）和 `/transactions`，但 `Billing.tsx` 只调 `fetchBillingStatistics()`，无余额卡片、无流水列表。与 P0-1 充值配套：用户要能看到余额才能理解充值与扣费。
-
-**任务**
-
-1. Billing 页顶部加余额卡（可用 / 冻结），底部加交易流水列表（reserve / debit / refund / credit / admin_adjust）。
-2. 复用 Eden treaty 既有端点，不新增后端逻辑。
-
-**验收**：余额与流水真实反映 `credit_accounts` / `credit_transactions`；与 P0-1 充值动作联动可见。
-
-### 2. nginx 上传体积上限 + HTTPS 终止说明
-
-> 审计 `qwen-max-TODO` #6 复核确认。`nginx.conf` 仅 `listen 80`，无 `client_max_body_size`（用 Nginx 默认 1MB，会拒绝视频/参考图上传）、无 TLS / HSTS。
-
-**任务**
-
-1. `nginx.conf` 增加 `client_max_body_size 200m`（与上传业务对齐）。
-2. HTTPS：若由 CDN / LB 终止 TLS，在 `docs/deployment.md` 明确说明并由前置层下发 HSTS；若 Nginx 直接终结，补 443 + 证书配置。
-
-**验收**：大文件上传不被 Nginx 默认 1MB 截断；部署文档明确 TLS 终止位置与 HSTS 来源。
-
-### 3. 上传文件真实类型校验 + 单用户频次限制
-
-> 审计 `qwen-max-architecture-review` #21 复核确认。`upload.ts` 仅校验 `file.type`（来自 Content-Type，客户端可伪造，如把 `.exe` 声明为 `image/png`）；无 magic bytes 校验；无单用户上传频次限制（只有全局 60 req/min）。
-
-**任务**
-
-1. 用 `file-type`（或等价）读文件头 magic bytes 校验真实类型，与声明 MIME 不符即拒绝；DB 存的 `mimeType` 也用探测值。
-2. 单用户上传频次限制（复用 `@excuse/rate-limit`，per-account 维度，与全局限流分开）。
-
-**验收**：伪造 MIME 的文件被拒；单用户高频上传被限流；正常上传不受影响。
-
-### 4. SSE 连接数上限（总量 + 单用户）
-
-> 审计 `qwen-max-architecture-review` #22 复核确认（审计细节有误：实际是单一共享 LISTEN socket 而非每客户端一个 LISTEN，但 DoS 风险真实）。`packages/events` 的 `UserEventHub.addConnection` 无任何上限，每个客户端占一个 HTTP 长连接 + 无界内存 queue；恶意者可建数千连接耗尽 FD。
-
-**任务**
-
-1. 总量上限（如 10_000）+ 单用户上限（如 3），超限返回 503。
-2. 复用既有 `getConnectionCount()` 作为判定依据。
-
-**验收**：总量 / 单用户超限均被拒并返回 503；正常用户多标签页（≤上限）不受影响。
+**（以下 P0 与 P1 条目已于 2026-06-16 完成，详见 CHANGELOG.md）**
 
 ## P2：前端体验和产品闭环
 

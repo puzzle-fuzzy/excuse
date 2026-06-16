@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { adminAuditLogQueryKeys, adminGatewayClientsQueryKeys, adminTasksQueryKeys, adminUserApiKeysQueryKeys, fetchAdminAuditLogs, fetchAdminGatewayClientDetail, fetchAdminGatewayClients, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUpdateApiKeyConfig, fetchAdminUserApiKeys, fetchAdminUserDetail, fetchAdminUsers, resetApiKeyQuota, revokeApiKeyAdmin } from '@/api/admin'
+import { adminAuditLogQueryKeys, adminCreditAdd, adminGatewayClientsQueryKeys, adminTasksQueryKeys, adminUserApiKeysQueryKeys, fetchAdminAuditLogs, fetchAdminGatewayClientDetail, fetchAdminGatewayClients, fetchAdminProjects, fetchAdminProviderStats, fetchAdminTaskDetail, fetchAdminUpdateApiKeyConfig, fetchAdminUserApiKeys, fetchAdminUserDetail, fetchAdminUsers, resetApiKeyQuota, revokeApiKeyAdmin } from '@/api/admin'
 import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '@/api/client'
 import { adminQueryKeys } from '@/api/query-client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -903,151 +903,232 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
     enabled: !!userId,
   })
 
+  const queryClient = useQueryClient()
+  const [rechargeOpen, setRechargeOpen] = useState(false)
+  const [rechargeAmount, setRechargeAmount] = useState('')
+  const [rechargeDesc, setRechargeDesc] = useState('')
+  const rechargeMutation = useMutation({
+    mutationFn: () => adminCreditAdd({
+      accountId: userId!,
+      amountCents: Math.round(Number.parseFloat(rechargeAmount) * 100),
+      description: rechargeDesc || undefined,
+    }),
+    onSuccess: () => {
+      toast.success('充值成功')
+      setRechargeOpen(false)
+      setRechargeAmount('')
+      setRechargeDesc('')
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'detail', userId] })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'list'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
   const detail: AdminUserDetail | undefined = data?.data
   const maxDailyCost = detail?.dailyCost.reduce((max, row) => Math.max(max, row.costCents), 0) ?? 0
 
   return (
-    <Dialog open={!!userId} onOpenChange={open => !open && onClose()}>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-        <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
-          {isLoading || !detail
-            ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">正在加载用户详情...</p>
-              )
-            : (
-                <>
-                  <div className="flex items-start justify-between gap-3">
+    <>
+      <Dialog open={!!userId} onOpenChange={open => !open && onClose()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80" onClick={onClose} />
+          <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
+            {isLoading || !detail
+              ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">正在加载用户详情...</p>
+                )
+              : (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-semibold">{detail.summary.username}</h3>
+                        <p className="text-xs text-muted-foreground">{detail.summary.email ?? '-'}</p>
+                      </div>
+                      <Badge variant={detail.summary.isActive ? 'default' : 'outline'}>
+                        {detail.summary.isActive ? '启用' : '禁用'}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="rounded-lg border p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">余额</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setRechargeOpen(true)}
+                          >
+                            <Coins className="mr-1 size-3" />
+                            充值
+                          </Button>
+                        </div>
+                        <p className="mt-1 font-mono">{formatCents(detail.summary.creditBalanceCents)}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">总成本</p>
+                        <p className="mt-1 font-mono">{formatCents(detail.summary.totalCostCents)}</p>
+                      </div>
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground">总调用</p>
+                        <p className="mt-1">{formatNumber(detail.summary.totalCalls)}</p>
+                      </div>
+                    </div>
+
                     <div>
-                      <h3 className="text-lg font-semibold">{detail.summary.username}</h3>
-                      <p className="text-xs text-muted-foreground">{detail.summary.email ?? '-'}</p>
-                    </div>
-                    <Badge variant={detail.summary.isActive ? 'default' : 'outline'}>
-                      {detail.summary.isActive ? '启用' : '禁用'}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">余额</p>
-                      <p className="mt-1 font-mono">{formatCents(detail.summary.creditBalanceCents)}</p>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">总成本</p>
-                      <p className="mt-1 font-mono">{formatCents(detail.summary.totalCostCents)}</p>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">总调用</p>
-                      <p className="mt-1">{formatNumber(detail.summary.totalCalls)}</p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-sm font-medium">最近 30 天成本趋势</p>
-                    {detail.dailyCost.length === 0
-                      ? <p className="text-xs text-muted-foreground">最近 30 天无活动</p>
-                      : (
-                          <div className="space-y-1">
-                            {detail.dailyCost.map(row => (
-                              <div key={row.date} className="flex items-center gap-2 text-xs">
-                                <span className="w-24 shrink-0 font-mono text-muted-foreground">{row.date}</span>
-                                <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted">
-                                  <div
-                                    className="h-full bg-primary/60"
-                                    style={{ width: maxDailyCost === 0 ? '0%' : `${(row.costCents / maxDailyCost) * 100}%` }}
-                                  />
+                      <p className="mb-2 text-sm font-medium">最近 30 天成本趋势</p>
+                      {detail.dailyCost.length === 0
+                        ? <p className="text-xs text-muted-foreground">最近 30 天无活动</p>
+                        : (
+                            <div className="space-y-1">
+                              {detail.dailyCost.map(row => (
+                                <div key={row.date} className="flex items-center gap-2 text-xs">
+                                  <span className="w-24 shrink-0 font-mono text-muted-foreground">{row.date}</span>
+                                  <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted">
+                                    <div
+                                      className="h-full bg-primary/60"
+                                      style={{ width: maxDailyCost === 0 ? '0%' : `${(row.costCents / maxDailyCost) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-20 shrink-0 text-right font-mono">{formatCents(row.costCents)}</span>
+                                  <span className="w-12 shrink-0 text-right text-muted-foreground">
+                                    {row.calls}
+                                    次
+                                  </span>
                                 </div>
-                                <span className="w-20 shrink-0 text-right font-mono">{formatCents(row.costCents)}</span>
-                                <span className="w-12 shrink-0 text-right text-muted-foreground">
-                                  {row.calls}
-                                  次
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-sm font-medium">模型成本分解（前 10）</p>
-                    {detail.modelBreakdown.length === 0
-                      ? <p className="text-xs text-muted-foreground">暂无模型调用记录</p>
-                      : (
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b text-left text-muted-foreground">
-                                <th className="py-1.5 font-medium">模型</th>
-                                <th className="py-1.5 text-right font-medium">调用</th>
-                                <th className="py-1.5 text-right font-medium">成本</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {detail.modelBreakdown.map(row => (
-                                <tr key={row.model} className="border-b last:border-b-0">
-                                  <td className="py-1.5 font-mono text-xs">{row.model}</td>
-                                  <td className="py-1.5 text-right">{formatNumber(row.calls)}</td>
-                                  <td className="py-1.5 text-right font-mono text-xs">{formatCents(row.costCents)}</td>
-                                </tr>
                               ))}
-                            </tbody>
-                          </table>
-                        )}
-                  </div>
+                            </div>
+                          )}
+                    </div>
 
-                  <div>
-                    <p className="mb-2 text-sm font-medium">最近 10 条生成记录</p>
-                    {detail.recentRecords.length === 0
-                      ? <p className="text-xs text-muted-foreground">暂无生成记录</p>
-                      : (
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b text-left text-muted-foreground">
-                                <th className="py-1.5 font-medium">模型</th>
-                                <th className="py-1.5 font-medium">状态</th>
-                                <th className="py-1.5 font-medium">执行</th>
-                                <th className="py-1.5 text-right font-medium">成本</th>
-                                <th className="py-1.5 font-medium">时间</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {detail.recentRecords.map(record => (
-                                <tr key={record.id} className="border-b last:border-b-0">
-                                  <td className="py-1.5 font-mono text-xs">{record.model}</td>
-                                  <td className="py-1.5">
-                                    <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
-                                  </td>
-                                  <td className="py-1.5">
-                                    <div className="flex flex-col gap-1">
-                                      <Badge variant={record.executionKind === 'legacy-provider-task' ? 'outline' : 'secondary'} className="w-fit">
-                                        {recentRecordExecutionLabel(record.executionKind)}
-                                      </Badge>
-                                      {record.providerTaskId && (
-                                        <span className="font-mono text-[11px] text-muted-foreground">
-                                          {shortId(record.providerTaskId)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
-                                  <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
+                    <div>
+                      <p className="mb-2 text-sm font-medium">模型成本分解（前 10）</p>
+                      {detail.modelBreakdown.length === 0
+                        ? <p className="text-xs text-muted-foreground">暂无模型调用记录</p>
+                        : (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="py-1.5 font-medium">模型</th>
+                                  <th className="py-1.5 text-right font-medium">调用</th>
+                                  <th className="py-1.5 text-right font-medium">成本</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                  </div>
+                              </thead>
+                              <tbody>
+                                {detail.modelBreakdown.map(row => (
+                                  <tr key={row.model} className="border-b last:border-b-0">
+                                    <td className="py-1.5 font-mono text-xs">{row.model}</td>
+                                    <td className="py-1.5 text-right">{formatNumber(row.calls)}</td>
+                                    <td className="py-1.5 text-right font-mono text-xs">{formatCents(row.costCents)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                    </div>
 
-                  {/* API Key 列表 */}
-                  <AdminUserApiKeysSection userId={userId} />
+                    <div>
+                      <p className="mb-2 text-sm font-medium">最近 10 条生成记录</p>
+                      {detail.recentRecords.length === 0
+                        ? <p className="text-xs text-muted-foreground">暂无生成记录</p>
+                        : (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="py-1.5 font-medium">模型</th>
+                                  <th className="py-1.5 font-medium">状态</th>
+                                  <th className="py-1.5 font-medium">执行</th>
+                                  <th className="py-1.5 text-right font-medium">成本</th>
+                                  <th className="py-1.5 font-medium">时间</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {detail.recentRecords.map(record => (
+                                  <tr key={record.id} className="border-b last:border-b-0">
+                                    <td className="py-1.5 font-mono text-xs">{record.model}</td>
+                                    <td className="py-1.5">
+                                      <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                    </td>
+                                    <td className="py-1.5">
+                                      <div className="flex flex-col gap-1">
+                                        <Badge variant={record.executionKind === 'legacy-provider-task' ? 'outline' : 'secondary'} className="w-fit">
+                                          {recentRecordExecutionLabel(record.executionKind)}
+                                        </Badge>
+                                        {record.providerTaskId && (
+                                          <span className="font-mono text-[11px] text-muted-foreground">
+                                            {shortId(record.providerTaskId)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
+                                    <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                    </div>
 
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
-                  </div>
-                </>
-              )}
+                    {/* API Key 列表 */}
+                    <AdminUserApiKeysSection userId={userId} />
+
+                    <div className="flex justify-end">
+                      <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                    </div>
+                  </>
+                )}
+          </div>
         </div>
-      </div>
-    </Dialog>
+      </Dialog>
+
+      {/* 充值对话框 */}
+      <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80" onClick={() => setRechargeOpen(false)} />
+          <div className="relative z-[60] w-full max-w-sm rounded-xl border bg-background p-6 shadow-lg">
+            <h3 className="mb-4 text-base font-semibold">充值</h3>
+            <p className="mb-3 text-xs text-muted-foreground">
+              用户：
+              {detail?.summary.username}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground">金额（元）</label>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="例如 10.00"
+                  value={rechargeAmount}
+                  onChange={e => setRechargeAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">备注（可选）</label>
+                <Input
+                  placeholder="管理后台充值"
+                  value={rechargeDesc}
+                  onChange={e => setRechargeDesc(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => setRechargeOpen(false)}>取消</Button>
+                <Button
+                  size="sm"
+                  disabled={!rechargeAmount || Number.parseFloat(rechargeAmount) <= 0 || rechargeMutation.isPending}
+                  onClick={() => rechargeMutation.mutate()}
+                >
+                  {rechargeMutation.isPending ? '充值中...' : '确认充值'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Dialog>
+    </>
   )
 }
 

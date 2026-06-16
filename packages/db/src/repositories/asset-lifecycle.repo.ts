@@ -20,9 +20,7 @@ import { getUploadedFileByIdForAccount, getUploadedFileUsage } from './uploaded-
 
 /** 统计 canvas_shots.referenceAssetsJson 中引用指定 assetId 的镜头数（JSONB @>）。 */
 export async function countCanvasShotsReferencingAsset(assetId: string): Promise<number> {
-  const rows = await getDb().select({ count: sql<number>`count(*)::int` })
-    .from(canvasShots)
-    .where(sql`${canvasShots.referenceAssetsJson} @> ${JSON.stringify([{ assetId }])}::jsonb`)
+  const rows = await getDb().select({ count: sql<number>`count(*)::int` }).from(canvasShots).where(sql`${canvasShots.referenceAssetsJson} @> ${JSON.stringify([{ assetId }])}::jsonb`)
   return Number(rows[0]?.count ?? 0)
 }
 
@@ -82,55 +80,37 @@ function emptyReferences(): AssetReferenceSummary {
 
 /** 软删除 canvas_asset（置 deletedAt）。仅在归属当前用户且未删除时生效。 */
 export async function softDeleteCanvasAsset(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(canvasAssets)
-    .set({ deletedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId), isNull(canvasAssets.deletedAt)))
-    .returning({ id: canvasAssets.id })
+  const rows = await getDb().update(canvasAssets).set({ deletedAt: new Date(), updatedAt: new Date() }).where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId), isNull(canvasAssets.deletedAt))).returning({ id: canvasAssets.id })
   return rows.length > 0
 }
 
 /** 软删除 generation_record。 */
 export async function softDeleteGenerationRecord(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(generationRecords)
-    .set({ deletedAt: new Date() })
-    .where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId), isNull(generationRecords.deletedAt)))
-    .returning({ id: generationRecords.id })
+  const rows = await getDb().update(generationRecords).set({ deletedAt: new Date() }).where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId), isNull(generationRecords.deletedAt))).returning({ id: generationRecords.id })
   return rows.length > 0
 }
 
 /** 软删除 uploaded_file。 */
 export async function softDeleteUploadedFile(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(uploadedFiles)
-    .set({ deletedAt: new Date() })
-    .where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId), isNull(uploadedFiles.deletedAt)))
-    .returning({ id: uploadedFiles.id })
+  const rows = await getDb().update(uploadedFiles).set({ deletedAt: new Date() }).where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId), isNull(uploadedFiles.deletedAt))).returning({ id: uploadedFiles.id })
   return rows.length > 0
 }
 
 /** 恢复（un-delete）canvas_asset。 */
 export async function restoreCanvasAsset(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(canvasAssets)
-    .set({ deletedAt: null, updatedAt: new Date() })
-    .where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId)))
-    .returning({ id: canvasAssets.id })
+  const rows = await getDb().update(canvasAssets).set({ deletedAt: null, updatedAt: new Date() }).where(and(eq(canvasAssets.id, id), eq(canvasAssets.accountId, accountId))).returning({ id: canvasAssets.id })
   return rows.length > 0
 }
 
 /** 恢复（un-delete）generation_record。 */
 export async function restoreGenerationRecord(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(generationRecords)
-    .set({ deletedAt: null })
-    .where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId)))
-    .returning({ id: generationRecords.id })
+  const rows = await getDb().update(generationRecords).set({ deletedAt: null }).where(and(eq(generationRecords.id, id), eq(generationRecords.accountId, accountId))).returning({ id: generationRecords.id })
   return rows.length > 0
 }
 
 /** 恢复（un-delete）uploaded_file。 */
 export async function restoreUploadedFile(id: string, accountId: string): Promise<boolean> {
-  const rows = await getDb().update(uploadedFiles)
-    .set({ deletedAt: null })
-    .where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId)))
-    .returning({ id: uploadedFiles.id })
+  const rows = await getDb().update(uploadedFiles).set({ deletedAt: null }).where(and(eq(uploadedFiles.id, id), eq(uploadedFiles.accountId, accountId))).returning({ id: uploadedFiles.id })
   return rows.length > 0
 }
 
@@ -145,25 +125,19 @@ export interface RetentionCandidate {
 
 /** 列出软删除超过 grace 截止时间的 canvas_asset 候选（含 storagePath / isActive 供 retained 判定与物理清除）。 */
 export async function listCanvasAssetRetentionCandidates(graceCutoff: Date): Promise<RetentionCandidate[]> {
-  const rows = await getDb().select({ id: canvasAssets.id, storagePath: canvasAssets.storagePath, isActive: canvasAssets.isActive })
-    .from(canvasAssets)
-    .where(and(isNotNull(canvasAssets.deletedAt), lt(canvasAssets.deletedAt, graceCutoff)))
+  const rows = await getDb().select({ id: canvasAssets.id, storagePath: canvasAssets.storagePath, isActive: canvasAssets.isActive }).from(canvasAssets).where(and(isNotNull(canvasAssets.deletedAt), lt(canvasAssets.deletedAt, graceCutoff)))
   return rows.map(r => ({ id: r.id, storagePath: r.storagePath, isActive: r.isActive }))
 }
 
 /** 列出软删除超过 grace 的 uploaded_file 候选。 */
 export async function listUploadedFileRetentionCandidates(graceCutoff: Date): Promise<RetentionCandidate[]> {
-  const rows = await getDb().select({ id: uploadedFiles.id, storagePath: uploadedFiles.storagePath })
-    .from(uploadedFiles)
-    .where(and(isNotNull(uploadedFiles.deletedAt), lt(uploadedFiles.deletedAt, graceCutoff)))
+  const rows = await getDb().select({ id: uploadedFiles.id, storagePath: uploadedFiles.storagePath }).from(uploadedFiles).where(and(isNotNull(uploadedFiles.deletedAt), lt(uploadedFiles.deletedAt, graceCutoff)))
   return rows.map(r => ({ id: r.id, storagePath: r.storagePath, isActive: false }))
 }
 
 /** 列出软删除超过 grace 的 generation_record 候选（无 storagePath，仅删 DB 行）。 */
 export async function listGenerationRecordRetentionCandidates(graceCutoff: Date): Promise<RetentionCandidate[]> {
-  const rows = await getDb().select({ id: generationRecords.id })
-    .from(generationRecords)
-    .where(and(isNotNull(generationRecords.deletedAt), lt(generationRecords.deletedAt, graceCutoff)))
+  const rows = await getDb().select({ id: generationRecords.id }).from(generationRecords).where(and(isNotNull(generationRecords.deletedAt), lt(generationRecords.deletedAt, graceCutoff)))
   return rows.map(r => ({ id: r.id, storagePath: null, isActive: false }))
 }
 
@@ -175,10 +149,7 @@ export async function listGenerationRecordRetentionCandidates(graceCutoff: Date)
  */
 export async function isCanvasAssetRetainedGlobal(id: string): Promise<boolean> {
   // 读取该 asset 的 isActive + 是否被任何镜头引用
-  const rows = await getDb().select({ isActive: canvasAssets.isActive })
-    .from(canvasAssets)
-    .where(eq(canvasAssets.id, id))
-    .limit(1)
+  const rows = await getDb().select({ isActive: canvasAssets.isActive }).from(canvasAssets).where(eq(canvasAssets.id, id)).limit(1)
   if (rows.length === 0)
     return false // 已不存在（并发删除），不视为 retained
   if (rows[0]!.isActive)

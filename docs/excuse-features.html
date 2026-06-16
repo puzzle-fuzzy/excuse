@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Excuse 平台 — 功能清单与实现状态</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #9ca3af;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,.1);
+    --yellow: #eab308;
+    --yellow-bg: rgba(234,179,8,.1);
+    --red: #ef4444;
+    --red-bg: rgba(239,68,68,.1);
+    --blue: #3b82f6;
+    --blue-bg: rgba(59,130,246,.1);
+    --purple: #a855f7;
+    --purple-bg: rgba(168,85,247,.1);
+    --cyan: #06b6d4;
+    --cyan-bg: rgba(6,182,212,.1);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter','SF Pro',-apple-system,BlinkMacSystemFont,sans-serif; line-height:1.6; }
+  .container { max-width:1200px; margin:0 auto; padding:0 24px; }
+
+  /* Header */
+  .hero { padding:60px 0 40px; border-bottom:1px solid var(--border); margin-bottom:48px; }
+  .hero h1 { font-size:2.5rem; font-weight:800; background:linear-gradient(135deg,var(--accent-light),var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:12px; }
+  .hero .subtitle { font-size:1.1rem; color:var(--muted); max-width:700px; }
+  .hero .meta { display:flex; gap:24px; margin-top:20px; flex-wrap:wrap; }
+  .hero .meta span { font-size:.85rem; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .hero .meta span b { color:var(--text); }
+
+  /* Stats Row */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:48px; }
+  .stat-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; }
+  .stat-card .num { font-size:2rem; font-weight:700; color:var(--accent-light); }
+  .stat-card .label { font-size:.8rem; color:var(--muted); margin-top:4px; }
+
+  /* Section */
+  .section { margin-bottom:56px; }
+  .section-header { display:flex; align-items:center; gap:12px; margin-bottom:24px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+  .section-header .icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+  .section-header h2 { font-size:1.4rem; font-weight:700; }
+  .section-header .badge { font-size:.7rem; padding:2px 8px; border-radius:99px; font-weight:600; }
+
+  /* Feature Cards */
+  .feature-grid { display:grid; gap:16px; }
+  .feature-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; transition:border-color .2s; }
+  .feature-card:hover { border-color:var(--accent); }
+  .feature-card h3 { font-size:1.05rem; font-weight:600; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .feature-card h3 .tag { font-size:.65rem; padding:1px 6px; border-radius:4px; font-weight:500; }
+  .feature-card p { font-size:.88rem; color:var(--muted); margin-bottom:12px; }
+  .feature-card ul { list-style:none; padding:0; }
+  .feature-card ul li { font-size:.84rem; color:var(--muted); padding:3px 0; padding-left:18px; position:relative; }
+  .feature-card ul li::before { content:''; position:absolute; left:0; top:10px; width:6px; height:6px; border-radius:50%; background:var(--accent); opacity:.5; }
+  .feature-card .endpoint { font-family:'Fira Code','JetBrains Mono',monospace; font-size:.78rem; color:var(--cyan); background:rgba(6,182,212,.08); padding:2px 6px; border-radius:4px; }
+
+  /* Status Tags */
+  .s-done { color:var(--green); background:var(--green-bg); }
+  .s-partial { color:var(--yellow); background:var(--yellow-bg); }
+  .s-todo { color:var(--red); background:var(--red-bg); }
+  .s-beta { color:var(--blue); background:var(--blue-bg); }
+  .s-free { color:var(--purple); background:var(--purple-bg); }
+
+  /* Sub-features */
+  .sub-group { margin-top:16px; }
+  .sub-group h4 { font-size:.9rem; font-weight:600; margin-bottom:8px; color:var(--text); }
+  .sub-group .items { display:grid; gap:8px; }
+  .sub-item { display:flex; justify-content:space-between; align-items:flex-start; padding:10px 14px; background:rgba(255,255,255,.02); border-radius:8px; border:1px solid rgba(255,255,255,.04); gap:12px; }
+  .sub-item .name { font-size:.85rem; font-weight:500; flex:1; }
+  .sub-item .desc { font-size:.78rem; color:var(--muted); margin-top:2px; }
+  .sub-item .status { font-size:.7rem; padding:2px 8px; border-radius:99px; white-space:nowrap; font-weight:500; flex-shrink:0; }
+
+  /* Pending Section */
+  .pending-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px 24px; margin-bottom:12px; }
+  .pending-card h4 { font-size:.95rem; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+  .pending-card p { font-size:.84rem; color:var(--muted); }
+  .pending-card .effort { font-size:.75rem; color:var(--yellow); margin-top:6px; }
+  .priority { font-size:.65rem; padding:1px 6px; border-radius:4px; font-weight:700; }
+  .p0 { color:#fff; background:var(--red); }
+  .p1 { color:#fff; background:var(--yellow); }
+  .p2 { color:var(--text); background:var(--border); }
+
+  /* Table */
+  .info-table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  .info-table th { text-align:left; padding:10px 14px; background:rgba(255,255,255,.03); color:var(--muted); font-weight:600; border-bottom:1px solid var(--border); }
+  .info-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.04); }
+  .info-table tr:hover td { background:rgba(255,255,255,.02); }
+
+  /* Tech Stack */
+  .tech-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+  .tech-item { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px; }
+  .tech-item .name { font-size:.85rem; font-weight:600; color:var(--accent-light); }
+  .tech-item .role { font-size:.78rem; color:var(--muted); margin-top:2px; }
+
+  /* Architecture */
+  .arch-box { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:28px; margin-bottom:24px; }
+  .arch-box pre { font-family:'Fira Code','JetBrains Mono',monospace; font-size:.8rem; color:var(--muted); line-height:1.8; overflow-x:auto; }
+
+  /* Footer */
+  .footer { text-align:center; padding:48px 0; border-top:1px solid var(--border); margin-top:48px; color:var(--muted); font-size:.8rem; }
+
+  /* Two Col */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media(max-width:768px) { .two-col { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Hero -->
+<div class="hero">
+  <h1>Excuse AI 平台 — 功能清单</h1>
+  <p class="subtitle">全栈 AI 多模态内容生成平台，覆盖文本、图像、视频生成，Canvas 画布流水线，字幕处理，OpenAI 兼容网关等完整能力矩阵。</p>
+  <div class="meta">
+    <span>审核时间：<b>2026-06-12</b></span>
+    <span>版本：<b>v0.1.0</b></span>
+    <span>架构：<b>Bun Monorepo（3 进程 + 20 packages）</b></span>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat-card"><div class="num">15</div><div class="label">AI 模型（5 文本 + 2 图像 + 8 视频）</div></div>
+  <div class="stat-card"><div class="num">65+</div><div class="label">API 端点</div></div>
+  <div class="stat-card"><div class="num">22</div><div class="label">数据库表</div></div>
+  <div class="stat-card"><div class="num">14</div><div class="label">客户端页面</div></div>
+  <div class="stat-card"><div class="num">11</div><div class="label">Worker 任务类型</div></div>
+  <div class="stat-card"><div class="num">12</div><div class="label">共享 Packages</div></div>
+  <div class="stat-card"><div class="num">9</div><div class="label">Canvas 流水线阶段</div></div>
+  <div class="stat-card"><div class="num">8</div><div class="label">通知类型</div></div>
+</div>
+
+<!-- ============ IMPLEMENTED FEATURES ============ -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--green-bg);color:var(--green);">✅</div>
+    <h2>已实现功能</h2>
+    <span class="badge s-done">全部核心功能已完整实现</span>
+  </div>
+</div>
+
+<!-- 1. 认证与账户 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--blue-bg);color:var(--blue);">🔐</div>
+    <h2>1. 认证与账户管理</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>用户注册 / 登录 / 登出 <span class="tag s-done">已实现</span></h3>
+      <p>邮箱+密码注册、登录、登出，支持 JWT Bearer Token + httpOnly Cookie 双通道认证。</p>
+      <ul>
+        <li><span class="endpoint">POST /api/auth/register</span> — 注册（用户名 3-50 字符，密码 6-100 字符，bcrypt 哈希）</li>
+        <li><span class="endpoint">POST /api/auth/login</span> — 登录（含禁用账户检测 + 审计日志记录 IP）</li>
+        <li><span class="endpoint">POST /api/auth/logout</span> — 登出（清除 httpOnly cookie）</li>
+        <li><span class="endpoint">GET /api/auth/me</span> — 获取当前用户信息</li>
+        <li>Cookie 配置：<code>httpOnly + secure + sameSite=lax</code>，7 天有效期</li>
+        <li>前端组件：<code>Login.tsx</code>、<code>Register.tsx</code>、<code>AuthContext.tsx</code>、<code>ProtectedRoute.tsx</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 2. AI 内容生成 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--purple-bg);color:var(--purple);">🤖</div>
+    <h2>2. AI 内容生成（Workspace 工作台）</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>2.1 多模型文本生成 <span class="tag s-done">已实现</span></h3>
+      <p>选择文本模型 → 输入 Prompt + 参数 → 发起生成 → 实时查看结果，支持 5 个千问系列模型。</p>
+      <ul>
+        <li><b>qwen-max</b> — 千问 Max（240/960 分/百万 token）</li>
+        <li><b>qwen-plus</b> — 千问 Plus（80/200 分/百万 token）</li>
+        <li><b>qwen-turbo</b> — 千问 Turbo（30/60 分/百万 token）</li>
+        <li><b>qwen-long</b> — 千问 Long（50/200 分/百万 token）</li>
+        <li><b>qwen3.7-plus</b> — 千问 3.7 Plus（160/640 分/百万 token，OpenAI Chat 协议）</li>
+        <li><span class="endpoint">POST /api/generate</span> — 发起生成</li>
+        <li><span class="endpoint">GET /api/records</span> — 查询记录（按 category/status 过滤）</li>
+        <li><span class="endpoint">GET /api/records/:id</span> — 单条详情</li>
+        <li><span class="endpoint">DELETE /api/records/:id</span> — 删除记录</li>
+        <li><span class="endpoint">POST /api/records/:id/retry</span> — 重试失败任务</li>
+        <li><span class="endpoint">POST /api/records/:id/cancel</span> — 取消进行中任务</li>
+        <li><span class="endpoint">GET /api/models</span> — 获取所有模型定义</li>
+        <li>前端：<code>Workspace.tsx</code>、<code>RecordCard.tsx</code>、<code>TextOutputPreview.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>2.2 AI 图像生成 <span class="tag s-done">已实现</span></h3>
+      <p>选择图像模型 → 输入正向/反向提示词 → 设置尺寸/数量 → 生成图片。</p>
+      <ul>
+        <li><b>qwen-image-2.0-pro</b> — 千问图像 2.0 Pro（25 分/张，支持 1-6 张批量）</li>
+        <li><b>qwen-image-max</b> — 千问图像 Max（25 分/张，固定 1 张）</li>
+        <li>参数：prompt、negative_prompt、size（5 种分辨率）、n、watermark、prompt_extend、seed</li>
+        <li>前端：<code>ImageOutputPreview.tsx</code>、<code>ImageCostDetail.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>2.3 AI 视频生成 <span class="tag s-done">已实现</span></h3>
+      <p>选择视频模型 → 输入提示词/上传首帧/参考图 → 设置分辨率/时长 → 异步生成 → Worker 轮询 → SSE 推送。</p>
+      <ul>
+        <li><b>happyhorse-1.0-t2v</b> — HappyHorse 文生视频（90/160 分/秒）</li>
+        <li><b>happyhorse-1.0-i2v</b> — HappyHorse 图生视频（首帧驱动）</li>
+        <li><b>happyhorse-1.0-r2v</b> — HappyHorse 参考生视频（多角色）</li>
+        <li><b>happyhorse-1.0-video-edit</b> — HappyHorse 视频编辑</li>
+        <li><b>wan2.7-t2v</b> — 万相 2.7 文生视频（60/100 分/秒）</li>
+        <li><b>wan2.7-i2v</b> — 万相 2.7 图生视频（首帧/尾帧/续写/驱动音频）</li>
+        <li><b>wan2.7-r2v</b> — 万相 2.7 参考生视频</li>
+        <li><b>wan2.7-videoedit</b> — 万相 2.7 视频编辑</li>
+        <li>独立限流：视频生成 5 次/分钟/用户</li>
+        <li>异步流程：Server 提交 DashScope → Worker 轮询 → 下载视频+扣款 → SSE 推送</li>
+        <li>超时处理：&gt;4 小时自动失败+退款</li>
+        <li>媒体参数上传：首帧图、尾帧图、视频片段、驱动音频</li>
+        <li>前端：<code>VideoOutputPreview.tsx</code>、<code>VideoCostDetail.tsx</code>、<code>ReferenceMedia.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>2.4 生成任务去重 <span class="tag s-done">已实现</span></h3>
+      <p>同参数重复提交自动返回已有记录，避免重复消费。</p>
+      <ul>
+        <li>去重键：<code>accountId + model + hash(parameters)</code></li>
+        <li>检查范围：pending / processing 状态的同键记录</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>2.5 Provider 调用取消 <span class="tag s-done">已实现</span></h3>
+      <p>取消进行中任务，provider 侧 best-effort 取消，支持完整状态追踪。</p>
+      <ul>
+        <li>取消状态流转：<code>not_requested → requested → succeeded / failed</code></li>
+        <li>取消后自动退款 + SSE 推送 + 审计日志</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 3. Canvas 画布 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--cyan-bg);color:var(--cyan);">🎬</div>
+    <h2>3. Canvas 画布（AI 视频制作流水线）</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>3.1 项目 CRUD <span class="tag s-done">已实现</span></h3>
+      <p>Canvas 项目全生命周期管理，支持 12 种状态流转。</p>
+      <ul>
+        <li><span class="endpoint">GET /api/canvas/projects</span> — 列表</li>
+        <li><span class="endpoint">POST /api/canvas/projects</span> — 创建（storyText ≥ 10 字符）</li>
+        <li><span class="endpoint">GET /api/canvas/projects/:id</span> — 详情</li>
+        <li><span class="endpoint">PATCH /api/canvas/projects/:id</span> — 更新标题/故事文本</li>
+        <li><span class="endpoint">DELETE /api/canvas/projects/:id</span> — 软删除</li>
+        <li><span class="endpoint">POST /api/canvas/projects/:id/layout</span> — 保存画布布局（nodes/edges/viewport）</li>
+        <li><span class="endpoint">PATCH /api/canvas/projects/:id/model-preferences</span> — 更新模型偏好</li>
+        <li>前端：<code>Canvas.tsx</code>（项目列表）、<code>CanvasEditor.tsx</code>（编辑器）、<code>CanvasFlow.tsx</code>（ReactFlow 画布）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.2 九阶段流水线 <span class="tag s-done">已实现</span></h3>
+      <p>从故事文本到视频成品的完整 AI 生产流水线，支持手动触发和自动推进两种模式。</p>
+      <div class="sub-group">
+        <div class="items">
+          <div class="sub-item"><div><div class="name">阶段 1：analyze — LLM 故事分析</div><div class="desc">提取摘要、冲突、时间线、角色名、场景名</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 2：characters — 角色档案生成</div><div class="desc">为每个角色生成 name/role/description/identityPrompt/negativePrompt</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 3：locations — 场景档案生成</div><div class="desc">为每个场景生成 type/scenePrompt/negativePrompt</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 4：characterRefs — AI 角色参考图</div><div class="desc">使用图像模型为每个角色生成参考肖像 + 多角度图</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 5：locationRefs — AI 场景参考图</div><div class="desc">使用图像模型为每个场景生成参考图</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 6：storyboard — LLM 分镜脚本</div><div class="desc">将故事拆分为镜头，定义每个镜头的角色、场景、叙事、镜头语言 ⏸️ 暂停点（需用户确认）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 7：continuity — 连续性校验</div><div class="desc">规则校验镜头间的角色/场景/时间连续性</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 8：rebuild — 视频提示词重建</div><div class="desc">基于参考资产+连续性报告重建最终视频 prompt</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">阶段 9：videos — 视频生成提交</div><div class="desc">批量提交所有镜头视频生成 ⏸️ 暂停点（需用户确认）</div></div><span class="status s-done">已实现</span></div>
+        </div>
+      </div>
+      <ul style="margin-top:12px;">
+        <li>并发守卫：每个阶段执行前检查活跃 run，防止重复执行</li>
+        <li>Pipeline Stepper：Worker 完成后自动创建下一阶段 task</li>
+        <li>前端：<code>PipelineController.tsx</code>（控制面板）、<code>CanvasStatusBar.tsx</code>（状态栏）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.3 Pipeline Run 管理 <span class="tag s-done">已实现</span></h3>
+      <p>追踪每个阶段执行记录，支持批量终止。</p>
+      <ul>
+        <li><span class="endpoint">GET /api/canvas/projects/:id/runs</span> — 列出所有运行记录</li>
+        <li><span class="endpoint">GET /api/canvas/runs/:runId</span> — 单条运行记录</li>
+        <li><span class="endpoint">POST /api/canvas/projects/:id/cancel-active</span> — 终止所有活跃阶段</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.4 角色/场景/镜头资源管理 <span class="tag s-done">已实现</span></h3>
+      <p>完整的 Canvas 子资源 CRUD，支持编辑、删除、重新生成。</p>
+      <ul>
+        <li><span class="endpoint">PATCH /api/canvas/characters/:id</span> — 编辑角色（name/role/description/prompts/locked）</li>
+        <li><span class="endpoint">PATCH /api/canvas/locations/:id</span> — 编辑场景（name/type/prompts/locked）</li>
+        <li><span class="endpoint">PATCH /api/canvas/shots/:id</span> — 编辑镜头（duration/角色/叙事/镜头语言/参考资产）</li>
+        <li><span class="endpoint">DELETE /api/canvas/characters|locations|shots/:id</span> — 删除资源</li>
+        <li><span class="endpoint">POST /api/canvas/characters|locations|shots/:id/regenerate</span> — 重新生成（同级变体）</li>
+        <li>前端：<code>NodeDetailPanel.tsx</code>、<code>ShotReferenceAssets.tsx</code>、<code>PromptEditor.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.5 参考资产系统 <span class="tag s-done">已实现</span></h3>
+      <p>参考资产管理，支持批量应用到镜头、版本切换、锁定保护。</p>
+      <ul>
+        <li><span class="endpoint">POST /api/canvas/projects/:id/shots/reference-assets/apply</span> — 批量应用（append/replace）</li>
+        <li><span class="endpoint">GET /api/canvas/assets/:entityType/:entityId</span> — 查询资产历史</li>
+        <li><span class="endpoint">PATCH /api/canvas/asset/:id/activate</span> — 切换活跃版本</li>
+        <li><span class="endpoint">PATCH /api/canvas/asset/:id/lock</span> — 锁定资产</li>
+        <li>资产角色：character / location / style / firstFrame / other</li>
+        <li>每镜头最多 8 个参考资产</li>
+        <li>前端：<code>AssetHistory.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.6 镜头重试 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /api/canvas/shots/:id/retry</span> — 重试单个失败镜头</li>
+        <li><span class="endpoint">POST /api/canvas/projects/:id/retry-failed-shots</span> — 批量重试所有失败镜头</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>3.7 Canvas UI 组件 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><b>CanvasFlow.tsx</b> — ReactFlow 画布主视图（6 种自定义节点）</li>
+        <li><b>PipelineController.tsx</b> — 流水线控制面板</li>
+        <li><b>CostPanel.tsx</b> — 成本估算面板</li>
+        <li><b>TaskQueuePanel.tsx</b> — 任务队列面板</li>
+        <li><b>RunningOverlay.tsx</b> — 运行中遮罩</li>
+        <li><b>CanvasStatusBar.tsx</b> — 底部状态栏</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 4. 字幕处理 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--yellow-bg);color:var(--yellow);">📝</div>
+    <h2>4. 字幕处理（Subtitle Pipeline）</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>4.1 字幕项目全生命周期 <span class="tag s-done">已实现</span></h3>
+      <p>上传视频 → Worker 提取音频 → ASR 转录 → 编辑字幕 → FFmpeg 烧录导出。</p>
+      <ul>
+        <li><span class="endpoint">POST /api/subtitle/projects</span> — 创建字幕项目</li>
+        <li><span class="endpoint">GET /api/subtitle/projects</span> — 列表</li>
+        <li><span class="endpoint">GET /api/subtitle/projects/:id</span> — 详情</li>
+        <li><span class="endpoint">PATCH /api/subtitle/projects/:id/sentences</span> — 编辑字幕句子</li>
+        <li><span class="endpoint">PATCH /api/subtitle/projects/:id/style</span> — 更新样式配置</li>
+        <li><span class="endpoint">POST /api/subtitle/projects/:id/export</span> — 提交导出任务</li>
+        <li><span class="endpoint">POST /api/subtitle/projects/:id/retry</span> — 重试失败项目</li>
+        <li><span class="endpoint">DELETE /api/subtitle/projects/:id</span> — 删除</li>
+        <li>状态流：<code>draft → extracting_audio → asr_processing → subtitle_editing → exporting → completed / failed</code></li>
+        <li>ASR 模型：<b>paraformer-v2</b>（DashScope，0.008 分/秒）</li>
+        <li>前端：<code>Subtitle.tsx</code>（项目列表）、<code>SubtitleEditor.tsx</code>（编辑器）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>4.2 字幕样式与导出 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li>样式参数：fontSize、fontColor、outlineColor、outlineWidth、position（top/center/bottom）、marginV、bold</li>
+        <li>导出格式：ASS 字幕（<code>sentencesToAss()</code> from <code>@excuse/subtitle-engine</code>）</li>
+        <li>Worker 处理：<code>media.extract-audio</code>（FFmpeg 提取音频）+ <code>media.burn-subtitle</code>（FFmpeg 烧录字幕）</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 5. 统一资产中心 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--green-bg);color:var(--green);">📦</div>
+    <h2>5. 统一资产中心</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>5.1 资产库查询 <span class="tag s-done">已实现</span></h3>
+      <p>合并三种来源（generation_records + canvas_assets + uploaded_files）的统一资产列表。</p>
+      <ul>
+        <li><span class="endpoint">GET /api/assets</span> — 统一资产列表</li>
+        <li>过滤维度：source、kind、status、projectId、model、search、createdFrom/To、sort（4 种）、favorite、tagIds</li>
+        <li>分页：limit（≤200）+ offset + hasMore</li>
+        <li>前端：<code>Assets.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>5.2 资产操作 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /api/assets/:source/:id/hide</span> — 隐藏</li>
+        <li><span class="endpoint">POST /api/assets/:source/:id/unhide</span> — 取消隐藏</li>
+        <li><span class="endpoint">DELETE /api/assets/:source/:id</span> — 软删除（引用守卫）</li>
+        <li><span class="endpoint">POST /api/assets/:source/:id/restore</span> — 恢复软删除</li>
+        <li><span class="endpoint">POST /api/assets/:source/:id/favorite</span> — 收藏（幂等）</li>
+        <li><span class="endpoint">DELETE /api/assets/:source/:id/favorite</span> — 取消收藏</li>
+        <li><span class="endpoint">POST /api/assets/:source/:id/tags/:tagId</span> — 打标签</li>
+        <li><span class="endpoint">DELETE /api/assets/:source/:id/tags/:tagId</span> — 取消标签</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>5.3 标签系统 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/asset-tags</span> — 列出用户标签</li>
+        <li><span class="endpoint">POST /api/asset-tags</span> — 创建（1-32 字符，同账号唯一）</li>
+        <li><span class="endpoint">DELETE /api/asset-tags/:id</span> — 删除（级联删除）</li>
+        <li>用户隔离：所有标签按 accountId 隔离</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>5.4 资产 Retention GC <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /api/admin/asset-retention/run</span> — 管理员手动触发</li>
+        <li>物理清除已软删除且过 grace（默认 30 天）且无引用的资产</li>
+        <li>支持 dry-run 模式（仅扫描不删除）</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 6. 文件上传 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--blue-bg);color:var(--blue);">📤</div>
+    <h2>6. 文件上传管理</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>上传/编辑/删除 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /api/upload</span> — 上传（PNG/JPEG/WebP/GIF/MP4/WebM/MOV/AVI，最大 200MB）</li>
+        <li><span class="endpoint">PATCH /api/upload/:id</span> — 编辑（重命名/用途）</li>
+        <li><span class="endpoint">DELETE /api/upload/:id</span> — 删除（使用保护：被字幕/生成记录引用时拒绝）</li>
+        <li>存储：<code>AssetStorage</code> — 支持本地文件系统 + 阿里云 OSS</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 7. 计费与成本管理 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--green-bg);color:var(--green);">💰</div>
+    <h2>7. 计费与成本管理</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>7.1 信用账户与统计 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/billing/balance</span> — 可用余额 + 冻结金额</li>
+        <li><span class="endpoint">GET /api/billing/statistics</span> — 30 天费用聚合（按模型/类别/日趋势）</li>
+        <li><span class="endpoint">GET /api/billing/transactions</span> — 交易流水</li>
+        <li>前端：<code>Billing.tsx</code></li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>7.2 Credit Ledger 生命周期 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li>流程：<code>reserveCredit</code>（预留）→ <code>debitCredit</code>（成功扣款）/ <code>refundCredit</code>（失败退款）</li>
+        <li>原子操作：SQL <code>WHERE availableCents >= amountCents</code> 防超扣</li>
+        <li>双扣双退保护：唯一索引 <code>(generationRecordId, type)</code></li>
+        <li>审计：每步写入 audit log（credit_reserve / credit_debit / credit_refund）</li>
+        <li>余额不足通知：<code>notifyInsufficientBalance()</code>（5 分钟冷却）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>7.3 费用计算引擎 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><b>Token 计费</b>：输入/输出 token × 每百万 token 价格</li>
+        <li><b>Image 计费</b>：张数 × 单价</li>
+        <li><b>Video 计费</b>：时长(秒) × 单价（720P/1080P 分别定价）</li>
+        <li><b>Audio 计费</b>：时长(秒) × 单价</li>
+        <li>精度：currency.js precision=4，分→元精确转换</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>7.4 计费策略 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><b>workspace.generate</b> — credit-ledger（预留→扣款→退款完整生命周期）</li>
+        <li><b>openai.gateway.chat</b> — credit-ledger（同上）</li>
+        <li><b>canvas.pipeline</b> — <span class="tag s-free">Beta Free</span> 暂不计费</li>
+        <li><b>subtitle.asr</b> — <span class="tag s-beta">Cost-only</span> 仅记录成本，不扣余额</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 8. OpenAI 兼容网关 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--purple-bg);color:var(--purple);">🔌</div>
+    <h2>8. OpenAI 兼容网关</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>8.1 Chat Completions API <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /v1/chat/completions</span> — OpenAI 兼容文本生成（流式 + 非流式）</li>
+        <li><span class="endpoint">GET /v1/models</span> — 列出可用文本模型（OpenAI 格式）</li>
+        <li><span class="endpoint">GET /v1/usage</span> — 查询 Gateway 调用用量</li>
+        <li>认证：API Key（Bearer <code>exc_xxx</code>）或 JWT</li>
+        <li>流式实现：ReadableStream + SSE text/event-stream</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>8.2 API Key 管理 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">POST /api/keys</span> — 创建（完整 key 仅返回一次）</li>
+        <li><span class="endpoint">GET /api/keys</span> — 列出有效密钥</li>
+        <li><span class="endpoint">DELETE /api/keys/:id</span> — 撤销</li>
+        <li>Key 配置：name、scope（all/gateway）、rateLimitPerMinute、quotaMaxCents</li>
+        <li>额度追踪：<code>incrementApiKeySpend</code> — 每次调用累加</li>
+        <li>额度预警：80% 即将用尽（24h 冷却），100% 已用尽（6h 冷却）</li>
+        <li>额度重置：<code>checkAndResetApiKeyQuota</code> — quotaResetAt 到期自动重置</li>
+        <li>前端：<code>ApiKeys.tsx</code></li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 9. 实时推送 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--cyan-bg);color:var(--cyan);">📡</div>
+    <h2>9. 实时推送系统（SSE）</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>SSE 长连接与事件推送 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/sse</span> — Server-Sent Events 长连接</li>
+        <li>认证：httpOnly cookie 或 Authorization Bearer JWT</li>
+        <li>事件类型：<code>connected</code>、<code>heartbeat</code>（30s）、<code>generation_status</code>、<code>pipeline_node_update</code>、<code>notification</code></li>
+        <li>多标签页支持：<code>UserEventHub</code> 维护 userId → Set&lt;Sender&gt;</li>
+        <li>PostgreSQL LISTEN/NOTIFY 桥接：<code>AsyncChannel</code></li>
+        <li>客户端三态：<code>sse</code> → <code>polling</code>（降级）→ <code>disconnected</code></li>
+        <li>断线补偿：SSE 重连后自动 <code>fetchRecords()</code> 刷新数据</li>
+        <li>前端：<code>realtime-sync.ts</code> store、<code>sse.ts</code> SSEClient 类</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 10. 通知系统 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--yellow-bg);color:var(--yellow);">🔔</div>
+    <h2>10. 通知系统</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>通知 CRUD 与推送 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/notifications</span> — 列表（分页）</li>
+        <li><span class="endpoint">GET /api/notifications/unread</span> — 未读数量</li>
+        <li><span class="endpoint">PATCH /api/notifications/:id/read</span> — 标记已读</li>
+        <li><span class="endpoint">POST /api/notifications/read-all</span> — 全部已读</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <h3>通知类型 <span class="tag s-done">已实现</span></h3>
+      <div class="sub-group">
+        <div class="items">
+          <div class="sub-item"><div><div class="name">task_completed</div><div class="desc">文本/图片/视频/字幕生成完成（冷却 3s/0s）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">task_failed</div><div class="desc">生成失败 / Canvas 阶段失败（冷却 3s/0s）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas_completed</div><div class="desc">Canvas 项目所有镜头视频完成</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">balance_warning</div><div class="desc">余额不足（冷却 5 分钟）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">api_key_expired</div><div class="desc">Key 被撤销后仍有调用（冷却 24 小时）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">api_key_quota</div><div class="desc">Key 额度 80%/100%（冷却 24h/6h）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">provider_anomaly</div><div class="desc">Provider 调用异常（冷却 1 小时）</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">system</div><div class="desc">系统通知（冷却 1 小时）</div></div><span class="status s-done">已实现</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="feature-card">
+      <h3>Navbar 通知 UI <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li>铃铛图标 + 未读角标（≤9 显示数字，&gt;9 显示 "9+"）</li>
+        <li>下拉面板：单条已读 / 全部已读 / 点击跳转</li>
+        <li>乐观更新：SSE 到达时立即更新未读数+列表缓存</li>
+        <li>8 种类型各有专属图标和颜色</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 11. 管理后台 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--red-bg);color:var(--red);">⚙️</div>
+    <h2>11. 管理后台</h2>
+  </div>
+  <div class="feature-grid">
+
+    <div class="feature-card">
+      <h3>11.1 概览面板 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/overview</span> — 用户/生成/任务队列/Canvas 状态摘要</li>
+        <li>权限控制：<code>ADMIN_USER_IDS</code> 环境变量白名单 + JWT 认证</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.2 任务队列管理 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/tasks</span> — 查询统一任务队列（按 status/domain/search 过滤）</li>
+        <li><span class="endpoint">GET /api/admin/tasks/:id</span> — 任务详情（含 Canvas pipeline run 级联时间线）</li>
+        <li><span class="endpoint">POST /api/admin/tasks/:id/requeue</span> — 重新排队</li>
+        <li><span class="endpoint">POST /api/admin/tasks/:id/cancel</span> — 取消任务</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.3 用户管理 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/users</span> — 用户列表（余额/成本/调用次数/搜索/状态过滤）</li>
+        <li><span class="endpoint">GET /api/admin/users/:id</span> — 用户详情（30 天每日成本 + 模型成本分解 + 最近生成记录）</li>
+        <li><span class="endpoint">GET /api/admin/users/:id/api-keys</span> — 查询用户 API Key 列表</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.4 Provider 统计与模型健康 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/providers</span> — Provider 错误率/成本/延迟统计（server+worker 跨进程合并）</li>
+        <li><span class="endpoint">GET /api/admin/provider-health</span> — 模型降级状态列表（断路器状态机）</li>
+        <li><span class="endpoint">POST /api/admin/provider-health/:model/restore</span> — 手动恢复降级模型</li>
+        <li>延迟指标：avg、p50、p95</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.5 Canvas 项目管理 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/projects</span> — 项目列表（搜索/状态/已删除过滤/镜头数/模型摘要）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.6 审计日志 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/audit-logs</span> — 审计日志检索（按用户/操作/时间范围）</li>
+        <li>覆盖 20+ 种审计动作：register、login、generate、canvas_phase_run、credit_reserve/debit/refund、api_key_create/revoke、file_delete 等</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.7 Gateway 客户管理 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/admin/gateway-clients</span> — 客户列表</li>
+        <li><span class="endpoint">GET /api/admin/gateway-clients/:id</span> — 客户详情（摘要 + keys + 最近 50 条调用）</li>
+        <li><span class="endpoint">PATCH /api/admin/api-keys/:id/config</span> — 更新 API Key 配置</li>
+        <li><span class="endpoint">POST /api/admin/api-keys/:id/reset-quota</span> — 重置额度</li>
+        <li><span class="endpoint">POST /api/admin/api-keys/:id/revoke</span> — 管理员撤销（通知用户）</li>
+      </ul>
+    </div>
+
+    <div class="feature-card">
+      <h3>11.8 管理后台 UI <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li>前端：<code>Admin.tsx</code>（93.6KB — 包含所有管理功能 Tab 面板）</li>
+        <li>六大 Tab：概览 / 任务 / 用户 / Provider / 项目 / 审计 / Gateway 客户</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- 12. 监控与可观测性 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--blue-bg);color:var(--blue);">📊</div>
+    <h2>12. 监控与可观测性</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>Prometheus Metrics <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /metrics</span> — Prometheus text exposition v0.0.4</li>
+        <li>进程内指标：请求计数、延迟分布（p50/p95/p99）、错误率、provider 调用统计、SSE 在线用户、uptime</li>
+        <li>DB 派生指标：Canvas phase 统计、task queue 统计、provider health 状态</li>
+        <li>访问策略：默认回环地址，<code>METRICS_ACCESS_TOKEN</code> 允许远程</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <h3>健康检查 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /api/health</span> — 服务状态 + DB 连接 + SSE 连接数 + uptime + 版本</li>
+        <li><span class="endpoint">GET /api/health/metrics</span> — 详细指标快照（JSON）</li>
+        <li>Worker 健康：<span class="endpoint">GET :5100/health</span> — Worker 内部健康状态</li>
+      </ul>
+    </div>
+    <div class="feature-card">
+      <h3>Provider 断路器降级 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li>自动降级：连续失败达阈值 → 进入冷却窗口 → 快速失败（ModelDegradedError）</li>
+        <li>自动恢复：冷却窗口结束后自动恢复</li>
+        <li>进程内 3 秒 TTL 缓存 + DB 持久化</li>
+        <li>管理后台手动恢复：<code>POST /api/admin/provider-health/:model/restore</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 13. Worker 统一任务引擎 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--purple-bg);color:var(--purple);">⚡</div>
+    <h2>13. Worker 统一任务引擎</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>任务类型注册表 <span class="tag s-done">已实现</span></h3>
+      <div class="sub-group">
+        <div class="items">
+          <div class="sub-item"><div><div class="name">canvas.analyze</div><div class="desc">LLM 故事分析</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.characters</div><div class="desc">角色档案生成</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.locations</div><div class="desc">场景档案生成</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.characterRefs</div><div class="desc">角色参考图</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.locationRefs</div><div class="desc">场景参考图</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.storyboard</div><div class="desc">分镜脚本</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.continuity</div><div class="desc">连续性校验</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.rebuild</div><div class="desc">提示词重建</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">canvas.videos</div><div class="desc">视频生成提交</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">media.extract-audio</div><div class="desc">视频提取音频 + ASR 转录</div></div><span class="status s-done">已实现</span></div>
+          <div class="sub-item"><div><div class="name">media.burn-subtitle</div><div class="desc">FFmpeg 字幕烧录</div></div><span class="status s-done">已实现</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="feature-card">
+      <h3>任务调度基础设施 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><b>Claim 机制</b>：FOR UPDATE SKIP LOCKED 原子 claim，防多 Worker 竞争</li>
+        <li><b>Heartbeat</b>：Worker 定期延长 lockedUntil，防任务被误回收</li>
+        <li><b>Orphan Sweep</b>：恢复 lock 过期 5+ 分钟的 running 任务</li>
+        <li><b>错误分类</b>：<code>classifyTaskError</code> — retriable vs permanent</li>
+        <li><b>指数退避重试</b>：<code>markTaskRetrying</code> — nextRunAt 按指数推迟</li>
+        <li><b>Pipeline Auto-Advance</b>：<code>advancePipelineAfterTaskSuccess</code> 自动推进下一阶段</li>
+        <li><b>优雅退出</b>：SIGTERM/SIGINT → 等待当前任务完成（最长 30s）→ 退出</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 14. 开发者工具 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--cyan-bg);color:var(--cyan);">🧪</div>
+    <h2>14. 开发者工具</h2>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>Model Lab 模型实验室 <span class="tag s-done">已实现</span></h3>
+      <p>测试不同模型参数、对比效果。前端：<code>ModelLab.tsx</code></p>
+    </div>
+    <div class="feature-card">
+      <h3>Developers 开发者页面 <span class="tag s-done">已实现</span></h3>
+      <p>Gateway 调用记录、API Key 使用、集成文档。前端：<code>Developers.tsx</code></p>
+    </div>
+    <div class="feature-card">
+      <h3>OpenAPI 文档 <span class="tag s-done">已实现</span></h3>
+      <ul>
+        <li><span class="endpoint">GET /openapi</span> — Scalar 交互式 API 文档</li>
+        <li><span class="endpoint">GET /openapi/json</span> — OpenAPI 3.0 JSON Schema</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PENDING FEATURES ============ -->
+<div class="section" style="margin-top:72px;">
+  <div class="section-header">
+    <div class="icon" style="background:var(--red-bg);color:var(--red);">🚧</div>
+    <h2>待实现功能</h2>
+    <span class="badge s-todo">以下功能尚未实现</span>
+  </div>
+</div>
+
+<!-- P0 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--red-bg);color:var(--red);">🔴</div>
+    <h2>P0 — 上线阻断项</h2>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p0">P0</span> 用户充值系统</h4>
+    <p>计费系统是「只有扣款没有入账」的半成品。<code>credit_transaction_type</code> 枚举已定义 <code>credit</code> 和 <code>admin_adjust</code> 两种入账类型，但代码中没有任何充值入口。新用户注册后余额为 0，所有生成立即被拒绝。</p>
+    <div class="effort">⏱ 最低方案 1~2 天（admin 手动充值） / 正式方案 5~7 天（接入支付宝/微信支付）</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p0">P0</span> 密码重置与邮箱验证</h4>
+    <p>auth 路由只有 register/login/logout/me 四个端点，没有 forgot-password 流程、没有邮箱验证、没有 OAuth 社交登录。密码忘记后只能让管理员直接操作数据库。</p>
+    <div class="effort">⏱ 密码重置 1 天 / 邮箱验证可后续迭代</div>
+  </div>
+</div>
+
+<!-- P1 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--yellow-bg);color:var(--yellow);">🟡</div>
+    <h2>P1 — 上线后尽快解决</h2>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> Health Readiness / Liveness 探针</h4>
+    <p>当前 <code>/api/health</code> 在 DB 挂了时仍返回 HTTP 200，K8s 无法区分「正常服务」和「DB 挂了但进程活着」。需增加 <code>/health/ready</code>（DB ping 失败 → 503）和 <code>/health/live</code>（始终 200）。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> Billing 页面展示余额与流水</h4>
+    <p>后端已有 <code>GET /api/billing/balance</code> 和 <code>GET /api/billing/transactions</code>，但前端 Billing.tsx 只展示费用统计，没有展示当前余额和交易流水。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> CI 流水线补全</h4>
+    <p>CI 只运行 5 个目录的测试，缺失 11 个 packages 的测试 + 构建阶段 + Docker build 验证 + 依赖漏洞扫描。</p>
+    <div class="effort">⏱ 1 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> nginx HTTPS + 上传大小限制</h4>
+    <p>项目自带 <code>nginx.conf</code> 只 listen 80，没有 HTTPS/TLS 配置，没有 <code>client_max_body_size</code>（默认 1MB 限制会阻止大文件上传）。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> Server 优雅退出机制</h4>
+    <p>Worker 有完整的 SIGTERM/SIGINT 处理，但 Server 没有。K8s 滚动更新时正在处理的 HTTP 请求会直接断开。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> 数据库连接池配置</h4>
+    <p><code>postgres()</code> 未传入 <code>max</code>/<code>idle_timeout</code>/<code>connect_timeout</code> 参数，水平扩展时 PG 100 连接上限会被快速耗尽。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> SSE 连接数上限</h4>
+    <p>SSE 端点无最大连接数限制，恶意攻击者可建立数千连接耗尽服务器资源。需设置全局上限和单用户上限。</p>
+    <div class="effort">⏱ 1 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> CORS 生产环境配置</h4>
+    <p>生产环境 CORS origin 硬编码包含 <code>localhost:8007</code>，攻击者可在本地发起跨域请求。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> OpenAPI 文档生产环境访问保护</h4>
+    <p><code>/openapi</code> 文档在生产环境中对任何人公开，应添加认证或按环境禁用。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p1">P1</span> 上传文件安全校验</h4>
+    <p>仅检查 MIME 类型（来自请求头，可伪造），无文件头魔数校验、无上传频率限制。</p>
+    <div class="effort">⏱ 1 天</div>
+  </div>
+</div>
+
+<!-- P2 -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--border);color:var(--muted);">🔵</div>
+    <h2>P2 — 体验改进与架构优化</h2>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> 用户侧错误分类 UX</h4>
+    <p>生成失败时用户看到原始 errorMessage 字符串，没有区分余额不足/参数错误/内容安全/超时/模型降级，应引导用户执行对应操作。</p>
+    <div class="effort">⏱ 2~3 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> 限流 Redis 化</h4>
+    <p>当前限流是纯内存的，多实例部署时实际配额 = 实例数 × maxRequests。需迁移到 Redis + Lua 脚本。</p>
+    <div class="effort">⏱ 1~2 天（仅多实例部署时需要）</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> Canvas 路由拆分</h4>
+    <p><code>canvas.ts</code>（899 行）是项目最大路由文件，建议拆分为 projects/pipeline/phases/resources/helpers 五个子文件。</p>
+    <div class="effort">⏱ 2~3 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> 统一错误处理中间件</h4>
+    <p>每个路由文件自行 import 错误工具函数并手动返回错误响应，缺乏全局 <code>onError</code> 钩子和自定义错误类。</p>
+    <div class="effort">⏱ 2 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> E2E 冒烟测试</h4>
+    <p>有 ~1400 条单元/集成测试，但缺少从浏览器视角验证的 E2E 测试（登录→生成→SSE→查看结果）。</p>
+    <div class="effort">⏱ 3~5 天（Playwright）</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> API 版本管理</h4>
+    <p>所有端点在 <code>/api/</code> 下无版本号，无法做 API 平滑升级或不兼容变更迁移。</p>
+    <div class="effort">⏱ 2 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> Server/Worker 代码去重</h4>
+    <p>provider-health（84行）、metrics（32行）、audit（55行）在 server 和 worker 中各有一份几乎相同的代码，建议提取到 <code>@excuse/observability</code> 包。</p>
+    <div class="effort">⏱ 2 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> Admin 仓库拆分</h4>
+    <p><code>admin.repo.ts</code>（1179 行）覆盖 6 个业务域，建议按业务域拆分为 6 个独立 repo 文件。</p>
+    <div class="effort">⏱ 1 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> Task Processor 拆分</h4>
+    <p><code>task-processor.ts</code>（421 行）混合超时/成功/失败三分支 + Canvas 联动 + 通知推送，建议拆分为 5 个文件。</p>
+    <div class="effort">⏱ 1~2 天</div>
+  </div>
+
+  <div class="pending-card">
+    <h4><span class="priority p2">P2</span> 数据库迁移分布式锁</h4>
+    <p>多实例容器部署时多个进程可能同时执行迁移，需添加 <code>pg_advisory_lock</code> 保护。</p>
+    <div class="effort">⏱ 半天</div>
+  </div>
+</div>
+
+<!-- ============ ARCHITECTURE ============ -->
+<div class="section" style="margin-top:72px;">
+  <div class="section-header">
+    <div class="icon" style="background:var(--accent);color:#fff;">🏛️</div>
+    <h2>技术架构</h2>
+  </div>
+
+  <div class="arch-box">
+    <pre>
+┌───────────────────────────────────────────────────────────────┐
+│                        Client (:8007)                         │
+│   React 19 + Vite + Tailwind CSS 4 + shadcn/ui              │
+│   14 Pages · 5 Stores · Eden Treaty (端到端类型安全)          │
+└────────────────────────┬──────────────────────────────────────┘
+                         │ HTTP + SSE
+┌────────────────────────▼──────────────────────────────────────┐
+│                     Server (:5007)                            │
+│   ElysiaJS · 65+ API 端点 · JWT + API Key 认证               │
+│   限流 · CORS · OpenAPI · Provider 断路器 · SSE Manager       │
+└────────────┬───────────┬──────────────────┬───────────────────┘
+             │           │                  │
+     ┌───────▼───┐  ┌───▼────────┐  ┌──────▼──────┐
+     │ PostgreSQL │  │  DashScope │  │  阿里云 OSS  │
+     │ 22 Tables  │  │  15 Models │  │  文件存储    │
+     │ + LISTEN   │  │  (text/img/ │  │  (fallback  │
+     │ + NOTIFY   │  │   video)    │  │   本地磁盘)  │
+     └───────┬───┘  └────────────┘  └─────────────┘
+             │
+┌────────────▼──────────────────────────────────────────────────┐
+│                     Worker (:5100)                             │
+│   11 种任务类型 · Claim + Heartbeat + Orphan Sweep            │
+│   Video 轮询 · ASR 轮询 · Pipeline Auto-Advance              │
+│   FFmpeg (音频提取 + 字幕烧录) · Prometheus Metrics           │
+└────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────────────┐
+│                    Shared Packages (12+)                       │
+│  @excuse/db          — Drizzle ORM + 22 表 Schema + Repo     │
+│  @excuse/provider    — DashScope Client + 模型配置 + Storage  │
+│  @excuse/billing     — 费用计算 + 计费策略 + 统计聚合          │
+│  @excuse/events      — SSE 协议 + PG LISTEN 桥接              │
+│  @excuse/gateway     — OpenAI 兼容响应构建                     │
+│  @excuse/metrics     — MetricsCollector + Prometheus 序列化    │
+│  @excuse/auth        — API Key 生成 + 哈希                     │
+│  @excuse/rate-limit  — 滑动窗口限流                            │
+│  @excuse/provider-health — 断路器降级策略                      │
+│  @excuse/task-engine — 任务注册表 + 错误分类 + 重试策略         │
+│  @excuse/workflow-engine — Canvas 流水线阶段顺序               │
+│  @excuse/subtitle-engine — ASS 字幕生成                        │
+│  @excuse/shared      — 共享类型 + 工具函数 + 日志              │
+└────────────────────────────────────────────────────────────────┘
+    </pre>
+  </div>
+</div>
+
+<!-- ============ TECH STACK ============ -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--purple-bg);color:var(--purple);">🛠️</div>
+    <h2>技术栈</h2>
+  </div>
+
+  <div class="tech-grid">
+    <div class="tech-item"><div class="name">Bun</div><div class="role">运行时 + 包管理 + 测试</div></div>
+    <div class="tech-item"><div class="name">TypeScript</div><div class="role">Strict Mode + verbatimModuleSyntax</div></div>
+    <div class="tech-item"><div class="name">React 19</div><div class="role">前端框架 + Suspense + lazy</div></div>
+    <div class="tech-item"><div class="name">Vite 8</div><div class="role">前端构建 + HMR</div></div>
+    <div class="tech-item"><div class="name">ElysiaJS</div><div class="role">后端 API 框架</div></div>
+    <div class="tech-item"><div class="name">Drizzle ORM</div><div class="role">数据库 ORM + 迁移</div></div>
+    <div class="tech-item"><div class="name">PostgreSQL 16</div><div class="role">主数据库 + LISTEN/NOTIFY</div></div>
+    <div class="tech-item"><div class="name">Tailwind CSS 4</div><div class="role">样式系统</div></div>
+    <div class="tech-item"><div class="name">shadcn/ui</div><div class="role">UI 组件库（Radix Primitives）</div></div>
+    <div class="tech-item"><div class="name">ReactFlow</div><div class="role">Canvas 画布交互</div></div>
+    <div class="tech-item"><div class="name">Eden Treaty</div><div class="role">端到端类型安全 API 调用</div></div>
+    <div class="tech-item"><div class="name">DashScope</div><div class="role">阿里云 AI 模型服务</div></div>
+    <div class="tech-item"><div class="name">阿里云 OSS</div><div class="role">对象存储（fallback 本地磁盘）</div></div>
+    <div class="tech-item"><div class="name">FFmpeg</div><div class="role">音频提取 + 字幕烧录</div></div>
+    <div class="tech-item"><div class="name">Pino</div><div class="role">结构化日志</div></div>
+    <div class="tech-item"><div class="name">Docker</div><div class="role">多 target 部署（build/runtime 分离）</div></div>
+    <div class="tech-item"><div class="name">currency.js</div><div class="role">高精度费用计算</div></div>
+    <div class="tech-item"><div class="name">Prometheus</div><div class="role">指标采集与监控</div></div>
+  </div>
+</div>
+
+<!-- ============ CLIENT ROUTES ============ -->
+<div class="section">
+  <div class="section-header">
+    <div class="icon" style="background:var(--blue-bg);color:var(--blue);">🗺️</div>
+    <h2>客户端路由</h2>
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="info-table">
+      <thead><tr><th>路由</th><th>页面</th><th>描述</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td><code>/login</code></td><td>Login</td><td>用户登录</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/register</code></td><td>Register</td><td>用户注册</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/</code></td><td>Workspace</td><td>AI 内容生成工作台（文本/图像/视频）</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/canvas</code></td><td>Canvas</td><td>Canvas 项目列表</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/canvas/:projectId</code></td><td>CanvasEditor</td><td>Canvas 画布编辑器</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/subtitle</code></td><td>Subtitle</td><td>字幕项目列表</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/subtitle/:id</code></td><td>SubtitleEditor</td><td>字幕编辑器</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/assets</code></td><td>Assets</td><td>统一资产中心</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/billing</code></td><td>Billing</td><td>计费与余额</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/api-keys</code></td><td>ApiKeys</td><td>API 密钥管理</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/developers</code></td><td>Developers</td><td>开发者工具</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/model-lab</code></td><td>ModelLab</td><td>模型实验室</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/admin</code></td><td>Admin</td><td>管理后台（6 大维度）</td><td><span class="tag s-done">已实现</span></td></tr>
+        <tr><td><code>/forgot-password</code></td><td>—</td><td>密码重置</td><td><span class="tag s-todo">未实现</span></td></tr>
+        <tr><td><code>/payment</code></td><td>—</td><td>充值支付</td><td><span class="tag s-todo">未实现</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <p>Excuse AI Platform — 功能清单与实现状态报告</p>
+  <p>生成时间：2026-06-12 · 基于全项目源码分析</p>
+</div>
+
+</div>
+</body>
+</html>

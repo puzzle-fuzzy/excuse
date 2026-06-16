@@ -1,10 +1,28 @@
+import type { BillingBalance, CreditTransactionDTO } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, CalendarDays, DollarSign, RefreshCw, TrendingUp } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Calendar, CalendarDays, DollarSign, RefreshCw, TrendingUp, Wallet } from 'lucide-react'
 import { getBillingStatistics } from '@/api/billing'
+import { fetchBillingBalance, fetchBillingTransactions } from '@/api/client'
 import { billingQueryKeys } from '@/api/query-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCents } from '@/lib/generation-utils'
+
+function formatDate(value: string | null) {
+  if (!value)
+    return '-'
+  try {
+    const d = new Date(value)
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${month}-${day} ${hours}:${minutes}`
+  }
+  catch {
+    return value
+  }
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   text: '文本生成',
@@ -20,14 +38,52 @@ const CATEGORY_COLORS: Record<string, string> = {
   audio: 'bg-green-500',
 }
 
+const TX_TYPE_LABELS: Record<string, string> = {
+  reserve: '冻结',
+  debit: '扣款',
+  refund: '退还',
+  credit: '充值',
+  admin_adjust: '管理员调整',
+}
+
+const TX_TYPE_COLORS: Record<string, string> = {
+  reserve: 'text-amber-500',
+  debit: 'text-red-500',
+  refund: 'text-green-500',
+  credit: 'text-emerald-500',
+  admin_adjust: 'text-gray-500',
+}
+
+function TxTypeIcon({ type }: { type: string }) {
+  if (type === 'credit' || type === 'admin_adjust')
+    return <ArrowDownLeft className="size-4 text-emerald-500" />
+  if (type === 'refund')
+    return <ArrowDownLeft className="size-4 text-green-500" />
+  return <ArrowUpRight className="size-4 text-red-500" />
+}
+
 export default function Billing() {
-  const { data: stats, isLoading, isError, refetch, isFetching } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: refetchStats, isFetching: statsFetching } = useQuery({
     queryKey: billingQueryKeys.statistics,
-    queryFn: getBillingStatistics,
+    queryFn: () => getBillingStatistics(),
   })
 
+  const { data: balance, isLoading: balanceLoading } = useQuery({
+    queryKey: ['billing', 'balance'],
+    queryFn: fetchBillingBalance,
+    refetchInterval: 30_000,
+  })
+
+  const { data: txData, isLoading: txLoading } = useQuery({
+    queryKey: ['billing', 'transactions'],
+    queryFn: () => fetchBillingTransactions({ limit: 50 }),
+  })
+
+  const balanceData: BillingBalance | undefined = balance?.data
+  const transactions: CreditTransactionDTO[] = txData?.items ?? []
+
   // 加载态
-  if (isLoading) {
+  if (statsLoading) {
     return (
       <div className="mx-auto max-w-7xl p-4">
         <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -38,13 +94,13 @@ export default function Billing() {
   }
 
   // 错误态
-  if (isError || !stats) {
+  if (statsError || !stats) {
     return (
       <div className="mx-auto max-w-7xl p-4">
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <DollarSign className="mb-2 size-10" />
           <p>加载费用统计失败</p>
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => refetchStats()}>
             <RefreshCw className="size-3" />
             重试
           </Button>
@@ -71,13 +127,54 @@ export default function Billing() {
           variant="ghost"
           size="icon"
           className="ml-auto size-7"
-          onClick={() => refetch()}
-          disabled={isFetching}
+          onClick={() => {
+            refetchStats()
+          }}
+          disabled={statsFetching}
           title="刷新"
         >
-          <RefreshCw className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-3.5 ${statsFetching ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+
+      {/* 余额卡片 */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Wallet className="size-4" />
+            账户余额
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {balanceLoading || !balanceData
+            ? (
+                <p className="text-sm text-muted-foreground">加载中...</p>
+              )
+            : (
+                <div className="flex items-baseline gap-6">
+                  <div>
+                    <p className="text-3xl font-bold">
+                      ¥
+                      {formatCents(balanceData.availableCents)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">可用余额</p>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>
+                      冻结：
+                      ¥
+                      {formatCents(balanceData.frozenCents)}
+                    </p>
+                    <p>
+                      总计：
+                      ¥
+                      {formatCents(balanceData.totalCents)}
+                    </p>
+                  </div>
+                </div>
+              )}
+        </CardContent>
+      </Card>
 
       {/* 概览卡片 */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -202,6 +299,66 @@ export default function Billing() {
                   })}
                 </div>
               )}
+        </CardContent>
+      </Card>
+
+      {/* 交易流水 */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-sm">交易流水</CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => {
+              // invalidate and refetch
+            }}
+            title="刷新"
+          >
+            <RefreshCw className={`size-3.5 ${txLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {txLoading
+            ? (
+                <p className="text-sm text-muted-foreground">加载中...</p>
+              )
+            : transactions.length === 0
+              ? (
+                  <p className="text-sm text-muted-foreground">暂无交易记录</p>
+                )
+              : (
+                  <div className="space-y-2">
+                    {transactions.map(tx => (
+                      <div key={tx.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                        <div className="flex items-center gap-3">
+                          <TxTypeIcon type={tx.type} />
+                          <div>
+                            <p className={`font-medium ${TX_TYPE_COLORS[tx.type] || ''}`}>
+                              {TX_TYPE_LABELS[tx.type] || tx.type}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {tx.description ?? '-'}
+                              {' · '}
+                              {formatDate(tx.createdAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-mono font-medium ${tx.type === 'credit' || tx.type === 'admin_adjust' || tx.type === 'refund' ? 'text-green-600' : ''}`}>
+                            {tx.type === 'credit' || tx.type === 'admin_adjust' || tx.type === 'refund' ? '+' : '-'}
+                            ¥
+                            {formatCents(tx.amountCents)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            余额 ¥
+                            {formatCents(tx.balanceAfterCents)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
         </CardContent>
       </Card>
     </div>

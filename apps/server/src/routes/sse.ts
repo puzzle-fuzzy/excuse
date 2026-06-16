@@ -56,13 +56,21 @@ function createAsyncChannel() {
 export function createSSERoutes(config: ServerConfig) {
   return new Elysia({ prefix: '/api' })
     .use(createRequireAuthPlugin(config))
-    .get('/sse', async function* ({ userId }) {
+    .get('/sse', async function* ({ userId, set }) {
       const channel = createAsyncChannel()
       const sender = (event: string, data: unknown) => {
         channel.push({ event, data })
       }
 
-      addConnection(userId, sender)
+      const result = addConnection(userId, sender)
+      if (!result.accepted) {
+        set.status = 503
+        yield sse({
+          event: 'error',
+          data: { message: result.reason ?? 'SSE 连接被拒绝' },
+        })
+        return
+      }
 
       try {
         // 连接建立事件

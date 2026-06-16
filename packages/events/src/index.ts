@@ -25,16 +25,43 @@ export interface GenerationNotifyDispatcherOptions {
   onError?: (error: unknown, rawPayload: string) => void
 }
 
+export interface AddConnectionResult {
+  accepted: boolean
+  userCount: number
+  totalCount: number
+  reason?: string
+}
+
 export class UserEventHub {
   private readonly connections = new Map<string, Set<EventSender>>()
+  private readonly maxTotalConnections: number
+  private readonly maxConnectionsPerUser: number
 
-  addConnection(userId: string, send: EventSender): number {
+  constructor(maxTotalConnections: number = 10_000, maxConnectionsPerUser: number = 3) {
+    this.maxTotalConnections = maxTotalConnections
+    this.maxConnectionsPerUser = maxConnectionsPerUser
+  }
+
+  addConnection(userId: string, send: EventSender): AddConnectionResult {
+    const totalCount = this.connections.size
+
+    // 全局总量上限检查
+    if (totalCount >= this.maxTotalConnections) {
+      return { accepted: false, userCount: 0, totalCount, reason: `SSE 连接数已达全局上限 (${this.maxTotalConnections})` }
+    }
+
+    // 单用户连接数上限检查
+    const currentUserCount = this.connections.get(userId)?.size ?? 0
+    if (currentUserCount >= this.maxConnectionsPerUser) {
+      return { accepted: false, userCount: currentUserCount, totalCount, reason: `SSE 连接数已达单用户上限 (${this.maxConnectionsPerUser})` }
+    }
+
     if (!this.connections.has(userId))
       this.connections.set(userId, new Set())
 
     const userConnections = this.connections.get(userId)!
     userConnections.add(send)
-    return userConnections.size
+    return { accepted: true, userCount: userConnections.size, totalCount: totalCount + 1 }
   }
 
   removeConnection(userId: string, send: EventSender): number {

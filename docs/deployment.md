@@ -169,6 +169,11 @@ bun run check:assets -- --storage-root=/data/excuse/uploads --fail-on-issues
 
 ### Nginx 配置参考
 
+> **TLS 终止位置说明**：TLS 可在 CDN/LB 层终止，也可在 Nginx 本身终止。
+> - **CDN/LB 终止**（推荐）：CDN（如 Cloudflare、阿里云 CDN）或负载均衡器终结 TLS，转发 HTTP 到后端 Nginx。此时 HSTS 由 CDN/LB 设置，后端 Nginx 不需要证书。
+> - **Nginx 直接终结**：Nginx 配置 443 + SSL 证书，且必须同时配置 80 → 443 重定向。HSTS 在 Nginx 的 443 server block 中设置。
+> - **裸部署（开发/内测）**：不使用 HTTPS 时，保留 listen 80 即可；但建议所有公网部署至少由 CDN/LB 终结 TLS。
+
 ```nginx
 server {
     listen 80;

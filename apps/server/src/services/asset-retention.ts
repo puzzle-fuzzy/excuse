@@ -1,7 +1,6 @@
-import type { AssetRetentionResult } from '@excuse/shared'
 import type { RetentionCandidate } from '@excuse/db'
+import type { AssetRetentionResult } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { createLogger } from '@excuse/shared'
 import {
   hardDeleteCanvasAsset,
   hardDeleteGenerationRecord,
@@ -13,6 +12,7 @@ import {
   listUploadedFileRetentionCandidates,
 } from '@excuse/db'
 import { AssetStorage } from '@excuse/provider'
+import { createLogger } from '@excuse/shared'
 import { audit } from './audit'
 
 const logger = createLogger('asset-retention')

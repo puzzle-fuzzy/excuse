@@ -39,10 +39,11 @@ const eventHub = new UserEventHub()
 
 /**
  * 添加一个 SSE 连接
+ * 返回 AddConnectionResult，调用方（sse route）应检查 accepted 字段，
+ * 被拒绝时返回 503（连接数超限）。
  */
 export function addConnection(userId: string, send: Sender) {
-  const total = eventHub.addConnection(userId, send)
-  logger.debug({ userId, total }, 'SSE client connected')
+  return eventHub.addConnection(userId, send)
 }
 
 /**

@@ -1,8 +1,8 @@
 import type { ProviderModelHealth } from '@excuse/db'
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse, AssetRetentionResult } from '@excuse/shared'
+import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminCreditAddResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse, AssetRetentionResult } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, creditBalance, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getOrCreateCreditAccount, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
 import { mergeProviderCalls } from '@excuse/metrics'
 import { degradedRemainingMs, isDegraded } from '@excuse/provider-health'
 import { Elysia, t } from 'elysia'
@@ -657,6 +657,53 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '管理员撤销 API Key',
         description: '管理员撤销任意 API Key（无需 owner 校验）。已撤销或不存在返回 409。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 管理后台充值 ────────────────────────────────────────────────────────
+    .post('/credit/add', async ({ adminAllowed, adminDenied, userId, body, set }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      await getOrCreateCreditAccount(body.accountId)
+      let tx
+      try {
+        tx = await creditBalance({
+          accountId: body.accountId,
+          amountCents: body.amountCents,
+          description: body.description ?? '管理后台充值',
+          metadata: { operator: userId, type: 'admin_recharge' },
+        })
+      }
+      catch (err) {
+        const message = err instanceof Error ? err.message : '充值失败'
+        return conflict(set, message)
+      }
+
+      audit('admin_action', {
+        accountId: userId,
+        targetId: body.accountId,
+        detail: { action: 'credit_add', amountCents: body.amountCents, description: body.description },
+      })
+
+      return {
+        success: true,
+        data: {
+          ...tx,
+          createdAt: tx.createdAt.toISOString(),
+        },
+      } satisfies AdminCreditAddResponse
+    }, {
+      body: t.Object({
+        accountId: t.String(),
+        amountCents: t.Number({ minimum: 1 }),
+        description: t.Optional(t.String({ maxLength: 500 })),
+      }),
+      detail: {
+        summary: '用户充值',
+        description: '管理员为指定用户手动充值，写入 credit_transactions type=credit，附带 admin_action 审计。仅 ADMIN_USER_IDS 配置中的用户可访问。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

@@ -21,3 +21,28 @@ export interface AuthSession {
 export type AuthResponse = EntityResponse<AuthSession>
 
 export type AuthCurrentUserResponse = EntityResponse<AuthUser>
+
+// ── 密码重置 ──
+
+/**
+ * 忘记密码请求 — 发送重置邮件
+ */
+export interface ForgotPasswordRequest {
+  email: string
+}
+
+/**
+ * 重置密码请求
+ */
+export interface ResetPasswordRequest {
+  token: string
+  password: string
+}
+
+export interface ForgotPasswordResponse {
+  success: true
+}
+
+export interface ResetPasswordResponse {
+  success: true
+}

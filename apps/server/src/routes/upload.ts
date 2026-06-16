@@ -3,6 +3,7 @@ import type { MutationOkResponse, UploadedFileDTO, UploadResponse } from '@excus
 import type { ServerConfig } from '../config'
 import { createUploadedFile, deleteUploadedFileById, getUploadedFileById, getUploadedFileUsage, updateUploadedFile } from '@excuse/db'
 import { AssetStorage } from '@excuse/provider'
+import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 import { createLogger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -23,6 +24,65 @@ const ALLOWED_MIME_TYPES = [
   'video/x-msvideo',
 ]
 const MAX_FILE_SIZE = 200 * 1024 * 1024 // 200MB（视频文件更大）
+
+// 单用户上传频次限制：每分钟最多 10 次
+const UPLOAD_RATE_LIMITER = new SlidingWindowRateLimiter()
+const UPLOAD_RATE_LIMIT = { maxRequests: 10, windowMs: 60_000 }
+
+/**
+ * 通过文件头 magic bytes 校验真实 MIME 类型
+ * 返回探测到的 MIME type 字符串，无法识别返回 null
+ */
+function detectMimeType(buffer: Uint8Array): string | null {
+  const len = buffer.length
+  if (len < 4)
+    return null
+
+  const head = Array.from(buffer.slice(0, Math.min(len, 16)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join(' ')
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (head.startsWith('89 50 4e 47 0d 0a 1a 0a'))
+    return 'image/png'
+  // JPEG: FF D8 FF
+  if (head.startsWith('ff d8 ff'))
+    return 'image/jpeg'
+  // GIF87a: 47 49 46 38 37 61
+  if (head.startsWith('47 49 46 38 37 61'))
+    return 'image/gif'
+  // GIF89a: 47 49 46 38 39 61
+  if (head.startsWith('47 49 46 38 39 61'))
+    return 'image/gif'
+  // WebP: RIFF....WEBP (52 49 46 46 xx xx xx xx 57 45 42 50)
+  if (head.startsWith('52 49 46 46') && len >= 12) {
+    const webpTag = Array.from(buffer.slice(8, 12)).map(b => String.fromCharCode(b)).join('')
+    if (webpTag === 'WEBP')
+      return 'image/webp'
+  }
+  // WebM/Matroska: 1A 45 DF A3 (EBML)
+  if (head.startsWith('1a 45 df a3'))
+    return 'video/webm'
+  // AVI: RIFF....AVI (52 49 46 46 xx xx xx xx 41 56 49 20)
+  if (head.startsWith('52 49 46 46') && len >= 12) {
+    const aviTag = Array.from(buffer.slice(8, 12)).map(b => String.fromCharCode(b)).join('')
+    if (aviTag === 'AVI ')
+      return 'video/x-msvideo'
+  }
+  // MP4/MOV/QuickTime: ftyp box (xx xx xx xx 66 74 79 70)
+  if (head.includes('66 74 79 70')) {
+    const ftypBrand = len >= 12
+      ? Array.from(buffer.slice(8, 12)).map(b => String.fromCharCode(b)).join('')
+      : ''
+    // QuickTime: ftypqt 或 ftypisom
+    if (ftypBrand === 'qt  ' || head.includes('71 74 20 20'))
+      return 'video/quicktime'
+    // MP4: ftypisom, ftypmp42, ftypavc1, etc.
+    return 'video/mp4'
+  }
+
+  return null
+}
 
 /**
  * DB row → DTO 序列化（Date → string）
@@ -71,14 +131,42 @@ export function createUploadRoutes(config: ServerConfig) {
         return validationError(set, `文件大小超过限制（最大 ${MAX_FILE_SIZE / 1024 / 1024}MB）`)
       }
 
+      // Magic bytes 校验 —— 防止客户端伪造 MIME 声明
+      const buffer = new Uint8Array(await file.arrayBuffer())
+      const detectedType = detectMimeType(buffer)
+      if (!detectedType) {
+        return validationError(set, '无法识别的文件类型，请检查文件内容')
+      }
+
+      // 客户端声明的 MIME 与 magic bytes 不符：拒绝上传
+      // 但兼容 "video/quicktime" ↔ "video/mp4" 间的视频格式模糊匹配
+      const clientType = file.type
+      if (clientType !== detectedType) {
+        // 放宽：客户端声明 video/quicktime 但实际是 MP4 容器视为允许
+        const isVideoRelaxed = clientType.startsWith('video/') && detectedType.startsWith('video/')
+        if (!isVideoRelaxed) {
+          return validationError(set, `文件类型不匹配：声明 ${clientType}，实际 ${detectedType}`)
+        }
+      }
+
+      // 单用户上传频次限制（per-account 维度，与全局限流分开）
+      const rateCheck = UPLOAD_RATE_LIMITER.check({ userId, category: 'upload', maxRequests: UPLOAD_RATE_LIMIT.maxRequests, windowMs: UPLOAD_RATE_LIMIT.windowMs })
+      if (!rateCheck.allowed) {
+        set.status = 429
+        return {
+          success: false,
+          error: '上传过于频繁，请稍后再试',
+        }
+      }
+
       const subDir = `ref_${Date.now()}`
-      const { storagePath, publicUrl } = await storage.saveUploadedFile(file, subDir)
+      const { storagePath, publicUrl } = await storage.saveUploadedFile(new File([buffer], file.name, { type: detectedType }), subDir)
 
       const record = await createUploadedFile({
         accountId: userId,
         fileName: file.name,
         fileSize: file.size,
-        mimeType: file.type,
+        mimeType: detectedType, // 用探测值而非客户端声明
         storagePath,
         publicUrl,
         purpose: 'reference',

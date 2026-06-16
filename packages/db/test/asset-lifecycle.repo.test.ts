@@ -2,9 +2,6 @@ import type { CanvasAssetInsert, CanvasShotInsert } from '../src/types'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '../src/db'
-import { createCanvasAsset, getCanvasAssetByIdForAccount } from '../src/repositories/canvas-assets.repo'
-import { createCanvasShot } from '../src/repositories/canvas-shots.repo'
-import { createCanvasProject } from '../src/repositories/canvas-projects.repo'
 import {
   getAssetReferences,
   hardDeleteCanvasAsset,
@@ -13,6 +10,9 @@ import {
   restoreCanvasAsset,
   softDeleteCanvasAsset,
 } from '../src/repositories/asset-lifecycle.repo'
+import { createCanvasAsset, getCanvasAssetByIdForAccount } from '../src/repositories/canvas-assets.repo'
+import { createCanvasProject } from '../src/repositories/canvas-projects.repo'
+import { createCanvasShot } from '../src/repositories/canvas-shots.repo'
 import { accounts } from '../src/schema/accounts'
 import { canvasAssets } from '../src/schema/canvas-assets'
 import { teardownTestDb, useMigratedTestDb } from './helpers/test-db'
