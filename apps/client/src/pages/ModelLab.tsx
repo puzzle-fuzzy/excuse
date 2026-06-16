@@ -31,12 +31,12 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
-import { copyToClipboard } from '@/lib/utils'
 import {
   loadCanvasModelDefaults,
   modelToCanvasPreferencePatch,
   saveCanvasModelDefaults,
 } from '@/lib/model-lab-presets'
+import { copyToClipboard } from '@/lib/utils'
 
 type LabValue = string | number | boolean
 

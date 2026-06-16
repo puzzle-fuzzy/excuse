@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -327,9 +327,10 @@ export async function getCanvasProject(projectId: string): Promise<CanvasProject
 
 /** 轮询 Canvas 项目资产快照 — SSE 降级或补充性数据通道 */
 export async function pollCanvasAssets(projectId: string): Promise<CanvasAssetsPoll> {
-  return unwrapEden<CanvasAssetsPoll>(
+  const res = unwrapEden<CanvasAssetsPollResponse>(
     await api.api.canvas.projects({ projectId }).assets.poll.get(),
   )
+  return res.data
 }
 
 export async function deleteCanvasProject(projectId: string): Promise<CanvasMutationOkResponse> {

@@ -1,15 +1,25 @@
-.codegraph
+# Dependencies
+**/node_modules
+
+# Tests
+**/test
+**/*.test.ts
+**/*.test.tsx
+coverage
+
+# Build artifacts
+**/dist
+
+# Documentation
+docs
+
+# Scripts
+scripts
+
+# IDE / dev files
 .git
 .github
+.vscode
+*.md
 .env
-.env.*
-**/node_modules
-**/dist
-**/coverage
-**/uploads
-**/*.tsbuildinfo
-coverage
-logs
-*.log
-*.lcov
-uploads
+.env.example

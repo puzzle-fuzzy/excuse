@@ -125,7 +125,6 @@ const CURL_STREAM_EXAMPLE = `curl ${BASE_URL}/v1/chat/completions \\
     ]
   }'`
 
-
 function UsageSection() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['gateway', 'usage'],
