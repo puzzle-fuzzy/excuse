@@ -23,7 +23,7 @@ ENV NODE_ENV=production
 EXPOSE 5007
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD bun -e "await fetch('http://127.0.0.1:5007/api/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-CMD ["bun", "--env-file", ".env", "apps/server/src/index.ts"]
+CMD ["bun", "apps/server/src/index.ts"]
 
 FROM runtime-deps AS worker-runtime
 WORKDIR /app
@@ -38,7 +38,7 @@ ENV NODE_ENV=production
 EXPOSE 5100
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD bun -e "await fetch('http://127.0.0.1:5100/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-CMD ["bun", "--env-file", ".env", "apps/worker/src/index.ts"]
+CMD ["bun", "apps/worker/src/index.ts"]
 
 FROM nginx:1.27-alpine AS client
 COPY nginx.conf /etc/nginx/conf.d/default.conf
