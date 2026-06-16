@@ -1,7 +1,0 @@
-feat: SMTP 邮件发送配置 + nodemailer 集成
-
-- ServerConfig 新增 smtp 可选配置段（SMTP_HOST/PORT/USER/PASS/FROM）
-- sendPasswordResetEmail 有 SMTP 配置时通过 nodemailer 发送，否则回退控制台打印
-- .env.example 和 docs/deployment.md 补充 SMTP 环境变量说明
-
-Co-Authored-By: Claude <noreply@anthropic.com>
