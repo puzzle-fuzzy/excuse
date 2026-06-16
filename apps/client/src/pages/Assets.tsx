@@ -63,6 +63,7 @@ import {
   STATUS_LABELS,
 } from '@/lib/asset-library'
 import { formatCents } from '@/lib/generation-utils'
+import { copyToClipboard } from '@/lib/utils'
 
 type SourceFilter = 'all' | AssetLibrarySource
 type KindFilter = 'all' | AssetLibraryKind
@@ -137,16 +138,6 @@ function syncFiltersToUrl(filters: AssetLibraryFilters, projectId: string | null
   if (projectId)
     url.searchParams.set('project', projectId)
   window.history.replaceState({}, '', url.toString())
-}
-
-async function copyLink(url: string) {
-  try {
-    await navigator.clipboard.writeText(url)
-    toast.success('已复制链接')
-  }
-  catch {
-    toast.error('复制链接失败')
-  }
 }
 
 export default function Assets() {
@@ -905,7 +896,7 @@ function PreviewModal({ item, onClose, onAction }: { item: AssetLibraryItem, onC
             </a>
           )}
           {item.previewUrl && (
-            <Button variant="outline" size="sm" onClick={() => copyLink(item.previewUrl!)}>
+            <Button variant="outline" size="sm" onClick={() => copyToClipboard(item.previewUrl!, '已复制链接')}>
               <Copy className="size-3" />
               复制链接
             </Button>

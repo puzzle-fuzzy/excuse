@@ -3,12 +3,12 @@ import { MODEL_ALIASES } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Copy, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
-import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { formatCents } from '@/lib/generation-utils'
+import { copyToClipboard } from '@/lib/utils'
 
 const BASE_URL = window.location.origin
 
@@ -125,15 +125,6 @@ const CURL_STREAM_EXAMPLE = `curl ${BASE_URL}/v1/chat/completions \\
     ]
   }'`
 
-async function copyCode(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success('已复制')
-  }
-  catch {
-    toast.error('复制失败')
-  }
-}
 
 function UsageSection() {
   const { data, isLoading, refetch } = useQuery({
@@ -266,7 +257,7 @@ export default function Developers() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">curl</span>
-              <Button variant="outline" size="sm" onClick={() => copyCode(CURL_EXAMPLE)}>
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(CURL_EXAMPLE)}>
                 <Copy className="size-3" />
                 复制
               </Button>
@@ -278,7 +269,7 @@ export default function Developers() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">JavaScript</span>
-              <Button variant="outline" size="sm" onClick={() => copyCode(JS_EXAMPLE)}>
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(JS_EXAMPLE)}>
                 <Copy className="size-3" />
                 复制
               </Button>
@@ -290,7 +281,7 @@ export default function Developers() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Python (openai SDK)</span>
-              <Button variant="outline" size="sm" onClick={() => copyCode(PYTHON_EXAMPLE)}>
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(PYTHON_EXAMPLE)}>
                 <Copy className="size-3" />
                 复制
               </Button>
@@ -302,7 +293,7 @@ export default function Developers() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">curl — streaming</span>
-              <Button variant="outline" size="sm" onClick={() => copyCode(CURL_STREAM_EXAMPLE)}>
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(CURL_STREAM_EXAMPLE)}>
                 <Copy className="size-3" />
                 复制
               </Button>

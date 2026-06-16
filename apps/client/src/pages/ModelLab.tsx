@@ -31,6 +31,7 @@ import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
+import { copyToClipboard } from '@/lib/utils'
 import {
   loadCanvasModelDefaults,
   modelToCanvasPreferencePatch,
@@ -115,16 +116,6 @@ function outputSummary(record: GenerationRecord | null): string {
   if (isVideoOutput(record.outputResult))
     return `视频输出 ${record.outputResult.savedUrls.length || 1} 个`
   return '生成完成'
-}
-
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success('已复制')
-  }
-  catch {
-    toast.error('复制失败')
-  }
 }
 
 export default function ModelLab() {
@@ -778,11 +769,11 @@ export default function ModelLab() {
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-sm">请求预览</CardTitle>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => copyText(compareRequestPreview)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => copyToClipboard(compareRequestPreview)}>
                   <Copy className="size-3" />
                   复制对比
                 </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => copyText(requestPreview)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => copyToClipboard(requestPreview)}>
                   <Copy className="size-3" />
                   复制
                 </Button>

@@ -15,16 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatRelativeTime } from '@/lib/format-time'
 import { formatCents } from '@/lib/generation-utils'
-
-async function copyToClipboard(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success('已复制密钥')
-  }
-  catch {
-    toast.error('复制失败')
-  }
-}
+import { copyToClipboard } from '@/lib/utils'
 
 const SCOPE_OPTIONS: Array<{ value: string, label: string, desc: string }> = [
   { value: 'all', label: '完全访问', desc: '拥有账户完整权限，可访问所有接口' },
