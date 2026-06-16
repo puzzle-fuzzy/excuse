@@ -37,6 +37,34 @@ function computeLatency(stats: ProviderCallStats | undefined): { avg: number | n
   }
 }
 
+function serializeApiKey(key: {
+  id: string
+  prefix: string
+  name: string | null
+  scope: string
+  rateLimitPerMinute: number | null
+  quotaMaxCents: number | null
+  totalSpendCents: number | null
+  quotaResetAt: Date | null
+  lastUsedAt: Date | null
+  createdAt: Date
+  revokedAt: Date | null
+}) {
+  return {
+    id: key.id,
+    prefix: key.prefix,
+    name: key.name,
+    scope: key.scope,
+    rateLimitPerMinute: key.rateLimitPerMinute,
+    quotaMaxCents: key.quotaMaxCents,
+    totalSpendCents: key.totalSpendCents ?? 0,
+    quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
+    lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
+    createdAt: key.createdAt.toISOString(),
+    revokedAt: key.revokedAt?.toISOString() ?? null,
+  }
+}
+
 /**
  * ProviderModelHealth（domain, epoch-ms）→ AdminProviderHealthSummary（DTO, ISO）。
  *
@@ -487,19 +515,7 @@ export function createAdminRoutes(config: ServerConfig) {
 
       const keys = await listAdminApiKeysByAccount(params.id)
 
-      const items = keys.map(key => ({
-        id: key.id,
-        prefix: key.prefix,
-        name: key.name,
-        scope: key.scope,
-        rateLimitPerMinute: key.rateLimitPerMinute,
-        quotaMaxCents: key.quotaMaxCents,
-        totalSpendCents: key.totalSpendCents,
-        quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
-        lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-        createdAt: key.createdAt.toISOString(),
-        revokedAt: key.revokedAt?.toISOString() ?? null,
-      }))
+      const items = keys.map(serializeApiKey)
 
       return {
         success: true,
@@ -583,19 +599,7 @@ export function createAdminRoutes(config: ServerConfig) {
       if (!detail)
         throw new NotFoundError('Gateway 客户不存在')
 
-      const items = detail.keys.map(key => ({
-        id: key.id,
-        prefix: key.prefix,
-        name: key.name,
-        scope: key.scope,
-        rateLimitPerMinute: key.rateLimitPerMinute,
-        quotaMaxCents: key.quotaMaxCents,
-        totalSpendCents: key.totalSpendCents,
-        quotaResetAt: key.quotaResetAt?.toISOString() ?? null,
-        lastUsedAt: key.lastUsedAt?.toISOString() ?? null,
-        createdAt: key.createdAt.toISOString(),
-        revokedAt: key.revokedAt?.toISOString() ?? null,
-      }))
+      const items = detail.keys.map(serializeApiKey)
 
       return {
         success: true,
