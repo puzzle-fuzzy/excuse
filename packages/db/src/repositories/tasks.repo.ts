@@ -4,6 +4,30 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb, pgClient } from '../db'
 import { tasks } from '../schema/tasks'
 
+// ===== 列名映射工具 =====
+// `db.execute(rawSql)` 返回原始 PostgreSQL 行，列名为 snake_case，
+// 而 Drizzle 的 TaskRow 期望 camelCase。此映射解决类型安全缺口。
+import { getTableColumns } from 'drizzle-orm'
+
+// 构建反向映射：snake_case 列名 → camelCase 属性名
+function buildSnakeToCamelMap() {
+  const cols = getTableColumns(tasks)
+  const map = new Map<string, string>()
+  for (const [camelKey, info] of Object.entries(cols)) {
+    map.set(info.name, camelKey)
+  }
+  return map
+}
+const SNAKE_TO_CAMEL = buildSnakeToCamelMap()
+
+function mapRowToTaskRow(row: Record<string, unknown>): TaskRow {
+  const mapped: Record<string, unknown> = {}
+  for (const [snakeKey, val] of Object.entries(row)) {
+    mapped[SNAKE_TO_CAMEL.get(snakeKey) ?? snakeKey] = val
+  }
+  return mapped as TaskRow
+}
+
 // ===== CRUD =====
 
 /** 创建任务 — insert + returning */
@@ -78,10 +102,10 @@ export async function claimNextTask(workerId: string, claimTtlMs: number): Promi
     RETURNING *
   `)
 
-  // Drizzle execute() returns RowList which is iterable and has .count
-  // RowList is an array-like structure — cast to access rows as TaskRow[]
-  const rows = result as unknown as TaskRow[]
-  return rows.length > 0 ? rows[0]! : null
+  // Drizzle execute(rawSql) 返回原始 PostgreSQL 行，列名为 snake_case。
+  // mapRowToTaskRow 将 snake_case 列名转为 camelCase 属性名（与 TaskRow 类型一致）。
+  const rawRows = result as unknown as Array<Record<string, unknown>>
+  return rawRows.length > 0 ? mapRowToTaskRow(rawRows[0]!) : null
 }
 
 /**
