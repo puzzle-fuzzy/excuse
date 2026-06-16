@@ -512,7 +512,7 @@ function AdminOverviewTab({
   )
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
+const PROVIDER_CATEGORY_LABELS: Record<string, string> = {
   text: '文本',
   image: '图片',
   video: '视频',
@@ -1837,7 +1837,7 @@ function AdminProvidersTab() {
                         <tr key={`${item.model}:${item.category}`} className="border-b last:border-b-0">
                           <td className="py-2 font-mono text-xs">{item.model}</td>
                           <td className="py-2">
-                            <Badge variant="outline">{CATEGORY_LABELS[item.category] ?? item.category}</Badge>
+                            <Badge variant="outline">{PROVIDER_CATEGORY_LABELS[item.category] ?? item.category}</Badge>
                           </td>
                           <td className="py-2 text-right">{formatNumber(item.totalCalls)}</td>
                           <td className="py-2 text-right">{formatNumber(item.succeededCalls)}</td>
