@@ -1,11 +1,14 @@
 import type { CanvasContinuityRow, CanvasProjectInsert } from '../types'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { createLogger } from '@excuse/shared'
 import { getDb } from '../db'
 import { canvasCharacters } from '../schema/canvas-characters'
 import { canvasContinuityReports } from '../schema/canvas-continuity'
 import { canvasLocations } from '../schema/canvas-locations'
 import { canvasProjects } from '../schema/canvas-projects'
 import { canvasShots } from '../schema/canvas-shots'
+
+const logger = createLogger('canvas-projects.repo')
 
 /** 创建 Canvas 项目 — 初始状态为 draft */
 export async function createCanvasProject(values: CanvasProjectInsert) {
@@ -15,6 +18,10 @@ export async function createCanvasProject(values: CanvasProjectInsert) {
 
 /** 按 ID 查询项目（自动排除已软删除的记录） */
 export async function getCanvasProjectById(id: string) {
+  if (!id) {
+    logger.error({ id, type: typeof id }, 'getCanvasProjectById called with empty id')
+    return null
+  }
   const [project] = await getDb()
     .select()
     .from(canvasProjects)
