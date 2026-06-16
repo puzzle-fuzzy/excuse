@@ -3,7 +3,6 @@ import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid,
 import { accounts } from './accounts'
 import { canvasPipelineRuns } from './canvas-pipeline-runs'
 import { canvasProjects } from './canvas-projects'
-import { tasks } from './tasks'
 
 /**
  * Canvas 资产类别枚举 — 对应每个流水线阶段的产物类型
@@ -93,7 +92,7 @@ export const canvasAssets = pgTable('canvas_assets', {
   /** 创建此资产的流水线运行，外键 → canvas_pipeline_runs.id */
   pipelineRunId: uuid('pipeline_run_id').references(() => canvasPipelineRuns.id),
   /** 执行此资产生成的统一任务，外键 → tasks.id */
-  taskId: uuid('task_id').references(() => tasks.id),
+  taskId: uuid('task_id'),
 
   // ── 输入输出数据 ────────────────────────────────
   /** 生成输入参数（prompt、模型参数、参考 URL 等） */
