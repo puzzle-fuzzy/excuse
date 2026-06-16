@@ -41,4 +41,10 @@ describe('API', () => {
       expect(body.db).toBe('ok')
     }
   })
+
+  it('非生产环境 GET /openapi 可访问（OpenAPI 文档仅在非生产挂载）', async () => {
+    // 测试运行时 NODE_ENV !== 'production'，故 /openapi 应被挂载。
+    const res = await app.handle(new Request('http://localhost/openapi'))
+    expect(res.status).toBe(200)
+  })
 })

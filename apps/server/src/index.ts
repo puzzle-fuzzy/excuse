@@ -34,6 +34,13 @@ import { startSSEListener } from './services/sse-manager'
 const config = loadConfig()
 
 /**
+ * OpenAPI 文档（Scalar UI + 规范）仅在非生产环境挂载。
+ * 生产环境暴露 `/openapi` 会向匿名调用者泄露全部路由形状、schema 与鉴权方案，
+ * 故生产环境不注册该插件（route 不存在 → 404）。
+ */
+const enableOpenapi = process.env.NODE_ENV !== 'production'
+
+/**
  * 把 DashScopeClient 的所有调用接入进程内 metrics 收集器。
  *
  * DashScopeClient 在 server / worker 多个调用点分散实例化（无集中初始化点），
@@ -79,38 +86,40 @@ mkdirSync(uploadsDir, { recursive: true })
  *   OpenAPI → 日志 → CORS → 静态文件 → 认证 → 各业务路由
  */
 const app = new Elysia()
-  .use(openapi({
-    documentation: {
-      info: {
-        title: 'Excuse API',
-        version: '0.1.0',
-        description: 'AI 内容生成平台 — 创意流水线 API 文档',
-      },
-      tags: [
-        { name: '健康检查', description: '服务可用性探测' },
-        { name: '认证', description: '用户注册、登录、身份验证' },
-        { name: '模型', description: '可用 AI 模型目录' },
-        { name: '生成', description: 'AI 内容生成任务（文本/图片/视频）' },
-        { name: '资产', description: '统一资产中心 — 普通生成、Canvas 资产、上传文件' },
-        { name: 'Canvas', description: 'AI 视频制作流水线 — 项目管理、阶段执行、资源编辑' },
-        { name: '上传', description: '文件上传与管理' },
-        { name: '视频加字幕', description: '上传视频、ASR 转录、样式编辑、导出带字幕视频' },
-        { name: '计费', description: '费用统计与查询' },
-        { name: '实时推送', description: 'SSE 连接与事件推送' },
-      ],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-            description: '通过 Authorization: Bearer <token> 传递 JWT',
+  .use(enableOpenapi
+    ? openapi({
+        documentation: {
+          info: {
+            title: 'Excuse API',
+            version: '0.1.0',
+            description: 'AI 内容生成平台 — 创意流水线 API 文档',
+          },
+          tags: [
+            { name: '健康检查', description: '服务可用性探测' },
+            { name: '认证', description: '用户注册、登录、身份验证' },
+            { name: '模型', description: '可用 AI 模型目录' },
+            { name: '生成', description: 'AI 内容生成任务（文本/图片/视频）' },
+            { name: '资产', description: '统一资产中心 — 普通生成、Canvas 资产、上传文件' },
+            { name: 'Canvas', description: 'AI 视频制作流水线 — 项目管理、阶段执行、资源编辑' },
+            { name: '上传', description: '文件上传与管理' },
+            { name: '视频加字幕', description: '上传视频、ASR 转录、样式编辑、导出带字幕视频' },
+            { name: '计费', description: '费用统计与查询' },
+            { name: '实时推送', description: 'SSE 连接与事件推送' },
+          ],
+          components: {
+            securitySchemes: {
+              bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                description: '通过 Authorization: Bearer <token> 传递 JWT',
+              },
+            },
           },
         },
-      },
-    },
-    path: '/openapi',
-  }))
+        path: '/openapi',
+      })
+    : new Elysia())
   .use(loggerPlugin)
   .use(requestIdPlugin)
   .use(rateLimitPlugin)
