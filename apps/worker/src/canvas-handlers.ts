@@ -57,7 +57,10 @@ async function markRunRunningAndNotify(task: TaskRow): Promise<string | null> {
 
   await markPipelineRunRunning(runId)
 
-  const project = await getCanvasProjectById(task.projectId!)
+  const pid = task.projectId
+  if (!pid)
+    throw new Error(`task ${task.id} has no projectId`)
+  const project = await getCanvasProjectById(pid)
   if (project) {
     const phaseKey = task.type.replace('canvas.', '')
     await notifyNodeViaPgNotify(project.accountId, task.projectId!, 'phase', phaseKey, 'running', undefined, undefined, runId)
@@ -71,7 +74,9 @@ async function markRunSucceededAndNotify(task: TaskRow, outputSummary?: Record<s
     await markPipelineRunSucceeded(runId, outputSummary)
   }
 
-  const project = await getCanvasProjectById(task.projectId!)
+  const pid = task.projectId
+  if (!pid) return
+  const project = await getCanvasProjectById(pid)
   if (project) {
     const phaseKey = task.type.replace('canvas.', '')
     await notifyNodeViaPgNotify(project.accountId, task.projectId!, 'phase', phaseKey, 'completed', outputSummary, undefined, runId ?? undefined)
