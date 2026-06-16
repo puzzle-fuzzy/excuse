@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Route, Routes } from 'react-router'
+import { Link, Route, Routes } from 'react-router'
 import { getAuthToken } from './api/client'
 import { sseClient } from './api/sse'
 import { ProtectedRoute } from './auth/ProtectedRoute'
@@ -26,6 +26,18 @@ function RouteFallback() {
   return (
     <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
       页面加载中...
+    </div>
+  )
+}
+
+function NotFound() {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+      <h1 className="text-4xl font-bold text-muted-foreground">404</h1>
+      <p className="text-muted-foreground">页面不存在</p>
+      <Link to="/" className="text-sm text-primary underline underline-offset-4 hover:no-underline">
+        返回首页
+      </Link>
     </div>
   )
 }
@@ -63,6 +75,7 @@ function App() {
                 <Route path="/developers" element={<Developers />} />
                 <Route path="/model-lab" element={<ModelLab />} />
                 <Route path="/admin" element={<Admin />} />
+                <Route path="*" element={<NotFound />} />
               </Route>
             </Route>
           </Routes>
