@@ -218,6 +218,13 @@
       "when": 1781540000000,
       "tag": "0030_steady_cancel_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1781574658108,
+      "tag": "0031_provider_model_health",
+      "breakpoints": true
     }
   ]
 }

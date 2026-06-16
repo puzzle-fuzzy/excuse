@@ -1,19 +1,14 @@
 import type { ProviderCallStats } from '@excuse/metrics'
 import { MetricsCollector } from '@excuse/metrics'
-import { createLogger } from '@excuse/shared'
-
-const logger = createLogger('metrics')
-const metrics = new MetricsCollector()
 
 /**
- * Provider 连续失败追踪器（模型级别）
+ * Server 进程内 metrics 收集器。
  *
- * 当同一模型连续失败 3 次时记录警告日志。
- * 注：当前 observer 不含 accountId，无法做用户级别通知；
- * 用户级别的 system 通知留给后续迭代（需改造 observer 接口）。
+ * Provider 连续失败 → 自动降级的策略已迁移到 @excuse/provider-health + DB
+ * 持久化（跨进程共享）+ `services/provider-health.ts` 的 guard。本文件不再维护
+ * 进程内的连续失败计数（那是降级策略的职责，见 provider-health）。
  */
-const CONSECUTIVE_FAILURE_THRESHOLD = 3
-const consecutiveFailures = new Map<string, number>()
+const metrics = new MetricsCollector()
 
 // ===== 记录方法 =====
 
@@ -45,18 +40,6 @@ export function recordGenerationStatus(status: string) {
  */
 export function recordProviderCall(model: string, durationMs: number, success: boolean) {
   metrics.recordProviderCall(model, durationMs, success)
-
-  // 连续失败追踪
-  if (success) {
-    consecutiveFailures.delete(model)
-  }
-  else {
-    const count = (consecutiveFailures.get(model) ?? 0) + 1
-    consecutiveFailures.set(model, count)
-    if (count === CONSECUTIVE_FAILURE_THRESHOLD) {
-      logger.warn({ model, consecutiveFailures: count }, `Provider ${model} has failed ${count} times consecutively`)
-    }
-  }
 }
 
 // ===== 查询方法 =====
@@ -80,5 +63,4 @@ export function getProviderCallsSnapshot(): Record<string, ProviderCallStats> {
 /** 重置所有指标（测试用） */
 export function resetMetrics() {
   metrics.reset()
-  consecutiveFailures.clear()
 }

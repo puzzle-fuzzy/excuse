@@ -1,13 +1,14 @@
 import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
-import { ASRClient, checkFFmpegAsync, registerProviderCallObserver } from '@excuse/provider'
+import { ASRClient, checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { loadConfig } from './config'
 import { createHealthServer } from './health'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
+import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { getProviderCallsSnapshot, recordProviderCall } from './services/metrics'
 import { processASRTask } from './subtitle-processor'
 import { handleTask, handleTaskError } from './task-handler'
@@ -26,7 +27,16 @@ const processor = createTaskProcessor(config)
  */
 registerProviderCallObserver((model, durationMs, success) => {
   recordProviderCall(model, durationMs, success)
+  void recordProviderCallOutcome(model, success)
 })
+
+/**
+ * 注册 provider 调用前置 guard（断路器降级）：Canvas 全链路在 worker 发起的
+ * provider 调用，模型连续失败进入冷却窗口时在此快速失败，避免空等长视频提交。
+ * 与 server 共享 provider_model_health 表；本进程缓存 3s TTL。
+ */
+registerProviderCallGuard(providerCallGuard)
+warmProviderHealthCache()
 const asrClient = new ASRClient({
   apiKey: config.dashscopeApiKey,
   baseUrl: config.dashscopeBaseUrl,

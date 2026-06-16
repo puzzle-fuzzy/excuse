@@ -18,6 +18,7 @@
     "db:test:reset": "docker exec excuse-postgres psql -U excuse -d excuse -c 'DROP DATABASE IF EXISTS excuse_test;' && docker exec excuse-postgres psql -U excuse -d excuse -c 'CREATE DATABASE excuse_test OWNER excuse;'"
   },
   "dependencies": {
+    "@excuse/provider-health": "workspace:*",
     "@excuse/shared": "workspace:*",
     "drizzle-orm": "^0.44.2",
     "postgres": "^3.4.7"

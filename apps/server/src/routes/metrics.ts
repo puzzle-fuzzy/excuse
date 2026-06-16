@@ -1,6 +1,7 @@
 import type { ServerConfig } from '../config'
-import { getCanvasPhaseStats, getTaskQueueStats } from '@excuse/db'
-import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics, evaluateMetricsAccess, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
+import { getCanvasPhaseStats, getTaskQueueStats, listProviderModelHealth } from '@excuse/db'
+import { isDegraded } from '@excuse/provider-health'
+import { aggregateCanvasPhaseMetrics, aggregateProviderHealthMetrics, aggregateTaskQueueMetrics, evaluateMetricsAccess, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
 import { Elysia } from 'elysia'
 import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'
@@ -52,13 +53,18 @@ export function createMetricsRoutes(config: ServerConfig) {
       const inProcessMetrics = snapshotToPrometheus(snapshot)
 
       // DB 派生指标（每 scrape 一次查询；DB 异常时不阻塞 in-memory 输出）
-      const [phaseStats, queueStats] = await Promise.all([
+      const now = Date.now()
+      const [phaseStats, queueStats, healthRows] = await Promise.all([
         getCanvasPhaseStats(24).catch(() => []),
         getTaskQueueStats().catch(() => []),
+        listProviderModelHealth().catch(() => []),
       ])
       const dbDerivedMetrics = [
         ...aggregateCanvasPhaseMetrics(phaseStats),
         ...aggregateTaskQueueMetrics(queueStats),
+        ...aggregateProviderHealthMetrics(
+          healthRows.map(r => ({ model: r.model, blocking: isDegraded(r, now), consecutiveFailures: r.consecutiveFailures })),
+        ),
       ]
 
       const body = serializePrometheus([...inProcessMetrics, ...dbDerivedMetrics])

@@ -98,6 +98,7 @@
         "@excuse/metrics": "workspace:*",
         "@excuse/prompt-engine": "workspace:*",
         "@excuse/provider": "workspace:*",
+        "@excuse/provider-health": "workspace:*",
         "@excuse/rate-limit": "workspace:*",
         "@excuse/shared": "workspace:*",
         "@excuse/subtitle-engine": "workspace:*",
@@ -123,6 +124,7 @@
         "@excuse/metrics": "workspace:*",
         "@excuse/prompt-engine": "workspace:*",
         "@excuse/provider": "workspace:*",
+        "@excuse/provider-health": "workspace:*",
         "@excuse/shared": "workspace:*",
         "@excuse/subtitle-engine": "workspace:*",
         "@excuse/task-engine": "workspace:*",
@@ -169,6 +171,7 @@
       "name": "@excuse/db",
       "version": "0.0.1",
       "dependencies": {
+        "@excuse/provider-health": "workspace:*",
         "@excuse/shared": "workspace:*",
         "drizzle-orm": "^0.44.2",
         "postgres": "^3.4.7",
@@ -218,6 +221,13 @@
         "@excuse/subtitle-engine": "workspace:*",
       },
     },
+    "packages/provider-health": {
+      "name": "@excuse/provider-health",
+      "version": "0.0.1",
+      "dependencies": {
+        "@excuse/shared": "workspace:*",
+      },
+    },
     "packages/rate-limit": {
       "name": "@excuse/rate-limit",
       "version": "0.0.1",
@@ -252,6 +262,10 @@
     "packages/workflow-engine": {
       "name": "@excuse/workflow-engine",
       "version": "0.0.1",
+      "dependencies": {
+        "@excuse/shared": "workspace:*",
+        "@excuse/task-engine": "workspace:*",
+      },
     },
   },
   "packages": {
@@ -500,6 +514,8 @@
     "@excuse/prompt-engine": ["@excuse/prompt-engine@workspace:packages/prompt-engine"],
 
     "@excuse/provider": ["@excuse/provider@workspace:packages/provider"],
+
+    "@excuse/provider-health": ["@excuse/provider-health@workspace:packages/provider-health"],
 
     "@excuse/rate-limit": ["@excuse/rate-limit@workspace:packages/rate-limit"],
 

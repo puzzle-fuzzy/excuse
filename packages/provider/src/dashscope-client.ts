@@ -81,6 +81,69 @@ export function notifyProviderCallObservers(model: string, durationMs: number, s
   }
 }
 
+// ── Provider 调用前置 guard（断路器降级）──────────────────────
+//
+// 与 observer 平行的全局 hook registry：DashScopeClient / ASRClient 在真正发起
+// provider 调用前先跑一遍 guard。guard 通过抛 `ModelDegradedError` 阻断调用 ——
+// 让处于降级冷却窗口内的模型快速失败，而不是让用户空等几十秒视频提交。
+//
+// 健康状态查询（读 DB）由 app 注入的 guard 实现负责；@excuse/provider 不依赖 DB。
+
+/**
+ * 模型降级错误 —— guard 在模型处于降级冷却窗口内时抛出。
+ *
+ * `code = 'MODEL_DEGRADED'` 供 @excuse/task-engine 分类为可重试的 provider_error
+ * （让在途任务在冷却过期后有机会恢复，而非永久失败）。
+ */
+export class ModelDegradedError extends Error {
+  readonly code = 'MODEL_DEGRADED' as const
+  readonly model: string
+  readonly retryAfterMs: number
+  constructor(model: string, retryAfterMs: number) {
+    const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000))
+    super(`模型 ${model} 暂时不可用（连续失败已降级），请在约 ${seconds} 秒后重试`)
+    this.name = 'ModelDegradedError'
+    this.model = model
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
+export type ProviderCallGuard = (model: string) => void
+
+const providerCallGuards: ProviderCallGuard[] = []
+
+/**
+ * 注册一个 provider 调用前置 guard。返回反注册函数。
+ *
+ * guard 通过抛错（通常是 `ModelDegradedError`）阻断调用；不抛则放行。
+ * 在 app 启动时（server / worker）调用一次，注入「读 DB 判定模型是否降级」的实现。
+ */
+export function registerProviderCallGuard(guard: ProviderCallGuard): () => void {
+  providerCallGuards.push(guard)
+  return () => {
+    const idx = providerCallGuards.indexOf(guard)
+    if (idx >= 0)
+      providerCallGuards.splice(idx, 1)
+  }
+}
+
+/** 仅供测试用：清空所有 guard。 */
+export function __resetProviderCallGuards(): void {
+  providerCallGuards.length = 0
+}
+
+/**
+ * 跑所有前置 guard —— 任一 guard 抛错即阻断本次 provider 调用（错误向上传播）。
+ *
+ * 由 DashScopeClient / ASRClient 在发起真实调用前调用。无 guard 注册时为 no-op，
+ * 行为与未接入降级策略时完全一致（测试 / 旧调用路径不受影响）。
+ */
+export function runProviderCallGuards(model: string): void {
+  for (const guard of providerCallGuards) {
+    guard(model)
+  }
+}
+
 export class DashScopeClient {
   private config: DashScopeConfig
 
@@ -250,6 +313,7 @@ export class DashScopeClient {
    * 文本生成 — 调用千问系列模型
    */
   async chatCompletion(model: string, params: ValidatedModelParameters): Promise<TextProviderResult | FailedProviderResult> {
+    runProviderCallGuards(model)
     const modelConfig = getModelById(model)
     if (!modelConfig) {
       return this.failed(model, `未知模型: ${model}`)
@@ -318,6 +382,7 @@ export class DashScopeClient {
    * 图片生成 — 调用千问图像系列模型（同步）
    */
   async generateImage(model: string, params: ValidatedModelParameters): Promise<ImageProviderResult | FailedProviderResult> {
+    runProviderCallGuards(model)
     const modelConfig = getModelById(model)
     if (!modelConfig) {
       return this.failed(model, `未知模型: ${model}`)
@@ -378,6 +443,7 @@ export class DashScopeClient {
    * 返回 DashScope task_id，需要后续轮询
    */
   async submitVideoTask(model: string, params: ValidatedModelParameters, referenceUrls?: string[]): Promise<VideoTaskProviderResult | FailedProviderResult> {
+    runProviderCallGuards(model)
     const modelConfig = getModelById(model)
     if (!modelConfig) {
       return this.failed(model, `未知模型: ${model}`)
@@ -451,6 +517,7 @@ export class DashScopeClient {
     model: string,
     params: ValidatedModelParameters,
   ): AsyncGenerator<TextStreamChunk> {
+    runProviderCallGuards(model)
     const modelConfig = getModelById(model)
     if (!modelConfig)
       throw new Error(`未知模型: ${model}`)
@@ -645,7 +712,24 @@ export class DashScopeClient {
     params: ValidatedModelParameters,
     referenceUrls?: string[],
   ): Promise<{ model: string, taskId: string | undefined, success: boolean, error?: string }> {
-    const result = await this.submitVideoTask(model, params, referenceUrls)
+    let result: VideoTaskProviderResult | FailedProviderResult
+    try {
+      result = await this.submitVideoTask(model, params, referenceUrls)
+    }
+    catch (error) {
+      // 主模型降级（ModelDegradedError）时切 fallback；其它异常向上传播
+      if (error instanceof ModelDegradedError) {
+        const fallbackId = getModelById(model)?.fallbackModel
+        if (fallbackId) {
+          const fallbackResult = await this.submitVideoTask(fallbackId, params)
+          if (fallbackResult.type === 'video_task') {
+            return { model: fallbackId, taskId: fallbackResult.taskId, success: true }
+          }
+          return { model: fallbackId, taskId: undefined, success: false, error: fallbackResult.error || '视频提交失败' }
+        }
+      }
+      throw error
+    }
 
     if (result.type === 'video_task') {
       return { model, taskId: result.taskId, success: true }

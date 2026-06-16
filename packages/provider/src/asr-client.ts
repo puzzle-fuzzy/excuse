@@ -1,6 +1,6 @@
 import type { SubtitleSentence } from '@excuse/subtitle-engine'
 import { parseAsrTranscription } from '@excuse/subtitle-engine'
-import { notifyProviderCallObservers } from './dashscope-client'
+import { notifyProviderCallObservers, runProviderCallGuards } from './dashscope-client'
 import { parseDashScopeError } from './dashscope-errors'
 
 export type { SubtitleSentence } from '@excuse/subtitle-engine'
@@ -92,6 +92,7 @@ export class ASRClient {
    * 不记录 queryTask() 轮询 —— 避免廉价轮询稀释 paraformer-v2 真实 latency。
    */
   async submitTranscription(audioUrl: string, options?: ASROptions): Promise<ASRSubmitResult> {
+    runProviderCallGuards(ASR_MODEL)
     const body = {
       model: ASR_MODEL,
       input: {

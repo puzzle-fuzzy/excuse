@@ -176,12 +176,50 @@ export interface AdminProviderStatsItem {
   totalCostCents: number
   totalInputTokens: number
   totalOutputTokens: number
+  /** 断路器降级状态（provider_model_health）；该 model 从未失败过时为 null */
+  health?: AdminProviderHealthSummary | null
 }
 
 export interface AdminProviderStatsResponse {
   success: true
   windowHours: number
   items: AdminProviderStatsItem[]
+}
+
+// ── Provider 模型降级状态（断路器）──────────────────────────────────────────
+
+/**
+ * Provider 模型降级状态摘要 —— 挂在 admin provider stats item 上，也可独立列表。
+ *
+ * `blocking` 是「当前是否真正阻断新调用」的实时判定（status degraded 且仍在
+ * degradedUntil 冷却窗口内），与 status 列值区分（后者是最后一次设置的快照，
+ * 冷却过期后即使列值仍为 degraded 也不再阻断）。
+ */
+export interface AdminProviderHealthSummary {
+  model: string
+  status: 'healthy' | 'degraded'
+  blocking: boolean
+  consecutiveFailures: number
+  totalFailures: number
+  totalSuccesses: number
+  /** 降级恢复剩余秒数；非阻断时为 null */
+  remainingSeconds: number | null
+  degradedUntil: string | null
+  lastFailureAt: string | null
+  lastSuccessAt: string | null
+  lastErrorMessage: string | null
+  degradedReason: string | null
+  updatedAt: string
+}
+
+export interface AdminProviderHealthListResponse {
+  success: true
+  items: AdminProviderHealthSummary[]
+}
+
+export interface AdminProviderHealthRestoreResponse {
+  success: true
+  health: AdminProviderHealthSummary
 }
 
 // ── 任务详情 + Canvas pipeline run 级联 ──────────────────────────────────────

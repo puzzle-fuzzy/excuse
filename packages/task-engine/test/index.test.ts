@@ -50,6 +50,21 @@ describe('@excuse/task-engine', () => {
     })
   })
 
+  it('模型降级（MODEL_DEGRADED，code 在 error 自身）分类为可重试的 provider_error', () => {
+    // 模拟 provider guard 抛出的 ModelDegradedError：code 在 error 自身而非 cause
+    const error: Error & { code: string } = Object.assign(
+      new Error('模型 qwen-max 暂时不可用（连续失败已降级）'),
+      { code: 'MODEL_DEGRADED' },
+    )
+
+    expect(classifyTaskError(error)).toEqual({
+      category: 'provider_error',
+      retriable: true,
+      code: 'MODEL_DEGRADED',
+      message: '模型 qwen-max 暂时不可用（连续失败已降级）',
+    })
+  })
+
   it('检查重试预算', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 

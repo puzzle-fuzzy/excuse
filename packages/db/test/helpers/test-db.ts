@@ -87,6 +87,22 @@ export async function rollbackTestTransaction() {
 }
 
 /**
+ * 注入已迁移的测试 DB 实例，但**不**开启 per-test 的 raw BEGIN/ROLLBACK 包裹。
+ *
+ * 适用于内部使用 drizzle `db.transaction()` 的 repository（raw BEGIN 内不能再嵌套
+ * drizzle transaction —— 后者的 COMMIT 会提前提交外层事务）。调用方需自行清理
+ * 写入的数据（如 DELETE）以保证测试隔离。
+ *
+ * 必须在 beforeAll 调用。始终重新 initTestDb：bun test 跨文件共享模块状态，
+ * 上一个文件的 teardownTestDb 会关闭 client 但不置空模块级 `db` 变量，
+ * `if (!db)` 会误判为已初始化而复用已关闭的 client。
+ */
+export async function useMigratedTestDb(): Promise<void> {
+  await initTestDb()
+  setDb(db as unknown as Parameters<typeof setDb>[0])
+}
+
+/**
  * 在测试中验证预期的数据库约束错误。
  *
  * PostgreSQL 在事务内遇到 unique/FK 等错误后会把整个事务标记为 aborted；

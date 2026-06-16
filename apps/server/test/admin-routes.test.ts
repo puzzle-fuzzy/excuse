@@ -159,6 +159,56 @@ const mockGetAdminProviderStats = mock(async (_windowHours: number) => [
   },
 ])
 
+// provider_model_health —— 断路器降级状态
+const NOW = Date.now()
+const mockHealthMap = mock(async (): Promise<Map<string, {
+  model: string
+  status: 'healthy' | 'degraded'
+  consecutiveFailures: number
+  totalFailures: number
+  totalSuccesses: number
+  degradedUntil: number | null
+  lastFailureAt: number | null
+  lastSuccessAt: number | null
+  lastErrorMessage: string | null
+  degradedReason: string | null
+  updatedAt: number
+}>> => new Map([
+  ['qwen-plus', {
+    model: 'qwen-plus',
+    status: 'degraded',
+    consecutiveFailures: 4,
+    totalFailures: 4,
+    totalSuccesses: 0,
+    degradedUntil: NOW + 60_000, // 仍在冷却窗口内 → blocking
+    lastFailureAt: NOW,
+    lastSuccessAt: null,
+    lastErrorMessage: 'Throttling',
+    degradedReason: '连续失败 3 次',
+    updatedAt: NOW,
+  }],
+]))
+
+const mockListProviderModelHealth = mock(async () => [...(await mockHealthMap()).values()])
+
+const mockRestoreProviderModelHealth = mock(async (model: string) => {
+  if (model === 'never-seen')
+    return null
+  return {
+    model,
+    status: 'healthy' as const,
+    consecutiveFailures: 0,
+    totalFailures: 4,
+    totalSuccesses: 0,
+    degradedUntil: null,
+    lastFailureAt: NOW,
+    lastSuccessAt: NOW,
+    lastErrorMessage: 'Throttling',
+    degradedReason: null,
+    updatedAt: NOW,
+  }
+})
+
 const mockGetAdminTaskDetail = mock(async (taskId: string) => {
   if (taskId === 'missing-task')
     return null
@@ -330,6 +380,9 @@ mock.module('@excuse/db', () => ({
   getAdminTaskDetail: mockGetAdminTaskDetail,
   listAdminGatewayClients: mockListAdminGatewayClients,
   getAdminGatewayClientDetail: mockGetAdminGatewayClientDetail,
+  getProviderModelHealthMap: mockHealthMap,
+  listProviderModelHealth: mockListProviderModelHealth,
+  restoreProviderModelHealth: mockRestoreProviderModelHealth,
   revokeApiKeyAdmin: mockRevokeApiKeyAdmin,
   resetApiKeySpend: mockResetApiKeySpend,
   updateApiKeyConfig: mockUpdateApiKeyConfig,
@@ -381,6 +434,9 @@ beforeEach(() => {
   mockGetAdminTaskDetail.mockClear()
   mockListAdminGatewayClients.mockClear()
   mockGetAdminGatewayClientDetail.mockClear()
+  mockHealthMap.mockClear()
+  mockListProviderModelHealth.mockClear()
+  mockRestoreProviderModelHealth.mockClear()
   mockRevokeApiKeyAdmin.mockClear()
   mockResetApiKeySpend.mockClear()
   mockUpdateApiKeyConfig.mockClear()
@@ -724,6 +780,29 @@ describe('admin routes', () => {
       expect(mockProviderCallsSnapshot).toHaveBeenCalledTimes(1)
     })
 
+    it('每条模型附带断路器降级状态（health.blocking 实时判定）', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin.providers.get({
+        headers: { authorization: `Bearer ${token}` },
+        query: { windowHours: 24 },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as {
+        success: true
+        items: Array<{ model: string, health?: { status: string, blocking: boolean, consecutiveFailures: number } | null }>
+      } | null
+      const qwen = data?.items.find(item => item.model === 'qwen-plus')
+      expect(qwen?.health).toBeDefined()
+      expect(qwen?.health?.status).toBe('degraded')
+      expect(qwen?.health?.blocking).toBe(true) // degradedUntil 在未来 → 阻断
+      expect(qwen?.health?.consecutiveFailures).toBe(4)
+      expect(mockHealthMap).toHaveBeenCalledTimes(1)
+    })
+
     it('windowHours 小于 1 时钳制为 1', async () => {
       const { app, config } = makeApp(['admin-1'])
       const token = await signTestToken(config.jwtSecret, 'admin-1')
@@ -817,6 +896,90 @@ describe('admin routes', () => {
       const qwen = data?.items.find(item => item.model === 'qwen-plus')
       // 仅 server 5 样本 [800,1200,1500,2000,3000] → p95 = 3000
       expect(qwen?.p95LatencyMs).toBe(3000)
+    })
+  })
+
+  // ── 新增：Provider 模型降级状态端点 ─────────────
+
+  describe('管理 provider-health 端点', () => {
+    it('拒绝非管理员用户列出降级状态', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'user-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['provider-health'].get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(403)
+      expect(mockListProviderModelHealth).not.toHaveBeenCalled()
+    })
+
+    it('列出降级状态，blocking 由冷却窗口实时判定', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['provider-health'].get({
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as {
+        success: true
+        items: Array<{ model: string, status: string, blocking: boolean, remainingSeconds: number | null }>
+      } | null
+      expect(data?.success).toBe(true)
+      const qwen = data?.items.find(item => item.model === 'qwen-plus')
+      expect(qwen?.status).toBe('degraded')
+      expect(qwen?.blocking).toBe(true)
+      expect(qwen?.remainingSeconds).not.toBeNull()
+      expect(mockListProviderModelHealth).toHaveBeenCalledTimes(1)
+    })
+
+    it('手动恢复降级模型 → 200 + admin_action 审计', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['provider-health']({ model: 'qwen-plus' }).restore.post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.error).toBeNull()
+      const data = res.data as { success: true, health: { model: string, status: string, consecutiveFailures: number } } | null
+      expect(data?.success).toBe(true)
+      expect(data?.health.status).toBe('healthy')
+      expect(data?.health.consecutiveFailures).toBe(0)
+      expect(mockRestoreProviderModelHealth).toHaveBeenCalledWith('qwen-plus')
+    })
+
+    it('恢复不存在的模型 → 404', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'admin-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['provider-health']({ model: 'never-seen' }).restore.post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(404)
+    })
+
+    it('恢复端点拒绝非管理员', async () => {
+      const { app, config } = makeApp(['admin-1'])
+      const token = await signTestToken(config.jwtSecret, 'user-1')
+      const client = treaty(app)
+
+      const res = await client.api.admin['provider-health']({ model: 'qwen-plus' }).restore.post(null, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.data).toBeNull()
+      expect((res.error as { status?: number } | null)?.status).toBe(403)
+      expect(mockRestoreProviderModelHealth).not.toHaveBeenCalled()
     })
   })
 

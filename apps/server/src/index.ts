@@ -4,7 +4,7 @@ import { cors } from '@elysia/cors'
 import { staticPlugin } from '@elysia/static'
 import { openapi } from '@elysiajs/openapi'
 import { swagger } from '@elysiajs/swagger'
-import { checkFFmpegAsync, registerProviderCallObserver } from '@excuse/provider'
+import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { isPgTableNotFoundError, logger } from '@excuse/shared'
 import { Elysia } from 'elysia'
 import { loadConfig } from './config'
@@ -29,6 +29,7 @@ import { createSSERoutes } from './routes/sse'
 import { createSubtitleRoutes } from './routes/subtitle'
 import { createUploadRoutes } from './routes/upload'
 import { recordProviderCall } from './services/metrics'
+import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { startSSEListener } from './services/sse-manager'
 
 const config = loadConfig()
@@ -43,7 +44,18 @@ const config = loadConfig()
  */
 registerProviderCallObserver((model, durationMs, success) => {
   recordProviderCall(model, durationMs, success)
+  void recordProviderCallOutcome(model, success)
 })
+
+/**
+ * 注册 provider 调用前置 guard（断路器降级）：模型连续失败进入冷却窗口时，
+ * 在真正发起 DashScope 调用前快速失败（抛 ModelDegradedError），避免用户空等。
+ * 健康判定以进程内缓存为准（见 services/provider-health.ts）。
+ */
+registerProviderCallGuard(providerCallGuard)
+
+// 启动时 warm 模型健康缓存，让 guard 从第一次调用起即可阻断已知降级模型。
+warmProviderHealthCache()
 
 /**
  * =====================================================

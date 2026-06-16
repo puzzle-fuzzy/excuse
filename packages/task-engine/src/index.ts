@@ -371,6 +371,11 @@ export function computeRetryDelay(taskType: string, attempts: number): number {
 export function extractErrorCode(error: unknown): string | undefined {
   if (!(error instanceof Error))
     return undefined
+  // provider guard 抛出的 ModelDegradedError 把 code 放在 error 自身（非 cause），
+  // 此处一并识别，让降级快速失败被分类为可重试的 provider_error。
+  const ownCode = (error as { code?: string }).code
+  if (ownCode)
+    return ownCode
   const cause = error.cause as { code?: string } | undefined
   return cause?.code
 }
@@ -382,12 +387,13 @@ function isRetriableTaskErrorCode(code: string | undefined): boolean {
     || code === 'Throttling'
     || code === 'InternalError'
     || code === 'TIMEOUT'
+    || code === 'MODEL_DEGRADED'
 }
 
 function categorizeTaskErrorCode(code: string | undefined): TaskErrorCategory {
   if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'TIMEOUT')
     return 'timeout'
-  if (code === 'Throttling' || code === 'InternalError' || code === 'ECONNRESET')
+  if (code === 'Throttling' || code === 'InternalError' || code === 'ECONNRESET' || code === 'MODEL_DEGRADED')
     return 'provider_error'
   return 'system'
 }

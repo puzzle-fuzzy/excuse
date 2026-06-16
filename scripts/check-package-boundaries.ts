@@ -29,6 +29,8 @@ export const DEFAULT_BOUNDARY_RULES: BoundaryRule[] = [
       'packages/metrics/test',
       'packages/rate-limit/src',
       'packages/rate-limit/test',
+      'packages/provider-health/src',
+      'packages/provider-health/test',
       'packages/subtitle-engine/src',
       'packages/subtitle-engine/test',
       'packages/auth/src',

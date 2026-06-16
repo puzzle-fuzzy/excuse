@@ -1,5 +1,5 @@
 {
-  "name": "@excuse/workflow-engine",
+  "name": "@excuse/provider-health",
   "type": "module",
   "version": "0.0.1",
   "private": true,
@@ -8,7 +8,6 @@
   },
   "module": "src/index.ts",
   "dependencies": {
-    "@excuse/shared": "workspace:*",
-    "@excuse/task-engine": "workspace:*"
+    "@excuse/shared": "workspace:*"
   }
 }

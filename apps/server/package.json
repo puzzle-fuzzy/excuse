@@ -26,6 +26,7 @@
     "@excuse/metrics": "workspace:*",
     "@excuse/prompt-engine": "workspace:*",
     "@excuse/provider": "workspace:*",
+    "@excuse/provider-health": "workspace:*",
     "@excuse/rate-limit": "workspace:*",
     "@excuse/shared": "workspace:*",
     "@excuse/subtitle-engine": "workspace:*",

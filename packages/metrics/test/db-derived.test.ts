@@ -1,6 +1,6 @@
 import type { PrometheusMetric } from '../src'
 import { describe, expect, it } from 'bun:test'
-import { aggregateCanvasPhaseMetrics, aggregateTaskQueueMetrics } from '../src'
+import { aggregateCanvasPhaseMetrics, aggregateProviderHealthMetrics, aggregateTaskQueueMetrics } from '../src'
 
 function metricByName(metrics: PrometheusMetric[], name: string): PrometheusMetric | undefined {
   return metrics.find(m => m.name === name)
@@ -170,5 +170,46 @@ describe('aggregateTaskQueueMetrics', () => {
       expect(metric).toHaveProperty('type')
       expect(metric).toHaveProperty('samples')
     }
+  })
+})
+
+describe('aggregateProviderHealthMetrics', () => {
+  it('空输入返回 2 个 metric family，各 samples=[]', () => {
+    const result = aggregateProviderHealthMetrics([])
+    expect(result).toHaveLength(2)
+    for (const metric of result) {
+      expect(metric.help).toBeTruthy()
+      expect(metric.type).toBe('gauge')
+      expect(metric.samples).toEqual([])
+    }
+    expect(result.map(m => m.name)).toEqual([
+      'excuse_provider_model_degraded',
+      'excuse_provider_consecutive_failures',
+    ])
+  })
+
+  it('仅 blocking 模型进入 degraded metric（=1），所有模型进入 consecutive metric', () => {
+    const result = aggregateProviderHealthMetrics([
+      { model: 'qwen-max', blocking: true, consecutiveFailures: 5 },
+      { model: 'wanx-imgen', blocking: false, consecutiveFailures: 1 },
+    ])
+
+    const degraded = metricByName(result, 'excuse_provider_model_degraded')!
+    expect(degraded.samples).toHaveLength(1)
+    expect(degraded.samples[0]).toEqual({ labels: { model: 'qwen-max' }, value: 1 })
+
+    const consecutive = metricByName(result, 'excuse_provider_consecutive_failures')!
+    expect(consecutive.samples).toHaveLength(2)
+    expect(consecutive.samples).toContainEqual({ labels: { model: 'qwen-max' }, value: 5 })
+    expect(consecutive.samples).toContainEqual({ labels: { model: 'wanx-imgen' }, value: 1 })
+  })
+
+  it('全部健康时 degraded metric 无样本（缺失即 0）', () => {
+    const result = aggregateProviderHealthMetrics([
+      { model: 'qwen-max', blocking: false, consecutiveFailures: 0 },
+      { model: 'wanx-imgen', blocking: false, consecutiveFailures: 2 },
+    ])
+    expect(metricByName(result, 'excuse_provider_model_degraded')!.samples).toEqual([])
+    expect(metricByName(result, 'excuse_provider_consecutive_failures')!.samples).toHaveLength(2)
   })
 })

@@ -1,7 +1,9 @@
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { ProviderModelHealth } from '@excuse/db'
 import type { ServerConfig } from '../config'
-import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, queryAuditLogs, requeueAdminTask, resetApiKeySpend, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
+import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
+import { degradedRemainingMs, isDegraded } from '@excuse/provider-health'
 import { mergeProviderCalls } from '@excuse/metrics'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -31,6 +33,32 @@ function computeLatency(stats: ProviderCallStats | undefined): { avg: number | n
     avg: sum / sorted.length,
     p50: nearestRankPercentile(sorted, 0.5),
     p95: nearestRankPercentile(sorted, 0.95),
+  }
+}
+
+/**
+ * ProviderModelHealth（domain, epoch-ms）→ AdminProviderHealthSummary（DTO, ISO）。
+ *
+ * `blocking` 用纯函数 `isDegraded(record, now)` 实时判定（status degraded 且仍在
+ * degradedUntil 冷却窗口内），与 status 列值区分。
+ */
+function toHealthSummary(record: ProviderModelHealth, now = Date.now()): AdminProviderHealthSummary {
+  const blocking = isDegraded(record, now)
+  const remaining = degradedRemainingMs(record, now)
+  return {
+    model: record.model,
+    status: record.status,
+    blocking,
+    consecutiveFailures: record.consecutiveFailures,
+    totalFailures: record.totalFailures,
+    totalSuccesses: record.totalSuccesses,
+    remainingSeconds: blocking ? Math.ceil(remaining / 1000) : null,
+    degradedUntil: record.degradedUntil !== null ? new Date(record.degradedUntil).toISOString() : null,
+    lastFailureAt: record.lastFailureAt !== null ? new Date(record.lastFailureAt).toISOString() : null,
+    lastSuccessAt: record.lastSuccessAt !== null ? new Date(record.lastSuccessAt).toISOString() : null,
+    lastErrorMessage: record.lastErrorMessage,
+    degradedReason: record.degradedReason,
+    updatedAt: new Date(record.updatedAt).toISOString(),
   }
 }
 
@@ -220,17 +248,20 @@ export function createAdminRoutes(config: ServerConfig) {
       // 聚合 server 进程内 + worker 进程内的 provider 调用统计（durations 原始样本拼接）。
       // canvas 全链路 provider 调用发生在 worker，仅 server 进程内快照会漏掉它们；
       // worker `/provider-calls` 不可达时 fetchWorkerProviderCalls best-effort 返回空 map。
-      const [dbRows, serverCalls, workerCalls] = await Promise.all([
+      const [dbRows, serverCalls, workerCalls, healthMap] = await Promise.all([
         getAdminProviderStats(windowHours),
         Promise.resolve(getProviderCallsSnapshot()),
         fetchWorkerProviderCalls(config.workerMetricsUrl, config.metricsAccessToken),
+        getProviderModelHealthMap(),
       ])
       const providerCalls = mergeProviderCalls(serverCalls, workerCalls)
+      const now = Date.now()
 
       const items: AdminProviderStatsItem[] = dbRows.map((row) => {
         const stats: ProviderCallStats | undefined = providerCalls[row.model]
         const latency = computeLatency(stats)
         const failureRate = row.totalCalls > 0 ? row.failedCalls / row.totalCalls : 0
+        const healthRecord = healthMap.get(row.model) ?? null
         return {
           model: row.model,
           category: row.category,
@@ -244,6 +275,7 @@ export function createAdminRoutes(config: ServerConfig) {
           totalCostCents: row.totalCostCents,
           totalInputTokens: row.totalInputTokens,
           totalOutputTokens: row.totalOutputTokens,
+          health: healthRecord ? toHealthSummary(healthRecord, now) : null,
         }
       })
 
@@ -258,7 +290,54 @@ export function createAdminRoutes(config: ServerConfig) {
       }),
       detail: {
         summary: '查询 provider 错误率与模型成本统计',
-        description: '合并 generation_records 聚合（count/cost/tokens）与 server + worker 跨进程 provider metrics（延迟 p50/p95/avg），帮助定位高失败率或高成本模型。worker 不可达时仅反映 server 进程内调用。',
+        description: '合并 generation_records 聚合（count/cost/tokens）与 server + worker 跨进程 provider metrics（延迟 p50/p95/avg），帮助定位高失败率或高成本模型。worker 不可达时仅反映 server 进程内调用。每条模型附带断路器降级状态（health），便于定位被自动降级的模型。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .get('/provider-health', async ({ adminAllowed, adminDenied }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const records = await listProviderModelHealth()
+      const now = Date.now()
+      const items = records.map(r => toHealthSummary(r, now))
+
+      return {
+        success: true,
+        items,
+      } satisfies AdminProviderHealthListResponse
+    }, {
+      detail: {
+        summary: '查询 provider 模型降级状态',
+        description: '列出全部 provider_model_health 记录（断路器状态机）：status / blocking（当前是否阻断新调用）/ 连续失败计数 / 冷却剩余秒数 / 最近失败错误。blocking 由 degradedUntil 冷却窗口实时判定，与 status 列值区分。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .post('/provider-health/:model/restore', async ({ adminAllowed, adminDenied, userId, params, set }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const restored = await restoreProviderModelHealth(params.model)
+      if (!restored)
+        return notFound(set, `模型 ${params.model} 无健康记录（从未失败过）`)
+
+      await audit('admin_action', {
+        accountId: userId ?? undefined,
+        targetId: params.model,
+        detail: { model: params.model, action: 'restore', source: 'manual', previousStatus: 'degraded' },
+      })
+
+      return {
+        success: true,
+        health: toHealthSummary(restored),
+      } satisfies AdminProviderHealthRestoreResponse
+    }, {
+      params: t.Object({ model: t.String() }),
+      detail: {
+        summary: '手动恢复模型降级状态',
+        description: '清零连续失败计数、置 status=healthy、清 degradedUntil/degradedReason。用于运营确认模型恢复后强制解除降级（不等待冷却窗口自然过期）。写入 admin_action 审计日志。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },
