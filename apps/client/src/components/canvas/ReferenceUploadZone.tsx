@@ -1,4 +1,4 @@
-import { Pencil, Trash2, Upload, ZoomIn } from 'lucide-react'
+import { Pencil, Trash2, Upload, Undo2, ZoomIn } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
@@ -22,17 +22,15 @@ function ImageViewer({ src, alt, onClose }: { src: string, alt: string, onClose:
 interface ReferenceUploadZoneProps {
   currentUrl: string | null
   onUpload: (file: File) => Promise<string>
-  onRemove?: () => Promise<void>
   accept?: string
   label?: string
-  /** 删除前显示的确认文案，不传则直接删除 */
+  /** 删除前显示的确认文案，不传则不显示删除按钮 */
   confirmRemove?: string
 }
 
 export function ReferenceUploadZone({
   currentUrl,
   onUpload,
-  onRemove,
   accept = 'image/*',
   label = '参考图',
   confirmRemove,
@@ -43,6 +41,8 @@ export function ReferenceUploadZone({
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl)
   const [error, setError] = useState<string | null>(null)
   const [viewerOpen, setViewerOpen] = useState(false)
+  /** 已「删除」但仍可恢复的 URL（不清 DB，只隐藏 UI） */
+  const [hiddenUrl, setHiddenUrl] = useState<string | null>(null)
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -92,23 +92,23 @@ export function ReferenceUploadZone({
     e.target.value = ''
   }, [handleFile])
 
+  /** 「删除」：不清 DB，只隐藏 UI，保留恢复能力 */
   const handleRemove = useCallback(async () => {
-    if (!onRemove)
-      return
     if (confirmRemove && !window.confirm(confirmRemove))
       return
-    setUploading(true)
-    try {
-      await onRemove()
+    if (previewUrl) {
+      setHiddenUrl(previewUrl)
       setPreviewUrl(null)
     }
-    catch (err) {
-      setError(err instanceof Error ? err.message : '删除失败')
+  }, [confirmRemove, previewUrl])
+
+  /** 恢复之前隐藏的图片 */
+  const handleRestore = useCallback(() => {
+    if (hiddenUrl) {
+      setPreviewUrl(hiddenUrl)
+      setHiddenUrl(null)
     }
-    finally {
-      setUploading(false)
-    }
-  }, [onRemove])
+  }, [hiddenUrl])
 
   return (
     <div className="space-y-2">
@@ -141,44 +141,67 @@ export function ReferenceUploadZone({
                   <Pencil className="w-3 h-3 mr-1" />
                   替换
                 </Button>
-                {onRemove && (
+                {confirmRemove && (
                   <Button
                     variant="destructive"
                     size="xs"
                     onClick={(e) => { e.stopPropagation(); handleRemove() }}
-                    disabled={uploading}
                   >
                     <Trash2 className="w-3 h-3 mr-1" />
-                    删除
+                    隐藏
                   </Button>
                 )}
               </div>
             </div>
           )
-        : (
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={() => inputRef.current?.click()}
-              className={`
-            flex flex-col items-center justify-center h-40 rounded-lg border-2 border-dashed cursor-pointer transition-colors
-            ${dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50'}
-            ${uploading ? 'opacity-50 pointer-events-none' : ''}
-          `}
-            >
-              {uploading
-                ? (
-                    <p className="text-xs text-muted-foreground">上传中...</p>
-                  )
-                : (
-                    <>
-                      <Upload className="w-8 h-8 text-muted-foreground/50 mb-2" />
-                      <p className="text-xs text-muted-foreground">拖拽图片到此处，或点击上传</p>
-                    </>
-                  )}
-            </div>
-          )}
+        : hiddenUrl
+          ? (
+              <div className="flex flex-col items-center justify-center h-40 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/20">
+                <p className="text-xs text-muted-foreground mb-3">图片已隐藏</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRestore}
+                  >
+                    <Undo2 className="w-3 h-3 mr-1" />
+                    恢复
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    <Upload className="w-3 h-3 mr-1" />
+                    上传新图片
+                  </Button>
+                </div>
+              </div>
+            )
+          : (
+              <div
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => inputRef.current?.click()}
+                className={`
+              flex flex-col items-center justify-center h-40 rounded-lg border-2 border-dashed cursor-pointer transition-colors
+              ${dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50'}
+              ${uploading ? 'opacity-50 pointer-events-none' : ''}
+            `}
+              >
+                {uploading
+                  ? (
+                      <p className="text-xs text-muted-foreground">上传中...</p>
+                    )
+                  : (
+                      <>
+                        <Upload className="w-8 h-8 text-muted-foreground/50 mb-2" />
+                        <p className="text-xs text-muted-foreground">拖拽图片到此处，或点击上传</p>
+                      </>
+                    )}
+              </div>
+            )}
 
       <input
         ref={inputRef}

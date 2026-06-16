@@ -386,10 +386,6 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
           <ReferenceUploadZone
             currentUrl={character.referenceImageUrl}
             onUpload={handleCharacterUpload}
-            onRemove={async () => {
-              await updateCanvasCharacter(character.id, { referenceImageUrl: '' })
-              onUpdate()
-            }}
             label="角色参考图"
             confirmRemove="确认删除角色参考图？"
           />
@@ -397,10 +393,6 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
           <ReferenceUploadZone
             currentUrl={character.turnaroundSheetUrl}
             onUpload={handleCharacterTurnaroundUpload}
-            onRemove={async () => {
-              await updateCanvasCharacter(character.id, { turnaroundSheetUrl: '' })
-              onUpdate()
-            }}
             label="转面图 / 三视图"
             confirmRemove="确认删除转面图？"
           />
@@ -476,10 +468,6 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
           <ReferenceUploadZone
             currentUrl={location.referenceImageUrl}
             onUpload={handleLocationUpload}
-            onRemove={async () => {
-              await updateCanvasLocation(location.id, { referenceImageUrl: '' })
-              onUpdate()
-            }}
             label="场景参考图"
             confirmRemove="确认删除场景参考图？"
           />
