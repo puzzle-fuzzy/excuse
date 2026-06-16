@@ -56,6 +56,94 @@ describe('handleHealthRequest — /health', () => {
   })
 })
 
+describe('handleHealthRequest — /health/live', () => {
+  it('进程能响应即 200，不依赖 DB', async () => {
+    const res = handleHealthRequest(new Request('http://worker/health/live'), makeState())
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('ok')
+  })
+
+  it('即使 lastPollError 也返回 200（liveness 不看 DB）', async () => {
+    const res = handleHealthRequest(
+      new Request('http://worker/health/live'),
+      makeState({ lastPollError: 'ECONNREFUSED' }),
+    )
+    expect(res.status).toBe(200)
+  })
+})
+
+describe('handleHealthRequest — /health/ready', () => {
+  it('健康轮询 → 200 ready', async () => {
+    // lastPollAt 在 FIXED_NOW 前 5 分钟内（默认 staleMs 120s 内）
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ lastPollAt: new Date(FIXED_NOW - 60_000), lastPollError: null }),
+      { now: FIXED_NOW },
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('ready')
+  })
+
+  it('lastPollError → 503（DB claim 失败）', async () => {
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ lastPollError: 'ECONNREFUSED' }),
+      { now: FIXED_NOW },
+    )
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.status).toBe('not ready')
+    expect(body.reason).toBe('poll_error')
+    expect(body.detail).toBe('ECONNREFUSED')
+  })
+
+  it('lastPollAt 超过 staleMs → 503（轮询卡死）', async () => {
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ lastPollAt: new Date(FIXED_NOW - 300_000), lastPollError: null }),
+      { now: FIXED_NOW, readyStaleMs: 120_000 },
+    )
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.reason).toBe('poll_stale')
+  })
+
+  it('自定义 readyStaleMs 缩短 → 正常间隔判为 stale', async () => {
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ lastPollAt: new Date(FIXED_NOW - 30_000), lastPollError: null }),
+      { now: FIXED_NOW, readyStaleMs: 10_000 },
+    )
+    expect(res.status).toBe(503)
+  })
+
+  it('启动后从未 poll，但在 grace 内 → 200 starting', async () => {
+    const startedAt = new Date(FIXED_NOW - 10_000)
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ startedAt, lastPollAt: null, lastPollError: null }),
+      { now: FIXED_NOW, readyStaleMs: 120_000 },
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('starting')
+  })
+
+  it('启动后从未 poll，超过 grace → 503 never_polled', async () => {
+    const startedAt = new Date(FIXED_NOW - 300_000)
+    const res = handleHealthRequest(
+      new Request('http://worker/health/ready'),
+      makeState({ startedAt, lastPollAt: null, lastPollError: null }),
+      { now: FIXED_NOW, readyStaleMs: 120_000 },
+    )
+    expect(res.status).toBe(503)
+    const body = await res.json()
+    expect(body.reason).toBe('never_polled')
+  })
+})
+
 describe('handleHealthRequest — /metrics 访问策略', () => {
   it('回环 IP + 无 token 配置 → 200 + Prometheus 格式', async () => {
     const res = handleHealthRequest(metricsRequest({ ip: '127.0.0.1' }), makeState(), { now: FIXED_NOW })

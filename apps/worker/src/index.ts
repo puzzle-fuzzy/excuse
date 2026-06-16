@@ -78,6 +78,8 @@ createHealthServer(healthState, healthPort, {
   providerCallsSnapshot: getProviderCallsSnapshot,
   metricsAllowedCidrs: config.metricsAllowedCidrs,
   metricsAccessToken: config.metricsAccessToken,
+  // ready 判停滞阈值 = 4 × 轮询间隔，确保长间隔配置下不误判轮询卡死
+  readyStaleMs: config.pollIntervalMs * 4,
 })
 
 // ── 优雅退出 ──────────────────────────────────────────

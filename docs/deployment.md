@@ -262,13 +262,65 @@ docker compose --profile prod -f docker-compose.yml -f docker-compose.prod.yml u
 
 compose 中 server/worker 会把 `DATABASE_URL` 覆盖为容器网络内的 `postgres:5432`；其他密钥仍从 `.env` 读取。
 
-健康检查：
+健康检查（生产用 readiness / liveness 探针，不要只用综合 `/health`）：
 
 ```bash
+# Server — readiness（DB 不可达或存储不可写时返回 503）
+curl http://localhost:5007/api/health/ready
+# Server — liveness（进程存活即 200，不依赖 DB，K8s 据此判断是否重启）
+curl http://localhost:5007/api/health/live
+# Server — DB 专用探针（仅探测数据库）
+curl http://localhost:5007/api/health/db
+# Server — 综合状态（DB 挂时仍返回 200，仅 status=degraded，不适合做摘流判断）
 curl http://localhost:5007/api/health
+
+# Worker — readiness（最近 poll 失败或轮询停滞时返回 503）
+curl http://localhost:5100/health/ready
+# Worker — liveness（进程存活即 200）
+curl http://localhost:5100/health/live
+# Worker — 综合运行状态（poll error 也返回 200，不适合做摘流判断）
 curl http://localhost:5100/health
+
 curl http://localhost:8007
 ```
+
+### 探针接线（Kubernetes / systemd / 反向代理）
+
+探针语义：
+
+- **liveness** = 「进程是否卡死」→ 失败应**重启**容器/进程。只看进程能否响应，不看 DB。
+- **readiness** = 「是否能接活」→ 失败应**摘除流量**但不重启。DB 不可达、存储不可写、worker poll 失败都应判 not ready。
+- 综合端点（`/health`、worker `/health`）即使下游故障也返回 200，**不要**用于 readiness。
+
+**Kubernetes** 探针建议：
+
+```yaml
+# Server deployment
+livenessProbe:
+  httpGet: { path: /api/health/live, port: 5007 }
+  periodSeconds: 10
+  failureThreshold: 3
+readinessProbe:
+  httpGet: { path: /api/health/ready, port: 5007 }
+  periodSeconds: 5
+  failureThreshold: 2
+
+# Worker deployment
+livenessProbe:
+  httpGet: { path: /health/live, port: 5100 }
+  periodSeconds: 10
+  failureThreshold: 3
+readinessProbe:
+  httpGet: { path: /health/ready, port: 5100 }
+  periodSeconds: 5
+  failureThreshold: 2
+```
+
+> 注：worker 没有「入口流量」，readiness 探针主要作用是让 HPA/监控识别 worker 是否健康（DB claim 失败会自检 not ready），而 liveness 决定是否重启卡死的 poll 循环。
+
+**systemd**：用 `ExecStartPost` + 周期 `Type=notify` 或独立的 watchdog 脚本 curl `/ready`，失败时 `systemctl restart`。Dockerfile 已内置 `HEALTHCHECK`（server→`/api/health/ready`，worker→`/health/ready`），`docker ps` 与 `docker compose ps` 会显示 health 状态。
+
+**反向代理（Nginx）**：对 server upstream 用主动健康检查（`proxy_next_upstream` + 健康检查模块）探测 `/api/health/ready`，503 时自动摘除该后端。
 
 **注意**：不引入 Node.js 运行时兼容路线，所有进程统一使用 Bun。
 

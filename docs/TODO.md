@@ -122,27 +122,7 @@
 
 ## P4：可观测性、CI 和测试体系
 
-### 1. Health/readiness 还需要更明确
-
-问题：
-
-- Metrics 文档提到 DB 更可靠的方式是补 `HEAD /api/health/db`，说明当前 health 对 DB readiness 还不够直接。
-- Server 与 worker 的 health/metrics 已有基础，但 release/运维需要明确 liveness/readiness/startup 三类探针。
-- Worker “进程活着”不等于“能 claim DB task / 能访问 provider / 能写 storage”。
-
-解决办法：
-
-- 增加 `/api/health/live`、`/api/health/ready`、`/api/health/db`；worker 增加 `/health/live`、`/health/ready`。
-- ready 检查包含 DB ping、migration version、storage writable、worker 最近 poll 时间、必要 env。
-- 文档补 Kubernetes/systemd/反向代理的探针建议。
-
-验收：
-
-- DB 不可用时 readiness fail，但 liveness 不误杀。
-- Worker 卡住或 DB claim 失败时 worker ready fail。
-- 部署文档的一键检查能覆盖 server、worker、DB、storage。
-
-### 2. CI 与本地验收不同口径
+### 1. CI 与本地验收不同口径
 
 问题：
 
@@ -162,7 +142,7 @@
 - 任一 package 测试失败都能阻断 PR。
 - Dockerfile 变更必须经过 CI build。
 
-### 3. 缺少端到端冒烟测试
+### 2. 缺少端到端冒烟测试
 
 问题：
 
