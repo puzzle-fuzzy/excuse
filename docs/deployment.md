@@ -93,6 +93,11 @@ bun run build:client
 | `FRONTEND_URL` | 生产前端域名，用于 CORS allowlist |
 | `METRICS_ACCESS_TOKEN` | `/metrics` 和 worker `/provider-calls` 的 Bearer token；当 metrics CIDR 公开时必填 |
 | `WORKER_METRICS_URL` | server 聚合 worker provider latency 时使用，如 `http://localhost:5100` |
+| `SMTP_HOST` | SMTP 邮件服务器地址（可选，不配置则密码重置链接打印到控制台） |
+| `SMTP_PORT` | SMTP 端口（默认 587） |
+| `SMTP_USER` | SMTP 用户名 |
+| `SMTP_PASS` | SMTP 密码 |
+| `SMTP_FROM` | 发件人地址，如 `Excuse <noreply@example.com>` |
 
 详见 `.env.example` 获取完整列表。
 

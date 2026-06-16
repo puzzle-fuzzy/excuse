@@ -220,10 +220,10 @@ export function createAuthRoutes(config: ServerConfig) {
         return { success: true } satisfies ForgotPasswordResponse
       }
 
-      // 发送重置邮件（当前开发环境打印到控制台）
+      // 发送重置邮件（有 SMTP 配置时通过邮件发送，否则打印到控制台）
       const frontendUrl = config.frontendUrl || 'http://localhost:8007'
       const resetLink = `${frontendUrl}${RESET_PASSWORD_URL}?token=${rawToken}`
-      sendPasswordResetEmail(email, resetLink).catch(() => {})
+      sendPasswordResetEmail(email, resetLink, config.smtp).catch(() => {})
 
       return { success: true } satisfies ForgotPasswordResponse
     }, {

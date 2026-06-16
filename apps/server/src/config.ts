@@ -1,6 +1,17 @@
 import type { OSSConfig } from '@excuse/provider'
 
 /**
+ * SMTP 邮件发送配置
+ */
+export interface SmtpConfig {
+  host: string
+  port: number
+  user: string
+  pass: string
+  from: string
+}
+
+/**
  * 服务端全局配置类型
  *
  * 所有路由、模块通过 ServerConfig 获取运行时参数，
@@ -17,6 +28,7 @@ export interface ServerConfig {
   jwtSecret: string
   jwtExpiresIn: string
   oss: OSSConfig | undefined
+  smtp?: SmtpConfig
   /** Prometheus `/metrics` 端点访问 token；未设置时仅允许回环地址访问 */
   metricsAccessToken?: string
   /** 允许访问 `/metrics` 的 IP CIDR 列表；默认 `['127.0.0.1/32', '::1/128']` */
@@ -81,6 +93,7 @@ export function loadConfig(): ServerConfig {
     jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
     oss: loadOSSConfig(),
+    smtp: loadSmtpConfig(),
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128')
       .split(',')
@@ -123,4 +136,24 @@ function loadOSSConfig(): OSSConfig | undefined {
     uploadPrefix: process.env.OSS_UPLOAD_PREFIX || 'uploads',
     generatedPrefix: process.env.OSS_GENERATED_PREFIX || 'generated',
   }
+}
+
+/**
+ * 加载 SMTP 邮件配置
+ *
+ * 五个必需变量（SMTP_HOST / PORT / USER / PASS / FROM）全部存在时才启用 SMTP，
+ * 否则返回 undefined，邮件打印到控制台（开发模式）。
+ */
+function loadSmtpConfig(): SmtpConfig | undefined {
+  const host = process.env.SMTP_HOST
+  const port = Number(process.env.SMTP_PORT) || 587
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  const from = process.env.SMTP_FROM
+
+  if (!host || !user || !pass || !from) {
+    return undefined
+  }
+
+  return { host, port, user, pass, from }
 }

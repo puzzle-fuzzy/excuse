@@ -44,6 +44,7 @@
     "currency.js": "^2.0.4",
     "drizzle-orm": "^0.45.2",
     "elysia-rate-limit": "^4.6.2",
+    "nodemailer": "^9.0.0",
     "p-limit": "^7.3.0",
     "pg": "^8.21.0"
   },
@@ -52,6 +53,7 @@
     "@eslint-react/eslint-plugin": "^5.8.17",
     "@types/ali-oss": "^6.23.3",
     "@types/bun": "latest",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "concurrently": "^10.0.3",
     "drizzle-kit": "^0.31.10",
