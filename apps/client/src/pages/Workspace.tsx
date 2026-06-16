@@ -376,6 +376,7 @@ export default function Workspace() {
                   onRegenerate={regenerate}
                   onDelete={id => setDeleteConfirm({ open: true, id })}
                   onPreview={setPreviewUrl}
+                  onCopyDiagnostics={(text) => { navigator.clipboard.writeText(text).catch(() => {}) }}
                 />
               ))}
             </div>

@@ -1,4 +1,5 @@
 import type { OpenAIChatCompletionChunk, OpenAIChatRequest, OpenAIChatResponse, OpenAIErrorResponse, OpenAIGatewayUsageItem, OpenAIGatewayUsageResponse, OpenAIModelsResponse } from '@excuse/shared'
+import { classifyRecovery } from '@excuse/error-recovery'
 import { resolveModelId } from '@excuse/shared'
 import { gatewayUsageRecordSchema, openaiChatRequestSchema } from './schemas'
 
@@ -76,15 +77,25 @@ export interface OpenAIChatResponseInput {
  * 构造一个 OpenAI 兼容的错误结果。
  * 注意：返回的是结构化对象，不是 Response；调用方需要自行
  * `new Response(JSON.stringify(err.response), { status: err.status })`。
+ *
+ * @param message 错误消息
+ * @param type 错误类型（OpenAI 规范）
+ * @param code 错误码（来自 OPENAI_GATEWAY_ERROR_CODES）
+ * @param statusCode HTTP 状态码
+ * @param hint 用户下一步建议（来自 classifyRecovery 分类），缺省时由工厂自动填充。
  */
 export function createOpenAIError(
   message: string,
   type: string,
   code: OpenAIGatewayErrorCode | string,
   statusCode: number,
+  hint?: string,
 ): OpenAIGatewayError {
+  const errorObj: OpenAIErrorResponse['error'] = { message, type, code }
+  if (hint)
+    errorObj.hint = hint
   return {
-    response: { error: { message, type, code } },
+    response: { error: errorObj },
     status: statusCode,
   }
 }
@@ -101,21 +112,25 @@ export function createOpenAIError(
 
 /** 模型不存在（别名解析后内部 ID 也找不到） */
 export function modelNotFoundError(model: string): OpenAIGatewayError {
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND }).suggestion
   return createOpenAIError(
     `Model '${model}' not found`,
     'invalid_request_error',
     OPENAI_GATEWAY_ERROR_CODES.MODEL_NOT_FOUND,
     404,
+    hint,
   )
 }
 
 /** 模型存在但不支持当前操作（如非文本模型用于 chat completions） */
 export function invalidModelError(model: string): OpenAIGatewayError {
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL }).suggestion
   return createOpenAIError(
     `Model '${model}' is not a text model`,
     'invalid_request_error',
     OPENAI_GATEWAY_ERROR_CODES.INVALID_MODEL,
     400,
+    hint,
   )
 }
 
@@ -124,61 +139,74 @@ export function invalidParametersError(
   errors: Array<{ field: string, message: string }>,
 ): OpenAIGatewayError {
   const details = errors.map(e => `${e.field}: ${e.message}`).join('; ')
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS }).suggestion
   return createOpenAIError(
     details,
     'invalid_request_error',
     OPENAI_GATEWAY_ERROR_CODES.INVALID_PARAMETERS,
     400,
+    hint,
   )
 }
 
 /** 请求缺少有效的 user message */
 export function missingUserMessageError(): OpenAIGatewayError {
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE }).suggestion
   return createOpenAIError(
     'No user message provided',
     'invalid_request_error',
     OPENAI_GATEWAY_ERROR_CODES.MISSING_USER_MESSAGE,
     400,
+    hint,
   )
 }
 
 /** 用户余额不足以执行生成 */
 export function insufficientBalanceError(): OpenAIGatewayError {
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE }).suggestion
   return createOpenAIError(
     'Insufficient balance to complete the request',
     'insufficient_quota',
     OPENAI_GATEWAY_ERROR_CODES.INSUFFICIENT_BALANCE,
     402,
+    hint,
   )
 }
 
 /** Provider 调用失败（DashScope / 上游模型错误） */
 export function generationFailedError(message: string): OpenAIGatewayError {
+  const hint = classifyRecovery({ errorMessage: message }).suggestion
   return createOpenAIError(
     message,
     'server_error',
     OPENAI_GATEWAY_ERROR_CODES.GENERATION_FAILED,
     500,
+    hint,
   )
 }
 
 /** API Key scope 不满足端点要求（如 gateway 端点需要 scope=gateway） */
 export function apiKeyScopeNotAllowedError(): OpenAIGatewayError {
+  // scope 不允许 → 用户需创建新 key，不是 error-recovery 的标准分类，直接给建议
+  const hint = '请创建一个 scope 为 "gateway" 或 "all" 的 API Key 后重试。'
   return createOpenAIError(
     'This API key does not have permission to access the Gateway. Please create a key with scope set to "gateway" or "all".',
     'invalid_request_error',
     OPENAI_GATEWAY_ERROR_CODES.API_KEY_SCOPE_NOT_ALLOWED,
     403,
+    hint,
   )
 }
 
 /** API Key 已达额度上限 */
 export function apiKeyQuotaExceededError(): OpenAIGatewayError {
+  const hint = classifyRecovery({ code: OPENAI_GATEWAY_ERROR_CODES.API_KEY_QUOTA_EXCEEDED }).suggestion
   return createOpenAIError(
     'API key quota exceeded. Please wait for quota reset or create a new key with higher limit.',
     'insufficient_quota',
     OPENAI_GATEWAY_ERROR_CODES.API_KEY_QUOTA_EXCEEDED,
     429,
+    hint,
   )
 }
 

@@ -1,3 +1,4 @@
+import type { RecoveryClassification } from '@excuse/error-recovery'
 import type { ListResponse, MutationOkResponse, RecordResponse } from './api-response'
 import type {
   CostDetail,
@@ -129,6 +130,8 @@ export interface GenerationRecord {
   cost: CostDetail | null
   totalPriceCents: number | null
   errorMessage: string | null
+  /** 失败/取消时的恢复分类（succeeded/进行中 为 null） */
+  recovery: RecoveryClassification | null
   retryCount: number
   traceId: string | null
   dedupeKey: string | null

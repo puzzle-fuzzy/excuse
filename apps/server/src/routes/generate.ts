@@ -12,6 +12,7 @@ import {
   reserveCredit,
   resetGenerationToPending,
 } from '@excuse/db'
+import { classifyRecovery } from '@excuse/error-recovery'
 import { AssetStorage, DashScopeClient, getModelById, validateAndMerge } from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
@@ -61,8 +62,20 @@ export function createGenerateRoutes(config: ServerConfig) {
       : 'not_requested'
   }
 
-  /** 从 DB 行序列化为前端兼容的 GenerationRecord（Date→string） */
+  /** 从 DB 行序列化为前端兼容的 GenerationRecord（Date→string + recovery 分类） */
   function serializeRecord(record: GenerationRecordRow): GenerationRecord {
+    const isTerminal = record.status === 'failed' || record.status === 'cancelled'
+    const recovery = isTerminal
+      ? classifyRecovery({
+          errorMessage: record.errorMessage,
+          status: record.status,
+          traceId: record.traceId,
+          entityId: record.id,
+          source: 'workspace',
+          billingMode: 'credit-ledger',
+        })
+      : null
+
     return {
       ...record,
       createdAt: record.createdAt.toISOString(),
@@ -70,6 +83,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       hiddenAt: record.hiddenAt?.toISOString() ?? null,
       cancelRequestedAt: record.cancelRequestedAt?.toISOString() ?? null,
       providerCancelStatus: serializeProviderCancelStatus(record.providerCancelStatus),
+      recovery,
     }
   }
 

@@ -72,6 +72,8 @@ export interface OpenAIErrorResponse {
     message: string
     type: string
     code: string
+    /** 用户下一步建议（来自 @excuse/error-recovery 分类），缺省时为空 */
+    hint?: string
   }
 }
 

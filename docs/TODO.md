@@ -51,7 +51,7 @@
 解决办法：
 
 - 将 ProjectDTO 拆成 summary + paged/partial resources：Canvas 主画布只加载必要节点摘要，详情面板按需加载单节点详情。
-- Canvas poll delta 从“发现变化后整项目 reload”升级为局部 patch：shot status、asset URL、phase status 分别更新 store。
+- Canvas poll delta 从"发现变化后整项目 reload"升级为局部 patch：shot status、asset URL、phase status 分别更新 store。
 - 给大项目建立性能预算：如 200 shots 下首次渲染、阶段更新、节点详情打开的 p95 时间。
 
 验收：
@@ -69,8 +69,8 @@
 解决办法：
 
 - 若进入需求，优先扩展现有 `asset_tags`：增加 color、description、sortOrder；使用计数由引用关系聚合，不直接手写计数。
-- 资产卡片增加“被哪些项目/镜头使用”入口，点击能跳转到 Canvas focus。
-- 对常用资产提供“设为项目默认参考/批量应用到选中镜头”操作，保持已有去重和预览规则。
+- 资产卡片增加"被哪些项目/镜头使用"入口，点击能跳转到 Canvas focus。
+- 对常用资产提供"设为项目默认参考/批量应用到选中镜头"操作，保持已有去重和预览规则。
 
 验收：
 
@@ -78,26 +78,6 @@
 - 用户能从资产中心回到对应 Canvas 项目或镜头。
 - 删除/隐藏策略不会误删仍被项目引用的资产。
 - 多参考图生成视频时，模型选择不会出现明显不兼容。
-
-### 3. 用户错误恢复体验还不够统一
-
-问题：
-
-- Workspace、Canvas、Subtitle、Gateway、Assets 都有失败路径，但错误文案、重试入口、是否保留输入不完全一致。
-- Provider 参数错误、内容安全失败、余额不足、网络错误、存储失败是不同类型，用户需要不同操作建议。
-- 当前 admin 诊断增强较多，普通用户侧的“下一步该怎么办”仍可能不足。
-
-解决办法：
-
-- 建立统一错误分类到 UX action 的映射：retry、edit prompt、change model、top up、contact support、wait。
-- 生成记录、Canvas phase、subtitle project、gateway response 共用错误分类文案和 action hint。
-- 失败卡片保留用户输入、模型、参考图，并提供“一键复制诊断信息”。
-
-验收：
-
-- 主要失败类型都有明确用户动作，而不是只显示 provider 原始错误。
-- 重试前用户能看到会不会重新扣费或使用 beta quota。
-- 客服/运营能用用户复制的诊断信息定位 task/record/asset。
 
 ## P3：后端 API、数据模型和类型边界
 

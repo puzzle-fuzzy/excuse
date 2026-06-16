@@ -32,6 +32,7 @@
       "dependencies": {
         "@dagrejs/dagre": "^3.0.0",
         "@elysia/eden": "^1.4.10",
+        "@excuse/error-recovery": "workspace:*",
         "@excuse/shared": "workspace:*",
         "@excuse/subtitle-engine": "workspace:*",
         "@fontsource-variable/geist": "^5.2.9",
@@ -92,6 +93,7 @@
         "@excuse/canvas-engine": "workspace:*",
         "@excuse/canvas-runtime": "workspace:*",
         "@excuse/db": "workspace:*",
+        "@excuse/error-recovery": "workspace:*",
         "@excuse/events": "workspace:*",
         "@excuse/gateway": "workspace:*",
         "@excuse/metrics": "workspace:*",
@@ -183,9 +185,6 @@
     "packages/error-recovery": {
       "name": "@excuse/error-recovery",
       "version": "0.0.1",
-      "dependencies": {
-        "@excuse/shared": "workspace:*",
-      },
     },
     "packages/events": {
       "name": "@excuse/events",
@@ -202,6 +201,7 @@
       "name": "@excuse/gateway",
       "version": "0.0.1",
       "dependencies": {
+        "@excuse/error-recovery": "workspace:*",
         "@excuse/shared": "workspace:*",
         "zod": "^4.4.3",
       },
@@ -245,6 +245,7 @@
       "name": "@excuse/shared",
       "version": "0.0.1",
       "dependencies": {
+        "@excuse/error-recovery": "workspace:*",
         "pino": "^10.3.1",
         "pino-pretty": "^13.1.3",
       },

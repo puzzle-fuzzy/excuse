@@ -349,6 +349,18 @@ describe('@excuse/gateway', () => {
         expect(err.response.error).toHaveProperty('code')
       }
     })
+
+    it('工厂自动填充 hint（classifyRecovery suggestion）', () => {
+      const err = modelNotFoundError('qwen-max')
+      expect(err.response.error.hint).toBeTruthy()
+      expect(typeof err.response.error.hint).toBe('string')
+      // insufficient_balance → balance 域，hint 为充值建议
+      const balErr = insufficientBalanceError()
+      expect(balErr.response.error.hint).toContain('充值')
+      // generation_failed → provider 域（无具体码），从文案分类
+      const genErr = generationFailedError('模型推理异常')
+      expect(genErr.response.error.hint).toBeTruthy()
+    })
   })
 
   describe('normalizeOpenAIChatRequest — zod runtime guard', () => {

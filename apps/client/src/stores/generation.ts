@@ -1,5 +1,6 @@
 import type { ProjectDTO, SSEGenerationStatusEvent } from '@excuse/shared'
 import type { GenerationRecord } from '@/api/client'
+import { classifyRecovery } from '@excuse/error-recovery'
 import { parseCostDetail, parseOutputResult } from '@excuse/shared'
 import { create } from 'zustand'
 import { fetchRecords, listCanvasProjects } from '@/api/client'
@@ -68,12 +69,25 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     const existingIndex = records.findIndex(r => r.id === event.id)
     if (existingIndex >= 0) {
       const next = [...records]
+      // 失败/取消时本地计算 recovery（来自 classifyRecovery）
+      const isTerminal = event.status === 'failed' || event.status === 'cancelled'
+      const recovery = isTerminal
+        ? classifyRecovery({
+            errorMessage: event.errorMessage ?? null,
+            status: event.status,
+            traceId: event.traceId ?? null,
+            entityId: event.id,
+            source: 'workspace',
+            billingMode: 'credit-ledger',
+          })
+        : null
       next[existingIndex] = {
         ...next[existingIndex],
         status: event.status,
         ...(event.outputResult && { outputResult: parseOutputResult(event.outputResult) }),
         ...(event.errorMessage && { errorMessage: event.errorMessage }),
         ...(event.cost && { cost: parseCostDetail(event.cost) }),
+        ...(recovery && { recovery }),
       }
       set({ records: next })
     }

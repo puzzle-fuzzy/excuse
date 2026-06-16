@@ -3,11 +3,14 @@ import type { GenerationRecord, ModelConfig } from '@/api/client'
 import type { Category } from '@/lib/generation-utils'
 import { isImageOutput, isVideoOutput } from '@excuse/shared'
 import {
+  ClipboardCopy,
   Copy,
   Download,
   FileText,
+  Lightbulb,
   RotateCw,
   Trash2,
+  TriangleAlert,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -27,6 +30,7 @@ interface RecordCardProps {
   onRegenerate: (record: GenerationRecord) => void
   onDelete: (id: string) => void
   onPreview: (url: string) => void
+  onCopyDiagnostics: (text: string) => void
 }
 
 export default function RecordCard({
@@ -39,6 +43,7 @@ export default function RecordCard({
   onRegenerate,
   onDelete,
   onPreview,
+  onCopyDiagnostics,
 }: RecordCardProps) {
   const statusCfg = STATUS_CONFIG[record.status] || STATUS_CONFIG.pending
   const StatusIcon = statusCfg.icon
@@ -156,8 +161,45 @@ export default function RecordCard({
           </div>
         )}
 
-        {/* 错误信息 */}
-        {record.status === 'failed' && record.errorMessage && (
+        {/* 错误信息 + 恢复指引 */}
+        {record.status === 'failed' && record.recovery && (
+          <div className="mt-2 space-y-1.5">
+            {/* 失败领域徽章 */}
+            <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-700">
+              {record.recovery.label}
+            </Badge>
+            {/* 下一步建议 */}
+            <div className="flex items-start gap-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+              <Lightbulb className="size-3 shrink-0 mt-0.5" />
+              <span>{record.recovery.suggestion}</span>
+            </div>
+            {/* 重扣费提示 */}
+            {record.recovery.recharges && (
+              <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 rounded px-2 py-1">
+                <TriangleAlert className="size-3 shrink-0" />
+                <span>重试将重新扣费</span>
+              </div>
+            )}
+            {/* 原始错误信息 */}
+            {record.errorMessage && (
+              <p className="text-xs text-destructive">{record.errorMessage}</p>
+            )}
+            {/* 一键复制诊断信息 */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="size-5 p-0 text-muted-foreground hover:text-foreground"
+              onClick={() => onCopyDiagnostics(record.recovery!.diagnostics)}
+              title="复制诊断信息"
+            >
+              <ClipboardCopy className="size-3" />
+              <span className="ml-1 text-[10px]">复制诊断信息</span>
+            </Button>
+          </div>
+        )}
+
+        {/* failed 但无 recovery（兜底：只显示 errorMessage） */}
+        {record.status === 'failed' && !record.recovery && record.errorMessage && (
           <p className="mt-2 text-xs text-destructive">{record.errorMessage}</p>
         )}
 

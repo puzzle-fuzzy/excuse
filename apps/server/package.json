@@ -21,6 +21,7 @@
     "@excuse/canvas-engine": "workspace:*",
     "@excuse/canvas-runtime": "workspace:*",
     "@excuse/db": "workspace:*",
+    "@excuse/error-recovery": "workspace:*",
     "@excuse/events": "workspace:*",
     "@excuse/gateway": "workspace:*",
     "@excuse/metrics": "workspace:*",

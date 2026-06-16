@@ -8,6 +8,7 @@
   },
   "module": "src/index.ts",
   "dependencies": {
+    "@excuse/error-recovery": "workspace:*",
     "@excuse/shared": "workspace:*",
     "zod": "^4.4.3"
   }
