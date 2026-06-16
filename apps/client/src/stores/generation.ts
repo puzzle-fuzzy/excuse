@@ -1,9 +1,9 @@
-import type { ProjectDTO, SSEGenerationStatusEvent } from '@excuse/shared'
+import type { SSEGenerationStatusEvent } from '@excuse/shared'
 import type { GenerationRecord } from '@/api/client'
 import { classifyRecovery } from '@excuse/error-recovery'
 import { parseCostDetail, parseOutputResult } from '@excuse/shared'
 import { create } from 'zustand'
-import { fetchRecords, listCanvasProjects } from '@/api/client'
+import { fetchRecords } from '@/api/client'
 
 /** 将后端原始 GenerationRecord 的 outputResult/cost 规范化为前端可用的域类型 */
 function normalizeRecord(raw: GenerationRecord): GenerationRecord {
@@ -18,11 +18,9 @@ function normalizeRecord(raw: GenerationRecord): GenerationRecord {
 
 interface GenerationState {
   records: GenerationRecord[]
-  projectMap: Map<string, ProjectDTO>
   loadingRecords: boolean
 
   fetchRecords: () => Promise<void>
-  fetchProjects: () => Promise<void>
   addRecord: (record: GenerationRecord) => void
   removeRecord: (id: string) => void
   updateRecordFromSSE: (event: SSEGenerationStatusEvent) => void
@@ -30,7 +28,6 @@ interface GenerationState {
 
 export const useGenerationStore = create<GenerationState>((set, get) => ({
   records: [],
-  projectMap: new Map(),
   loadingRecords: false,
 
   fetchRecords: async () => {
@@ -42,18 +39,6 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     catch {
       set({ loadingRecords: false })
     }
-  },
-
-  fetchProjects: async () => {
-    try {
-      const data = await listCanvasProjects()
-      const map = new Map<string, ProjectDTO>()
-      for (const p of data.items) {
-        map.set(p.id, p)
-      }
-      set({ projectMap: map })
-    }
-    catch {}
   },
 
   addRecord: (record) => {
