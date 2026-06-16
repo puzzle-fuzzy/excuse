@@ -362,6 +362,7 @@ export function createGenerateRoutes(config: ServerConfig) {
       delete rawParameters.projectId
       delete rawParameters.shotId
       delete rawParameters.referenceFileIds
+      delete rawParameters.requestedModel
 
       // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
       const validationResult = validateAndMerge(modelConfig, rawParameters)
