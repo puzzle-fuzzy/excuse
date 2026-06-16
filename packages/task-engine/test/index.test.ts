@@ -11,6 +11,7 @@ import {
   createTaskHandlerRegistry,
   decideTaskFailureAction,
   extendTaskLockWithAdapter,
+  getTaskPriority,
   shouldRetryTask,
   sweepOrphanTasksWithAdapter,
   TaskNotImplementedError,
@@ -74,6 +75,14 @@ describe('@excuse/task-engine', () => {
     expect(computeRetryDelay('canvas.videos', 1)).toBe(60_000)
     expect(computeRetryDelay('generate.video', 3)).toBe(240_000)
     expect(computeRetryDelay('canvas.analyze', 3)).toBe(30_000)
+  })
+
+  it('按任务类型返回统一队列优先级', () => {
+    expect(getTaskPriority({ type: 'media.extract-audio', domain: 'subtitle' })).toBe(3)
+    expect(getTaskPriority({ type: 'media.burn-subtitle', domain: 'subtitle' })).toBe(3)
+    expect(getTaskPriority({ type: 'canvas.analyze', domain: 'canvas' })).toBe(5)
+    expect(getTaskPriority({ type: 'canvas.videos', domain: 'canvas' })).toBe(6)
+    expect(getTaskPriority({ type: 'unknown.task', domain: 'generate' })).toBe(5)
   })
 
   it('通过类型化 handler 注册表分发任务', async () => {

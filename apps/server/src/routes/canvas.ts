@@ -59,7 +59,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
-import { cancelTaskWithAdapter } from '@excuse/task-engine'
+import { cancelTaskWithAdapter, getTaskPriority } from '@excuse/task-engine'
 import { canCancelPipelineRun } from '@excuse/workflow-engine'
 import { Elysia, t } from 'elysia'
 import { ReferenceAssetValidationError, validateShotReferenceAssetsForAccount } from '../modules/canvas/reference-assets'
@@ -161,7 +161,7 @@ async function createTaskDrivenPhase(
     accountId: userId,
     type: `canvas.${phase}`,
     domain: 'canvas',
-    priority: 5,
+    priority: getTaskPriority({ type: `canvas.${phase}`, domain: 'canvas' }),
     projectId,
     targetType: 'pipeline_run',
     targetId: run.id,

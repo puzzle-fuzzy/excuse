@@ -38,24 +38,18 @@
 
 ## P1：核心生产可靠性
 
-### 1. 长任务并发和队列策略需要产品化
+### 1. Provider 连续失败自动降级策略缺失
 
 问题：
 
-- 统一任务队列已有 priority/lock/retry，但不同 domain/model 的并发上限、用户级公平性、provider 限流保护仍需要明确。
-- 单个 Canvas 项目多阶段自动推进时，如果用户并发启动多个项目，可能挤占普通 generate/subtitle 任务。
 - 任务重排、取消、孤儿恢复已有 admin 操作，但缺少“何时自动降级/暂停某个模型”的策略。
 
 解决办法：
 
-- 在 worker 层引入 domain/model/user 维度的并发 limiter；只用于单 worker 内部并发控制，不替代 DB task queue。
-- 明确 priority 规则：用户交互任务、取消/恢复、Canvas 自动阶段、批量后台任务分别设优先级。
 - Provider 连续失败时，将对应 model 标记为 degraded，短时间内新任务快速失败或切 fallback，并在 admin 提示。
 
 验收：
 
-- 压测下 queued/running 不会长期卡死，低优先级任务不会饿死。
-- 单用户大量 Canvas 任务不会阻塞其他用户的小任务。
 - Provider 故障时失败率和降级状态在 admin/metrics 可见。
 
 ### 2. 资产生命周期需要可审计的删除/恢复策略

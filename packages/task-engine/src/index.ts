@@ -33,6 +33,11 @@ export interface TaskStatusCandidate {
   status: string
 }
 
+export interface TaskPriorityInput {
+  type: string
+  domain: string
+}
+
 export interface TaskDefinition<TTask, TContext, TOutput = Record<string, unknown> | undefined> {
   type: string
   handler: TaskHandler<TTask, TContext, TOutput>
@@ -161,6 +166,24 @@ export function createTaskHandlerRegistry<TTask extends { type: string }, TConte
   definitions: Array<TaskDefinition<TTask, TContext, TOutput>> = [],
 ): TaskHandlerRegistry<TTask, TContext, TOutput> {
   return new TaskHandlerRegistry<TTask, TContext, TOutput>().registerMany(definitions)
+}
+
+/**
+ * 统一任务优先级策略。
+ *
+ * 数字越小越早被 `claimNextTask` 领取。Worker 当前单进程串行执行 task，
+ * 因此 priority 是用户可感知公平性的第一道调度边界。
+ */
+export function getTaskPriority(input: TaskPriorityInput): number {
+  if (input.type === 'media.extract-audio')
+    return 3
+  if (input.type === 'media.burn-subtitle')
+    return 3
+  if (input.type === 'canvas.videos')
+    return 6
+  if (input.domain === 'canvas')
+    return 5
+  return 5
 }
 
 export async function completeTaskWithAdapter<TTask extends { id: string }, TOutput = Record<string, unknown> | undefined>(

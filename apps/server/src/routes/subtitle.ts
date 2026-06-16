@@ -27,6 +27,7 @@ import {
   updateSubtitleStyle,
 } from '@excuse/db'
 import { ASRClient } from '@excuse/provider'
+import { getTaskPriority } from '@excuse/task-engine'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/subtitle/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -198,7 +199,7 @@ export function createSubtitleRoutes(config: ServerConfig) {
         accountId: userId,
         type: 'media.burn-subtitle',
         domain: 'subtitle',
-        priority: 5,
+        priority: getTaskPriority({ type: 'media.burn-subtitle', domain: 'subtitle' }),
         projectId: project.id,
         targetType: 'subtitle_project',
         targetId: project.id,

@@ -22,6 +22,7 @@ import {
   updateSubtitleProjectStatus,
 } from '@excuse/db'
 import { getDefaultStyleConfig } from '@excuse/subtitle-engine'
+import { getTaskPriority } from '@excuse/task-engine'
 import { pushNotification } from '../../routes/notifications'
 
 /** 字幕项目依赖的外部服务（仅供 retry 中快速重提交 ASR 使用） */
@@ -66,7 +67,7 @@ export async function createAndStartProject(
     accountId,
     type: 'media.extract-audio',
     domain: 'subtitle',
-    priority: 5,
+    priority: getTaskPriority({ type: 'media.extract-audio', domain: 'subtitle' }),
     projectId: project.id,
     targetType: 'subtitle_project',
     targetId: project.id,
@@ -166,7 +167,7 @@ export async function retryProject(
     accountId,
     type: 'media.extract-audio',
     domain: 'subtitle',
-    priority: 5,
+    priority: getTaskPriority({ type: 'media.extract-audio', domain: 'subtitle' }),
     projectId: project.id,
     targetType: 'subtitle_project',
     targetId: project.id,

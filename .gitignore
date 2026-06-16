@@ -13,6 +13,7 @@ dist
 # 代码覆盖率
 coverage
 *.lcov
+.codegraph
 
 # 日志
 logs

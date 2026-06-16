@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **统一任务队列优先级策略 (P1-2 部分完成，本提交)**：`@excuse/task-engine` 新增纯函数 `getTaskPriority()`，明确 `claimNextTask` 的 priority 口径：字幕媒体任务（`media.extract-audio` / `media.burn-subtitle`）优先级 3，普通 Canvas 自动阶段优先级 5，批量长视频阶段 `canvas.videos` 优先级 6，避免长视频批量任务挤占用户等待的小任务。Canvas 手动阶段、workflow 自动推进、Subtitle 创建/导出任务全部改用统一策略；补 task-engine 策略测试与 workflow `videos` 优先级测试。TODO 已收窄为剩余 provider 自动降级策略。
+
 - **Provider 取消状态可见化 (P1-1，本提交)**：`generation_records` 新增 `cancel_requested_at` 与 `provider_cancel_status`（migration `0030_steady_cancel_visibility`），取消路径会记录 `no_task` / `succeeded` / `failed`，即使 provider 取消失败也保留本地取消和退款语义；`GenerationRecord` DTO 与序列化补出 `cancelRequestedAt`、`providerCancelStatus`。Workspace 生成记录卡片在 cancelled 状态下展示“本地已取消 / provider 已确认取消 / provider 取消失败，后续结果会被忽略”等提示。补 server cancel route 测试覆盖 provider 取消成功、无 provider task、provider 取消失败三类路径。对应 TODO 已删除。
 
 - **Canvas videos worker 提交幂等 (P1-1 部分完成，本提交)**：`canvas_assets` repository 新增 `findReusableCanvasAssetForPipelineTarget()`，worker 执行 Canvas `videos` phase 时按 `pipelineRunId + shotId + category` 复用已有非失败 `shotVideo` asset；如果既有 asset 已绑定 provider task、shot 已有 `videoTaskId` 或资产已成功，则跳过再次调用 provider，避免 worker 崩溃重试时为同一 run/shot 生成重复 Canvas asset 或重复提交已绑定任务。若已有 queued asset 但尚未绑定 provider task，则复用同一 asset 继续提交。补 `apps/worker/test/canvas-videos.test.ts` 覆盖已绑定跳过、queued 复用、新建提交三条路径；TODO 已收窄为剩余 provider 取消状态可见化。

@@ -1,3 +1,5 @@
+import { getTaskPriority } from '@excuse/task-engine'
+
 export type CanvasPipelinePhase
   = | 'analyze'
     | 'characters'
@@ -101,7 +103,7 @@ export async function createNextCanvasPipelineTask<TRun extends { id: string }, 
     accountId: input.accountId,
     type: taskType,
     domain: 'canvas',
-    priority: 5,
+    priority: getTaskPriority({ type: taskType, domain: 'canvas' }),
     projectId: input.projectId,
     targetType: 'pipeline_run',
     targetId: run.id,

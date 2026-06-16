@@ -144,6 +144,23 @@ describe('@excuse/workflow-engine', () => {
     })
     expect(calls).toEqual(['run:characters', 'task:canvas.characters', 'link:run-1:task-1'])
   })
+
+  it('videos 阶段使用较低队列优先级，避免挤占小任务', async () => {
+    await createNextCanvasPipelineTask({
+      projectId: 'project-1',
+      accountId: 'account-1',
+      nextPhase: 'videos',
+      adapter: {
+        createPipelineRun: async () => ({ id: 'run-videos' }),
+        createTask: async (values) => {
+          expect(values.priority).toBe(6)
+          expect(values.type).toBe('canvas.videos')
+          return { id: 'task-videos' }
+        },
+        linkPipelineRunToTask: async () => {},
+      },
+    })
+  })
 })
 
 describe('canvas pipeline 运行状态规则', () => {
