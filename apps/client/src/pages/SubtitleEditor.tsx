@@ -9,18 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
+import { formatMs } from '@/lib/generation-utils'
+import { SUBTITLE_STATUS_LABELS } from '@/lib/subtitle-constants'
 import { useSubtitleStore } from '@/stores/subtitle'
-
-/** 状态中文标签 */
-const STATUS_LABELS: Record<string, string> = {
-  draft: '草稿',
-  extracting_audio: '提取音频中',
-  asr_processing: 'ASR 识别中',
-  subtitle_editing: '字幕编辑',
-  exporting: '导出中',
-  completed: '已完成',
-  failed: '失败',
-}
 
 const FONT_SIZE_MIN = 18
 const FONT_SIZE_MAX = 96
@@ -32,14 +23,6 @@ const FONT_SIZE_PRESETS = [
   { label: '超大', value: 60 },
 ] as const
 const BUSY_STATUSES = ['draft', 'extracting_audio', 'asr_processing', 'exporting'] as const
-
-/** 格式化毫秒为 mm:ss 格式 */
-function formatMs(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
 
 function clampFontSize(value: number): number {
   if (!Number.isFinite(value))
@@ -219,7 +202,7 @@ export default function SubtitleEditor() {
         </Button>
         <div className="flex items-center gap-2">
           <span className={`text-sm ${canEditStyle ? 'text-green-600' : currentProject.status === 'failed' ? 'text-destructive' : 'text-blue-500'}`}>
-            {STATUS_LABELS[currentProject.status] || currentProject.status}
+            {SUBTITLE_STATUS_LABELS[currentProject.status] || currentProject.status}
           </span>
           {currentProject.status === 'failed' && (
             <Button onClick={handleRetry} disabled={loading} size="sm" variant="outline">
