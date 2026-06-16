@@ -25,36 +25,43 @@
 
 ## 当前总判断
 
-`excuse` 的核心链路已经能跑通，但离“可持续上线运营”还差几类横向能力：生产部署可复制、安全边界明确、异步任务可恢复、数据和资产生命周期可治理、前端在大项目下仍可用、CI 与本地验收保持同口径。
+`excuse` 的核心链路已跑通，且本轮已收口上线阻断项（P0）、核心生产可靠性（P1）、CI 同口径（P4 CI）、JSONB 校验/索引（P3）、用户错误恢复（P2-3）、生产探针（P4 health）。剩余两项是规模较大的横向能力，**当前暂缓，需各自独立排期**：
 
-当前优先级：
+- **P2-1 大项目 Canvas 性能**：跨层（DB→API→store→UI）的前端性能重构，工作量大、回归面广，需先做性能预算测量再定方案。
+- **P4-1 端到端冒烟测试**：依赖前置的 provider 依赖注入重构（否则 fake adapter 无处挂载），且需全栈起停编排 + 浏览器二进制，验证环境重。
 
-1. 先处理上线阻断项：部署、密钥/权限、正式计费、数据安全。
-2. 再处理核心生产可靠性：worker 幂等、取消/重试、资产生命周期、健康检查。
-3. 然后处理增长体验：大项目性能、资产复用、开发者体验、管理后台深诊断。
-4. 最后处理长期治理：CI 同口径、E2E、成熟库引入、参考项目迁移。
-
-## P0：上线阻断项
-
-## P1：核心生产可靠性
+已完成但暂留验收结论的：P2-2 资产中心复用（四条验收标准已满足，见下）。
 
 ## P2：前端体验和产品闭环
 
-### 1. 大项目 Canvas 性能风险
+### 1. 大项目 Canvas 性能风险【暂缓 — 需独立排期】
 
-问题：
+> 状态：暂不动。这是一个跨层、多文件的前端性能重构，回归面广，应单独排期 + 先做性能预算测量再定方案。下述任务/范围/风险供排期时参考。
 
-- CanvasEditor 一次加载完整 ProjectDTO，包括 characters、locations、shots、continuity、assets 等；大型项目下 React Flow、右侧详情、轮询 diff 都会变重。
-- 资产轮询和项目 reload 已有节流，但 projectVersion 变化仍可能触发整项目 reload。
-- 节点详情面板、资产历史、参考资产选择器都可能在大项目下拉取/渲染较多数据。
+**任务（要做什么）**
 
-解决办法：
+1. ProjectDTO 拆分：Canvas 主画布只加载 summary（节点摘要：id/类型/状态/缩略），右侧详情面板按需加载单节点详情（characters / locations / shots / continuity 的明细字段）。
+2. 轮询 delta 局部 patch：现在 `projectVersion` 变化 → 整项目 reload（`getProjectDetail`）；升级为 shot status / asset URL / phase status 分别 patch 到 store，避免高频更新触发全量重拉。
+3. 性能预算 + 测量：200 shots / 50 characters / 50 locations fixture 下，首次渲染 / 阶段更新 / 节点详情打开的 p95 基线，并落 Playwright 性能脚本或前端测试。
 
-- 将 ProjectDTO 拆成 summary + paged/partial resources：Canvas 主画布只加载必要节点摘要，详情面板按需加载单节点详情。
-- Canvas poll delta 从"发现变化后整项目 reload"升级为局部 patch：shot status、asset URL、phase status 分别更新 store。
-- 给大项目建立性能预算：如 200 shots 下首次渲染、阶段更新、节点详情打开的 p95 时间。
+**触及范围（blast radius）**
 
-验收：
+- 后端 API：`apps/server/src/routes/canvas.ts`（GET project detail 需拆 summary + 分页 detail 子接口）、`apps/server/src/modules/canvas/service-crud.ts` 的 `getProjectDetail`（被 analysis/characters/locations/continuity-rebuild 等多处复用，拆分要保持这些调用方语义）。
+- DB 查询：`packages/db/src/repositories/canvas-*.repo.ts`（summary 聚合 + 分页 detail 查询，注意索引；JSONB 索引已在 P3-1 补齐）。
+- 前端：`apps/client/src/pages/CanvasEditor.tsx`、`apps/client/src/api/client.ts`（getCanvasProject）、`apps/client/src/hooks/use-canvas-assets-polling.ts` + `use-canvas-pipeline-runs-polling.ts`、`apps/client/src/stores/realtime-sync.ts`、节点详情面板 / 参考资产选择器组件。
+- 类型：`packages/shared/src/canvas.ts` 的 `ProjectDTO`（`interface ProjectDTO` 在第 249 行，需拆 summary/detail 两套 DTO）。
+- 测试：现有 canvas 集成测试需适配新接口形态 + 新增分页接口测试 + 性能脚本。
+
+**可能出现的问题（风险）**
+
+- summary/detail 一致性：summary 缺字段会导致画布渲染不全；detail 分页缓存的 invalidation（详情缓存与 summary 状态的同步）易出脏读。
+- 局部 patch 状态不一致：shot 状态分散更新，store 合并逻辑复杂，回归风险高（现有 CanvasEditor 203 行 + 多 polling hook 紧耦合）。
+- 真正瓶颈可能不在 DTO 拆分：React Flow 大量节点渲染（windowing / 虚拟化）可能是主因，拆 DTO 不一定够，需先 profiling 定位。
+- 性能 p95 测量本身 flaky：依赖稳定 fixture + CI 环境，Playwright 性能脚本易抖动。
+- `getProjectDetail` 被多个 phase handler 复用返回全量，拆分时要保证这些路径（如 pipeline 阶段执行后回写全量）不被破坏。
+- 工作量大、跨层，单次会话难以完成且难以充分验证。
+
+**验收（排期时达成）**
 
 - 200 shots / 50 characters / 50 locations 的项目可流畅打开和操作。
 - SSE 高频更新不会导致明显卡顿或重复全量请求。
@@ -64,24 +71,36 @@
 
 验收结论：四条验收标准均已满足，唯一待办（标签颜色/重命名/使用计数扩展）是显式条件项（"如果进入产品需求"），`asset_tags` schema 已声明 v1 不做颜色/图标/重命名，属延迟决策而非缺口。验收细节见 CHANGELOG（P2-2 验收复核）。
 
-## P3：后端 API、数据模型和类型边界
-
 ## P4：可观测性、CI 和测试体系
 
-### 1. 缺少端到端冒烟测试
+### 1. 缺少端到端冒烟测试【暂缓 — 需独立排期 + provider 注入前置】
 
-问题：
+> 状态：暂不动。依赖前置的 provider 依赖注入重构，且需全栈起停编排 + 浏览器二进制，验证环境重，应单独排期。下述任务/范围/风险供排期时参考。
 
-- 单元/集成测试覆盖较多，但缺少从浏览器视角验证登录、创建 Canvas、触发阶段、资产回显、字幕任务、API Key 调用的冒烟路径。
-- SSE、轮询 fallback、httpOnly cookie、内存 token、React Query cache invalidation 这类跨层行为很难靠纯单测覆盖。
+**任务（要做什么）**
 
-解决办法：
+1. 引入 Playwright（或等价 E2E）+ test DB + fake provider adapter，跑关键用户旅程。
+2. 最小冒烟集：注册/登录、提交文本生成、创建 Canvas 项目并跑 mock phase、资产中心查看生成结果、创建 API Key 并调用 gateway mock。
+3. `bun run test:e2e` 可在 CI 稳定运行；关键旅程失败阻断发布；失败保留 screenshot/trace。
+4. E2E 默认不访问真实 DashScope，provider 由测试环境 mock。
 
-- 引入 Playwright 或等价 E2E：使用 test DB + fake provider adapter，跑关键用户旅程。
-- 最小冒烟集：注册/登录、提交文本生成、创建 Canvas 项目并跑 mock phase、资产中心查看生成结果、创建 API Key 并调用 gateway mock。
-- E2E 默认不访问真实 DashScope；provider 由测试环境 mock。
+**触及范围（blast radius）**
 
-验收：
+- 前置阻塞 — provider 依赖注入重构：`DashScopeClient` 当前在路由里直接 `new`（`apps/server/src/routes/generate.ts`、canvas routes、`subtitle`、`openai-gateway.ts`），必须先抽成可注入（构造期注入 fake adapter）才能挂载 mock。这与 P6「worker handler 使用依赖注入」对称，server route 同样需要。
+- 新增：`e2e/` 目录、Playwright config、fake provider adapter、global setup（起 server 5007 + worker 5100 against test DB + 健康等待 + teardown）。
+- CI：`.github/workflows/ci.yml` 加 e2e job（Chromium 二进制 + postgres service，复用 P4-1 CI 已建的 DATABASE_URL 口径）。
+- `package.json`：新增 `test:e2e` 脚本。
+
+**可能出现的问题（风险）**
+
+- provider 注入是硬前置：不做注入，fake adapter 无处挂载；注入重构触及所有 provider 调用路由，回归面广，本身就是一个独立子任务。
+- 浏览器二进制：Playwright 需下载 Chromium，CI 镜像变大、install 变慢。
+- 全栈起停编排 flaky：需同时起 server + worker + postgres，global setup/teardown 的时序、端口、健康轮询（可复用 P4-1 的 `/health/ready` 探针）容易抖动。
+- 跨层行为难稳定：SSE、轮询 fallback、httpOnly cookie、内存 token、React Query cache invalidation 正是 E2E 要覆盖的，但时序敏感、易 flaky。
+- Mock 与真实差异：fake provider 返回固定结果，无法覆盖真实 DashScope 协议边缘情况（与 P6「不建议补 DashScope 完整 mock」一致，需克制 mock 复杂度）。
+- 本地/CI 环境差异导致 flaky，长期维护成本高；需明确只覆盖「关键旅程」而非追求广覆盖。
+
+**验收（排期时达成）**
 
 - `bun run test:e2e` 可在 CI 中稳定运行。
 - 关键用户旅程失败能阻断发布。
