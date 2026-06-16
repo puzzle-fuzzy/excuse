@@ -35,6 +35,10 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # IDE
 .idea
 
+# Claude Code 机器本地配置（约定不入库）。
+# 只忽略 settings.local.json；团队共享的 settings.json / hooks / skills 仍入库。
+.claude/settings.local.json
+
 # 上传目录
 uploads
 
