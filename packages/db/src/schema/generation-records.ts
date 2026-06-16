@@ -93,6 +93,14 @@ export const generationRecords = pgTable('generation_records', {
   /** 从资产中心隐藏的时间（null = 未隐藏，仍出现在资产列表） */
   hiddenAt: timestamp('hidden_at', { withTimezone: true }),
 
+  /**
+   * 用户软删除时间（null = 未删除）。
+   *
+   * 软删除后从资产中心移除，但 DB 记录与存储文件保留至 retention GC 清理，
+   * 期间可通过 restore 恢复。若仍被项目/镜头引用，GC 不会物理清除（retained）。
+   */
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+
   /** 用户请求取消的时间（null = 未请求取消） */
   cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
 
@@ -108,4 +116,6 @@ export const generationRecords = pgTable('generation_records', {
   index('idx_gen_records_account_created').on(table.accountId, table.createdAt),
   index('idx_gen_records_status_category').on(table.status, table.category),
   index('idx_gen_records_trace_id').on(table.traceId),
+  /** retention GC：按软删时间扫描过期生成记录 */
+  index('idx_gen_records_deleted_at').on(table.deletedAt),
 ])

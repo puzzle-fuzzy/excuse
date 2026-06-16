@@ -69,7 +69,7 @@ export async function listCanvasAssetsForLibrary(
 ) {
   const { statuses, categories, projectId, model, search, createdFrom, createdTo, excludeHidden, limit = 100, offset = 0 } = filter
 
-  const conditions = [eq(canvasAssets.accountId, accountId)]
+  const conditions = [eq(canvasAssets.accountId, accountId), isNull(canvasAssets.deletedAt)]
   if (statuses && statuses.length > 0)
     conditions.push(inArray(canvasAssets.status, statuses))
   if (categories && categories.length > 0)

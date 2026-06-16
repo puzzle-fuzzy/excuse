@@ -1,12 +1,13 @@
 import type { ProviderModelHealth } from '@excuse/db'
 import type { ProviderCallStats } from '@excuse/metrics'
-import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse } from '@excuse/shared'
+import type { AdminApiKeyListResponse, AdminAuditLogItem, AdminAuditLogListResponse, AdminGatewayClientDetailResponse, AdminGatewayClientListResponse, AdminOverviewResponse, AdminProjectItem, AdminProjectListResponse, AdminProviderHealthListResponse, AdminProviderHealthRestoreResponse, AdminProviderHealthSummary, AdminProviderStatsItem, AdminProviderStatsResponse, AdminTaskDetailResponse, AdminTaskListResponse, AdminTaskMutationResponse, AdminUserDetailResponse, AdminUserListResponse, AssetRetentionResult } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { cancelAdminTask, countAuditLogs, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, updateApiKeyConfig } from '@excuse/db'
 import { mergeProviderCalls } from '@excuse/metrics'
 import { degradedRemainingMs, isDegraded } from '@excuse/provider-health'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
+import { runAssetRetentionCleanup } from '../services/asset-retention'
 import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
 import { fetchWorkerProviderCalls } from '../services/worker-metrics'
@@ -338,6 +339,30 @@ export function createAdminRoutes(config: ServerConfig) {
       detail: {
         summary: '手动恢复模型降级状态',
         description: '清零连续失败计数、置 status=healthy、清 degradedUntil/degradedReason。用于运营确认模型恢复后强制解除降级（不等待冷却窗口自然过期）。写入 admin_action 审计日志。',
+        tags: ['管理后台'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+    .post('/asset-retention/run', async ({ adminAllowed, adminDenied, query }) => {
+      if (!adminAllowed)
+        return adminDenied()
+
+      const result = await runAssetRetentionCleanup(config, {
+        dryRun: query.dryRun === true,
+        graceDays: query.graceDays,
+      })
+      return {
+        success: true,
+        ...result,
+      } satisfies AssetRetentionResult & { success: true }
+    }, {
+      query: t.Object({
+        dryRun: t.Optional(t.Boolean()),
+        graceDays: t.Optional(t.Numeric()),
+      }),
+      detail: {
+        summary: '执行资产 retention GC',
+        description: '物理清除已软删除（deletedAt）且过默认 30 天 grace、且无引用的资产（canvas_assets / uploaded_files 连带存储文件，generation_records 仅删 DB 行）。dryRun=true 时仅扫描与计数、不删除、不写审计。仍被引用（referenceAssetsJson / isActive / videoFileId / referenceFileIds）的资产标记 retained 跳过，保证 Canvas 预览不破裂。真实执行写 admin_action 审计。',
         tags: ['管理后台'],
         security: [{ bearerAuth: [] }],
       },

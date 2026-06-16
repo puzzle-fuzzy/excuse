@@ -112,6 +112,7 @@ export function makeUploadedFile(overrides: Partial<UploadedFileRow> = {}): Uplo
     publicUrl: '/uploads/ref_123/test.png',
     purpose: 'reference',
     metadata: null,
+    deletedAt: null,
     createdAt: new Date('2024-01-01'),
     ...overrides,
   }

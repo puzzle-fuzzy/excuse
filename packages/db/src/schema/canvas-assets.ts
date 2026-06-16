@@ -126,6 +126,15 @@ export const canvasAssets = pgTable('canvas_assets', {
   /** 从资产中心隐藏的时间（null = 未隐藏，仍出现在资产列表） */
   hiddenAt: timestamp('hidden_at', { withTimezone: true }),
 
+  /**
+   * 用户软删除时间（null = 未删除）。
+   *
+   * 软删除后从资产中心移除，但 DB 记录与存储文件保留至 retention GC 清理，
+   * 期间可通过 restore 恢复。若仍被项目/镜头引用（referenceAssetsJson 或当前
+   * isActive 版本），GC 不会物理清除（retained），保证 Canvas 预览不破裂。
+   */
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+
   // ── 时间追踪 ────────────────────────────────────
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -136,4 +145,6 @@ export const canvasAssets = pgTable('canvas_assets', {
   index('idx_canvas_assets_target').on(table.targetEntityType, table.targetEntityId),
   // 按项目+状态查询活跃任务
   index('idx_canvas_assets_project_status').on(table.projectId, table.status),
+  // retention GC：按软删时间扫描过期未引用资产
+  index('idx_canvas_assets_deleted_at').on(table.deletedAt),
 ])

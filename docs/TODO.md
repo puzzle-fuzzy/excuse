@@ -38,26 +38,6 @@
 
 ## P1：核心生产可靠性
 
-### 1. 资产生命周期需要可审计的删除/恢复策略
-
-问题：
-
-- 当前资产中心已有软隐藏、标签、收藏等能力，但“删除/隐藏/恢复/物理清理”的边界仍需统一。
-- Canvas 项目、shot、generation record、uploaded file 之间存在引用关系；如果用户隐藏或删除资产，可能影响后续视频生成参考图。
-- 本地存储和 OSS 存储的清理策略不同，当前 TODO 中还没有 retention/GC 的统一入口。
-
-解决办法：
-
-- 定义资产状态机：active / hidden / deleted / retained，区分“用户不可见”和“物理删除”。
-- 删除前调用 usage 查询，若仍被 Canvas shot/reference/subtitle/generation record 引用，则默认只隐藏，不物理删除。
-- 增加 retention job：按策略清理未引用临时文件、过期隐藏资产、失败任务残留文件，并写 audit log。
-
-验收：
-
-- 删除仍被项目引用的资产不会破坏 Canvas 预览和后续生成。
-- 用户能恢复误隐藏资产。
-- GC 任务有 dry-run 模式和审计记录。
-
 ## P2：前端体验和产品闭环
 
 ### 1. 大项目 Canvas 性能风险

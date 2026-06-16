@@ -39,8 +39,20 @@ export const uploadedFiles = pgTable('uploaded_files', {
   /** 额外元数据 — 存储边界：文件类型各异（图片宽高、视频帧率等），无法统一 DTO */
   metadata: jsonb('metadata').$type<Record<string, unknown>>(),
 
+  /**
+   * 用户软删除时间（null = 未删除）。
+   *
+   * 与既有 `DELETE /api/upload/:id`（即时硬删 + 引用守卫）互补：统一资产中心
+   * `DELETE /api/assets/uploaded_file/:id` 走软删，可经 restore 恢复，由 retention
+   * GC 在引用消失且过宽限期后物理清除。若仍被字幕项目 / 生成记录 / 镜头引用，
+   * GC 不清除（retained）。
+   */
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+
   /** 上传时间 */
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [
   index('idx_uploaded_files_account').on(table.accountId),
+  /** retention GC：按软删时间扫描过期未引用文件 */
+  index('idx_uploaded_files_deleted_at').on(table.deletedAt),
 ])

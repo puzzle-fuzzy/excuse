@@ -8,20 +8,24 @@ import type {
   UploadedFileRow,
 } from '@excuse/db'
 import type {
+  AssetDeleteResponse,
   AssetLibraryItem,
   AssetLibraryKind,
   AssetLibraryListResponse,
   AssetLibrarySort,
   AssetLibrarySource,
   AssetLibraryStatusFilter,
+  AssetRestoreResponse,
 } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
   addAssetFavorite,
   assignAssetTag,
   findAssetTagById,
+  getAssetReferences,
   getCanvasAssetByIdForAccount,
   getGenerationRecordByIdForAccount,
+  getUploadedFileByIdForAccount,
   hideCanvasAsset,
   hideGenerationRecord,
   listAssetFavoriteKeys,
@@ -31,7 +35,15 @@ import {
   listGenerationRecords,
   listUploadedFilesForAccount,
   removeAssetFavorite,
+  restoreCanvasAsset,
+  restoreGenerationRecord,
+  restoreUploadedFile,
+  softDeleteCanvasAsset,
+  softDeleteGenerationRecord,
+  softDeleteUploadedFile,
   unassignAssetTag,
+  unhideCanvasAsset,
+  unhideGenerationRecord,
 } from '@excuse/db'
 import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
@@ -485,6 +497,113 @@ export function createAssetsRoutes(config: ServerConfig) {
       detail: {
         summary: '隐藏资产',
         description: '将 generation_record 或 canvas_asset 从资产中心隐藏（设置 hiddenAt），不删除 DB 记录或存储文件。canvas_asset 状态为 queued/running 时拒绝隐藏（返回 409）。uploaded_file 请使用独立的删除接口。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 取消隐藏（恢复误隐藏资产） ──────────────────────────────────────────
+    .post('/assets/:source/:id/unhide', async ({ params: { source, id }, userId, set }) => {
+      if (source === 'generation_record') {
+        const record = await getGenerationRecordByIdForAccount(id, userId)
+        if (!record)
+          return notFound(set, '生成记录不存在或无权限访问')
+        await unhideGenerationRecord(id)
+      }
+      else if (source === 'canvas_asset') {
+        const asset = await getCanvasAssetByIdForAccount(id, userId)
+        if (!asset)
+          return notFound(set, 'Canvas 资产不存在或无权限访问')
+        await unhideCanvasAsset(id)
+      }
+      else {
+        return validationError(set, '只支持取消隐藏 generation_record 或 canvas_asset')
+      }
+      audit('asset_hide', { accountId: userId, targetId: id, detail: { source, id, action: 'unhide' } })
+      return { success: true, source, id } satisfies AssetRestoreResponse
+    }, {
+      params: t.Object({
+        source: t.Union([t.Literal('generation_record'), t.Literal('canvas_asset')]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '取消隐藏资产',
+        description: '清除 hiddenAt，把误隐藏的 generation_record / canvas_asset 恢复到资产中心。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 软删除（引用守卫：仍被引用则 retained，不物理清除） ────────────────────
+    .delete('/assets/:source/:id', async ({ params: { source, id }, userId, set }) => {
+      // 归属校验 + 正在生成的 canvas_asset 拒绝删除
+      if (source === 'canvas_asset') {
+        const asset = await getCanvasAssetByIdForAccount(id, userId)
+        if (!asset)
+          return notFound(set, 'Canvas 资产不存在或无权限访问')
+        if (asset.status === 'queued' || asset.status === 'running')
+          return conflict(set, '正在生成中的资产不能删除')
+      }
+      else if (source === 'generation_record') {
+        const record = await getGenerationRecordByIdForAccount(id, userId)
+        if (!record)
+          return notFound(set, '生成记录不存在或无权限访问')
+      }
+      else if (source === 'uploaded_file') {
+        const file = await getUploadedFileByIdForAccount(id, userId)
+        if (!file)
+          return notFound(set, '上传文件不存在或无权限访问')
+      }
+
+      // 引用守卫：决定 retained 标记（仍被引用 → GC 不物理清除）
+      const references = await getAssetReferences(source, userId, id)
+
+      // 软删除（置 deletedAt）
+      if (source === 'canvas_asset')
+        await softDeleteCanvasAsset(id, userId)
+      else if (source === 'generation_record')
+        await softDeleteGenerationRecord(id, userId)
+      else
+        await softDeleteUploadedFile(id, userId)
+
+      audit('admin_action', { accountId: userId, targetId: id, detail: { source, id, action: 'soft_delete', retained: references.retained } })
+      return { success: true, source, id, retained: references.retained, references } satisfies AssetDeleteResponse
+    }, {
+      params: t.Object({
+        source: t.Union([t.Literal('generation_record'), t.Literal('canvas_asset'), t.Literal('uploaded_file')]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '软删除资产',
+        description: '置 deletedAt 软删除，从资产中心移除。删除前做引用守卫：若仍被项目 / 镜头 / 生成记录引用（referenceAssetsJson / isActive 版本 / videoFileId / referenceFileIds），标记 retained=true，retention GC 不会物理清除其存储文件，保证 Canvas 预览与后续生成不破裂；未引用则过宽限期后由 GC 物理清除。canvas_asset 状态为 queued/running 时拒绝删除（409）。',
+        tags: ['资产'],
+        security: [{ bearerAuth: [] }],
+      },
+    })
+
+    // ── 恢复（un-delete）软删除的资产 ────────────────────────────────────────
+    .post('/assets/:source/:id/restore', async ({ params: { source, id }, userId, set }) => {
+      let restored = false
+      if (source === 'canvas_asset')
+        restored = await restoreCanvasAsset(id, userId)
+      else if (source === 'generation_record')
+        restored = await restoreGenerationRecord(id, userId)
+      else
+        restored = await restoreUploadedFile(id, userId)
+
+      if (!restored)
+        return notFound(set, '资产不存在或无权限访问')
+
+      audit('admin_action', { accountId: userId, targetId: id, detail: { source, id, action: 'restore' } })
+      return { success: true, source, id } satisfies AssetRestoreResponse
+    }, {
+      params: t.Object({
+        source: t.Union([t.Literal('generation_record'), t.Literal('canvas_asset'), t.Literal('uploaded_file')]),
+        id: t.String(),
+      }),
+      detail: {
+        summary: '恢复软删除的资产',
+        description: '清除 deletedAt，把误删除的资产恢复到资产中心（GC 物理清除前均可恢复）。',
         tags: ['资产'],
         security: [{ bearerAuth: [] }],
       },

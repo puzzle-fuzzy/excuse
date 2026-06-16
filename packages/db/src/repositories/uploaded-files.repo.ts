@@ -1,5 +1,5 @@
 import type { UploadedFileInsert } from '../types'
-import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { generationRecords, subtitleProjects, uploadedFiles } from '../schema'
 
@@ -74,7 +74,7 @@ export async function listUploadedFilesForAccount(
   filter: { search?: string, createdFrom?: Date, createdTo?: Date, limit?: number, offset?: number } = {},
 ) {
   const { search, createdFrom, createdTo, limit = 100, offset = 0 } = filter
-  const conditions = [eq(uploadedFiles.accountId, accountId)]
+  const conditions = [eq(uploadedFiles.accountId, accountId), isNull(uploadedFiles.deletedAt)]
   // 关键词搜索：ilike fileName / mimeType / purpose::text / publicUrl
   if (search) {
     const pattern = `%${search}%`

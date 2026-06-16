@@ -34,14 +34,36 @@ const mockListAssetTagKeys = mock<(accountId: string) => Promise<Array<{ tagId: 
 const mockAssignAssetTag = mock<() => Promise<void>>(() => Promise.resolve())
 const mockUnassignAssetTag = mock<() => Promise<void>>(() => Promise.resolve())
 
+// 资产生命周期（delete / restore / unhide）mocks
+const mockGetUploadedFileByIdForAccount = mock<() => Promise<UploadedFileRow | null>>(() => Promise.resolve(null))
+const mockUnhideCanvasAsset = mock<() => Promise<{ id: string } | null>>(() => Promise.resolve({ id: 'asset-1' }))
+const mockUnhideGenerationRecord = mock<() => Promise<{ id: string } | null>>(() => Promise.resolve({ id: 'rec-1' }))
+const mockSoftDeleteCanvasAsset = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockSoftDeleteGenerationRecord = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockSoftDeleteUploadedFile = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockRestoreCanvasAsset = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockRestoreGenerationRecord = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockRestoreUploadedFile = mock<() => Promise<boolean>>(() => Promise.resolve(true))
+const mockGetAssetReferences = mock<() => Promise<{ shots: number, subtitleProjects: number, generationRecords: number, isActiveVersion: boolean, retained: boolean }>>(() => Promise.resolve({ shots: 0, subtitleProjects: 0, generationRecords: 0, isActiveVersion: false, retained: false }))
+
 mock.module('@excuse/db', () => ({
   listGenerationRecords: mockListGenRecords,
   listCanvasAssetsForLibrary: mockListCanvasAssets,
   listUploadedFilesForAccount: mockListUploadedFiles,
   getGenerationRecordByIdForAccount: mockGetGenerationRecordByIdForAccount,
   getCanvasAssetByIdForAccount: mockGetCanvasAssetByIdForAccount,
+  getUploadedFileByIdForAccount: mockGetUploadedFileByIdForAccount,
   hideGenerationRecord: mockHideGenerationRecord,
   hideCanvasAsset: mockHideCanvasAsset,
+  unhideCanvasAsset: mockUnhideCanvasAsset,
+  unhideGenerationRecord: mockUnhideGenerationRecord,
+  softDeleteCanvasAsset: mockSoftDeleteCanvasAsset,
+  softDeleteGenerationRecord: mockSoftDeleteGenerationRecord,
+  softDeleteUploadedFile: mockSoftDeleteUploadedFile,
+  restoreCanvasAsset: mockRestoreCanvasAsset,
+  restoreGenerationRecord: mockRestoreGenerationRecord,
+  restoreUploadedFile: mockRestoreUploadedFile,
+  getAssetReferences: mockGetAssetReferences,
   listAssetFavoriteKeys: mockListAssetFavoriteKeys,
   addAssetFavorite: mockAddAssetFavorite,
   removeAssetFavorite: mockRemoveAssetFavorite,
@@ -123,6 +145,16 @@ describe('assets routes', () => {
     mockListAssetTagKeys.mockClear()
     mockAssignAssetTag.mockClear()
     mockUnassignAssetTag.mockClear()
+    mockGetUploadedFileByIdForAccount.mockClear()
+    mockUnhideCanvasAsset.mockClear()
+    mockUnhideGenerationRecord.mockClear()
+    mockSoftDeleteCanvasAsset.mockClear()
+    mockSoftDeleteGenerationRecord.mockClear()
+    mockSoftDeleteUploadedFile.mockClear()
+    mockRestoreCanvasAsset.mockClear()
+    mockRestoreGenerationRecord.mockClear()
+    mockRestoreUploadedFile.mockClear()
+    mockGetAssetReferences.mockClear()
 
     // 默认返回空，每个用例按需 mockResolvedValueOnce
     mockListGenRecords.mockResolvedValue([])
@@ -938,6 +970,134 @@ describe('assets routes', () => {
       }))
       expect(res.status).toBe(422)
       expect(mockUnassignAssetTag).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── 资产生命周期：delete / restore / unhide ──────────────
+
+  describe('软删除 + 引用守卫', () => {
+    it('未引用资产软删除 → retained=false', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(makeCanvasAsset({ id: 'asset-1', status: 'succeeded' }))
+      mockGetAssetReferences.mockResolvedValueOnce({ shots: 0, subtitleProjects: 0, generationRecords: 0, isActiveVersion: false, retained: false })
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json() as { success: boolean, retained: boolean }
+      expect(data.success).toBe(true)
+      expect(data.retained).toBe(false)
+      expect(mockSoftDeleteCanvasAsset).toHaveBeenCalledWith('asset-1', 'acc-001')
+      expect(mockGetAssetReferences).toHaveBeenCalledWith('canvas_asset', 'acc-001', 'asset-1')
+    })
+
+    it('仍被引用资产软删除 → retained=true（不物理清除，Canvas 不破裂）', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(makeCanvasAsset({ id: 'asset-2', status: 'succeeded' }))
+      mockGetAssetReferences.mockResolvedValueOnce({ shots: 3, subtitleProjects: 0, generationRecords: 0, isActiveVersion: true, retained: true })
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-2', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(200)
+      const data = await res.json() as { retained: boolean, references: { shots: number } }
+      expect(data.retained).toBe(true)
+      expect(data.references.shots).toBe(3)
+      expect(mockSoftDeleteCanvasAsset).toHaveBeenCalled()
+    })
+
+    it('正在生成的 canvas_asset 拒绝删除 → 409', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(makeCanvasAsset({ id: 'asset-3', status: 'running' }))
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-3', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(409)
+      expect(mockSoftDeleteCanvasAsset).not.toHaveBeenCalled()
+    })
+
+    it('不存在的资产 → 404', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(null)
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/missing', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(404)
+      expect(mockSoftDeleteCanvasAsset).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('恢复软删除资产', () => {
+    it('restore 成功 → 200', async () => {
+      mockRestoreCanvasAsset.mockResolvedValueOnce(true)
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1/restore', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(200)
+      expect(mockRestoreCanvasAsset).toHaveBeenCalledWith('asset-1', 'acc-001')
+    })
+
+    it('restore 不存在的资产 → 404', async () => {
+      mockRestoreUploadedFile.mockResolvedValueOnce(false)
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/uploaded_file/missing/restore', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('取消隐藏资产', () => {
+    it('unhide canvas_asset 成功 → 200', async () => {
+      mockGetCanvasAssetByIdForAccount.mockResolvedValueOnce(makeCanvasAsset({ id: 'asset-1' }))
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/canvas_asset/asset-1/unhide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(200)
+      expect(mockUnhideCanvasAsset).toHaveBeenCalledWith('asset-1')
+    })
+
+    it('unhide 不存在的资产 → 404', async () => {
+      mockGetGenerationRecordByIdForAccount.mockResolvedValueOnce(null)
+      const app = createAssetsRoutes(testConfig)
+      const token = await getAuthToken()
+
+      const res = await app.handle(new Request('http://localhost/api/assets/generation_record/missing/unhide', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }))
+
+      expect(res.status).toBe(404)
+      expect(mockUnhideGenerationRecord).not.toHaveBeenCalled()
     })
   })
 })

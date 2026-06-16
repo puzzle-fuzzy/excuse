@@ -156,6 +156,7 @@ function makeUploadedFile(overrides: Partial<UploadedFileRow> = {}): UploadedFil
     publicUrl: '/uploads/test.mp4',
     purpose: 'reference',
     metadata: null,
+    deletedAt: null,
     createdAt: new Date(),
     ...overrides,
   }

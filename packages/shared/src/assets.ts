@@ -155,3 +155,71 @@ export interface AssetLibraryQuery {
   limit?: number
   offset?: number
 }
+
+// ===== 资产生命周期（delete / restore / GC）DTO =====
+
+/**
+ * 资产生命周期状态机。
+ *
+ * - active：可见可用（默认）。
+ * - hidden：用户从资产中心隐藏（hiddenAt），可 unhide 恢复。
+ * - deleted：用户软删除（deletedAt），从资产中心移除，retention GC 过宽限期且
+ *   无引用后物理清除；未清除前可 restore 恢复。
+ * - retained：deleted 但仍被项目 / 镜头引用（referenceAssetsJson / isActive 版本），
+ *   GC 不会物理清除，保证 Canvas 预览与后续生成不破裂。retained 是删除时由引用
+ *   守卫计算的派生态，与 deleted 共用 deletedAt 列。
+ */
+export type AssetLifecycleState = 'active' | 'hidden' | 'deleted' | 'retained'
+
+/**
+ * 资产引用摘要 —— 删除前引用守卫的判定依据。
+ *
+ * 任一计数 > 0 视为「仍被引用」，软删除后标记 retained，GC 不物理清除。
+ */
+export interface AssetReferenceSummary {
+  /** 引用该资产的镜头数（canvas_shots.referenceAssetsJson 含 assetId） */
+  shots: number
+  /** 引用该上传文件的字幕项目数（subtitle_projects.videoFileId） */
+  subtitleProjects: number
+  /** 引用该上传文件的生成记录数（inputParams.referenceFileIds） */
+  generationRecords: number
+  /** canvas_asset 是否为某 target 的当前活跃版本（isActive） */
+  isActiveVersion: boolean
+  /** 总引用计数 > 0 即视为 retained */
+  retained: boolean
+}
+
+/** 软删除资产响应 —— 引用守卫决定 retained 标记 */
+export interface AssetDeleteResponse {
+  success: true
+  source: AssetLibrarySource
+  id: string
+  /** 软删除已记录；仍被引用时为 retained（GC 不物理清除） */
+  retained: boolean
+  references: AssetReferenceSummary
+}
+
+/** 恢复（un-delete / un-hide）资产响应 */
+export interface AssetRestoreResponse {
+  success: true
+  source: AssetLibrarySource
+  id: string
+}
+
+/**
+ * retention GC 清理结果 —— dry-run 与真实执行共用结构。
+ *
+ * dry-run 时仅扫描与计数，不删除存储文件与 DB 行；真实执行时物理清除并写审计。
+ */
+export interface AssetRetentionResult {
+  dryRun: boolean
+  /** 已扫描到的待清除 canvas_asset id（dry-run）或实际清除的 id */
+  canvasAssetsPurged: string[]
+  /** 已清除的 uploaded_file id */
+  uploadedFilesPurged: string[]
+  /** 已清除的 generation_record id（无存储文件，仅删 DB 行） */
+  generationRecordsDeleted: string[]
+  /** 因仍被引用而跳过（retained）的 canvas_asset / uploaded_file id */
+  retainedAssets: string[]
+}
+

@@ -89,6 +89,8 @@ export async function listGenerationRecords(filter: ListGenerationRecordsFilter 
   // 资产中心默认排除已隐藏的记录
   if (excludeHidden)
     conditions.push(isNull(generationRecords.hiddenAt))
+  // 软删除的记录永不进入资产中心
+  conditions.push(isNull(generationRecords.deletedAt))
 
   return getDb()
     .select()
