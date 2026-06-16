@@ -25,6 +25,8 @@ interface ReferenceUploadZoneProps {
   onRemove?: () => Promise<void>
   accept?: string
   label?: string
+  /** 删除前显示的确认文案，不传则直接删除 */
+  confirmRemove?: string
 }
 
 export function ReferenceUploadZone({
@@ -33,6 +35,7 @@ export function ReferenceUploadZone({
   onRemove,
   accept = 'image/*',
   label = '参考图',
+  confirmRemove,
 }: ReferenceUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -91,6 +94,8 @@ export function ReferenceUploadZone({
 
   const handleRemove = useCallback(async () => {
     if (!onRemove)
+      return
+    if (confirmRemove && !window.confirm(confirmRemove))
       return
     setUploading(true)
     try {

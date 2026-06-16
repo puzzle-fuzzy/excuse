@@ -391,6 +391,7 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
               onUpdate()
             }}
             label="角色参考图"
+            confirmRemove="确认删除角色参考图？"
           />
 
           <ReferenceUploadZone
@@ -401,6 +402,7 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
               onUpdate()
             }}
             label="转面图 / 三视图"
+            confirmRemove="确认删除转面图？"
           />
 
           <Button
@@ -479,6 +481,7 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
               onUpdate()
             }}
             label="场景参考图"
+            confirmRemove="确认删除场景参考图？"
           />
 
           <Button
