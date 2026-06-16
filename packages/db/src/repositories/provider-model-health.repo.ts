@@ -1,5 +1,5 @@
-import type { ProviderModelHealth } from '@excuse/shared'
 import type { DegradationConfig } from '@excuse/provider-health'
+import type { ProviderModelHealth } from '@excuse/shared'
 import { applyProviderOutcome, DEFAULT_DEGRADATION_CONFIG } from '@excuse/provider-health'
 import { eq } from 'drizzle-orm'
 import { getDb } from '../db'
@@ -25,7 +25,8 @@ function rowToHealth(row: ProviderModelHealthRow): ProviderModelHealth {
   }
 }
 
-/** 记录一次 provider 调用结果，原子更新模型健康状态。
+/**
+ * 记录一次 provider 调用结果，原子更新模型健康状态。
  *
  * 使用事务 + SELECT FOR UPDATE 串行化同一 model 的并发更新（server + worker
  * 都会调用），保证连续失败计数正确递增。状态跳变由纯函数 `applyProviderOutcome`
@@ -84,18 +85,14 @@ export async function recordProviderOutcome(
 
 /** 读取单个模型的当前健康状态（无锁）。 */
 export async function getProviderModelHealth(model: string): Promise<ProviderModelHealth | null> {
-  const rows = await getDb().select()
-    .from(providerModelHealth)
-    .where(eq(providerModelHealth.model, model))
+  const rows = await getDb().select().from(providerModelHealth).where(eq(providerModelHealth.model, model))
   const row = rows[0]
   return row ? rowToHealth(row) : null
 }
 
 /** 列出全部模型健康记录，按 updatedAt 倒序（admin 后台用）。 */
 export async function listProviderModelHealth(): Promise<ProviderModelHealth[]> {
-  const rows = await getDb().select()
-    .from(providerModelHealth)
-    .orderBy(providerModelHealth.updatedAt)
+  const rows = await getDb().select().from(providerModelHealth).orderBy(providerModelHealth.updatedAt)
   return rows.map(rowToHealth)
 }
 
@@ -114,16 +111,13 @@ export async function getProviderModelHealthMap(): Promise<Map<string, ProviderM
  * @returns 恢复后的记录；null 表示该 model 从未出现过（无行可恢复）
  */
 export async function restoreProviderModelHealth(model: string): Promise<ProviderModelHealth | null> {
-  const rows = await getDb().update(providerModelHealth)
-    .set({
-      status: 'healthy',
-      consecutiveFailures: 0,
-      degradedUntil: null,
-      degradedReason: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(providerModelHealth.model, model))
-    .returning()
+  const rows = await getDb().update(providerModelHealth).set({
+    status: 'healthy',
+    consecutiveFailures: 0,
+    degradedUntil: null,
+    degradedReason: null,
+    updatedAt: new Date(),
+  }).where(eq(providerModelHealth.model, model)).returning()
   const row = rows[0]
   return row ? rowToHealth(row) : null
 }

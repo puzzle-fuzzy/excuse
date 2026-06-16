@@ -1,7 +1,7 @@
 import type { ServerConfig } from '../config'
 import { getCanvasPhaseStats, getTaskQueueStats, listProviderModelHealth } from '@excuse/db'
-import { isDegraded } from '@excuse/provider-health'
 import { aggregateCanvasPhaseMetrics, aggregateProviderHealthMetrics, aggregateTaskQueueMetrics, evaluateMetricsAccess, serializePrometheus, snapshotToPrometheus } from '@excuse/metrics'
+import { isDegraded } from '@excuse/provider-health'
 import { Elysia } from 'elysia'
 import { getMetrics } from '../services/metrics'
 import { getOnlineUserCount } from '../services/sse-manager'

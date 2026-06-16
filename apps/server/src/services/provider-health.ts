@@ -1,8 +1,8 @@
 import type { ProviderModelHealth } from '@excuse/db'
 import type { DegradationConfig } from '@excuse/provider-health'
-import { degradedRemainingMs, isDegraded, resolveDegradationConfig } from '@excuse/provider-health'
 import { listProviderModelHealth, recordProviderOutcome } from '@excuse/db'
 import { ModelDegradedError } from '@excuse/provider'
+import { degradedRemainingMs, isDegraded, resolveDegradationConfig } from '@excuse/provider-health'
 import { createLogger } from '@excuse/shared'
 
 const logger = createLogger('provider-health')
