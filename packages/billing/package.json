@@ -9,6 +9,6 @@
   "module": "src/index.ts",
   "dependencies": {
     "@excuse/shared": "workspace:*",
-    "currency.js": "2"
+    "currency.js": "^2.0.4"
   }
 }

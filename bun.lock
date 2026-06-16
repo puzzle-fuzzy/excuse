@@ -44,7 +44,7 @@
         "@xyflow/react": "^12.11.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "currency.js": "2",
+        "currency.js": "^2.0.4",
         "lucide-react": "^1.17.0",
         "next-themes": "^0.4.6",
         "radix-ui": "^1.5.0",
@@ -119,11 +119,9 @@
       "version": "0.0.1",
       "dependencies": {
         "@excuse/billing": "workspace:*",
-        "@excuse/canvas-engine": "workspace:*",
         "@excuse/canvas-runtime": "workspace:*",
         "@excuse/db": "workspace:*",
         "@excuse/metrics": "workspace:*",
-        "@excuse/prompt-engine": "workspace:*",
         "@excuse/provider": "workspace:*",
         "@excuse/provider-health": "workspace:*",
         "@excuse/shared": "workspace:*",
@@ -144,7 +142,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@excuse/shared": "workspace:*",
-        "currency.js": "2",
+        "currency.js": "^2.0.4",
       },
     },
     "packages/canvas-engine": {
