@@ -199,7 +199,7 @@
 
 ## 代码治理与文件拆分 backlog
 
-> 来源：`qwen-max-architecture-review` #1-#13 复核。项目工程化水平高（生产代码仅 1 处 `as any`，strict mode 全开，纯规则包 + adapter 模式教科书级），这些是**可维护性技术债**而非功能/安全缺口，不阻断上线。原则：**接触相关区域时顺手拆，不专门开重构冲刺**；唯一例外是两条横切面（统一错误处理、序列化统一），收益跨全路由，可独立排期。下列行号为复核当日实测值。
+> 来源：`qwen-max-architecture-review` #1-#13 复核。项目工程化水平高（生产代码仅 1 处 `as any`，strict mode 全开，纯规则包 + adapter 模式教科书级），这些是**可维护性技术债**而非功能/安全缺口，不阻断上线。原则：**接触相关区域时顺手拆，不专门开重构冲刺**。原两条横切面（统一错误处理 → `errorHandlerPlugin`、序列化统一 → `serialize<T>()`）均已完成（见 CHANGELOG）。下列行号为复核当日实测值。
 
 **大文件拆分（接触时顺手做，参照 `modules/canvas/service.ts` barrel 拆分模式）**
 
@@ -215,10 +215,6 @@
 | `apps/worker/src/index.ts` | 299 | 拆 lifecycle/poll-loop/poll-sources，主循环只遍历 `PollSource[]` |
 | `apps/server/src/modules/generation/service.ts` | 299 | 随 generate.ts 边界清理一并理 |
 | `apps/server/src/routes/notifications.ts` | 282 | 拆 route / service：`notify*` 工具函数移到 `services/notifications.ts`，消除「路由 import 另一路由导出」+ service 反向依赖 route 的倒置层级 |
-
-**横切面（跨全路由，可独立排期，收益最高）**
-
-- **统一错误处理中间件**（审计 #11，复核确认：`validationError/notFound/forbidden` 三 helper 共 **113 处调用 / 10 个路由**，无 `onError` 全局钩子）：引入 Elysia `onError` + 自定义错误类（`ValidationError`/`NotFoundError`/`ForbiddenError`），统一序列化，去掉手写 `set.status` 响应。
 
 **其他**
 
