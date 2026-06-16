@@ -1,4 +1,5 @@
 import type { CanvasShotReferenceAsset, ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry } from '../domain-types'
+import { sql } from 'drizzle-orm'
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { canvasLocations } from './canvas-locations'
 import { canvasProjects } from './canvas-projects'
@@ -72,4 +73,6 @@ export const canvasShots = pgTable('canvas_shots', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [
   index('idx_canvas_shots_project_index').on(table.projectId, table.shotIndex),
+  /** 资产删除引用守卫：reference_assets_json @> 包含查询（每次软删/GC retain 扫全表） */
+  index('idx_canvas_shots_ref_assets_gin').using('gin', sql`${table.referenceAssetsJson} jsonb_path_ops`),
 ])

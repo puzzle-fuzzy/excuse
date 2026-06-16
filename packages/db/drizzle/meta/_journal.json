@@ -232,6 +232,13 @@
       "when": 1781579134283,
       "tag": "0032_asset_lifecycle_deleted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781590871492,
+      "tag": "0033_jsonb_diagnostic_indexes",
+      "breakpoints": true
     }
   ]
 }

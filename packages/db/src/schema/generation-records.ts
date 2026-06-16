@@ -1,4 +1,5 @@
 import type { CostDetail, GenerationInputParams, OutputResult } from '../domain-types'
+import { sql } from 'drizzle-orm'
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 
@@ -118,4 +119,14 @@ export const generationRecords = pgTable('generation_records', {
   index('idx_gen_records_trace_id').on(table.traceId),
   /** retention GC：按软删时间扫描过期生成记录 */
   index('idx_gen_records_deleted_at').on(table.deletedAt),
+  /** gateway /v1/usage + admin 账户聚合按 account + source 联合过滤 */
+  index('idx_gen_records_account_source').on(table.accountId, sql`(input_params->>'source')`),
+  /** Canvas 项目维度查生成记录（资产中心） */
+  index('idx_gen_records_input_project').on(sql`(input_params->>'projectId')`),
+  /** 管理后台失败任务深度诊断：精确关联 worker task */
+  index('idx_gen_records_input_worker_task').on(sql`(input_params->>'workerTaskId')`),
+  /** 管理后台失败任务深度诊断：精确关联 pipeline run */
+  index('idx_gen_records_input_pipeline_run').on(sql`(input_params->>'pipelineRunId')`),
+  /** uploaded_files / 资产生命周期 GC 的 referenceFileIds @> 包含查询 */
+  index('idx_gen_records_input_gin').using('gin', table.inputParams),
 ])

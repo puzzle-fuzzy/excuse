@@ -81,26 +81,6 @@
 
 ## P3：后端 API、数据模型和类型边界
 
-### 1. 数据查询性能和索引需要按真实访问路径复核
-
-问题：
-
-- 资产中心、admin users/tasks/provider stats、Canvas project detail、gateway usage 都有聚合/筛选查询；随着数据量增长，现有索引可能不足。
-- JSONB 查询如 `input_params->>'source'`、`projectId`、`workerTaskId`、`pipelineRunId` 已进入关键诊断路径，需要评估表达式索引。
-- 资产列表一次 200 条 + load more，未来数据多时需要更严格分页和排序索引。
-
-解决办法：
-
-- 为高频列表和诊断查询补 `EXPLAIN ANALYZE` 基线文档，记录目标数据量下的 p95 查询时间。
-- 给 JSONB 关键字段增加表达式索引或冗余列：source、projectId、shotId、workerTaskId、pipelineRunId。
-- admin 聚合查询尽量使用物化/缓存或时间窗口，避免全表扫描进入常规刷新。
-
-验收：
-
-- 10 万 generation_records、1 万 assets、1 万 tasks 的 seed 数据下，核心列表 p95 查询时间达标。
-- 慢查询能在日志或 metrics 中定位。
-- 新增 JSONB 查询必须说明索引策略。
-
 ## P4：可观测性、CI 和测试体系
 
 ### 1. 缺少端到端冒烟测试
