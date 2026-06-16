@@ -96,9 +96,9 @@ export function formatMs(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
-/** 将整数分格式化为人民币字符串 */
+/** 将整数分格式化为人民币字符串（不含符号，模板层统一加 ¥） */
 export function formatCents(cents: number, precision = 2): string {
-  return currency(cents, { fromCents: true, precision }).format()
+  return currency(cents, { fromCents: true, precision, symbol: '' }).format()
 }
 
 /** 从 outputResult 提取可展示的媒体 URL 列表（自动规范化，带 fallback） */
