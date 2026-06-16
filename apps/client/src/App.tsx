@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Link, Route, Routes } from 'react-router'
-import { getAuthToken } from './api/client'
 import { sseClient } from './api/sse'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -43,10 +42,8 @@ function NotFound() {
 }
 
 function App() {
+  // SSE 连接生命周期由 AuthProvider 和 setAuthToken 管理，此处仅负责清理
   useEffect(() => {
-    if (getAuthToken()) {
-      sseClient.connect()
-    }
     const unsubRealtime = useRealtimeSync.getState().initialize()
     return () => {
       unsubRealtime()
