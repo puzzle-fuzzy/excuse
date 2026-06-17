@@ -8,6 +8,7 @@ import { hashApiKey, isApiKeySecret } from '@excuse/auth'
 import { findApiKeyByHash, touchApiKeyLastUsed } from '@excuse/db'
 import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 import { status, t } from 'elysia'
+import { notifyApiKeyRevoked } from '../services/notifications'
 import { errorHandlerPlugin } from './error-handler'
 
 /** httpOnly cookie 名称 */
@@ -135,10 +136,7 @@ export function createAuthPlugin(config: ServerConfig) {
           const { findRevokedApiKeyByHash } = await import('@excuse/db')
           const revokedKey = await findRevokedApiKeyByHash(keyHash)
           if (revokedKey) {
-            // 动态 import 避免循环依赖
-            import('../routes/notifications').then(({ notifyApiKeyRevoked }) => {
-              notifyApiKeyRevoked(revokedKey.accountId, revokedKey.id).catch(() => {})
-            }).catch(() => {})
+            notifyApiKeyRevoked(revokedKey.accountId, revokedKey.id).catch(() => {})
           }
           return { userId: null, authMethod: null, apiKeyMeta: null }
         }

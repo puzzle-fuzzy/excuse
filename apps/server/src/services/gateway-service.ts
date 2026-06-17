@@ -16,10 +16,10 @@ import {
   insufficientBalanceError,
 } from '@excuse/gateway'
 import { extractBillingParams } from '@excuse/shared'
-import { notifyInsufficientBalance, notifyProviderFailure } from '../routes/notifications'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { audit } from './audit'
 import { recordGenerationStatus } from './metrics'
+import { notifyInsufficientBalance, notifyProviderFailure } from './notifications'
 
 export interface ProviderCallResult {
   text: string

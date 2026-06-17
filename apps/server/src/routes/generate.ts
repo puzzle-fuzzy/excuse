@@ -20,10 +20,10 @@ import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
+import { notifyInsufficientBalance } from '../services/notifications'
 import { ForbiddenError, NotFoundError, PaymentRequiredError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
 import { createDedupeKey } from '../utils/dedupe-key'
-import { notifyInsufficientBalance } from './notifications'
 
 /**
  * 生成任务路由 — CRUD + retry/cancel

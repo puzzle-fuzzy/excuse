@@ -214,7 +214,6 @@
 | `packages/canvas-runtime/src/index.ts` | 384 | 拆 pure/（资产模板/引用解析/模型推荐）与 io/（`submitCanvasShotVideo` 直接调 `createGenerationRecord` 的 DB 写移出 runtime 包） |
 | `apps/worker/src/index.ts` | 299 | 拆 lifecycle/poll-loop/poll-sources，主循环只遍历 `PollSource[]` |
 | `apps/server/src/modules/generation/service.ts` | 299 | 随 generate.ts 边界清理一并理 |
-| `apps/server/src/routes/notifications.ts` | 282 | 拆 route / service：`notify*` 工具函数移到 `services/notifications.ts`，消除「路由 import 另一路由导出」+ service 反向依赖 route 的倒置层级 |
 
 **其他**
 

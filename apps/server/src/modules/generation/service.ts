@@ -29,8 +29,8 @@ import {
   refundCredit,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
-import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../routes/notifications'
 import { recordGenerationStatus } from '../../services/metrics'
+import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
 // ===== 接口定义 =====

@@ -32,9 +32,9 @@ mock.module('@excuse/db', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { notifyApiKeyQuota, notifyProviderFailure } from '../src/routes/notifications'
-// eslint-disable-next-line import/first
 import { resetCooldowns } from '../src/services/notification-cooldown'
+// eslint-disable-next-line import/first
+import { notifyApiKeyQuota, notifyProviderFailure } from '../src/services/notifications'
 
 const ACCOUNT = 'acc-001'
 const KEY_ID = 'key-001'

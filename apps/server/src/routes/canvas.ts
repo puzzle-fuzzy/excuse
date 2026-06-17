@@ -67,9 +67,9 @@ import { ReferenceAssetValidationError, validateShotReferenceAssetsForAccount } 
 import * as svc from '../modules/canvas/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
+import { notifyCanvasPhaseFailed } from '../services/notifications'
 import { dispatchToUser } from '../services/sse-manager'
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../utils/app-errors'
-import { notifyCanvasPhaseFailed } from './notifications'
 
 const logger = createLogger('canvas-routes')
 

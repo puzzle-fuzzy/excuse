@@ -10,9 +10,9 @@ import { createRequireAuthPlugin } from '../plugins/auth'
 import { runAssetRetentionCleanup } from '../services/asset-retention'
 import { audit } from '../services/audit'
 import { getProviderCallsSnapshot } from '../services/metrics'
+import { notifyApiKeyRevoked } from '../services/notifications'
 import { fetchWorkerProviderCalls } from '../services/worker-metrics'
 import { ConflictError, ForbiddenError, NotFoundError } from '../utils/app-errors'
-import { notifyApiKeyRevoked } from './notifications'
 
 function canAccessAdmin(config: ServerConfig, userId: string, authMethod: 'jwt' | 'api_key' | null): boolean {
   return authMethod === 'jwt' && (config.adminUserIds ?? []).includes(userId)

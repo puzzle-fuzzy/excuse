@@ -40,8 +40,8 @@ import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { handleGatewayChatCompletion } from '../services/gateway-service'
 import { recordGenerationStatus } from '../services/metrics'
+import { notifyApiKeyQuota, notifyInsufficientBalance, notifyProviderFailure } from '../services/notifications'
 import { createDedupeKey } from '../utils/dedupe-key'
-import { notifyApiKeyQuota, notifyInsufficientBalance, notifyProviderFailure } from './notifications'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
 

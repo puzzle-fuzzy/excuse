@@ -23,7 +23,7 @@ import {
 } from '@excuse/db'
 import { getDefaultStyleConfig } from '@excuse/subtitle-engine'
 import { getTaskPriority } from '@excuse/task-engine'
-import { pushNotification } from '../../routes/notifications'
+import { pushNotification } from '../../services/notifications'
 
 /** 字幕项目依赖的外部服务（仅供 retry 中快速重提交 ASR 使用） */
 export interface SubtitleDependencies {
