@@ -1,21 +1,12 @@
-import type { OutputResult } from '@excuse/db'
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import type { ApiKeyMeta } from '../plugins/auth'
-import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
+import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
   checkAndResetApiKeyQuota,
-  createGenerationRecord,
-  CreditError,
-  debitCredit,
-  incrementApiKeySpend,
   isApiKeyQuotaExceeded,
   listGatewayUsageRecords,
-  markGenerationFailed,
-  markGenerationSucceeded,
-  refundCredit,
-  reserveCredit,
 } from '@excuse/db'
 import {
   aggregateGatewayUsage,
@@ -24,7 +15,6 @@ import {
   createOpenAIChatResponse,
   createOpenAIModelsResponse,
   createOpenAIStreamChunk,
-  insufficientBalanceError,
   invalidModelError,
   invalidParametersError,
   isOpenAIGatewayError,
@@ -34,14 +24,10 @@ import {
   serializeOpenAIStreamChunk,
 } from '@excuse/gateway'
 import { DashScopeClient, getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
-import { extractBillingParams } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
-import { audit } from '../services/audit'
-import { handleGatewayChatCompletion } from '../services/gateway-service'
-import { recordGenerationStatus } from '../services/metrics'
-import { notifyApiKeyQuota, notifyInsufficientBalance, notifyProviderFailure } from '../services/notifications'
-import { createDedupeKey } from '../utils/dedupe-key'
+import { handleGatewayChatCompletion, setupGatewayCall, settleGatewayFailure, settleGatewaySuccess } from '../services/gateway-service'
+import { notifyApiKeyQuota } from '../services/notifications'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
 
@@ -108,57 +94,16 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
   }): Promise<Response> {
     const { userId, modelConfig, validatedParams, request, apiKeyMeta } = opts
 
-    const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
-    const traceId = crypto.randomUUID()
-    const taskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-    const dedupeKey = await createDedupeKey({
-      accountId: userId,
-      model: modelConfig.id,
-      parameters: validatedParams,
-    })
-
-    const record = await createGenerationRecord({
-      accountId: userId,
-      taskId,
-      traceId,
-      model: modelConfig.id,
-      category: 'text',
-      status: 'pending',
-      inputParams: { ...validatedParams, source: 'gateway', requestedModel: request.model },
-      cost: { ...estimatedCost, estimated: true, billable: false, source: 'estimated' },
-      dedupeKey,
-    })
-
-    if (estimatedCost.totalPriceCents > 0) {
-      try {
-        await reserveCredit({
-          accountId: userId,
-          generationRecordId: record.id,
-          amountCents: estimatedCost.totalPriceCents,
-          description: `OpenAI 网关预留：${modelConfig.id}`,
-        })
-        audit('credit_reserve', {
-          accountId: userId,
-          targetId: record.id,
-          detail: { accountId: userId, generationRecordId: record.id, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关预留：${modelConfig.id}`, source: 'gateway' },
-        })
-      }
-      catch (error) {
-        const message = error instanceof Error ? error.message : 'Insufficient balance'
-        if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-          await notifyInsufficientBalance(userId).catch(() => {})
-        }
-        await markGenerationFailed(record.id, message)
-        recordGenerationStatus('failed')
-        const err = insufficientBalanceError()
-        return new Response(JSON.stringify(err.response), {
-          status: err.status,
-          headers: { 'Content-Type': 'application/json' },
-        })
-      }
+    // 复用编排原语：估算成本 → 创建记录 → 预留额度
+    const setup = await setupGatewayCall({ userId, modelConfig, validatedParams, request })
+    if (!setup.ok) {
+      return new Response(JSON.stringify(setup.response), {
+        status: setup.status,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
+    const { recordId, estimatedCost } = setup.result
 
-    const recordId = record.id
     const completionId = `chatcmpl-${recordId}`
     const createdAt = new Date()
 
@@ -204,88 +149,21 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           controller.enqueue(encoder.encode(OPENAI_STREAM_DONE))
           controller.close()
 
-          const actualCost = {
-            ...calculateCost(
-              modelConfig,
-              extractBillingParams(validatedParams),
-              lastUsage
-                ? { inputTokens: lastUsage.prompt_tokens, outputTokens: lastUsage.completion_tokens }
-                : undefined,
-            ),
-            billable: true,
-            source: 'actual' as const,
-          }
-          const textOutput: OutputResult = { type: 'text' as const, text: fullText }
-          await markGenerationSucceeded(recordId, textOutput, actualCost)
-          recordGenerationStatus('succeeded')
-          if (actualCost.totalPriceCents > 0) {
-            await debitCredit({
-              accountId: userId,
-              generationRecordId: recordId,
-              actualCents: actualCost.totalPriceCents,
-              description: `OpenAI 网关扣款：${modelConfig.id}`,
-            })
-            audit('credit_debit', {
-              accountId: userId,
-              targetId: recordId,
-              detail: { accountId: userId, generationRecordId: recordId, amountCents: actualCost.totalPriceCents, description: `OpenAI 网关扣款：${modelConfig.id}`, source: 'gateway' },
-            })
-          }
-          audit('gateway_call', {
-            accountId: userId,
-            targetId: recordId,
-            detail: {
-              model: modelConfig.id,
-              recordId,
-              inputTokens: lastUsage?.prompt_tokens,
-              outputTokens: lastUsage?.completion_tokens,
-              totalPriceCents: actualCost.totalPriceCents,
-              status: 'succeeded',
-            },
+          // 复用编排原语：成功结算
+          await settleGatewaySuccess({
+            userId, modelConfig, validatedParams, recordId, estimatedCost,
+            text: fullText,
+            usage: lastUsage
+              ? { inputTokens: lastUsage.prompt_tokens, outputTokens: lastUsage.completion_tokens }
+              : undefined,
+            apiKeyMeta,
           })
-
-          // API Key 额度追踪（非阻塞）
-          if (apiKeyMeta && actualCost.totalPriceCents > 0) {
-            incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
-          }
-          // API Key 额度即将用尽（80%）预警（非阻塞；已用尽由下次请求的额度检查触发）
-          if (apiKeyMeta) {
-            notifyApiKeyQuota(userId, {
-              keyId: apiKeyMeta.id,
-              totalSpendCents: apiKeyMeta.totalSpendCents + actualCost.totalPriceCents,
-              quotaMaxCents: apiKeyMeta.quotaMaxCents,
-            }).catch(() => {})
-          }
         }
         catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          try {
-            controller.close()
-          }
-          catch {
-            /* controller 已关闭时忽略 */
-          }
-          await markGenerationFailed(recordId, message)
-          recordGenerationStatus('failed')
-          // Provider 调用异常通知（非阻塞）
-          notifyProviderFailure(userId, modelConfig.id).catch(() => {})
-          if (estimatedCost.totalPriceCents > 0) {
-            await refundCredit({
-              accountId: userId,
-              generationRecordId: recordId,
-              description: `OpenAI 网关失败退款：${modelConfig.id}`,
-            })
-            audit('credit_refund', {
-              accountId: userId,
-              targetId: recordId,
-              detail: { accountId: userId, generationRecordId: recordId, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关失败退款：${modelConfig.id}`, source: 'gateway' },
-            })
-          }
-          audit('gateway_call', {
-            accountId: userId,
-            targetId: recordId,
-            detail: { model: modelConfig.id, recordId, totalPriceCents: estimatedCost.totalPriceCents, status: 'failed', error: message },
-          })
+          try { controller.close() } catch { /* controller 已关闭时忽略 */ }
+
+          // 复用编排原语：失败结算
+          await settleGatewayFailure({ userId, modelConfig, recordId, estimatedCost, error })
         }
       },
     })
@@ -378,23 +256,12 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
           }
           return { text: res.output.text, usage: res.usage }
         },
+        apiKeyMeta: apiKeyMeta ?? undefined,
       })
 
       if (!result.success) {
         set.status = result.status
         return result.response
-      }
-
-      // API Key 额度追踪（非阻塞）
-      if (apiKeyMeta && result.usage) {
-        const actualCost = calculateCost(modelConfig, extractBillingParams(validatedParams), result.usage)
-        incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
-        // API Key 额度即将用尽（80%）预警（非阻塞）
-        notifyApiKeyQuota(userId, {
-          keyId: apiKeyMeta.id,
-          totalSpendCents: apiKeyMeta.totalSpendCents + actualCost.totalPriceCents,
-          quotaMaxCents: apiKeyMeta.quotaMaxCents,
-        }).catch(() => {})
       }
 
       return createOpenAIChatResponse({
