@@ -165,6 +165,23 @@ export function buildStoryboardPrompt(
 
 简单动作3-5秒，中等5-8秒，复杂8-15秒。不要固定5秒。
 
+# 对话与音频（HappyHorse 原生音视频）
+
+HappyHorse 会根据 prompt 描述原生生成镜头内的角色对白与环境音效，因此 **narrative 必须把「画面动作 + 角色对白 + 环境音效」交织写进同一段文本**，让生成的视频带声音。
+
+narrative 必须包含：
+1. 角色对白：用中文引号「」包裹，前面标明说话者，语气/情绪用括注。正确示例：
+   ✅ 小明缓步上前：「我不能丢下你不管。」（坚定）
+   ✅ 小红轻声说：「真的吗？」（惊讶）
+2. 单个镜头 2-3 轮对话上限；无对白的镜头可以只写动作，但不要为了凑对白而硬加。
+3. 关键环境音效：在动作描述中自然带出，如「远处传来雷声」「雨水敲打窗户」「脚步声渐近」。
+
+禁止：
+❌ 把对白写成纯叙述（如"小明说他不会走"）——必须用引号直接呈现原话。
+❌ 对白与画面动作割裂——对白要和该秒动作在同一镜头内自然交织。
+
+无对白的纯动作/环境镜头允许 narrative 不含引号（前端据此判定无声，只生成环境音）。
+
 # 输出格式（JSON数组）
 
 [{
@@ -172,7 +189,7 @@ export function buildStoryboardPrompt(
   "duration": 5,
   "locationId": "<场景ID>",
   "characterIds": ["<角色ID1>", "<角色ID2>"],
-  "narrative": "镜头叙事描述（中文）",
+  "narrative": "镜头叙事（中文，交织画面动作 + 角色对白「」 + 环境音效）",
   "camera": {
     "shotSize": "wide|medium|close_up|extreme_close_up",
     "angle": "front|side|over_shoulder|low_angle|high_angle",
@@ -220,6 +237,7 @@ ${locationList}
 - duration 要根据动作复杂度调整（3-15秒）
 - environment 必须包含背景动态、光线、情绪、风格
 - 使用专业镜头术语
-- locationId 和 characterIds 必须使用提供的 UUID`,
+- locationId 和 characterIds 必须使用提供的 UUID
+- narrative 必须交织画面动作 + 角色对白（中文引号「」、标明说话者与语气）+ 关键环境音效，让生成的视频带对话/环境音频`,
   }
 }

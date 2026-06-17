@@ -147,6 +147,18 @@ describe('buildStoryboardPrompt', () => {
     expect(system).toContain('UUID')
   })
 
+  it('system 中包含对话与音频要求（narrative 须交织对白+音效）', () => {
+    const { system } = buildStoryboardPrompt(storyText, analysis, characters, locations)
+    expect(system).toContain('对话与音频')
+    expect(system).toContain('narrative')
+  })
+
+  it('prompt 要求 narrative 交织对白与环境音效', () => {
+    const { prompt } = buildStoryboardPrompt(storyText, analysis, characters, locations)
+    expect(prompt).toContain('对白')
+    expect(prompt).toContain('环境音效')
+  })
+
   it('处理空角色和场景列表', () => {
     const { prompt } = buildStoryboardPrompt(storyText, analysis, [], [])
     expect(prompt).toContain(storyText)
