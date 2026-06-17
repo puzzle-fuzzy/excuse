@@ -65,18 +65,17 @@
 > 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。
 
 **已完成**
-- ✅ `canvasPipelinePhaseEnum` 新增 `dialogue`(8.5)/`bgm`(10)/`assemble`(11)
-- ✅ `CANVAS_PHASE_ORDER` + `PAUSE_BEFORE` 同步更新
-- ✅ 共享 `CanvasPipelinePhase` 类型同步（3 处）
-- ✅ 0035 迁移 SQL（pgEnum + `canvas_shots` 新列 + `canvas_projects.bgm_url`）
-- ✅ Server route handler stubs（throw not implemented）
-- ✅ Worker task handler stubs（throw not implemented）
+- ✅ 阶段枚举 + 流水线配置 + migration SQL
+- ✅ Phase 8.5 `dialogue` — 对话层 LLM 生成（完整实现：prompt builder → canvas-runtime → server handler → worker handler）
+- ✅ `canvas_shots` 新增 `dialogue_prompt`/`dialogue_json`/`reference_media` 列
+- ✅ `shared/domain-types` `DialogueJson` 结构化数据定义
+- ✅ Phase 10 `bgm` — 骨架（server module + handler stub）
+- ✅ Phase 11 `assemble` — 骨架（handler stub）
 
 **待实现**
-- 🏗️ Phase 8.5 `dialogue`: LLM 对话层生成（prompt builder + server module）
-- 🏗️ Phase 10 `bgm`: FunMusic BGM 生成
-- 🏗️ Phase 11 `assemble`: FFmpeg 视频+音频+BGM 合成
-- 🏗️ R2V builder: `buildR2VRequest` 组装多参考图模式
+- 🏗️ Phase 10 `bgm`: 需 `fun-music-v1` 模型配置 + provider audio 支持
+- 🏗️ Phase 11 `assemble`: FFmpeg 视频拼接 + 对话音频合成 + BGM 叠加
+- 🏗️ R2V builder: `buildR2VRequest` 组装多参考图模式（依赖 dialogue 产出 reference_media）
 
 ### 附：对话音视频 Prompt 规范要点
 
@@ -93,9 +92,9 @@
 
 ## 三、可观测性与测试
 
-### 1. 缺少端到端冒烟测试【依赖地基一、1 的 provider 注入】
+### 1. 端到端冒烟测试【依赖地基一、1 的 provider 注入】
 
-> 状态：暂不动 —— 依赖前置的 provider 依赖注入重构（地基一、1），且需全栈起停编排 + 浏览器二进制，验证环境重，应单独排期。下述任务/范围/风险供排期时参考。
+> 状态：依赖前置的 provider 依赖注入重构（地基一、1），且需全栈起停编排 + 浏览器二进制，验证环境重，应单独排期。下述任务/范围/风险供排期时参考。
 
 **任务**
 
