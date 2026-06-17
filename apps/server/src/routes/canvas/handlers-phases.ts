@@ -74,15 +74,13 @@ export function handleDialoguePhase(projectId: string, userId: string, ctx: Serv
 
 export function handleBgmPhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
   return runPhase(projectId, userId, 'bgm', async (_runId) => {
-    // TODO: Phase 10 — FunMusic BGM 生成
-    throw new Error('BGM 阶段尚未实现')
+    throw new Error('BGM 阶段尚未实现：需添加 fun-music-v1 模型配置')
   })
 }
 
 export function handleAssemblePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
   return runPhase(projectId, userId, 'assemble', async (_runId) => {
-    // TODO: Phase 11 — FFmpeg 合成
-    throw new Error('合成阶段尚未实现')
+    throw new Error('合成阶段尚未实现：需实现 FFmpeg 视频拼接+音轨合成')
   })
 }
 

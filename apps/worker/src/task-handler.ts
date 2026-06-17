@@ -111,15 +111,15 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
   {
     type: 'canvas.bgm',
     handler: async (_task, _ctx) => {
-      // TODO: Phase 10 — FunMusic BGM 生成
-      throw new Error('BGM 阶段尚未实现 (canvas.bgm)')
+      // TODO: Phase 10 — FunMusic BGM 生成（需要 provider fun-music-v1 模型配置）
+      throw new Error('BGM 阶段尚未实现：需添加 fun-music-v1 模型配置')
     },
   },
   {
     type: 'canvas.assemble',
     handler: async (_task, _ctx) => {
-      // TODO: Phase 11 — FFmpeg 合成
-      throw new Error('合成阶段尚未实现 (canvas.assemble)')
+      // TODO: Phase 11 — FFmpeg 合成（视频拼接 + 对话音频 + BGM 叠加）
+      throw new Error('合成阶段尚未实现：需实现 FFmpeg 视频合成管线')
     },
   },
 
