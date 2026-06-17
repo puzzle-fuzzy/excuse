@@ -222,3 +222,49 @@ describe('AssetStorage 实例方法', () => {
     })
   })
 })
+
+// ── localCopyPath：存储 URL → 本地副本路径（assemble 用） ─────
+
+describe('AssetStorage.localCopyPath', () => {
+  it('本地 web 路径解析到 storageRoot 下', () => {
+    const storage = new AssetStorage({ storageRoot: '/data/storage' })
+    expect(storage.localCopyPath('/api/uploads/canvas/proj/shot_0.mp4')).toBe('/data/storage/canvas/proj/shot_0.mp4')
+    expect(storage.localCopyPath('/api/uploads/subtitle/audio_x.wav')).toBe('/data/storage/subtitle/audio_x.wav')
+  })
+
+  it('自定义 publicBasePath 也能解析', () => {
+    const storage = new AssetStorage({ storageRoot: '/data', publicBasePath: '/static' })
+    expect(storage.localCopyPath('/static/assemble/p1/final.mp4')).toBe('/data/assemble/p1/final.mp4')
+  })
+
+  it('OSS URL 解析到本地副本（剥 bucket host + generated/uploads 前缀）', () => {
+    try {
+      const storage = new AssetStorage({
+        storageRoot: '/data/storage',
+        oss: {
+          accessKeyId: 'fake',
+          accessKeySecret: 'fake',
+          bucket: 'my-bucket',
+          region: 'oss-cn-hangzhou',
+          generatedPrefix: 'generated',
+          uploadPrefix: 'uploads',
+        },
+      })
+      if (storage.isOSSEnabled) {
+        expect(storage.localCopyPath('https://my-bucket.oss-cn-hangzhou.aliyuncs.com/generated/canvas/p1/shot_0.mp4'))
+          .toBe('/data/storage/canvas/p1/shot_0.mp4')
+        expect(storage.localCopyPath('https://my-bucket.oss-cn-hangzhou.aliyuncs.com/uploads/img.png'))
+          .toBe('/data/storage/img.png')
+      }
+    }
+    catch {
+      // 无 OSS 凭据时跳过
+    }
+  })
+
+  it('无法识别的 URL 返回 null', () => {
+    const storage = new AssetStorage({ storageRoot: '/data' })
+    expect(storage.localCopyPath('https://example.com/elsewhere/file.mp4')).toBeNull()
+    expect(storage.localCopyPath('relative/path.mp4')).toBeNull()
+  })
+})

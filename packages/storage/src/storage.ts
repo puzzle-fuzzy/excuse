@@ -203,6 +203,62 @@ export class AssetStorage {
     return url.includes(`${this.config.oss.bucket}.aliyuncs.com`)
   }
 
+  /**
+   * 解析存储 URL 到本地文件系统路径（storageRoot 下的本地副本）。
+   *
+   * uploadGenerated/uploadUserFile 总是经 saveLocal 写本地副本，故即使是 OSS 公开 URL，
+   * 本地也存在同名副本。assemble 等需要在本地对已存储资产做 FFmpeg 处理的场景可据此
+   * 直接拿到本地路径，避免重复下载。
+   *
+   * @returns 本地绝对路径；URL 无法解析为已存储资产时返回 null（调用方应回退 downloadToFile）
+   */
+  localCopyPath(url: string): string | null {
+    const fileName = this.extractStorageFileName(url)
+    if (!fileName)
+      return null
+    return join(this.config.storageRoot, fileName)
+  }
+
+  /**
+   * 下载远程 URL 到本地文件路径。
+   *
+   * 用于 localCopyPath 无法解析（如纯 OSS 无本地副本、或第三方 URL）时的回退。
+   * @returns destPath（写入后的本地路径）
+   */
+  async downloadToFile(url: string, destPath: string): Promise<string> {
+    const buffer = await this.downloadToBuffer(url)
+    await mkdir(dirname(destPath), { recursive: true })
+    await writeFile(destPath, buffer)
+    return destPath
+  }
+
+  /**
+   * 从存储 URL 提取相对 fileName（去掉 public base / OSS host+prefix）。
+   * 无法识别的 URL 返回 null。
+   */
+  private extractStorageFileName(url: string): string | null {
+    // 本地 web 路径：<publicBasePath>/<fileName>
+    const base = this.config.publicBasePath || '/api/uploads'
+    if (url.startsWith(`${base}/`))
+      return url.slice(base.length + 1)
+
+    // OSS 公开 URL：https://<bucket>.<region>.aliyuncs.com/<prefix>/<fileName>
+    if (this.config.oss && url.includes(`${this.config.oss.bucket}.aliyuncs.com`)) {
+      const afterHost = url.replace(/^https?:\/\/[^/]+\//, '')
+      const prefixes = [
+        this.config.oss.generatedPrefix || 'generated',
+        this.config.oss.uploadPrefix || 'uploads',
+      ]
+      for (const prefix of prefixes) {
+        if (afterHost.startsWith(`${prefix}/`))
+          return afterHost.slice(prefix.length + 1)
+      }
+      return afterHost
+    }
+
+    return null
+  }
+
   // ── 私有辅助方法 ──────────────────────────────────────
 
   private async downloadToBuffer(url: string): Promise<Buffer> {

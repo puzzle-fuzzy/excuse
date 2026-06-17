@@ -65,6 +65,8 @@ export const canvasProjects = pgTable('canvas_projects', {
   canvasLayout: jsonb('canvas_layout').$type<CanvasLayoutDto>(),
   /** Phase 10 bgm 生成的 BGM 音频 URL（转存后的 OSS / 本地路径） */
   bgmUrl: text('bgm_url'),
+  /** Phase 11 assemble 合成的最终视频 URL（镜头拼接 + BGM 叠加） */
+  finalVideoUrl: text('final_video_url'),
   /** 软删除标记（true 时不出现在查询结果中） */
   isDeleted: boolean('is_deleted').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

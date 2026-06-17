@@ -82,10 +82,8 @@ export function handleBgmPhase(projectId: string, userId: string, ctx: ServerCon
   return runPhase(projectId, userId, 'bgm', async () => svc.generateBgm(projectId, ctx.client, ctx.storage))
 }
 
-export function handleAssemblePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
-  return runPhase(projectId, userId, 'assemble', async (_runId) => {
-    throw new Error('合成阶段尚未实现：需实现 FFmpeg 视频拼接+音轨合成')
-  })
+export function handleAssemblePhase(projectId: string, userId: string, ctx: ServerContext): Promise<AcceptedResponse> {
+  return runPhase(projectId, userId, 'assemble', async () => svc.assembleProject(projectId, ctx.client, ctx.storage, ctx.config.storageRoot))
 }
 
 export async function handleCancelActive(projectId: string, userId: string) {

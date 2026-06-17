@@ -7,12 +7,14 @@
 
 export { analyzeProject } from './analysis'
 
+export { assembleProject } from './assemble'
+
 export { getCanvasAssetsPoll } from './asset-poll'
 
+export { generateBgm } from './bgm'
 export { generateCharacters } from './characters'
 export { checkContinuity, rebuildShotPrompts } from './continuity-rebuild'
 export { generateDialogue } from './dialogue'
-export { generateBgm } from './bgm'
 export { generateLocations } from './locations'
 export { generateCharacterRefs, generateLocationRefs } from './references'
 export { regenerateCharacter, regenerateLocation, regenerateShotVideo } from './regenerate'

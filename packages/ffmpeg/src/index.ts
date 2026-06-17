@@ -5,5 +5,7 @@ export {
   getVideoResolution,
 } from './audio-extractor'
 export type { AudioExtractionResult } from './audio-extractor'
+export { concatVideos, hasAudioStream, mixBgmTrack } from './compose'
+export type { ConcatResult, MixBgmResult } from './compose'
 export { burnSubtitlesToVideo } from './subtitle-burner'
 export type { BurnResult } from './subtitle-burner'

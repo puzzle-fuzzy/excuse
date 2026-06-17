@@ -17,6 +17,7 @@ export * from './llm-helpers'
 export * from './normalize'
 
 export * from './phases/analysis'
+export * from './phases/assemble'
 export * from './phases/bgm'
 
 export * from './phases/character-refs'

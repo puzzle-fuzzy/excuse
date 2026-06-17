@@ -136,9 +136,28 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
   },
   {
     type: 'canvas.assemble',
-    handler: async (_task, _ctx) => {
-      // TODO: Phase 11 — FFmpeg 合成（视频拼接 + 对话音频 + BGM 叠加）
-      throw new Error('合成阶段尚未实现：需实现 FFmpeg 视频合成管线')
+    handler: async (task, ctx) => {
+      const { getCanvasProjectDetail, updateCanvasProject } = await import('@excuse/db')
+      const { runAssemblePhase } = await import('@excuse/canvas-runtime')
+
+      const projectId = task.projectId!
+      const detail = await getCanvasProjectDetail(projectId)
+      if (!detail)
+        throw new Error('项目不存在')
+
+      const result = await runAssemblePhase({
+        projectId,
+        detail,
+        storage: ctx.storage,
+        storageRoot: ctx.config.storageRoot,
+      })
+      await updateCanvasProject(projectId, { finalVideoUrl: result.finalVideoUrl })
+
+      return {
+        finalVideoUrl: result.finalVideoUrl,
+        shotsConcatenated: result.shotsConcatenated,
+        bgmOverlaid: result.bgmOverlaid,
+      }
     },
   },
 
