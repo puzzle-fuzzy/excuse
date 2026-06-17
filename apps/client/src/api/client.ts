@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, OpenAIGatewayUsageResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasProjectSummaryResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, OpenAIGatewayUsageResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -322,6 +322,34 @@ export async function listCanvasProjects(): Promise<CanvasProjectListResponse> {
 export async function getCanvasProject(projectId: string): Promise<CanvasProjectResponse> {
   return unwrapEden<CanvasProjectResponse>(
     await api.api.canvas.projects({ projectId }).get(),
+  )
+}
+
+/** 获取 Canvas 项目摘要（轻量版）— 主画布渲染，不含实体 JSONB 大字段 */
+export async function fetchCanvasProjectSummary(projectId: string): Promise<CanvasProjectSummaryResponse> {
+  return unwrapEden<CanvasProjectSummaryResponse>(
+    await api.api.canvas.projects({ projectId }).summary.get(),
+  )
+}
+
+/** 按需加载角色详情（供右侧详情面板使用） */
+export async function fetchCanvasCharacterDetail(characterId: string): Promise<CanvasCharacterResponse> {
+  return unwrapEden<CanvasCharacterResponse>(
+    await api.api.canvas.characters({ characterId }).detail.get(),
+  )
+}
+
+/** 按需加载场景详情（供右侧详情面板使用） */
+export async function fetchCanvasLocationDetail(locationId: string): Promise<CanvasLocationResponse> {
+  return unwrapEden<CanvasLocationResponse>(
+    await api.api.canvas.locations({ locationId }).detail.get(),
+  )
+}
+
+/** 按需加载镜头详情（供右侧详情面板使用） */
+export async function fetchCanvasShotDetail(shotId: string): Promise<CanvasShotResponse> {
+  return unwrapEden<CanvasShotResponse>(
+    await api.api.canvas.shots({ shotId }).detail.get(),
   )
 }
 

@@ -1,14 +1,18 @@
 import type { CanvasShotReferenceAsset, ShotCamera, ShotEnvironment } from '@excuse/db'
-import type { CanvasModelPreferences, CharacterDTO, LocationDTO, ShotDTO } from '@excuse/shared'
+import type { CanvasModelPreferences, CanvasProjectSummaryDTO, CharacterDTO, LocationDTO, ShotDTO } from '@excuse/shared'
 import {
   batchGetProjectDetails,
   deleteCanvasCharacterById,
   deleteCanvasLocationById,
   deleteCanvasShotById,
   getCanvasCharacterById,
+  getCanvasCharacterDetail,
   getCanvasLocationById,
+  getCanvasLocationDetail,
   getCanvasProjectById,
   getCanvasProjectDetail,
+  getCanvasProjectSummary,
+  getCanvasShotDetail,
   listCanvasShotsByProject,
   softDeleteCanvasProject,
   updateCanvasCharacter,
@@ -17,7 +21,7 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import { parseCanvasLayout } from './layout'
-import { mapCharacter, mapLocation, mapProjectDetail, mapShot } from './mapper'
+import { mapCharacter, mapLocation, mapProjectDetail, mapProjectSummary, mapShot } from './mapper'
 import { reconcileProjectShots } from './service-helpers'
 
 export interface ShotReferenceAssetApplyResult {
@@ -147,6 +151,41 @@ export async function getProjectDetail(projectId: string) {
   if (!detail)
     return null
   return mapProjectDetail(detail.project, detail.characters, detail.locations, detail.shots, detail.latestContinuity)
+}
+
+/** 获取项目摘要（轻量版）— 主画布渲染，不包含实体大字段 */
+export async function getProjectSummary(projectId: string): Promise<CanvasProjectSummaryDTO | null> {
+  const project = await getCanvasProjectById(projectId)
+  if (project && (project.status === 'generating' || project.status === 'partial_failed' || project.status === 'refs_all_ready'))
+    await reconcileProjectShots(projectId)
+  const summary = await getCanvasProjectSummary(projectId)
+  if (!summary)
+    return null
+  return mapProjectSummary(summary.project, summary.characterSummaries, summary.locationSummaries, summary.shotSummaries, summary.latestContinuity)
+}
+
+/** 查询单个角色完整数据（按需加载到详情面板） */
+export async function getCharacterDetail(characterId: string): Promise<CharacterDTO | null> {
+  const row = await getCanvasCharacterDetail(characterId)
+  if (!row)
+    return null
+  return mapCharacter(row)
+}
+
+/** 查询单个场景完整数据（按需加载到详情面板） */
+export async function getLocationDetail(locationId: string): Promise<LocationDTO | null> {
+  const row = await getCanvasLocationDetail(locationId)
+  if (!row)
+    return null
+  return mapLocation(row)
+}
+
+/** 查询单个镜头完整数据（按需加载到详情面板） */
+export async function getShotDetail(shotId: string): Promise<ShotDTO | null> {
+  const row = await getCanvasShotDetail(shotId)
+  if (!row)
+    return null
+  return mapShot(row)
 }
 
 export async function listProjects(accountId: string) {

@@ -1,9 +1,9 @@
 import type { CanvasAssetOutput } from '@excuse/db'
 import type { NovelAnalysis } from '@excuse/shared'
-import type { WorkerConfig } from './config'
+import type { DashScopeClient } from '@excuse/provider'
 import { runAnalysisPhase, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import { getCanvasProjectById } from '@excuse/db'
-import { createDashScopeClient, getTextModel } from './canvas-execution'
+import { getTextModel } from './canvas-execution'
 
 export interface CanvasAnalysisResult extends Record<string, unknown> {
   phase: 'analyze'
@@ -13,7 +13,7 @@ export interface CanvasAnalysisResult extends Record<string, unknown> {
 
 export async function executeCanvasAnalysis(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
   runId?: string,
 ): Promise<CanvasAnalysisResult> {
   const project = await getCanvasProjectById(projectId)
@@ -37,7 +37,7 @@ export async function executeCanvasAnalysis(
         projectId,
         storyText: project.storyText,
         isReanalysis: project.status !== 'draft',
-        client: createDashScopeClient(workerConfig),
+        client,
         textModel,
       })
       const output: CanvasAssetOutput = { type: 'json', data: { ...analysis } }

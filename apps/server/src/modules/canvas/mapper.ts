@@ -9,8 +9,11 @@
  *   - 可选字段 null 归一化
  *   - profileJson 从 JSONB 直接透传（由 schema $type 绑定类型）
  */
-import type { CanvasCharacterRow, CanvasContinuityRow, CanvasLocationRow, CanvasProjectRow, CanvasShotRow, CharacterProfile, ContinuityIssue, LocationProfile } from '@excuse/db'
+import type { CanvasCharacterRow, CanvasCharacterSummaryRow, CanvasContinuityRow, CanvasLocationRow, CanvasLocationSummaryRow, CanvasProjectRow, CanvasShotRow, CanvasShotSummaryRow, CharacterProfile, ContinuityIssue, LocationProfile } from '@excuse/db'
 import type {
+  CanvasEntitySummary,
+  CanvasProjectSummaryDTO,
+  CanvasShotStatus,
   CharacterDTO,
   LocationDTO,
   ProjectDTO,
@@ -119,6 +122,77 @@ export function mapProjectDetail(
     characters: characters.map(mapCharacter),
     locations: locations.map(mapLocation),
     shots: shots.map(mapShot),
+    continuityIssues,
+    canvasLayout: project.canvasLayout ?? null,
+    createdAt: project.createdAt.toISOString(),
+    updatedAt: project.updatedAt.toISOString(),
+  }
+}
+
+// ===== 摘要映射（大项目 Canvas 性能优化） =====
+
+/** CanvasCharacterSummaryRow → CanvasEntitySummary */
+function mapCharacterSummary(row: CanvasCharacterSummaryRow): CanvasEntitySummary {
+  return {
+    id: row.id,
+    name: row.name,
+    role: row.role ?? null,
+    referenceImageUrl: row.referenceImageUrl ?? null,
+    turnaroundSheetUrl: row.turnaroundSheetUrl ?? null,
+    locked: row.locked,
+  }
+}
+
+/** CanvasLocationSummaryRow → CanvasEntitySummary */
+function mapLocationSummary(row: CanvasLocationSummaryRow): CanvasEntitySummary {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    referenceImageUrl: row.referenceImageUrl ?? null,
+    locked: row.locked,
+  }
+}
+
+/** CanvasShotSummaryRow → CanvasEntitySummary */
+function mapShotSummary(row: CanvasShotSummaryRow): CanvasEntitySummary {
+  return {
+    id: row.id,
+    shotIndex: row.shotIndex,
+    duration: row.duration,
+    narrative: row.narrative,
+    videoUrl: row.videoUrl ?? null,
+    status: row.status as CanvasShotStatus,
+    errorMessage: row.errorMessage ?? null,
+    characterIds: row.characterIdsJson ?? [],
+    locationId: row.locationId ?? null,
+  }
+}
+
+/** 组装项目摘要 DTO — 主画布渲染所需的最小数据集 */
+export function mapProjectSummary(
+  project: CanvasProjectRow,
+  characterSummaries: CanvasCharacterSummaryRow[],
+  locationSummaries: CanvasLocationSummaryRow[],
+  shotSummaries: CanvasShotSummaryRow[],
+  continuityReport: CanvasContinuityRow | null,
+): CanvasProjectSummaryDTO {
+  let continuityIssues: ContinuityIssue[] = []
+  if (continuityReport?.issuesJson) {
+    continuityIssues = continuityReport.issuesJson
+  }
+
+  return {
+    id: project.id,
+    accountId: project.accountId,
+    title: project.title ?? null,
+    storyText: project.storyText,
+    status: project.status,
+    analysis: project.analysisJson ?? null,
+    modelPreferences: project.modelPreferencesJson ?? null,
+    characters: characterSummaries.map(mapCharacterSummary),
+    locations: locationSummaries.map(mapLocationSummary),
+    shots: shotSummaries.map(mapShotSummary),
     continuityIssues,
     canvasLayout: project.canvasLayout ?? null,
     createdAt: project.createdAt.toISOString(),

@@ -1,4 +1,4 @@
-import type { WorkerConfig } from './config'
+import type { AssetStorage, DashScopeClient } from '@excuse/provider'
 import { buildLocationRefPrompt, generateLocationRefAsset } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,
@@ -6,12 +6,8 @@ import {
   markCanvasAssetRunning,
   updateCanvasProject,
 } from '@excuse/db'
+import { getModelById } from '@excuse/provider'
 import {
-  AssetStorage,
-  getModelById,
-} from '@excuse/provider'
-import {
-  createDashScopeClient,
   getImageModel,
   loadRunnableCanvasProject,
 } from './canvas-execution'
@@ -27,7 +23,8 @@ export interface CanvasLocationRefsResult extends Record<string, unknown> {
 
 export async function executeCanvasLocationRefs(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
+  storage: AssetStorage,
   runId?: string,
 ): Promise<CanvasLocationRefsResult> {
   const detail = await loadRunnableCanvasProject(projectId)
@@ -38,8 +35,6 @@ export async function executeCanvasLocationRefs(
   if (!imageModelConfig)
     throw new Error(`未知图片模型：${imageModel}`)
 
-  const client = createDashScopeClient(workerConfig)
-  const storage = new AssetStorage({ storageRoot: workerConfig.storageRoot, oss: workerConfig.oss })
   let locationsProcessed = 0
   let locationsSkipped = 0
   let locationsFailed = 0

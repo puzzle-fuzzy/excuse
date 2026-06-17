@@ -1,5 +1,5 @@
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { DashScopeClient } from '@excuse/provider'
 import { generateCharacterEntity, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import {
   deleteCanvasCharactersByProject,
@@ -9,7 +9,6 @@ import {
 } from '@excuse/db'
 import {
   assertCanvasProjectNotGenerating,
-  createDashScopeClient,
   getTextModel,
 } from './canvas-execution'
 
@@ -22,7 +21,7 @@ export interface CanvasCharactersResult extends Record<string, unknown> {
 
 export async function executeCanvasCharacters(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
   runId?: string,
 ): Promise<CanvasCharactersResult> {
   const project = await getCanvasProjectById(projectId)
@@ -33,7 +32,6 @@ export async function executeCanvasCharacters(
   const analysis = project.analysisJson
   const accountId = project.accountId
   const textModel = getTextModel(project.modelPreferencesJson)
-  const client = createDashScopeClient(workerConfig)
   let charactersCreated = 0
   let charactersFailed = 0
 

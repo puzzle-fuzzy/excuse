@@ -1,21 +1,12 @@
 import type { CanvasModelPreferences } from '@excuse/shared'
-import type { WorkerConfig } from './config'
 import { getCanvasVideoModel } from '@excuse/canvas-runtime'
 import {
   getCanvasProjectDetail,
 } from '@excuse/db'
-import { DashScopeClient } from '@excuse/provider'
 
 type CanvasProjectDetail = NonNullable<Awaited<ReturnType<typeof getCanvasProjectDetail>>>
 const DEFAULT_TEXT_MODEL = 'qwen3.7-plus'
 const DEFAULT_IMAGE_MODEL = 'qwen-image-2.0-pro'
-
-export function createDashScopeClient(workerConfig: WorkerConfig): DashScopeClient {
-  return new DashScopeClient({
-    apiKey: workerConfig.dashscopeApiKey,
-    baseUrl: workerConfig.dashscopeBaseUrl,
-  })
-}
 
 export function getTextModel(prefs: CanvasModelPreferences | null | undefined): string {
   return prefs?.textModel || DEFAULT_TEXT_MODEL

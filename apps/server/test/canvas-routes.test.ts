@@ -53,6 +53,25 @@ function makeProjectDetail(projectOverrides: Partial<CanvasProjectRow> = {}): Mo
 const mockCreateCanvasProject = mock(() => Promise.resolve(makeProjectRow()))
 const mockGetCanvasProjectById = mock<() => Promise<CanvasProjectRow | null>>(() => Promise.resolve(null))
 const mockGetCanvasProjectDetail = mock<() => Promise<MockCanvasProjectDetail | null>>(() => Promise.resolve(null))
+const mockGetCanvasProjectSummary = mock(() => Promise.resolve({
+  id: 'proj-001',
+  accountId: 'acc-001',
+  title: null,
+  storyText: '一段超过十个字的故事文本内容',
+  status: 'draft',
+  analysis: null,
+  modelPreferences: null,
+  characters: [],
+  locations: [],
+  shots: [],
+  continuityIssues: [],
+  canvasLayout: null,
+  createdAt: '2024-01-01T00:00:00.000Z',
+  updatedAt: '2024-01-01T00:00:00.000Z',
+}))
+const mockGetCanvasCharacterDetail = mock(() => Promise.resolve({ id: 'char-001', name: 'Test Char', projectId: 'proj-001', role: 'protagonist', description: null, identityPrompt: null, negativePrompt: null, profileJson: null, referenceImageUrl: null, turnaroundSheetUrl: null, locked: false, createdAt: new Date(), updatedAt: new Date() }))
+const mockGetCanvasLocationDetail = mock(() => Promise.resolve({ id: 'loc-001', name: 'Test Loc', projectId: 'proj-001', type: 'interior', profileJson: null, scenePrompt: null, negativePrompt: null, referenceImageUrl: null, locked: false, createdAt: new Date(), updatedAt: new Date() }))
+const mockGetCanvasShotDetail = mock(() => Promise.resolve({ id: 'shot-001', projectId: 'proj-001', shotIndex: 0, duration: 5, locationId: null, characterIdsJson: [], narrative: 'Test', cameraJson: {}, continuityJson: {}, timelineJson: null, environmentJson: null, videoPrompt: null, negativePrompt: null, videoTaskId: null, videoUrl: null, status: 'draft', errorMessage: null, referenceAssetsJson: [], createdAt: new Date(), updatedAt: new Date() }))
 const mockListCanvasProjectsByAccount = mock(() => Promise.resolve([]))
 const mockSoftDeleteCanvasProject = mock(() => Promise.resolve(undefined))
 const mockUpdateCanvasProject = mock<(values?: Partial<CanvasProjectRow>) => Promise<CanvasProjectRow>>(() => Promise.resolve(makeProjectRow()))
@@ -99,6 +118,10 @@ mock.module('@excuse/db', () => ({
   listPendingVideoShots: async () => [],
   createContinuityReport: async () => ({ id: 'cont-001' }),
   getLatestContinuityReport: async () => null,
+  getCanvasProjectSummary: mockGetCanvasProjectSummary,
+  getCanvasCharacterDetail: mockGetCanvasCharacterDetail,
+  getCanvasLocationDetail: mockGetCanvasLocationDetail,
+  getCanvasShotDetail: mockGetCanvasShotDetail,
   createGenerationRecord: async () => ({ id: 'gen-001' }),
   markGenerationProcessing: async () => {},
   notifyGenerationStatus: async () => {},
@@ -134,6 +157,10 @@ mock.module('../src/modules/canvas/service', () => ({
   createProject: async (accountId: string, input: { title?: string, storyText: string }) =>
     makeProjectRow({ accountId, title: input.title ?? null, storyText: input.storyText }),
   getProjectDetail: mockGetCanvasProjectDetail,
+  getProjectSummary: mockGetCanvasProjectSummary,
+  getCharacterDetail: mockGetCanvasCharacterDetail,
+  getLocationDetail: mockGetCanvasLocationDetail,
+  getShotDetail: mockGetCanvasShotDetail,
   softDeleteProject: mockSoftDeleteCanvasProject,
   updateProjectProperties: async (_projectId: string, input: Partial<Pick<CanvasProjectRow, 'title' | 'storyText'>>) =>
     mockUpdateCanvasProject(input),
@@ -215,6 +242,10 @@ describe('canvas routes', () => {
     mockGetCanvasCharacterForAccount.mockClear()
     mockGetCanvasLocationForAccount.mockClear()
     mockGetCanvasShotForAccount.mockClear()
+    mockGetCanvasProjectSummary.mockClear()
+    mockGetCanvasCharacterDetail.mockClear()
+    mockGetCanvasLocationDetail.mockClear()
+    mockGetCanvasShotDetail.mockClear()
 
     const app = createCanvasRoutes(testConfig)
     client = treaty(app)
@@ -387,6 +418,103 @@ describe('canvas routes', () => {
         headers: { Authorization: `Bearer ${token}` },
       })
       expect(data?.accepted).toBe(true)
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  GET /projects/:projectId/summary — 项目摘要
+  // ═══════════════════════════════════════════════════
+
+  describe('GET /projects/:projectId/summary', () => {
+    it('返回项目摘要', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(makeProjectRow())
+      mockGetCanvasProjectSummary.mockResolvedValue({
+        id: 'proj-001',
+        accountId: 'acc-001',
+        title: null,
+        storyText: '一段超过十个字的故事文本内容',
+        status: 'draft',
+        analysis: null,
+        modelPreferences: null,
+        characters: [{ id: 'char-001', name: '角色A', role: '主角', referenceImageUrl: null, turnaroundSheetUrl: null, locked: false }],
+        locations: [{ id: 'loc-001', name: '场景A', type: 'interior', referenceImageUrl: null, locked: false }],
+        shots: [{ id: 'shot-001', shotIndex: 0, duration: 5, narrative: '测试镜头', videoUrl: null, status: 'draft', errorMessage: null, characterIds: [], locationId: null }],
+        continuityIssues: [],
+        canvasLayout: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      })
+      const { data } = await client.api.canvas.projects({ projectId: 'proj-001' }).summary.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(data?.success).toBe(true)
+      expect(data?.data).toBeDefined()
+      // 摘要应包含实体简略信息而非全量
+      expect((data?.data as Record<string, unknown>).characters).toBeDefined()
+      expect((data?.data as Record<string, unknown>).shots).toBeDefined()
+    })
+
+    it('项目不存在返回错误', async () => {
+      mockGetCanvasProjectByIdForAccount.mockResolvedValue(null)
+      const res = await client.api.canvas.projects({ projectId: 'nonexistent' }).summary.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  GET /characters/:characterId/detail — 角色详情
+  // ═══════════════════════════════════════════════════
+
+  describe('GET /characters/:characterId/detail', () => {
+    it('返回角色完整详情', async () => {
+      mockGetCanvasCharacterForAccount.mockResolvedValue({ id: 'char-001' })
+      const { data } = await client.api.canvas.characters({ characterId: 'char-001' }).detail.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(data?.success).toBe(true)
+      expect(data?.data).toBeDefined()
+    })
+
+    it('角色不存在返回错误', async () => {
+      mockGetCanvasCharacterForAccount.mockResolvedValue(null)
+      const res = await client.api.canvas.characters({ characterId: 'nonexistent' }).detail.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const err = extractEdenError(res)
+      expect(err).toBeTruthy()
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  GET /locations/:locationId/detail — 场景详情
+  // ═══════════════════════════════════════════════════
+
+  describe('GET /locations/:locationId/detail', () => {
+    it('返回场景完整详情', async () => {
+      mockGetCanvasLocationForAccount.mockResolvedValue({ id: 'loc-001' })
+      const { data } = await client.api.canvas.locations({ locationId: 'loc-001' }).detail.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(data?.success).toBe(true)
+      expect(data?.data).toBeDefined()
+    })
+  })
+
+  // ═══════════════════════════════════════════════════
+  //  GET /shots/:shotId/detail — 镜头详情
+  // ═══════════════════════════════════════════════════
+
+  describe('GET /shots/:shotId/detail', () => {
+    it('返回镜头完整详情', async () => {
+      mockGetCanvasShotForAccount.mockResolvedValue({ id: 'shot-001' })
+      const { data } = await client.api.canvas.shots({ shotId: 'shot-001' }).detail.get({
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      expect(data?.success).toBe(true)
+      expect(data?.data).toBeDefined()
     })
   })
 })

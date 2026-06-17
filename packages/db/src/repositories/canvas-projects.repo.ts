@@ -1,4 +1,4 @@
-import type { CanvasContinuityRow, CanvasProjectInsert } from '../types'
+import type { CanvasContinuityRow, CanvasProjectInsert, CanvasProjectRow } from '../types'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { createLogger } from '@excuse/shared'
 import { getDb } from '../db'
@@ -142,4 +142,144 @@ export async function batchGetProjectDetails(accountId: string) {
     shots: shotMap.get(p.id) ?? [],
     latestContinuity: contMap.get(p.id) ?? null,
   }))
+}
+
+// ===== 摘要/详情查询（大项目 Canvas 性能优化） =====
+
+/** 摘要角色行 — 仅汇总画布节点渲染必需的字段 */
+export interface CanvasCharacterSummaryRow {
+  id: string
+  projectId: string
+  name: string
+  role: string | null
+  referenceImageUrl: string | null
+  turnaroundSheetUrl: string | null
+  locked: boolean
+}
+
+/** 摘要场景行 — 仅汇总画布节点渲染必需的字段 */
+export interface CanvasLocationSummaryRow {
+  id: string
+  projectId: string
+  name: string
+  type: string
+  referenceImageUrl: string | null
+  locked: boolean
+}
+
+/** 摘要镜头行 — 仅汇总画布节点渲染必需的字段 */
+export interface CanvasShotSummaryRow {
+  id: string
+  projectId: string
+  shotIndex: number
+  duration: number
+  narrative: string
+  videoUrl: string | null
+  status: string
+  errorMessage: string | null
+  characterIdsJson: string[]
+  locationId: string | null
+}
+
+/** 摘要查询返回值 — 与 getCanvasProjectDetail 结构对称但字段更少 */
+export interface CanvasProjectSummaryResult {
+  project: CanvasProjectRow
+  characterSummaries: CanvasCharacterSummaryRow[]
+  locationSummaries: CanvasLocationSummaryRow[]
+  shotSummaries: CanvasShotSummaryRow[]
+  latestContinuity: CanvasContinuityRow | null
+}
+
+/**
+ * 获取项目摘要（轻量版）— 主画布渲染所需的最小数据集。
+ *
+ * 与 {@link getCanvasProjectDetail} 的区别：
+ * - 角色只查 id/name/role/referenceImageUrl/turnaroundSheetUrl/locked，跳过 profileJson/identityPrompt 等大字段
+ * - 场景只查 id/name/type/referenceImageUrl/locked，跳过 profileJson/scenePrompt 等
+ * - 镜头只查 id/shotIndex/duration/narrative/videoUrl/status/errorMessage/characterIds/locationId，跳过 cameraJson 等
+ */
+export async function getCanvasProjectSummary(id: string): Promise<CanvasProjectSummaryResult | null> {
+  const project = await getCanvasProjectById(id)
+  if (!project)
+    return null
+
+  const [characters, locations, shots, continuityReports] = await Promise.all([
+    getDb()
+      .select({
+        id: canvasCharacters.id,
+        projectId: canvasCharacters.projectId,
+        name: canvasCharacters.name,
+        role: canvasCharacters.role,
+        referenceImageUrl: canvasCharacters.referenceImageUrl,
+        turnaroundSheetUrl: canvasCharacters.turnaroundSheetUrl,
+        locked: canvasCharacters.locked,
+      })
+      .from(canvasCharacters)
+      .where(eq(canvasCharacters.projectId, id)),
+    getDb()
+      .select({
+        id: canvasLocations.id,
+        projectId: canvasLocations.projectId,
+        name: canvasLocations.name,
+        type: canvasLocations.type,
+        referenceImageUrl: canvasLocations.referenceImageUrl,
+        locked: canvasLocations.locked,
+      })
+      .from(canvasLocations)
+      .where(eq(canvasLocations.projectId, id)),
+    getDb()
+      .select({
+        id: canvasShots.id,
+        projectId: canvasShots.projectId,
+        shotIndex: canvasShots.shotIndex,
+        duration: canvasShots.duration,
+        narrative: canvasShots.narrative,
+        videoUrl: canvasShots.videoUrl,
+        status: canvasShots.status,
+        errorMessage: canvasShots.errorMessage,
+        characterIdsJson: canvasShots.characterIdsJson,
+        locationId: canvasShots.locationId,
+      })
+      .from(canvasShots)
+      .where(eq(canvasShots.projectId, id))
+      .orderBy(canvasShots.shotIndex),
+    getDb()
+      .select()
+      .from(canvasContinuityReports)
+      .where(eq(canvasContinuityReports.projectId, id))
+      .orderBy(desc(canvasContinuityReports.createdAt))
+      .limit(1),
+  ])
+
+  return { project, characterSummaries: characters, locationSummaries: locations, shotSummaries: shots, latestContinuity: continuityReports[0] ?? null }
+}
+
+/** 查询单个角色完整数据（供详情面板按需加载） */
+export async function getCanvasCharacterDetail(id: string) {
+  const [character] = await getDb()
+    .select()
+    .from(canvasCharacters)
+    .where(eq(canvasCharacters.id, id))
+    .limit(1)
+  return character ?? null
+}
+
+/** 查询单个场景完整数据（供详情面板按需加载） */
+export async function getCanvasLocationDetail(id: string) {
+  const [location] = await getDb()
+    .select()
+    .from(canvasLocations)
+    .where(eq(canvasLocations.id, id))
+    .limit(1)
+  return location ?? null
+}
+
+/** 查询单个镜头完整数据（供详情面板按需加载） */
+export async function getCanvasShotDetail(id: string) {
+  const [shot] = await getDb()
+    .select()
+    .from(canvasShots)
+    .where(eq(canvasShots.id, id))
+    .limit(1)
+  return shot ?? null
 }

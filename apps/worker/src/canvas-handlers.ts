@@ -6,7 +6,7 @@
  */
 
 import type { TaskRow } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { WorkerContext } from './context'
 import { createLogger } from '@excuse/shared'
 import {
   getCanvasProjectById,
@@ -109,55 +109,55 @@ export async function markRunFailedAndNotify(task: TaskRow, errorMessage: string
 
 // ── Canvas phase handlers ──────────────────────────────────
 
-export async function handleCanvasAnalyze(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasAnalyze(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasAnalysis(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasAnalysis(projectId, ctx.client, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasCharacters(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasCharacters(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasCharacters(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasCharacters(projectId, ctx.client, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasLocations(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasLocations(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasLocations(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasLocations(projectId, ctx.client, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasCharacterRefs(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasCharacterRefs(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasCharacterRefs(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasCharacterRefs(projectId, ctx.client, ctx.storage, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasLocationRefs(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasLocationRefs(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasLocationRefs(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasLocationRefs(projectId, ctx.client, ctx.storage, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasStoryboard(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasStoryboard(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasStoryboard(projectId, workerConfig, runId ?? undefined)
+  const result = await executeCanvasStoryboard(projectId, ctx.client, runId ?? undefined)
   await markRunSucceededAndNotify(task, result)
   return result
 }
 
-export async function handleCanvasContinuity(task: TaskRow, _workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasContinuity(task: TaskRow, _ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
   const result = await executeCanvasContinuity(projectId, runId ?? undefined)
@@ -165,7 +165,7 @@ export async function handleCanvasContinuity(task: TaskRow, _workerConfig: Worke
   return result
 }
 
-export async function handleCanvasRebuild(task: TaskRow, _workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasRebuild(task: TaskRow, _ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
   const result = await executeCanvasRebuild(projectId, runId ?? undefined)
@@ -173,10 +173,10 @@ export async function handleCanvasRebuild(task: TaskRow, _workerConfig: WorkerCo
   return result
 }
 
-export async function handleCanvasVideos(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown>> {
+export async function handleCanvasVideos(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
-  const result = await executeCanvasVideos(projectId, workerConfig, runId ?? undefined, task.id)
+  const result = await executeCanvasVideos(projectId, ctx.client, runId ?? undefined, task.id)
   await markRunSucceededAndNotify(task, result)
   return result
 }

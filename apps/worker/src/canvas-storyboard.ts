@@ -1,9 +1,8 @@
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { DashScopeClient } from '@excuse/provider'
 import { runCanvasAssetStep, runStoryboardPhase } from '@excuse/canvas-runtime'
 import { updateCanvasProject } from '@excuse/db'
 import {
-  createDashScopeClient,
   getTextModel,
   loadRunnableCanvasProject,
 } from './canvas-execution'
@@ -16,7 +15,7 @@ export interface CanvasStoryboardResult extends Record<string, unknown> {
 
 export async function executeCanvasStoryboard(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
   runId?: string,
 ): Promise<CanvasStoryboardResult> {
   const detail = await loadRunnableCanvasProject(projectId)
@@ -52,7 +51,7 @@ export async function executeCanvasStoryboard(
           name: location.name,
           scenePrompt: location.scenePrompt || '',
         })),
-        client: createDashScopeClient(workerConfig),
+        client,
         textModel,
       })
       const output: CanvasAssetOutput = { type: 'json', data: { shotsCount: shotsCreated.length, shots } }

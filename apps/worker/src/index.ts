@@ -1,10 +1,11 @@
 import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
-import { ASRClient, checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
+import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { loadConfig } from './config'
+import { createWorkerContext } from './context'
 import { createHealthServer } from './health'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
@@ -15,7 +16,12 @@ import { handleTask, handleTaskError } from './task-handler'
 import { createTaskProcessor } from './task-processor'
 
 const config = loadConfig()
-const processor = createTaskProcessor(config)
+/**
+ * Worker 进程级共享 context —— DashScopeClient / AssetStorage / ASRClient 构造一次，
+ * 注入到所有 handler（见 docs/TODO.md §一、1）。消除各 handler / route 就地 new 的散点。
+ */
+const ctx = createWorkerContext(config)
+const processor = createTaskProcessor(ctx)
 
 /**
  * 把 DashScopeClient 的所有调用接入 worker 进程内 metrics 收集器。
@@ -37,10 +43,6 @@ registerProviderCallObserver((model, durationMs, success) => {
  */
 registerProviderCallGuard(providerCallGuard)
 warmProviderHealthCache()
-const asrClient = new ASRClient({
-  apiKey: config.dashscopeApiKey,
-  baseUrl: config.dashscopeBaseUrl,
-})
 const logger = createLogger('worker')
 
 // ── Worker ID ──────────────────────────────────────────
@@ -177,7 +179,7 @@ async function main() {
         const stopHeartbeat = startTaskHeartbeat(claimedTask.id, workerId, config.claimTtlMs, { extendTaskLock })
 
         try {
-          const output = await handleTask(claimedTask, config)
+          const output = await handleTask(claimedTask, ctx)
           const succeeded = await completeTaskWithAdapter({
             task: claimedTask,
             output,
@@ -252,7 +254,7 @@ async function main() {
         if (!running)
           break
         try {
-          await processASRTask(project, asrClient)
+          await processASRTask(project, ctx.asrClient)
           healthState.totalTasksProcessed++
         }
         catch (err) {

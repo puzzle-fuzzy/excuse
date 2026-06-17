@@ -35,7 +35,7 @@
  *   - 归属校验：所有操作先通过 getXxxForAccount 确认资源属于当前用户
  */
 import type { CanvasPipelinePhase } from '@excuse/db'
-import type { AcceptedResponse, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunListResponse, CanvasPipelineRunResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotReferenceAsset, CanvasShotResponse } from '@excuse/shared'
+import type { AcceptedResponse, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunListResponse, CanvasPipelineRunResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasProjectSummaryResponse, CanvasShotReferenceAsset, CanvasShotResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import {
   cancelActiveCanvasAssetsByProject,
@@ -212,6 +212,17 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!project)
         throw new NotFoundError('项目不存在')
       return { success: true, data: project } satisfies CanvasProjectResponse
+    })
+
+    // 项目摘要（轻量版）— 主画布渲染，不含实体 JSONB 大字段
+    .get('/projects/:projectId/summary', async ({ params: { projectId }, userId }) => {
+      const owned = await getCanvasProjectByIdForAccount(projectId, userId)
+      if (!owned)
+        throw new NotFoundError('项目不存在或无权访问')
+      const summary = await svc.getProjectSummary(projectId)
+      if (!summary)
+        throw new NotFoundError('项目不存在')
+      return { success: true, data: summary } satisfies CanvasProjectSummaryResponse
     })
 
     // 资产轮询 — SSE 断线或漏事件时的数据 fallback
@@ -542,6 +553,17 @@ export function createCanvasRoutes(config: ServerConfig) {
       }),
     })
 
+    // 角色详情（按需加载，供详情面板使用）
+    .get('/characters/:characterId/detail', async ({ params: { characterId }, userId }) => {
+      const character = await getCanvasCharacterForAccount(characterId, userId)
+      if (!character)
+        throw new NotFoundError('角色不存在或无权访问')
+      const detail = await svc.getCharacterDetail(characterId)
+      if (!detail)
+        throw new NotFoundError('角色不存在')
+      return { success: true, data: detail } satisfies CanvasCharacterResponse
+    })
+
     .patch('/locations/:locationId', async ({ params: { locationId }, body, userId }) => {
       const location = await getCanvasLocationForAccount(locationId, userId)
       if (!location)
@@ -557,6 +579,17 @@ export function createCanvasRoutes(config: ServerConfig) {
         referenceImageUrl: t.Optional(t.String()),
         locked: t.Optional(t.Boolean()),
       }),
+    })
+
+    // 场景详情（按需加载，供详情面板使用）
+    .get('/locations/:locationId/detail', async ({ params: { locationId }, userId }) => {
+      const location = await getCanvasLocationForAccount(locationId, userId)
+      if (!location)
+        throw new NotFoundError('场景不存在或无权访问')
+      const detail = await svc.getLocationDetail(locationId)
+      if (!detail)
+        throw new NotFoundError('场景不存在')
+      return { success: true, data: detail } satisfies CanvasLocationResponse
     })
 
     .patch('/shots/:shotId', async ({ params: { shotId }, body, userId }) => {
@@ -616,6 +649,17 @@ export function createCanvasRoutes(config: ServerConfig) {
           ),
         }), { maxItems: 8 })),
       }),
+    })
+
+    // 镜头详情（按需加载，供详情面板使用）
+    .get('/shots/:shotId/detail', async ({ params: { shotId }, userId }) => {
+      const shot = await getCanvasShotForAccount(shotId, userId)
+      if (!shot)
+        throw new NotFoundError('镜头不存在或无权访问')
+      const detail = await svc.getShotDetail(shotId)
+      if (!detail)
+        throw new NotFoundError('镜头不存在')
+      return { success: true, data: detail } satisfies CanvasShotResponse
     })
 
     // ===== 批量应用参考资产 =====

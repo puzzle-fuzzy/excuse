@@ -9,7 +9,7 @@
  */
 
 import type { TaskRow } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { WorkerContext } from './context'
 import { calculateCost } from '@excuse/billing'
 import {
   createGenerationRecord,
@@ -21,7 +21,7 @@ import {
   updateSubtitleExport,
   updateSubtitleProjectStatus,
 } from '@excuse/db'
-import { ASRClient, AssetStorage, burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/provider'
+import { burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/provider'
 import { createLogger, parseMediaBurnSubtitleInput, parseMediaExtractAudioInput } from '@excuse/shared'
 import { getDefaultStyleConfig, sentencesToAss } from '@excuse/subtitle-engine'
 import { TaskInputError } from '@excuse/task-engine'
@@ -46,8 +46,9 @@ type WorkerTaskOutput = Record<string, unknown> | undefined
  *   10. 更新项目 asrRecordId
  *   11. SSE 通知
  */
-export async function handleMediaExtractAudio(task: TaskRow, config: WorkerConfig): Promise<WorkerTaskOutput> {
+export async function handleMediaExtractAudio(task: TaskRow, ctx: WorkerContext): Promise<WorkerTaskOutput> {
   const { projectId, accountId } = task
+  const { config, storage, asrClient } = ctx
   // 解析 JSONB task.input（缺字段/类型错 → 分类 validation 永久失败，不重试）
   const parsed = parseMediaExtractAudioInput(task.input)
   if (!parsed.ok)
@@ -57,15 +58,6 @@ export async function handleMediaExtractAudio(task: TaskRow, config: WorkerConfi
   if (!projectId || !accountId) {
     throw new TaskInputError('media.extract-audio: missing projectId or accountId in task row')
   }
-
-  const storage = new AssetStorage({
-    storageRoot: config.storageRoot,
-    oss: config.oss,
-  })
-  const asrClient = new ASRClient({
-    apiKey: config.dashscopeApiKey,
-    baseUrl: config.dashscopeBaseUrl,
-  })
 
   try {
     // 重置状态（首次执行或重试时统一处理）
@@ -188,8 +180,9 @@ export async function handleMediaExtractAudio(task: TaskRow, config: WorkerConfi
  *   9. 更新项目导出信息 + 状态 → completed
  *   10. SSE 通知
  */
-export async function handleMediaBurnSubtitle(task: TaskRow, config: WorkerConfig): Promise<WorkerTaskOutput> {
+export async function handleMediaBurnSubtitle(task: TaskRow, ctx: WorkerContext): Promise<WorkerTaskOutput> {
   const { projectId, accountId } = task
+  const { config, storage } = ctx
   // 解析 JSONB task.input（缺字段/类型错 → 分类 validation 永久失败，不重试）
   const parsed = parseMediaBurnSubtitleInput(task.input)
   if (!parsed.ok)
@@ -199,11 +192,6 @@ export async function handleMediaBurnSubtitle(task: TaskRow, config: WorkerConfi
   if (!projectId || !accountId) {
     throw new TaskInputError('media.burn-subtitle: missing projectId or accountId in task row')
   }
-
-  const storage = new AssetStorage({
-    storageRoot: config.storageRoot,
-    oss: config.oss,
-  })
 
   try {
     // 重置状态为重试准备（首次执行或重试时统一处理）

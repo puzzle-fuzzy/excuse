@@ -11,6 +11,7 @@ import PipelineController from '../components/canvas/PipelineController'
 import TaskQueuePanel from '../components/canvas/TaskQueuePanel'
 import { useCanvasAssetsPolling } from '../hooks/use-canvas-assets-polling'
 import { resolveFocusNodeWithProject } from '../lib/asset-library'
+import { applyEntityPatches } from '../lib/apply-entity-patches'
 import { hasCanvasPollDelta } from '../lib/canvas-poll'
 import { useRealtimeSync } from '../stores/realtime-sync'
 
@@ -30,10 +31,15 @@ export default function CanvasEditor() {
   // 只在 URL focus 参数变化时重新消费
   const consumedFocusRef = useRef<string | null>(null)
 
-  // 从 RealtimeSync 获取项目版本号和 pipeline 阶段完成信号
+  // 从 RealtimeSync 获取项目版本号、pipeline 阶段完成信号和实体补丁
   const projectVersion = useRealtimeSync(s => projectId ? s.projectVersions[projectId] : 0)
   const phaseDone = useRealtimeSync(s => s.phaseDone)
   const consumePhaseDone = useRealtimeSync(s => s.consumePhaseDone)
+  // 用计数而非数组引用做 selector —— `.filter()` 每次返回新数组会让 zustand 认为 store 变了，
+  // 导致每次任意 store 更新（connectionMode / lastEventAt 等）都重渲染并空跑下方 effect。
+  // 返回 number 按值比较，仅在本项目补丁数真正变化时触发。
+  const entityPatchCount = useRealtimeSync(s => projectId ? s.entityPatches.filter(p => p.projectId === projectId).length : 0)
+  const consumeEntityPatches = useRealtimeSync(s => s.consumeEntityPatches)
 
   // 资产轮询 — SSE 降级时的补充性数据通道 + 状态差异检测
   const { pollData, connectionMode, isPolling } = useCanvasAssetsPolling(projectId)
@@ -58,7 +64,7 @@ export default function CanvasEditor() {
     loadProject()
   }, [loadProject])
 
-  // 项目版本号变化时重新加载（由 pipeline_node_update SSE 事件驱动）
+  // 项目版本号变化时重新加载（由 pipeline_node_update SSE 事件中的 phase 级别事件驱动）
   useEffect(() => {
     if (projectVersion && projectVersion > 0) {
       loadProject()
@@ -66,6 +72,17 @@ export default function CanvasEditor() {
       return () => clearTimeout(timer)
     }
   }, [projectVersion, loadProject])
+
+  // 实体补丁消费 — shot 状态/视频 URL 的局部 patch，不做全量 reload
+  // （character/location 事件无可即时 patch 字段，由 useCanvasAssetsPolling 兜底；见 applyEntityPatches）
+  useEffect(() => {
+    if (entityPatchCount === 0 || !projectId || !project)
+      return
+    const patches = consumeEntityPatches(projectId)
+    if (patches.length === 0)
+      return
+    setProject(applyEntityPatches(project, patches))
+  }, [entityPatchCount, project, projectId, consumeEntityPatches])
 
   // URL focus 参数 → 自动选中节点（项目加载后消费一次）
   // focus 变化时重新消费；project reload 但 focus 不变时不覆盖用户手动选择

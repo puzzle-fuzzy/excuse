@@ -6,7 +6,7 @@
  */
 
 import type { TaskErrorInfo, TaskRow } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { WorkerContext } from './context'
 import { markTaskFailed, markTaskRetrying } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
 import {
@@ -21,84 +21,84 @@ const logger = createLogger('task-handler')
 
 type WorkerTaskOutput = Record<string, unknown> | undefined
 
-const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerConfig, WorkerTaskOutput>([
+const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTaskOutput>([
   {
     type: 'canvas.analyze',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasAnalyze } = await import('./canvas-handlers')
-      return handleCanvasAnalyze(task, workerConfig)
+      return handleCanvasAnalyze(task, ctx)
     },
   },
   {
     type: 'canvas.characters',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasCharacters } = await import('./canvas-handlers')
-      return handleCanvasCharacters(task, workerConfig)
+      return handleCanvasCharacters(task, ctx)
     },
   },
   {
     type: 'canvas.locations',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasLocations } = await import('./canvas-handlers')
-      return handleCanvasLocations(task, workerConfig)
+      return handleCanvasLocations(task, ctx)
     },
   },
   {
     type: 'canvas.characterRefs',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasCharacterRefs } = await import('./canvas-handlers')
-      return handleCanvasCharacterRefs(task, workerConfig)
+      return handleCanvasCharacterRefs(task, ctx)
     },
   },
   {
     type: 'canvas.locationRefs',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasLocationRefs } = await import('./canvas-handlers')
-      return handleCanvasLocationRefs(task, workerConfig)
+      return handleCanvasLocationRefs(task, ctx)
     },
   },
   {
     type: 'canvas.storyboard',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasStoryboard } = await import('./canvas-handlers')
-      return handleCanvasStoryboard(task, workerConfig)
+      return handleCanvasStoryboard(task, ctx)
     },
   },
   {
     type: 'canvas.continuity',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasContinuity } = await import('./canvas-handlers')
-      return handleCanvasContinuity(task, workerConfig)
+      return handleCanvasContinuity(task, ctx)
     },
   },
   {
     type: 'canvas.rebuild',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasRebuild } = await import('./canvas-handlers')
-      return handleCanvasRebuild(task, workerConfig)
+      return handleCanvasRebuild(task, ctx)
     },
   },
   {
     type: 'canvas.videos',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleCanvasVideos } = await import('./canvas-handlers')
-      return handleCanvasVideos(task, workerConfig)
+      return handleCanvasVideos(task, ctx)
     },
   },
 
   // ── Media tasks ──────────────────────────────────────
   {
     type: 'media.extract-audio',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleMediaExtractAudio } = await import('./media-handlers')
-      return handleMediaExtractAudio(task, workerConfig)
+      return handleMediaExtractAudio(task, ctx)
     },
   },
   {
     type: 'media.burn-subtitle',
-    handler: async (task, workerConfig) => {
+    handler: async (task, ctx) => {
       const { handleMediaBurnSubtitle } = await import('./media-handlers')
-      return handleMediaBurnSubtitle(task, workerConfig)
+      return handleMediaBurnSubtitle(task, ctx)
     },
   },
 ])
@@ -109,9 +109,9 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerConfig, WorkerTask
  * handler 返回值：成功时返回 output（可选），失败时抛异常
  * 抛异常由 index.ts 的 handleTaskError 统一处理（retryable vs permanent）
  */
-export async function handleTask(task: TaskRow, workerConfig: WorkerConfig): Promise<Record<string, unknown> | undefined> {
+export async function handleTask(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown> | undefined> {
   logger.info({ taskId: task.id, type: task.type, domain: task.domain }, 'Handling task')
-  return taskRegistry.handle(task, workerConfig)
+  return taskRegistry.handle(task, ctx)
 }
 
 /**

@@ -85,6 +85,45 @@ describe('@excuse/events', () => {
     })
   })
 
+  it('canvas 视频 shot 完成时在 pipeline 事件中携带 videoUrl（供前端 delta-patch 即时回填）', () => {
+    const events = mapGenerationNotifyToSSEEvents({
+      accountId: 'acc-1',
+      recordId: 'rec-1',
+      taskId: 'task-1',
+      status: 'succeeded',
+      category: 'video',
+      model: 'wan',
+      canvasMeta: { projectId: 'project-1', shotId: 'shot-1' },
+      outputResult: { type: 'video', savedUrls: ['https://cdn/video.mp4'] },
+    })
+
+    expect(events[1]!.data).toMatchObject({
+      nodeType: 'shot',
+      nodeId: 'shot-1',
+      status: 'completed',
+      data: { videoUrl: 'https://cdn/video.mp4' },
+    })
+  })
+
+  it('canvas shot 无视频 URL 时不附带 data 字段', () => {
+    const events = mapGenerationNotifyToSSEEvents({
+      accountId: 'acc-1',
+      recordId: 'rec-1',
+      taskId: 'task-1',
+      status: 'succeeded',
+      category: 'video',
+      model: 'wan',
+      canvasMeta: { projectId: 'project-1', shotId: 'shot-1' },
+    })
+
+    expect(events[1]!.data).toMatchObject({
+      nodeType: 'shot',
+      nodeId: 'shot-1',
+      status: 'completed',
+    })
+    expect('data' in events[1]!.data).toBe(false)
+  })
+
   it('跟踪用户事件 hub 连接并向所有标签页分发', () => {
     const hub = new UserEventHub()
     const received: Array<{ event: string, data: unknown }> = []

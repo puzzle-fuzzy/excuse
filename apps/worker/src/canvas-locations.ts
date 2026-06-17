@@ -1,5 +1,5 @@
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { WorkerConfig } from './config'
+import type { DashScopeClient } from '@excuse/provider'
 import { generateLocationEntity, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import {
   deleteCanvasLocationsByProject,
@@ -9,7 +9,6 @@ import {
 } from '@excuse/db'
 import {
   assertCanvasProjectNotGenerating,
-  createDashScopeClient,
   getTextModel,
 } from './canvas-execution'
 
@@ -22,7 +21,7 @@ export interface CanvasLocationsResult extends Record<string, unknown> {
 
 export async function executeCanvasLocations(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
   runId?: string,
 ): Promise<CanvasLocationsResult> {
   const project = await getCanvasProjectById(projectId)
@@ -33,7 +32,6 @@ export async function executeCanvasLocations(
   const analysis = project.analysisJson
   const accountId = project.accountId
   const textModel = getTextModel(project.modelPreferencesJson)
-  const client = createDashScopeClient(workerConfig)
   let locationsCreated = 0
   let locationsFailed = 0
 

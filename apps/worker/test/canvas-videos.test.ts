@@ -14,7 +14,7 @@ const mockNotifyNotification = mock(async () => undefined)
 const mockUpdateCanvasProject = mock(async () => undefined)
 const mockUpdateCanvasShot = mock(async () => undefined)
 
-const mockCreateDashScopeClient = mock(() => ({ submitVideoTaskWithFallback: mock(async () => ({ success: true, taskId: 'provider-task-1', model: 'wanx2.1-t2v' })) }))
+const mockClient = { submitVideoTaskWithFallback: mock(async () => ({ success: true, taskId: 'provider-task-1', model: 'wanx2.1-t2v' })) }
 const mockGetVideoModel = mock(() => 'wanx2.1-t2v')
 const mockLoadRunnableCanvasProject = mock(async () => ({
   project: {
@@ -50,25 +50,11 @@ mock.module('@excuse/db', () => ({
 }))
 
 mock.module('../src/canvas-execution', () => ({
-  createDashScopeClient: mockCreateDashScopeClient,
   getVideoModel: mockGetVideoModel,
   loadRunnableCanvasProject: mockLoadRunnableCanvasProject,
 }))
 
 const { executeCanvasVideos } = await import('../src/canvas-videos')
-
-const workerConfig = {
-  dashscopeApiKey: 'test-key',
-  dashscopeBaseUrl: 'https://example.com',
-  storageRoot: './uploads',
-  pollIntervalMs: 1000,
-  staleTimeoutMs: 1000,
-  claimTtlMs: 1000,
-  sweepIntervalMs: 1000,
-  oss: undefined,
-  metricsAccessToken: undefined,
-  metricsAllowedCidrs: ['127.0.0.1/32'],
-}
 
 describe('executeCanvasVideos 幂等提交', () => {
   beforeEach(() => {
@@ -80,7 +66,7 @@ describe('executeCanvasVideos 幂等提交', () => {
     mockNotifyNotification.mockClear()
     mockUpdateCanvasProject.mockClear()
     mockUpdateCanvasShot.mockClear()
-    mockCreateDashScopeClient.mockClear()
+    mockClient.submitVideoTaskWithFallback.mockClear()
     mockGetVideoModel.mockClear()
     mockLoadRunnableCanvasProject.mockClear()
     mockFindReusableCanvasAssetForPipelineTarget.mockResolvedValue(null)
@@ -94,7 +80,7 @@ describe('executeCanvasVideos 幂等提交', () => {
       taskId: 'provider-task-existing',
     })
 
-    const result = await executeCanvasVideos('project-1', workerConfig, 'run-1', 'worker-task-1')
+    const result = await executeCanvasVideos('project-1', mockClient, 'run-1', 'worker-task-1')
 
     expect(result.shotsSubmitted).toBe(1)
     expect(mockCreateCanvasAsset).not.toHaveBeenCalled()
@@ -115,7 +101,7 @@ describe('executeCanvasVideos 幂等提交', () => {
       taskId: null,
     })
 
-    const result = await executeCanvasVideos('project-1', workerConfig, 'run-1', 'worker-task-1')
+    const result = await executeCanvasVideos('project-1', mockClient, 'run-1', 'worker-task-1')
 
     expect(result.shotsSubmitted).toBe(1)
     expect(mockCreateCanvasAsset).not.toHaveBeenCalled()
@@ -131,7 +117,7 @@ describe('executeCanvasVideos 幂等提交', () => {
   })
 
   it('没有可复用 asset 时创建新 asset 再提交', async () => {
-    const result = await executeCanvasVideos('project-1', workerConfig, 'run-1', 'worker-task-1')
+    const result = await executeCanvasVideos('project-1', mockClient, 'run-1', 'worker-task-1')
 
     expect(result.shotsSubmitted).toBe(1)
     expect(mockCreateCanvasAsset).toHaveBeenCalledWith(expect.objectContaining({

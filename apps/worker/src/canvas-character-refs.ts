@@ -1,4 +1,4 @@
-import type { WorkerConfig } from './config'
+import type { AssetStorage, DashScopeClient } from '@excuse/provider'
 import {
   buildCharacterPortraitPrompt,
   buildCharacterTurnaroundPrompt,
@@ -10,12 +10,8 @@ import {
   markCanvasAssetRunning,
   updateCanvasProject,
 } from '@excuse/db'
+import { getModelById } from '@excuse/provider'
 import {
-  AssetStorage,
-  getModelById,
-} from '@excuse/provider'
-import {
-  createDashScopeClient,
   getImageModel,
   loadRunnableCanvasProject,
 } from './canvas-execution'
@@ -32,7 +28,8 @@ export interface CanvasCharacterRefsResult extends Record<string, unknown> {
 
 export async function executeCanvasCharacterRefs(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
+  storage: AssetStorage,
   runId?: string,
 ): Promise<CanvasCharacterRefsResult> {
   const detail = await loadRunnableCanvasProject(projectId)
@@ -43,8 +40,6 @@ export async function executeCanvasCharacterRefs(
   if (!imageModelConfig)
     throw new Error(`未知图片模型：${imageModel}`)
 
-  const client = createDashScopeClient(workerConfig)
-  const storage = new AssetStorage({ storageRoot: workerConfig.storageRoot, oss: workerConfig.oss })
   let charactersProcessed = 0
   let charactersSkipped = 0
   let charactersFailed = 0

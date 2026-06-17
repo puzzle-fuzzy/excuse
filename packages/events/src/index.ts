@@ -108,6 +108,20 @@ export function parseGenerationNotifyPayload(rawPayload: string): GenerationNoti
   return JSON.parse(rawPayload) as GenerationNotifyPayload
 }
 
+/**
+ * 从生成 outputResult 提取视频 URL（若有）。
+ *
+ * 视频 shot 完成时，把这个 URL 随 pipeline_node_update 事件下发，
+ * 前端 delta-patch 据此即时回填 shot.videoUrl，无需等待 2-5s 的资产轮询兜底。
+ * savedUrls 是落 OSS 后的最终 URL（与 canvas_shots.videoUrl 一致）；
+ * originalUrl / video_url 是 provider 原始 URL，保留以兼容历史数据。
+ */
+function extractVideoUrl(outputResult: GenerationNotifyPayload['outputResult']): string | undefined {
+  if (!outputResult || outputResult.type !== 'video')
+    return undefined
+  return outputResult.savedUrls[0] ?? outputResult.originalUrl ?? outputResult.video_url
+}
+
 export function mapGenerationNotifyToSSEEvents(payload: GenerationNotifyPayload): UserSSEEvent[] {
   const events: UserSSEEvent[] = [
     {
@@ -128,6 +142,8 @@ export function mapGenerationNotifyToSSEEvents(payload: GenerationNotifyPayload)
   ]
 
   if (payload.canvasMeta) {
+    // 视频 shot 完成时携带最终 URL，供前端 delta-patch 即时回填（避免全量 reload + 轮询延迟）
+    const videoUrl = extractVideoUrl(payload.outputResult)
     events.push({
       userId: payload.accountId,
       event: SSE_PIPELINE_NODE_EVENT,
@@ -136,6 +152,7 @@ export function mapGenerationNotifyToSSEEvents(payload: GenerationNotifyPayload)
         nodeType: 'shot',
         nodeId: payload.canvasMeta.shotId,
         status: payload.status === 'succeeded' ? 'completed' : payload.status === 'failed' ? 'failed' : 'running',
+        ...(videoUrl ? { data: { videoUrl } } : {}),
       },
     })
 

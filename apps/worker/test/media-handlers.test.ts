@@ -71,18 +71,21 @@ mock.module('@excuse/db', () => ({
 }))
 
 // Mock ALL exports that media-handlers.ts statically imports from @excuse/provider
+const MockAssetStorage = class {
+  constructor(_config: unknown) {}
+  async uploadGenerated(_buffer: Buffer, key: string) {
+    dbState.uploadedKeys.push(key)
+    return `https://cdn/${key}`
+  }
+}
 mock.module('@excuse/provider', () => ({
   burnSubtitlesToVideo: async () => ({ outputPath: '/tmp/test-export.mp4', fileSize: 1024 }),
-  AssetStorage: class MockAssetStorage {
-    constructor(_config: unknown) {}
-    async uploadGenerated(_buffer: Buffer, key: string) {
-      dbState.uploadedKeys.push(key)
-      return `https://cdn/${key}`
-    }
-  },
+  AssetStorage: MockAssetStorage,
   ASRClient: class {},
+  DashScopeClient: class {},
   extractAudioFromVideo: async () => ({ audioPath: '/tmp/test.wav', durationMs: 30000 }),
   getMediaDurationMs: async () => 30000,
+  getModelById: () => undefined,
 }))
 
 // Import handler under test
@@ -168,16 +171,21 @@ function makeUploadedFile(overrides: Partial<UploadedFileRow> = {}): UploadedFil
   } as UploadedFileRow
 }
 
-function makeWorkerConfig() {
+function makeWorkerContext() {
   return {
-    dashscopeApiKey: 'test-key',
-    dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
-    storageRoot: '/tmp/test-storage',
-    pollIntervalMs: 5000,
-    staleTimeoutMs: 1800000,
-    claimTtlMs: 30000,
-    sweepIntervalMs: 60000,
-    oss: undefined,
+    config: {
+      dashscopeApiKey: 'test-key',
+      dashscopeBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+      storageRoot: '/tmp/test-storage',
+      pollIntervalMs: 5000,
+      staleTimeoutMs: 1800000,
+      claimTtlMs: 30000,
+      sweepIntervalMs: 60000,
+      oss: undefined,
+    },
+    client: {},
+    storage: new MockAssetStorage({}),
+    asrClient: {},
   }
 }
 
@@ -218,7 +226,7 @@ describe('handleMediaBurnSubtitle', () => {
     const task = makeBurnTask({ input: {} })
 
     await expect(
-      handleMediaBurnSubtitle(task, makeWorkerConfig()),
+      handleMediaBurnSubtitle(task, makeWorkerContext()),
     ).rejects.toThrow('media.burn-subtitle input missing exportRecordId')
   })
 
@@ -227,7 +235,7 @@ describe('handleMediaBurnSubtitle', () => {
     const task = makeBurnTask()
 
     await expect(
-      handleMediaBurnSubtitle(task, makeWorkerConfig()),
+      handleMediaBurnSubtitle(task, makeWorkerContext()),
     ).rejects.toThrow('字幕项目不存在')
   })
 
@@ -237,7 +245,7 @@ describe('handleMediaBurnSubtitle', () => {
     dbState.projects.push(makeProject({ sentences: null }))
 
     await expect(
-      handleMediaBurnSubtitle(task, makeWorkerConfig()),
+      handleMediaBurnSubtitle(task, makeWorkerContext()),
     ).rejects.toThrow('没有字幕内容')
 
     const failedUpdate = dbState.updatedProjects.find(u => u.status === 'failed')
@@ -252,7 +260,7 @@ describe('handleMediaBurnSubtitle', () => {
     dbState.projects.push(makeProject({ sentences: [] as never[] }))
 
     await expect(
-      handleMediaBurnSubtitle(task, makeWorkerConfig()),
+      handleMediaBurnSubtitle(task, makeWorkerContext()),
     ).rejects.toThrow('没有字幕内容')
 
     const failedUpdate = dbState.updatedProjects.find(u => u.status === 'failed')
@@ -268,7 +276,7 @@ describe('handleMediaBurnSubtitle', () => {
     dbState.files = []
 
     await expect(
-      handleMediaBurnSubtitle(task, makeWorkerConfig()),
+      handleMediaBurnSubtitle(task, makeWorkerContext()),
     ).rejects.toThrow()
 
     const failedUpdate = dbState.updatedProjects.find(u => u.status === 'failed')
@@ -294,7 +302,7 @@ describe('handleMediaBurnSubtitle', () => {
     })) as typeof Bun.file
 
     try {
-      await handleMediaBurnSubtitle(task, makeWorkerConfig())
+      await handleMediaBurnSubtitle(task, makeWorkerContext())
     }
     finally {
       Bun.file = originalBunFile

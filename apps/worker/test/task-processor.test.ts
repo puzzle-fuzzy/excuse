@@ -2,6 +2,7 @@ import type { GenerationNotifyPayload, OutputResult, VideoOutputResult } from '@
 import type { WorkerAuditEntry } from '../src/services/audit'
 import type { TaskProcessorDeps } from '../src/task-processor'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { createWorkerContext } from '../src/context'
 import { resetWorkerAuditWriter, setWorkerAuditWriter } from '../src/services/audit'
 import { createTaskProcessor, extractVideoUrl } from '../src/task-processor'
 
@@ -28,6 +29,7 @@ mock.module('@excuse/db', () => ({
 mock.module('@excuse/provider', () => ({
   DashScopeClient: class {},
   AssetStorage: class {},
+  ASRClient: class {},
   getModelById: () => undefined,
 }))
 
@@ -50,14 +52,14 @@ function createMockDeps(overrides: Partial<TaskProcessorDeps> = {}): TaskProcess
 
 function createTestProcessor(deps: Partial<TaskProcessorDeps> = {}) {
   return createTaskProcessor(
-    {
+    createWorkerContext({
       dashscopeApiKey: 'test-key',
       dashscopeBaseUrl: 'https://test.api.com',
       storageRoot: '/tmp/test-uploads',
       pollIntervalMs: 5000,
       staleTimeoutMs: 1000, // 1 秒超时，方便测试
       oss: undefined,
-    },
+    } as never),
     deps,
   )
 }

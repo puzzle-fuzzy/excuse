@@ -1,4 +1,4 @@
-import type { WorkerConfig } from './config'
+import type { DashScopeClient } from '@excuse/provider'
 import { submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,
@@ -10,7 +10,6 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import {
-  createDashScopeClient,
   getVideoModel,
   loadRunnableCanvasProject,
 } from './canvas-execution'
@@ -25,14 +24,13 @@ export interface CanvasVideosResult extends Record<string, unknown> {
 
 export async function executeCanvasVideos(
   projectId: string,
-  workerConfig: WorkerConfig,
+  client: DashScopeClient,
   runId?: string,
   workerTaskId?: string,
 ): Promise<CanvasVideosResult> {
   const detail = await loadRunnableCanvasProject(projectId)
   const project = detail.project
   const accountId = project.accountId
-  const client = createDashScopeClient(workerConfig)
   let shotsSubmitted = 0
   let shotsSkipped = 0
   let shotsFailed = 0

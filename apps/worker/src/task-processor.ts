@@ -1,7 +1,7 @@
 import type { GenerationInputParams, NotifyNotificationOpts } from '@excuse/db'
 import type { DashScopeTaskOutput } from '@excuse/provider'
 import type { CostDetail, GenerationCategory, GenerationNotifyPayload, GenerationStatus, OutputResult, VideoOutputResult } from '@excuse/shared'
-import type { WorkerConfig } from './config'
+import type { WorkerContext } from './context'
 import { calculateCost } from '@excuse/billing'
 import {
   debitCredit,
@@ -18,7 +18,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
-import { AssetStorage, DashScopeClient, getModelById } from '@excuse/provider'
+import { getModelById } from '@excuse/provider'
 import { createLogger, extractBillingParams, parseGenerationInputParamsMeta } from '@excuse/shared'
 import { audit } from './services/audit'
 
@@ -54,19 +54,11 @@ export interface TaskProcessorDeps {
 /**
  * 创建任务处理器
  *
- * @param config Worker 配置
+ * @param ctx Worker 共享 context（提供 client / storage / config 单例）
  * @param deps 可选的外部依赖注入（测试时使用）
  */
-export function createTaskProcessor(config: WorkerConfig, deps?: Partial<TaskProcessorDeps>) {
-  // 生产环境：用真实依赖
-  const client = new DashScopeClient({
-    apiKey: config.dashscopeApiKey,
-    baseUrl: config.dashscopeBaseUrl,
-  })
-  const storage = new AssetStorage({
-    storageRoot: config.storageRoot,
-    oss: config.oss,
-  })
+export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProcessorDeps>) {
+  const { config, client, storage } = ctx
 
   const queryTask = deps?.queryTask ?? ((id: string) => client.queryTask(id))
   const downloadAndMap = deps?.downloadAndMap ?? ((urls, subDir, prefix) => storage.downloadAndMap(urls, subDir, prefix))
