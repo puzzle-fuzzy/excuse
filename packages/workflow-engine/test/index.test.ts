@@ -30,10 +30,14 @@ describe('@excuse/workflow-engine', () => {
       'storyboard',
       'continuity',
       'rebuild',
+      'dialogue',
       'videos',
+      'bgm',
+      'assemble',
     ])
     expect(CANVAS_PAUSE_BEFORE.has('storyboard')).toBe(true)
     expect(CANVAS_PAUSE_BEFORE.has('videos')).toBe(true)
+    expect(CANVAS_PAUSE_BEFORE.has('assemble')).toBe(true)
   })
 
   it('阶段与 canvas 任务类型双向映射', () => {
@@ -45,8 +49,11 @@ describe('@excuse/workflow-engine', () => {
 
   it('存在下一阶段时返回下一阶段', () => {
     expect(getNextCanvasPhase('analyze')).toBe('characters')
-    expect(getNextCanvasPhase('rebuild')).toBe('videos')
-    expect(getNextCanvasPhase('videos')).toBeNull()
+    expect(getNextCanvasPhase('rebuild')).toBe('dialogue')
+    expect(getNextCanvasPhase('dialogue')).toBe('videos')
+    expect(getNextCanvasPhase('videos')).toBe('bgm')
+    expect(getNextCanvasPhase('bgm')).toBe('assemble')
+    expect(getNextCanvasPhase('assemble')).toBeNull()
   })
 
   it('非 canvas 或未完成任务不自动推进', () => {

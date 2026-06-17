@@ -60,22 +60,18 @@
 - ✅ Canvas analyze 阶段 characters/locations 自动匹配库中已有资产
 - ✅ Canvas 编辑器「资产库」快捷入口（CanvasStatusBar）
 
-### 2. 对话式音视频 + BGM + 合成
+### 2. 对话式音视频 + BGM + 合成（待排期）
 
-> 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。
+> 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。需 DB migration（pgEnum 新增 `dialogue`/`bgm`/`assemble`）和流水线扩展，建议单独排期。
 
-**流水线扩展**（现有 9 阶段基础上）
-
-- 新增阶段 8.5 `dialogue`：输入 storyboard + characters，LLM 为每个 shot 生成对话层 prompt（提取对白 + 语气/情绪/音量 + 环境音效），输出 `dialoguePrompt` + `dialogueJson`。
-- 阶段 9 `videos` 升级：有角色+场景参考图 → R2V + 对话式 prompt（`[Image N]` 指代）；仅角色参考图 → R2V；无参考图 → 降级 T2V（当前逻辑）。
-- 新增阶段 10 `bgm`：FunMusic（fun-music-v1）按项目 genre/mood 生成 BGM，存 OSS + 写 `canvas_projects.bgm_url`。
-- 新增阶段 11 `assemble`：FFmpeg 合成视频（含对话音频）+ BGM，或前端音轨叠加。
-
-**Shot 数据模型扩展**：`canvas_shots` 新增 `dialogue_prompt`（TEXT）、`dialogue_json`（JSONB：lines/soundEffects/ambientSound）、`reference_media`（JSONB：R2V 参考媒体列表 + subjectId/order）。
-
-**R2V 构建器**：新增 `buildR2VRequest(shot, characters, locations)`，收集角色 turnaround + 场景参考图组装 `media`，prompt 用 `shot.dialoguePrompt || shot.prompt`，参数含 resolution/ratio/duration/watermark。
-
-**验收**：对话阶段产出结构化对白；R2V 路径生成角色一致 + 带音频视频；BGM 生成并合成进最终视频。
+**依赖项**
+- DB migration: `canvasPipelinePhaseEnum` 新增 `dialogue`/`bgm`/`assemble`
+- `canvas_shots` 新增 `dialogue_prompt`/`dialogue_json`/`reference_media` 列
+- `canvas_projects` 新增 `bgm_url` 列
+- Phase 8.5 `dialogue`: LLM 对话层生成
+- Phase 10 `bgm`: FunMusic BGM 生成
+- Phase 11 `assemble`: FFmpeg 视频+音频+BGM 合成
+- R2V builder: `buildR2VRequest` 组装多参考图模式
 
 ### 附：对话音视频 Prompt 规范要点
 

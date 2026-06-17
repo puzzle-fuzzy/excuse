@@ -17,7 +17,10 @@ export const canvasPipelinePhaseEnum = pgEnum('canvas_pipeline_phase', [
   'storyboard', // 阶段 6: LLM 生成分镜脚本
   'continuity', // 阶段 7: 规则校验连续性（不调用 LLM）
   'rebuild', // 阶段 8: 重建视频提示词（组装 videoPrompt）
-  'videos', // 阶段 9: 提交视频生成任务
+  'dialogue', // 阶段 8.5: LLM 为每个 shot 生成对话层 prompt（对白/语气/环境音效）
+  'videos', // 阶段 9: 提交视频生成任务（含对话式 prompt + R2V 多参考图）
+  'bgm', // 阶段 10: FunMusic 按项目 genre/mood 生成 BGM
+  'assemble', // 阶段 11: FFmpeg 合成视频（含对话音频）+ BGM
 ])
 
 /**

@@ -9,7 +9,10 @@ export type CanvasPipelinePhase
     | 'storyboard'
     | 'continuity'
     | 'rebuild'
+    | 'dialogue'
     | 'videos'
+    | 'bgm'
+    | 'assemble'
 
 export type CanvasAutoAdvanceSkipReason
   = | 'not_canvas_task'
@@ -72,12 +75,16 @@ export const CANVAS_PHASE_ORDER: readonly CanvasPipelinePhase[] = [
   'storyboard',
   'continuity',
   'rebuild',
+  'dialogue',
   'videos',
+  'bgm',
+  'assemble',
 ]
 
 export const CANVAS_PAUSE_BEFORE: ReadonlySet<CanvasPipelinePhase> = new Set([
   'storyboard',
   'videos',
+  'assemble',
 ])
 
 /** 阶段是否需要用户确认才能继续（storyboard / videos） */

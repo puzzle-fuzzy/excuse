@@ -85,6 +85,27 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
       return handleCanvasVideos(task, ctx)
     },
   },
+  {
+    type: 'canvas.dialogue',
+    handler: async (_task, _ctx) => {
+      // TODO: Phase 8.5 — LLM 对话层生成
+      throw new Error('对话阶段尚未实现 (canvas.dialogue)')
+    },
+  },
+  {
+    type: 'canvas.bgm',
+    handler: async (_task, _ctx) => {
+      // TODO: Phase 10 — FunMusic BGM 生成
+      throw new Error('BGM 阶段尚未实现 (canvas.bgm)')
+    },
+  },
+  {
+    type: 'canvas.assemble',
+    handler: async (_task, _ctx) => {
+      // TODO: Phase 11 — FFmpeg 合成
+      throw new Error('合成阶段尚未实现 (canvas.assemble)')
+    },
+  },
 
   // ── Media tasks ──────────────────────────────────────
   {

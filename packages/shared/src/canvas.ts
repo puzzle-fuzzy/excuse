@@ -147,7 +147,10 @@ export type CanvasPipelinePhase
     | 'storyboard'
     | 'continuity'
     | 'rebuild'
+    | 'dialogue'
     | 'videos'
+    | 'bgm'
+    | 'assemble'
 
 export type CanvasPipelineRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 

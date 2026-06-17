@@ -65,6 +65,27 @@ export function handleVideosPhase(projectId: string, userId: string, ctx: Server
   return runPhase(projectId, userId, 'videos', runId => svc.generateVideos(projectId, ctx.client, runId))
 }
 
+export function handleDialoguePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
+  return runPhase(projectId, userId, 'dialogue', async (_runId) => {
+    // TODO: Phase 8.5 — LLM 为每个 shot 生成对话层 prompt
+    throw new Error('对话阶段尚未实现')
+  })
+}
+
+export function handleBgmPhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
+  return runPhase(projectId, userId, 'bgm', async (_runId) => {
+    // TODO: Phase 10 — FunMusic BGM 生成
+    throw new Error('BGM 阶段尚未实现')
+  })
+}
+
+export function handleAssemblePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
+  return runPhase(projectId, userId, 'assemble', async (_runId) => {
+    // TODO: Phase 11 — FFmpeg 合成
+    throw new Error('合成阶段尚未实现')
+  })
+}
+
 export async function handleCancelActive(projectId: string, userId: string) {
   const owned = await getCanvasProjectByIdForAccount(projectId, userId)
   if (!owned) throw new NotFoundError('项目不存在或无权访问')

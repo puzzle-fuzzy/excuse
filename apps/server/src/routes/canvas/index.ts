@@ -24,10 +24,13 @@ import { createRequireAuthPlugin } from '../../plugins/auth'
 import { NotFoundError } from '../../utils/app-errors'
 import {
   handleAnalyzePhase,
+  handleAssemblePhase,
+  handleBgmPhase,
   handleCancelActive,
   handleCharacterRefsPhase,
   handleCharactersPhase,
   handleContinuityPhase,
+  handleDialoguePhase,
   handleLocationRefsPhase,
   handleLocationsPhase,
   handleRebuildPhase,
@@ -111,6 +114,9 @@ export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
     .post('/projects/:projectId/continuity', ({ params: { projectId }, userId }) => handleContinuityPhase(projectId, userId, ctx))
     .post('/projects/:projectId/rebuild-prompts', ({ params: { projectId }, userId }) => handleRebuildPhase(projectId, userId, ctx))
     .post('/projects/:projectId/generate-videos', ({ params: { projectId }, userId }) => handleVideosPhase(projectId, userId, ctx))
+    .post('/projects/:projectId/dialogue', ({ params: { projectId }, userId }) => handleDialoguePhase(projectId, userId, ctx))
+    .post('/projects/:projectId/bgm', ({ params: { projectId }, userId }) => handleBgmPhase(projectId, userId, ctx))
+    .post('/projects/:projectId/assemble', ({ params: { projectId }, userId }) => handleAssemblePhase(projectId, userId, ctx))
     .post('/projects/:projectId/cancel-active', ({ params: { projectId }, userId }) => handleCancelActive(projectId, userId))
 
     // ── 资源 PATCH/DELETE ──────────────────────────────
