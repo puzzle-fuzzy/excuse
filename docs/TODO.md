@@ -48,19 +48,17 @@
 >
 > 成本结论先行：R2V 与 T2V 同价（¥1.6/秒 1080P），升级 R2V 零成本增量；BGM + LLM 对话设计仅增加约 10% 成本。
 
-### 1. 主体资产库（跨项目复用角色/场景）🏗️（数据模型 + API ✅，前端 + 智能匹配进行中）
+### 1. 主体资产库（跨项目复用角色/场景）✅
 
-> 目标：角色/场景从「项目绑定」升级为「用户级资产」，跨项目复用，减少重复生成。
+> 目标：角色/场景从「项目绑定」升级为「用户级资产」，跨项目复用，减少重复生成。全部完成。
 
-**已完成**
 - ✅ `subject_library` + `project_subject_refs` 表（含迁移 0034）
-- ✅ Repository CRUD（create/update/delete/listByType/search/link）
+- ✅ Repository CRUD + `searchSubjectsByName` 名称模糊搜索
 - ✅ `POST/GET/PATCH/DELETE /api/subjects` + 收藏切换
-
-**进行中**
-- 🏗️ 前端资产库页面
-- 🏗️ Canvas analyze 阶段智能匹配导入
-- 🏗️ Canvas 编辑器「从资产库导入」按钮
+- ✅ `POST /api/canvas/:projectId/subjects/import` 导入到项目
+- ✅ 前端资产库页面 `/subjects`（搜索/类型筛选/收藏/删除 + Navbar 链接）
+- ✅ Canvas analyze 阶段 characters/locations 自动匹配库中已有资产
+- ✅ Canvas 编辑器「资产库」快捷入口（CanvasStatusBar）
 
 ### 2. 对话式音视频 + BGM + 合成
 
@@ -142,12 +140,12 @@
 
 > 下列为代码冗余/死代码/命名/a11y 债务，2026-06-17 逐条核对当前代码，仅录入「仍存在」与「待确认」项（关键问题与已修复项不录入）。原则：接触相关区域时顺手做，不专门开冲刺。
 
-- **Gateway 流式/非流式计费编排重复**（部分修复）：`gateway-service.ts`（非流式）已补 `incrementApiKeySpend`/`notifyApiKeyQuota`，行为差异消除；但流式 `openai-gateway.ts` 与非流式的「创建记录→预留→调用→扣款/退款→审计」编排仍各自实现、重复约 200 行。**修复**：抽 `beginGatewayRecord` / `finalizeGatewayRecord` / `failGatewayRecord` 三阶段共用函数，两条路径共用。
-- **Admin.tsx 手动 Dialog 绕过 Radix**（仍存在）：`Admin.tsx:695/951/1421` 用 `<div className="fixed inset-0 z-50">` 手动搭建遮罩，无焦点陷阱 / Escape / ARIA。**修复**：替换为 `DialogContent` + `DialogHeader` + `DialogTitle`（与 Admin.tsx 拆分一并做）。
-- **`CATEGORY_LABELS` 命名/值不一致**（仍存在）：`Billing.tsx` 用「文本生成/图像生成/视频生成/音频生成」；`Admin.tsx` 的 `PROVIDER_CATEGORY_LABELS` 用「文本/图片/视频」且缺 `audio` 键。**修复**：精确命名（`TASK_CATEGORY_LABELS` vs `BILLING_CATEGORY_LABELS`）或提取共享模块并补齐 `audio`。
-- **`estimateCost` 死导出**（仍存在）：`packages/billing/src/index.ts` 导出 `estimateCost`，生产代码 0 处使用（仅测试消费）。**修复**：从公开 API 移除，或生产代码改用它替换手动 `estimated: true` 标记。
-- **Developers.tsx 数据源是否走 Eden 待确认**（部分修复）：原始 `fetch(\`${BASE_URL}/v1/usage\`)` 已移除，但新数据源（独立 hook）是否经 Eden Treaty 未确认。**修复**：确认 hook 走 Eden，或在 `api/` 显式封装。
-- **SSE `connect()` 双入口待确认**（部分修复）：从三处收敛为两处（`client.ts` `setAuthToken` + `AuthProvider` cookie 自动登录），但两条入口并存的潜在重复连接隐患未确认。**修复**：确认无重复连接，或收敛为单一权威入口（`AuthProvider`）。
+- ~~**Gateway 流式/非流式计费编排重复**~~ ✅ 已由 `setupGatewayCall` / `settleGatewaySuccess` / `settleGatewayFailure` 三条共用原语覆盖，流式非流式均使用。
+- ~~**Admin 手动 Dialog 绕过 Radix**~~ ✅ 已替换 `Admin/index.tsx` 中全部 5 处手动遮罩为 `<DialogContent>`。
+- ~~**`CATEGORY_LABELS` 命名/值不一致**~~ ✅ 已提取 `@/lib/category-labels` 共享模块，补齐 `audio`。
+- ~~**`estimateCost` 死导出**~~ ✅ 已从 `@excuse/billing` barrel 移除。
+- ~~**Developers.tsx 数据源是否走 Eden 待确认**~~ ✅ `fetchGatewayUsage` 已确认走 Eden treaty（`api.v1.usage.get`）。
+- ~~**SSE `connect()` 双入口待确认**~~ ✅ `SSEClient.connect()` 已有 idempotent guard（`if (this.abortController || this.isConnecting) return`），双入口无害。
 
 **验收（通用）**：拆分/清理后行为不变（既有测试全绿），重复定义收敛为单一来源，导出项均有生产消费者或显式删除。
 

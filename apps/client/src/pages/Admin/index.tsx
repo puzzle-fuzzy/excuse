@@ -26,7 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatLatencyMs, formatNumber, pipelinePhaseLabel } from '@/lib/admin-format'
@@ -680,22 +680,20 @@ function AdminTaskDetailDialog({
   return (
     <Dialog open={!!taskId} onOpenChange={open => !open && onClose()}>
       {taskId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-          <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
-            {isLoading
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" showCloseButton>
+          {isLoading
+            ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  正在加载任务详情...
+                </p>
+              )
+            : isError
               ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    正在加载任务详情...
+                  <p className="py-6 text-center text-sm text-destructive">
+                    加载任务详情失败
                   </p>
                 )
-              : isError
-                ? (
-                    <p className="py-6 text-center text-sm text-destructive">
-                      加载任务详情失败
-                    </p>
-                  )
-                : !task
+              : !task
                     ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
                           任务不存在
@@ -893,8 +891,7 @@ function AdminTaskDetailDialog({
                           </div>
                         </>
                       )}
-          </div>
-        </div>
+        </DialogContent>
       )}
     </Dialog>
   )
@@ -936,10 +933,8 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
   return (
     <>
       <Dialog open={!!userId} onOpenChange={open => !open && onClose()}>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-          <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
-            {isLoading || !detail
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" showCloseButton>
+          {isLoading || !detail
               ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">正在加载用户详情...</p>
                 )
@@ -1084,16 +1079,13 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
                     </div>
                   </>
                 )}
-          </div>
-        </div>
+        </DialogContent>
       </Dialog>
 
       {/* 充值对话框 */}
       <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/80" onClick={() => setRechargeOpen(false)} />
-          <div className="relative z-[60] w-full max-w-sm rounded-xl border bg-background p-6 shadow-lg">
-            <h3 className="mb-4 text-base font-semibold">充值</h3>
+        <DialogContent className="max-w-sm" showCloseButton>
+          <h3 className="mb-4 text-base font-semibold">充值</h3>
             <p className="mb-3 text-xs text-muted-foreground">
               用户：
               {detail?.summary.username}
@@ -1129,8 +1121,7 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
+        </DialogContent>
       </Dialog>
     </>
   )
@@ -1406,10 +1397,8 @@ function AdminGatewayClientDetailDialog({ accountId, onClose }: { accountId: str
   return (
     <>
       <Dialog open={!!accountId} onOpenChange={open => !open && onClose()}>
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-          <div className="relative z-50 grid w-full max-w-3xl gap-4 overflow-hidden border bg-background p-6 shadow-lg rounded-xl max-h-[90vh] overflow-y-auto">
-            {isLoading || !summary
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" showCloseButton>
+          {isLoading || !summary
               ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">正在加载客户详情...</p>
                 )
@@ -1506,8 +1495,7 @@ function AdminGatewayClientDetailDialog({ accountId, onClose }: { accountId: str
                     </div>
                   </>
                 )}
-          </div>
-        </div>
+        </DialogContent>
       </Dialog>
 
       <AdminApiKeyConfigDialog
@@ -1710,12 +1698,8 @@ function AdminApiKeyConfigDialog({
 
   return (
     <Dialog open={!!apiKey} onOpenChange={open => !open && onClose()}>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-        <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-        <form
-          onSubmit={handleSubmit}
-          className="relative z-[60] grid w-full max-w-md gap-4 border bg-background p-6 shadow-lg rounded-xl"
-        >
+      <DialogContent className="max-w-md" showCloseButton>
+        <form onSubmit={handleSubmit}>
           <div>
             <h3 className="text-base font-semibold">编辑 Key 配置</h3>
             <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -1768,7 +1752,7 @@ function AdminApiKeyConfigDialog({
             <Button type="submit" size="sm" disabled={submitting}>{submitting ? '保存中...' : '保存'}</Button>
           </div>
         </form>
-      </div>
+        </DialogContent>
     </Dialog>
   )
 }
