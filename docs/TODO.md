@@ -48,22 +48,19 @@
 >
 > 成本结论先行：R2V 与 T2V 同价（¥1.6/秒 1080P），升级 R2V 零成本增量；BGM + LLM 对话设计仅增加约 10% 成本。
 
-### 1. 主体资产库（跨项目复用角色/场景）
+### 1. 主体资产库（跨项目复用角色/场景）🏗️（数据模型 + API ✅，前端 + 智能匹配进行中）
 
 > 目标：角色/场景从「项目绑定」升级为「用户级资产」，跨项目复用，减少重复生成。
 
-**数据模型**（新增表）
+**已完成**
+- ✅ `subject_library` + `project_subject_refs` 表（含迁移 0034）
+- ✅ Repository CRUD（create/update/delete/listByType/search/link）
+- ✅ `POST/GET/PATCH/DELETE /api/subjects` + 收藏切换
 
-- `subject_library`：用户级主体资产（`subject_type` ∈ character/location），含 `identity_prompt` / `negative_prompt` / `scene_prompt` / `profile_json` / `reference_image_url` / `turnaround_sheet_url`、来源追溯（`source_project_id` / `source_entity_id`）、`tags`（GIN 索引）/ `is_favorite` / `usage_count`。索引 `(user_id, subject_type)` + `tags` GIN。
-- `project_subject_refs`：项目 ↔ 主体多对多（`UNIQUE(project_id, subject_id)`），`override_json` 存本项目内差异化（如服装变化）。
-
-**API**：`POST/GET/PATCH/DELETE /api/subjects`（列表支持搜索/标签/类型筛选）、`POST /api/canvas/:id/subjects/import`（从资产库导入到项目）。
-
-**前端**：资产库页面；Canvas 编辑器「从资产库导入」按钮；项目完成时「保存到资产库」提示。
-
-**智能匹配**：`analyze` 阶段 LLM 提取角色/场景名时同时查询用户资产库，按名称相似度 + 描述匹配度自动关联或提示选择；`characters` / `locations` 阶段已关联主体跳过 AI 生成；资产按使用频率排序 + 「最近使用」入口。
-
-**验收**：角色/场景可从项目保存到资产库并在新项目复用；新项目分析时自动复用已有同名/相似资产；导入后视觉档案与参考图自动填充。
+**进行中**
+- 🏗️ 前端资产库页面
+- 🏗️ Canvas analyze 阶段智能匹配导入
+- 🏗️ Canvas 编辑器「从资产库导入」按钮
 
 ### 2. 对话式音视频 + BGM + 合成
 

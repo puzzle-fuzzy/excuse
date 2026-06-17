@@ -6,6 +6,7 @@ import { Activity, Ban, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 
 export const TASK_LIMIT = 40
 export const USERS_PAGE_SIZE = 20
@@ -44,9 +45,8 @@ export const PROVIDER_WINDOW_OPTIONS = [
   { label: '近 24 小时', value: '24' }, { label: '近 7 天', value: '168' },
 ]
 
-export const PROVIDER_CATEGORY_LABELS: Record<string, string> = {
-  text: '文本', image: '图片', video: '视频', subtitle: '字幕',
-}
+/** @deprecated 使用 TASK_CATEGORY_LABELS（自 @/lib/category-labels） */
+export const PROVIDER_CATEGORY_LABELS = TASK_CATEGORY_LABELS
 
 export function statusLabel(status: string) {
   return STATUS_LABELS[status] ?? status

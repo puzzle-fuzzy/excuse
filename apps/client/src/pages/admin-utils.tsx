@@ -1,4 +1,5 @@
 import type { AdminTaskGenerationRecord, AdminUserRecentRecord } from '@excuse/shared'
+import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 
 export const TASK_LIMIT = 40
 export const USERS_PAGE_SIZE = 20
@@ -108,12 +109,8 @@ export function auditActionLabel(action: string) {
   return AUDIT_ACTION_LABELS[action] ?? action
 }
 
-export const PROVIDER_CATEGORY_LABELS: Record<string, string> = {
-  text: '文本',
-  image: '图片',
-  video: '视频',
-  subtitle: '字幕',
-}
+/** @deprecated 使用 TASK_CATEGORY_LABELS（自 @/lib/category-labels） */
+export const PROVIDER_CATEGORY_LABELS = TASK_CATEGORY_LABELS
 
 export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecord['matchReason']) {
   switch (matchReason) {

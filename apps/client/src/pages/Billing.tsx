@@ -6,7 +6,10 @@ import { fetchBillingBalance, fetchBillingTransactions } from '@/api/client'
 import { billingQueryKeys } from '@/api/query-client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { BILLING_CATEGORY_LABELS } from '@/lib/category-labels'
 import { formatCents } from '@/lib/generation-utils'
+
+const CATEGORY_LABELS = BILLING_CATEGORY_LABELS
 
 function formatDate(value: string | null) {
   if (!value)
@@ -22,13 +25,6 @@ function formatDate(value: string | null) {
   catch {
     return value
   }
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  text: '文本生成',
-  image: '图像生成',
-  video: '视频生成',
-  audio: '音频生成',
 }
 
 const CATEGORY_COLORS: Record<string, string> = {

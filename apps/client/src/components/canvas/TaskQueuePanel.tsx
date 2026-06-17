@@ -1,4 +1,5 @@
 import type { CanvasAssetsPoll, CanvasFailureKind, ProjectDTO } from '@excuse/shared'
+import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 
 /**
  * 任务队列面板 — 展示活跃任务 + 最近失败（含失败原因分类与下一步建议）
@@ -7,11 +8,7 @@ import type { CanvasAssetsPoll, CanvasFailureKind, ProjectDTO } from '@excuse/sh
  * 失败不只显示「失败」，还要说明是 provider/网络/存储/余额/取消/系统哪一类错误。
  */
 
-const CATEGORY_LABELS: Record<string, string> = {
-  text: '文本',
-  image: '图片',
-  video: '视频',
-}
+const CATEGORY_LABELS = TASK_CATEGORY_LABELS
 
 /** 任务状态 → 中文 + 样式 */
 const STATUS_META: Record<string, { label: string, className: string }> = {
