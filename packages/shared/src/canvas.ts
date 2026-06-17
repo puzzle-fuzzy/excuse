@@ -61,6 +61,17 @@ export type CanvasVideoVariant = 't2v' | 'i2v' | 'r2v'
 export interface CanvasVideoReference {
   url: string
   role: CanvasShotReferenceRole
+  /**
+   * 该引用图对应的角色 ID（role=character 且由角色 turnaround/portrait 自动解析而来时填充）。
+   * 供 rebuild 阶段把 prompt 里的角色指代烘焙成 `[Image N]`（N = 该 ref 在数组中的 1-based 位置）。
+   * 用户额外引用（referenceAssetsJson）不填。
+   */
+  characterId?: string
+  /**
+   * 该引用图对应的场景 ID（role=location 且由场景参考图自动解析而来时填充）。
+   * 语义同 characterId，供 prompt 烘焙 `[Image N]`。
+   */
+  locationId?: string
 }
 
 /** 纯规则推荐结果：变体 + 给用户看的中文原因 */

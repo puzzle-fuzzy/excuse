@@ -121,4 +121,28 @@ describe('buildShotVideoPromptEntity', () => {
     const b = buildShotVideoPromptEntity(input)
     expect(a).toEqual(b)
   })
+
+  it('传入 references → videoPrompt 用 [Image N] 指代角色/场景（R2V media[] 编号）', () => {
+    const { videoPrompt } = buildShotVideoPromptEntity({
+      shot: baseShot as unknown as CanvasProjectDetail['shots'][number],
+      characters: [baseCharacter] as unknown as CanvasProjectDetail['characters'][number][],
+      location: baseLocation as unknown as CanvasProjectDetail['locations'][number],
+      // 与 resolveShotVideoReferences 顺序一致：char-1 = Image 1，loc-1 = Image 2
+      references: [
+        { targetId: 'char-1', imageNumber: 1 },
+        { targetId: 'loc-1', imageNumber: 2 },
+      ],
+    })
+    expect(videoPrompt).toContain('Character "李雷" is [Image 1]')
+    expect(videoPrompt).toContain('Scene is [Image 2]')
+  })
+
+  it('不传 references → 纯文本指代，不含 [Image', () => {
+    const { videoPrompt } = buildShotVideoPromptEntity({
+      shot: baseShot as unknown as CanvasProjectDetail['shots'][number],
+      characters: [baseCharacter] as unknown as CanvasProjectDetail['characters'][number][],
+      location: baseLocation as unknown as CanvasProjectDetail['locations'][number],
+    })
+    expect(videoPrompt).not.toContain('[Image')
+  })
 })

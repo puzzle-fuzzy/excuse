@@ -1,3 +1,4 @@
+import type { PromptReferenceEntry } from '@excuse/prompt-engine'
 import type { CanvasProjectDetail } from '../normalize'
 import { buildShotVideoPrompt } from '@excuse/prompt-engine'
 import { hasDialogueAudio } from '@excuse/shared'
@@ -14,11 +15,16 @@ type LocationRow = CanvasProjectDetail['locations'][number]
  *
  * timeline/environment 同时挂在 toNormalizedShot(shot) 内部与顶层参数 —— 与原 server/worker 实现一致，
  * buildShotVideoPrompt 取顶层那份；保持行为不变。
+ *
+ * references 由 host 用 resolveShotVideoReferences 解析后传入，使 prompt 用 [Image N]
+ * 指代 R2V media[] 中的角色/场景图（编号 = refs 数组 1-based 位置，与 submit 同序）。
  */
 export interface ShotVideoPromptEntityInput {
   shot: ShotRow
   characters: CharacterRow[]
   location: LocationRow
+  /** R2V 参考图指代（host 由 resolveShotVideoReferences 构建）；缺省=纯文本指代 */
+  references?: PromptReferenceEntry[]
 }
 
 export interface ShotVideoPromptEntityResult {
@@ -39,5 +45,6 @@ export function buildShotVideoPromptEntity(input: ShotVideoPromptEntityInput): S
     location: toNormalizedLocation(input.location),
     timeline: input.shot.timelineJson ?? undefined,
     environment: input.shot.environmentJson ?? undefined,
+    references: input.references,
   })
 }

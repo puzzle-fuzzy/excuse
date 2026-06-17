@@ -64,6 +64,21 @@ export interface PromptEnvironment {
   style?: string
 }
 
+/**
+ * R2V 参考图指代条目 —— 把角色/场景在 media 数组里的图片序号告诉 builder，
+ * 使 prompt 在 Character/Scene consistency 段用 `[Image N]` 指代（对齐
+ * HappyHorse R2V 的 media[] 顺序）。缺省/无图时回落到文字 identityPrompt/scenePrompt。
+ *
+ * imageNumber 为 1-based，必须等于 rebuild 与 submit 共用的
+ * resolveShotVideoReferences 返回顺序中的位置（保证 prompt 文本编号 = provider media[] 编号）。
+ */
+export interface PromptReferenceEntry {
+  /** 该图指代的角色 ID 或场景 ID */
+  targetId: string
+  /** 1-based 图片序号，对齐 media[] 顺序 */
+  imageNumber: number
+}
+
 /** 解析时间范围字符串 "0s-5s" → { start: 0, end: 5 } */
 function parseTimeRange(timeRange: string): { start: number, end: number } {
   const match = timeRange.match(/(\d+)s-(\d+)s/)
@@ -202,13 +217,25 @@ export function buildShotVideoPrompt(args: {
   location: PromptLocation
   timeline?: Array<{ time: string, action: string }>
   environment?: PromptEnvironment
+  /** R2V 参考图指代（rebuild 阶段由 resolveShotVideoReferences 构建）；缺省=纯文本指代 */
+  references?: PromptReferenceEntry[]
 }): { videoPrompt: string, negativePrompt: string } {
-  const { shot, characters, location, timeline, environment } = args
+  const { shot, characters, location, timeline, environment, references } = args
 
   const idToName = new Map(characters.map(c => [c.id, c.name]))
 
+  // targetId → [Image N] 查找表（来自 resolveShotVideoReferences 顺序）。
+  // 有指代的角色/场景在 consistency 段写 [Image N]（HappyHorse R2V media[] 指代），
+  // 无指代则保留文字描述（T2V 或无参考图）。
+  const imageRefOf = new Map((references ?? []).map(r => [r.targetId, r.imageNumber]))
+
   const characterSection = characters
-    .map(c => `Character "${c.name}": ${c.identityPrompt}`)
+    .map((c) => {
+      const imageNumber = imageRefOf.get(c.id)
+      return imageNumber !== undefined
+        ? `Character "${c.name}" is [Image ${imageNumber}]: ${c.identityPrompt}`
+        : `Character "${c.name}": ${c.identityPrompt}`
+    })
     .join('\n')
 
   const facingEntries = Object.entries(shot.continuity.characterFacing)
@@ -243,11 +270,16 @@ Style: ${environment.style || 'cinematic'}`
 
   const audioSection = buildAudioSection(shot, environment)
 
+  const locationImageNumber = location.id ? imageRefOf.get(location.id) : undefined
+  const sceneSection = locationImageNumber !== undefined
+    ? `Scene is [Image ${locationImageNumber}]: ${location.scenePrompt}`
+    : location.scenePrompt
+
   const videoPrompt = `Character consistency:
 ${characterSection}
 
 Scene consistency:
-${location.scenePrompt}
+${sceneSection}
 
 Current shot:
 ${shot.narrative}

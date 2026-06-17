@@ -195,6 +195,44 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Generate the character dialogue exactly as written')
   })
 
+  // ── R2V [Image N] 指代 ────────────────────────────────
+
+  it('传入 references → 角色/场景用 [Image N] 指代', () => {
+    const result = buildShotVideoPrompt({
+      shot: makeShot(),
+      characters: [makeCharacter()],
+      location: makeLocation(),
+      references: [
+        { targetId: 'char-1', imageNumber: 1 },
+        { targetId: 'loc-1', imageNumber: 2 },
+      ],
+    })
+    expect(result.videoPrompt).toContain('Character "Alice" is [Image 1]')
+    expect(result.videoPrompt).toContain('Scene is [Image 2]')
+  })
+
+  it('references 中未指代的角色仍用文字 identityPrompt', () => {
+    const char2: PromptCharacter = { id: 'char-2', name: 'Bob', identityPrompt: 'A tall man', negativePrompt: '' }
+    const shot = makeShot({ characterIds: ['char-1', 'char-2'] })
+    const result = buildShotVideoPrompt({
+      shot,
+      characters: [makeCharacter(), char2],
+      location: makeLocation(),
+      references: [{ targetId: 'char-1', imageNumber: 1 }], // char-2 无图
+    })
+    expect(result.videoPrompt).toContain('Character "Alice" is [Image 1]')
+    expect(result.videoPrompt).toContain('Character "Bob": A tall man')
+  })
+
+  it('不传 references → 全程纯文字指代，不含 [Image', () => {
+    const result = buildShotVideoPrompt({
+      shot: makeShot(),
+      characters: [makeCharacter()],
+      location: makeLocation(),
+    })
+    expect(result.videoPrompt).not.toContain('[Image')
+  })
+
   it('处理多角色', () => {
     const char2: PromptCharacter = {
       id: 'char-2',

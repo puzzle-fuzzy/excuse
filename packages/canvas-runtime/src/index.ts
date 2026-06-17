@@ -1,4 +1,5 @@
 import type { CanvasAssetOutput, CanvasShotReferenceAsset, GenerationInputParams } from '@excuse/db'
+import type { PromptReferenceEntry } from '@excuse/prompt-engine'
 import type { AssetStorage, DashScopeClient, ValidatedModelParameters } from '@excuse/provider'
 import type { CanvasVideoReference, CanvasVideoVariant, ModelConfig } from '@excuse/shared'
 import { calculateCost } from '@excuse/billing'
@@ -206,7 +207,7 @@ export interface ResolveShotVideoReferencesInput {
     locationId: string | null
     referenceAssetsJson?: CanvasShotReferenceAsset[] | null
   }
-  characters: ReadonlyArray<{ id: string, referenceImageUrl?: string | null }>
+  characters: ReadonlyArray<{ id: string, turnaroundSheetUrl?: string | null, referenceImageUrl?: string | null }>
   locations: ReadonlyArray<{ id: string, referenceImageUrl?: string | null }>
 }
 
@@ -216,6 +217,10 @@ export interface ResolveShotVideoReferencesInput {
  * 顺序：角色自动引用 → 场景自动引用 → 用户额外引用（referenceAssetsJson）。
  * 按 URL 去重，保留首次出现。与历史 dedupe([...char, loc, ...extra]) 等价，
  * 但保留 role 供推荐函数使用。
+ *
+ * 角色图优先取 turnaroundSheetUrl（三视图，跨镜头一致性更好，对齐阶段二风险笔记），
+ * 缺失才回退 referenceImageUrl（单张肖像）。角色/场景 ref 附 characterId/locationId，
+ * 供 rebuild 阶段把 prompt 角色指代烘焙成 `[Image N]`。
  */
 export function resolveShotVideoReferences(
   input: ResolveShotVideoReferencesInput,
@@ -226,15 +231,17 @@ export function resolveShotVideoReferences(
   const refs: CanvasVideoReference[] = []
 
   for (const id of input.shot.characterIdsJson) {
-    const url = characterMap.get(id)?.referenceImageUrl
+    const character = characterMap.get(id)
+    // 优先 turnaround 三视图（跨镜头角色一致性更好），回退 portrait 肖像。
+    const url = character?.turnaroundSheetUrl || character?.referenceImageUrl
     if (url)
-      refs.push({ url, role: 'character' })
+      refs.push({ url, role: 'character', characterId: id })
   }
 
   if (input.shot.locationId) {
     const url = locationMap.get(input.shot.locationId)?.referenceImageUrl
     if (url)
-      refs.push({ url, role: 'location' })
+      refs.push({ url, role: 'location', locationId: input.shot.locationId })
   }
 
   for (const asset of input.shot.referenceAssetsJson ?? []) {
@@ -250,6 +257,26 @@ export function resolveShotVideoReferences(
     seen.add(ref.url)
     return true
   })
+}
+
+/**
+ * 把 resolveShotVideoReferences 的结果转换为 prompt builder 用的参考图指代条目。
+ *
+ * imageNumber = 该 ref 在去重后数组中的 1-based 位置，**必须**与 submit 时发出的
+ * referenceUrls 顺序一致（同一 resolveShotVideoReferences 纯函数保证）。仅取带
+ * characterId/locationId 的角色/场景自动引用——用户额外引用（referenceAssetsJson）
+ * 不指代具体角色，prompt 仍用文字描述。
+ */
+export function toPromptReferenceEntries(
+  references: ReadonlyArray<CanvasVideoReference>,
+): PromptReferenceEntry[] {
+  const entries: PromptReferenceEntry[] = []
+  references.forEach((ref, index) => {
+    const targetId = ref.characterId ?? ref.locationId
+    if (targetId)
+      entries.push({ targetId, imageNumber: index + 1 })
+  })
+  return entries
 }
 
 export async function submitCanvasShotVideo(

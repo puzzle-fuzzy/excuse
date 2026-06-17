@@ -1,8 +1,10 @@
 import type { CanvasAssetOutput } from '@excuse/db'
 import {
   buildShotVideoPromptEntity,
+  resolveShotVideoReferences,
   runCanvasAssetStep,
   runContinuityPhase,
+  toPromptReferenceEntries,
 } from '@excuse/canvas-runtime'
 import {
   getCanvasProjectDetail,
@@ -94,10 +96,13 @@ export async function rebuildShotPrompts(projectId: string, runId?: string) {
           pipelineRunId: runId ?? undefined,
         },
         execute: async () => {
+          // 解析 R2V 参考图（与 submit 用同一纯函数），把角色/场景指代烘焙成 [Image N]。
+          const references = resolveShotVideoReferences({ shot, characters: detail.characters, locations: detail.locations })
           const { videoPrompt, negativePrompt } = buildShotVideoPromptEntity({
             shot,
             characters: shotCharacters,
             location: shotLocation,
+            references: toPromptReferenceEntries(references),
           })
 
           await updateCanvasShot(shot.id, {
