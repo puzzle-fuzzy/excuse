@@ -11,29 +11,61 @@
  */
 import type { ServerConfig } from '../../config'
 import type { ServerContext } from '../../context'
+import {
+  createCanvasCharacter,
+  createCanvasLocation,
+  getCanvasProjectByIdForAccount,
+  getSubjectById,
+  incrementSubjectUsage,
+  linkProjectSubject,
+} from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../../plugins/auth'
+import { NotFoundError } from '../../utils/app-errors'
 import {
-  handleListProjects, handleCreateProject, handleGetProject,
-  handleGetProjectSummary, handleGetAssetsPoll, handleDeleteProject,
-  handlePatchProject, handleListRuns, handleGetRun,
-  handleSaveLayout, handleUpdateModelPreferences,
-} from './handlers-project'
-import {
-  handleAnalyzePhase, handleCharactersPhase, handleLocationsPhase,
-  handleCharacterRefsPhase, handleLocationRefsPhase, handleStoryboardPhase,
-  handleContinuityPhase, handleRebuildPhase, handleVideosPhase,
+  handleAnalyzePhase,
   handleCancelActive,
+  handleCharacterRefsPhase,
+  handleCharactersPhase,
+  handleContinuityPhase,
+  handleLocationRefsPhase,
+  handleLocationsPhase,
+  handleRebuildPhase,
+  handleStoryboardPhase,
+  handleVideosPhase,
 } from './handlers-phases'
 import {
-  handlePatchCharacter, handleGetCharacterDetail,
-  handlePatchLocation, handleGetLocationDetail,
-  handlePatchShot, handleGetShotDetail,
+  handleCreateProject,
+  handleDeleteProject,
+  handleGetAssetsPoll,
+  handleGetProject,
+  handleGetProjectSummary,
+  handleGetRun,
+  handleListProjects,
+  handleListRuns,
+  handlePatchProject,
+  handleSaveLayout,
+  handleUpdateModelPreferences,
+} from './handlers-project'
+import {
+  handleActivateAsset,
   handleApplyReferenceAssets,
-  handleDeleteCharacter, handleDeleteLocation, handleDeleteShot,
-  handleRetryShot, handleRetryFailedShots,
-  handleRegenerateCharacter, handleRegenerateLocation, handleRegenerateShotVideo,
-  handleListAssets, handleActivateAsset, handleLockAsset,
+  handleDeleteCharacter,
+  handleDeleteLocation,
+  handleDeleteShot,
+  handleGetCharacterDetail,
+  handleGetLocationDetail,
+  handleGetShotDetail,
+  handleListAssets,
+  handleLockAsset,
+  handlePatchCharacter,
+  handlePatchLocation,
+  handlePatchShot,
+  handleRegenerateCharacter,
+  handleRegenerateLocation,
+  handleRegenerateShotVideo,
+  handleRetryFailedShots,
+  handleRetryShot,
 } from './handlers-resources'
 
 export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
@@ -84,29 +116,39 @@ export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
     // ── 资源 PATCH/DELETE ──────────────────────────────
     .patch('/characters/:characterId', ({ params: { characterId }, body, userId }) => handlePatchCharacter(characterId, userId, body), {
       body: t.Object({
-        name: t.Optional(t.String({ maxLength: 200 })), role: t.Optional(t.String({ maxLength: 50 })),
-        description: t.Optional(t.String()), identityPrompt: t.Optional(t.String()),
-        negativePrompt: t.Optional(t.String()), referenceImageUrl: t.Optional(t.String()), locked: t.Optional(t.Boolean()),
+        name: t.Optional(t.String({ maxLength: 200 })),
+        role: t.Optional(t.String({ maxLength: 50 })),
+        description: t.Optional(t.String()),
+        identityPrompt: t.Optional(t.String()),
+        negativePrompt: t.Optional(t.String()),
+        referenceImageUrl: t.Optional(t.String()),
+        locked: t.Optional(t.Boolean()),
       }),
     })
     .get('/characters/:characterId/detail', ({ params: { characterId }, userId }) => handleGetCharacterDetail(characterId, userId))
     .patch('/locations/:locationId', ({ params: { locationId }, body, userId }) => handlePatchLocation(locationId, userId, body), {
       body: t.Object({
-        name: t.Optional(t.String({ maxLength: 200 })), type: t.Optional(t.String({ maxLength: 50 })),
-        scenePrompt: t.Optional(t.String()), negativePrompt: t.Optional(t.String()),
-        referenceImageUrl: t.Optional(t.String()), locked: t.Optional(t.Boolean()),
+        name: t.Optional(t.String({ maxLength: 200 })),
+        type: t.Optional(t.String({ maxLength: 50 })),
+        scenePrompt: t.Optional(t.String()),
+        negativePrompt: t.Optional(t.String()),
+        referenceImageUrl: t.Optional(t.String()),
+        locked: t.Optional(t.Boolean()),
       }),
     })
     .get('/locations/:locationId/detail', ({ params: { locationId }, userId }) => handleGetLocationDetail(locationId, userId))
     .patch('/shots/:shotId', ({ params: { shotId }, body, userId }) => handlePatchShot(shotId, userId, body), {
       body: t.Object({
-        duration: t.Optional(t.Number()), locationId: t.Optional(t.String()),
-        characterIdsJson: t.Optional(t.Array(t.String())), narrative: t.Optional(t.String()),
+        duration: t.Optional(t.Number()),
+        locationId: t.Optional(t.String()),
+        characterIdsJson: t.Optional(t.Array(t.String())),
+        narrative: t.Optional(t.String()),
         cameraJson: t.Optional(t.Object({ shotSize: t.String(), angle: t.String(), movement: t.String(), lens: t.String() })),
         environmentJson: t.Optional(t.Object({ backgroundMotion: t.Optional(t.String()), lighting: t.Optional(t.String()), mood: t.Optional(t.String()), style: t.Optional(t.String()) })),
         videoPrompt: t.Optional(t.String()),
         referenceAssetsJson: t.Optional(t.Array(t.Object({
-          assetId: t.String(), url: t.String(),
+          assetId: t.String(),
+          url: t.String(),
           role: t.Union([t.Literal('character'), t.Literal('location'), t.Literal('style'), t.Literal('firstFrame'), t.Literal('other')]),
           label: t.Optional(t.String({ maxLength: 100 })),
           source: t.Optional(t.Union([t.Literal('asset_library'), t.Literal('uploaded_file'), t.Literal('manual')])),
@@ -119,7 +161,8 @@ export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
         sourceShotId: t.Optional(t.String()),
         targetShotIds: t.Array(t.String(), { minItems: 1 }),
         referenceAssetsJson: t.Array(t.Object({
-          assetId: t.String(), url: t.String(),
+          assetId: t.String(),
+          url: t.String(),
           role: t.Union([t.Literal('character'), t.Literal('location'), t.Literal('style'), t.Literal('firstFrame'), t.Literal('other')]),
           label: t.Optional(t.String({ maxLength: 100 })),
           source: t.Optional(t.Union([t.Literal('asset_library'), t.Literal('uploaded_file'), t.Literal('manual')])),
@@ -143,5 +186,43 @@ export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
     .patch('/asset/:assetId/activate', ({ params: { assetId }, userId }) => handleActivateAsset(assetId, userId))
     .patch('/asset/:assetId/lock', ({ params: { assetId }, body, userId }) => handleLockAsset(assetId, userId, body.locked), {
       body: t.Object({ locked: t.Boolean() }),
+    })
+
+    // ── 从资产库导入到项目 ────────────────────────────
+    .post('/projects/:projectId/subjects/import', async ({ params: { projectId }, body, userId }) => {
+      const owned = await getCanvasProjectByIdForAccount(projectId, userId)
+      if (!owned)
+        throw new NotFoundError('项目不存在或无权访问')
+      const subject = await getSubjectById(body.subjectId)
+      if (!subject || subject.accountId !== userId)
+        throw new NotFoundError('资产不存在或无权访问')
+
+      if (subject.subjectType === 'character') {
+        await createCanvasCharacter({
+          projectId,
+          name: subject.name,
+          identityPrompt: subject.identityPrompt ?? undefined,
+          negativePrompt: subject.negativePrompt ?? undefined,
+          profileJson: subject.profileJson as any ?? undefined,
+          referenceImageUrl: subject.referenceImageUrl ?? undefined,
+          turnaroundSheetUrl: subject.turnaroundSheetUrl ?? undefined,
+        })
+      }
+      else {
+        await createCanvasLocation({
+          projectId,
+          name: subject.name,
+          scenePrompt: subject.scenePrompt ?? undefined,
+          negativePrompt: subject.negativePrompt ?? undefined,
+          profileJson: subject.profileJson as any ?? undefined,
+          referenceImageUrl: subject.referenceImageUrl ?? undefined,
+        })
+      }
+
+      await linkProjectSubject(projectId, body.subjectId)
+      await incrementSubjectUsage(body.subjectId)
+      return { success: true }
+    }, {
+      body: t.Object({ subjectId: t.String() }),
     })
 }

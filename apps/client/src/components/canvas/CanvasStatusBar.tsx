@@ -1,6 +1,7 @@
 import type { CanvasAssetsPoll, ProjectDTO } from '@excuse/shared'
 import type { RunningPhaseInfo } from './PipelineController'
 import { useMemo } from 'react'
+import { Link } from 'react-router'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -175,6 +176,15 @@ export default function CanvasStatusBar({
           <span className="font-semibold">{`预估¥${(costSummary.totalEstimatedCents / 100).toFixed(1)} · 已结算¥${(costSummary.totalFinalCents / 100).toFixed(1)}`}</span>
         )}
       </button>
+
+      {/* 从资产库导入 */}
+      <Link
+        to="/subjects"
+        className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 text-muted-foreground hover:bg-gray-100 transition-colors"
+        title="从资产库导入角色/场景到本项目"
+      >
+        资产库
+      </Link>
 
       {/* 连接状态 */}
       {connectionMode === 'sse' && (
