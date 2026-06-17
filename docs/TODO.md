@@ -36,7 +36,7 @@
 
 | 文件 | 行数 | 拆分方向 |
 |------|------|----------|
-| `apps/client/src/pages/Admin.tsx` | 2417 | 按 tab 拆 `pages/Admin/` |
+| ~~`apps/client/src/pages/Admin.tsx`~~ | ~~2417~~ | ✅ 拆为 `Admin/index.tsx` + `shared.tsx` + `Providers.tsx` + `Projects.tsx` + `Audit.tsx` |
 | ~~`apps/worker/src/task-processor.ts`~~ | ~~414~~ | ✅ 抽离 task-processor-utils.ts |
 | ~~`packages/canvas-runtime/src/index.ts`~~ | ~~411~~ | ✅ 拆 pure/（引用解析/模型推荐）+ io/（资产步骤/视频提交） |
 
