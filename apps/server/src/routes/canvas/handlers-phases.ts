@@ -2,30 +2,36 @@
  * Canvas 流水线阶段 handler — 9 个阶段 + cancel-active
  */
 import type { CanvasPipelinePhase } from '@excuse/db'
-import type { ServerContext } from '../../context'
 import type { AcceptedResponse } from '@excuse/shared'
+import type { ServerContext } from '../../context'
 import {
-  cancelActiveCanvasAssetsByProject, cancelTask,
-  findActiveRunForPhase, getCanvasProjectByIdForAccount,
-  listPipelineRunsByProject, markPipelineRunCancelled,
+  cancelActiveCanvasAssetsByProject,
+  cancelTask,
+  findActiveRunForPhase,
+  getCanvasProjectByIdForAccount,
+  listPipelineRunsByProject,
+  markPipelineRunCancelled,
 } from '@excuse/db'
 import { cancelTaskWithAdapter } from '@excuse/task-engine'
 import { canCancelPipelineRun } from '@excuse/workflow-engine'
 import * as svc from '../../modules/canvas/service'
-import { createFireAndForgetPhase, createTaskDrivenPhase } from './helpers'
-import { ConflictError, NotFoundError } from '../../utils/app-errors'
 import { audit } from '../../services/audit'
 import { dispatchToUser } from '../../services/sse-manager'
+import { ConflictError, NotFoundError } from '../../utils/app-errors'
+import { createFireAndForgetPhase, createTaskDrivenPhase } from './helpers'
 
 type PhaseFactory = (runId: string) => Promise<unknown>
 
 async function runPhase(projectId: string, userId: string, phase: CanvasPipelinePhase, execute: PhaseFactory) {
   const owned = await getCanvasProjectByIdForAccount(projectId, userId)
-  if (!owned) throw new NotFoundError('项目不存在或无权访问')
+  if (!owned)
+    throw new NotFoundError('项目不存在或无权访问')
   const activeRun = await findActiveRunForPhase(projectId, phase)
-  if (activeRun) throw new ConflictError('该阶段已有进行中的任务')
+  if (activeRun)
+    throw new ConflictError('该阶段已有进行中的任务')
   const autoProgress = owned.modelPreferencesJson?.autoProgress ?? false
-  if (autoProgress) return createTaskDrivenPhase(userId, projectId, phase)
+  if (autoProgress)
+    return createTaskDrivenPhase(userId, projectId, phase)
   return createFireAndForgetPhase(userId, projectId, phase, runId => execute(runId))
 }
 
@@ -72,10 +78,8 @@ export function handleDialoguePhase(projectId: string, userId: string, ctx: Serv
   })
 }
 
-export function handleBgmPhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
-  return runPhase(projectId, userId, 'bgm', async (_runId) => {
-    throw new Error('BGM 阶段尚未实现：需添加 fun-music-v1 模型配置')
-  })
+export function handleBgmPhase(projectId: string, userId: string, ctx: ServerContext): Promise<AcceptedResponse> {
+  return runPhase(projectId, userId, 'bgm', async () => svc.generateBgm(projectId, ctx.client, ctx.storage))
 }
 
 export function handleAssemblePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
@@ -86,11 +90,13 @@ export function handleAssemblePhase(projectId: string, userId: string, _ctx: Ser
 
 export async function handleCancelActive(projectId: string, userId: string) {
   const owned = await getCanvasProjectByIdForAccount(projectId, userId)
-  if (!owned) throw new NotFoundError('项目不存在或无权访问')
+  if (!owned)
+    throw new NotFoundError('项目不存在或无权访问')
 
   const runs = await listPipelineRunsByProject(projectId)
   const activeRuns = runs.filter(canCancelPipelineRun)
-  if (activeRuns.length === 0) return { cancelled: 0, message: '当前没有活跃的阶段任务' }
+  if (activeRuns.length === 0)
+    return { cancelled: 0, message: '当前没有活跃的阶段任务' }
 
   let cancelledCount = 0
   const cancelledPhases: string[] = []
@@ -99,9 +105,14 @@ export async function handleCancelActive(projectId: string, userId: string) {
     if (cancelled) {
       cancelledCount++
       cancelledPhases.push(cancelled.phase)
-      if (cancelled.taskId) await cancelTaskWithAdapter({ taskId: cancelled.taskId, adapter: { cancelTask } }).catch(() => {})
+      if (cancelled.taskId)
+        await cancelTaskWithAdapter({ taskId: cancelled.taskId, adapter: { cancelTask } }).catch(() => {})
       dispatchToUser(userId, 'pipeline_node_update', {
-        projectId, nodeType: 'phase', nodeId: cancelled.phase, status: 'cancelled', runId: run.id,
+        projectId,
+        nodeType: 'phase',
+        nodeId: cancelled.phase,
+        status: 'cancelled',
+        runId: run.id,
       })
     }
   }

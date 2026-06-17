@@ -63,6 +63,8 @@ export const canvasProjects = pgTable('canvas_projects', {
   modelPreferencesJson: jsonb('model_preferences_json').$type<CanvasModelPreferences>(),
   /** 前端 React Flow 画布布局（节点位置、视口状态，后端只透传） */
   canvasLayout: jsonb('canvas_layout').$type<CanvasLayoutDto>(),
+  /** Phase 10 bgm 生成的 BGM 音频 URL（转存后的 OSS / 本地路径） */
+  bgmUrl: text('bgm_url'),
   /** 软删除标记（true 时不出现在查询结果中） */
   isDeleted: boolean('is_deleted').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

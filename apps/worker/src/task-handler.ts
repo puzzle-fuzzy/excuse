@@ -94,15 +94,18 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
 
       const projectId = task.projectId!
       const detail = await getCanvasProjectDetail(projectId)
-      if (!detail) throw new Error('项目不存在')
+      if (!detail)
+        throw new Error('项目不存在')
 
       const textModel = getTextModel(detail.project.modelPreferencesJson)
       const { results } = await runDialoguePhase({ projectId, detail, client: ctx.client, textModel })
 
       for (const result of results) {
-        if (result.dialoguePrompt === null && result.dialogueJson === null) continue
+        if (result.dialoguePrompt === null && result.dialogueJson === null)
+          continue
         const patch: Record<string, unknown> = { dialoguePrompt: result.dialoguePrompt ?? undefined }
-        if (result.dialogueJson) patch.dialogueJson = result.dialogueJson
+        if (result.dialogueJson)
+          patch.dialogueJson = result.dialogueJson
         await updateCanvasShot(result.shotId, patch as Parameters<typeof updateCanvasShot>[1])
       }
       return { dialogueShotCount: results.filter(r => r.dialogueJson).length }
@@ -110,9 +113,22 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
   },
   {
     type: 'canvas.bgm',
-    handler: async (_task, _ctx) => {
-      // TODO: Phase 10 — FunMusic BGM 生成（需要 provider fun-music-v1 模型配置）
-      throw new Error('BGM 阶段尚未实现：需添加 fun-music-v1 模型配置')
+    handler: async (task, ctx) => {
+      const { getCanvasProjectDetail, updateCanvasProject } = await import('@excuse/db')
+      const { runBgmPhase } = await import('@excuse/canvas-runtime')
+
+      const projectId = task.projectId!
+      const detail = await getCanvasProjectDetail(projectId)
+      if (!detail)
+        throw new Error('项目不存在')
+
+      const result = await runBgmPhase({ projectId, detail, client: ctx.client, storage: ctx.storage })
+      await updateCanvasProject(projectId, { bgmUrl: result.audioUrl })
+
+      return {
+        bgmUrl: result.audioUrl,
+        durationSeconds: result.durationSeconds,
+      }
     },
   },
   {

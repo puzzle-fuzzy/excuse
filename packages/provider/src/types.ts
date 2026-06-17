@@ -12,6 +12,7 @@ export interface ProviderUsage {
   outputTokens?: number
   imageCount?: number
   videoDuration?: number
+  audioDuration?: number
 }
 
 /** 流式文本生成的单帧结果（async generator yield 类型） */
@@ -44,6 +45,22 @@ export interface VideoTaskProviderOutput {
   type: 'processing'
   taskId: string
   status: 'submitted'
+  /** DashScope 原始响应（非结构化，供调试/审计） */
+  raw: unknown
+}
+
+/**
+ * 音频生成输出（如 fun-music-v1 BGM）— 同步返回
+ *
+ * url: 生成的音频文件 OSS URL（DashScope 返回，24h 有效，需尽快转存）
+ * durationSeconds: 音频时长（秒），用于按秒计费
+ * format: 音频编码格式（mp3 / wav）
+ */
+export interface AudioProviderOutput {
+  type: 'audio'
+  url: string
+  durationSeconds: number
+  format: string
   /** DashScope 原始响应（非结构化，供调试/审计） */
   raw: unknown
 }
@@ -91,6 +108,14 @@ export interface VideoTaskProviderResult {
   usage?: ProviderUsage
 }
 
+export interface AudioProviderResult {
+  type: 'audio'
+  success: true
+  model: string
+  output: AudioProviderOutput
+  usage?: ProviderUsage
+}
+
 export interface FailedProviderResult {
   type: 'failed'
   success: false
@@ -102,6 +127,7 @@ export type ProviderResult
   = | TextProviderResult
     | ImageProviderResult
     | VideoTaskProviderResult
+    | AudioProviderResult
     | FailedProviderResult
 
 export interface TaskStatus {

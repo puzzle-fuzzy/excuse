@@ -51,8 +51,9 @@ export type InputMapping
  * - image: 图像生成 — input.messages[].content[].text
  * - video-t2v: 文生视频 — input.prompt（纯文本）
  * - video-media: 图生/参考生/编辑视频 — input.media[]
+ * - audio: 音频生成（如 fun-music-v1 BGM）— input.prompt + input.gender/lyrics/format，无 parameters 包裹层
  */
-export type RequestType = 'chat' | 'openai-chat' | 'image' | 'video-t2v' | 'video-media'
+export type RequestType = 'chat' | 'openai-chat' | 'image' | 'video-t2v' | 'video-media' | 'audio'
 
 export interface ModelConfig {
   id: string
@@ -78,6 +79,7 @@ export const MODEL_CATEGORIES = [
   { id: 'text' as const, name: '文本生成', color: 'blue' },
   { id: 'image' as const, name: '图像生成', color: 'purple' },
   { id: 'video' as const, name: '视频生成', color: 'pink' },
+  { id: 'audio' as const, name: '音频生成', color: 'amber' },
   { id: 'subtitle' as const, name: '字幕生成', color: 'teal' },
 ] as const
 

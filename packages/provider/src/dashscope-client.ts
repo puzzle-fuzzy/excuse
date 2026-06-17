@@ -7,9 +7,11 @@ import type {
   DashScopeTaskQueryResponse,
   DashScopeUsage,
   DashScopeVideoSubmitResponse,
+  FunMusicResponse,
 } from './dashscope-types'
 import type { ValidatedModelParameters } from './model-validator'
 import type {
+  AudioProviderResult,
   DashScopeConfig,
   DashScopeTaskOutput,
   FailedProviderResult,
@@ -302,6 +304,15 @@ export class DashScopeClient {
         }
       }
 
+      case 'audio': {
+        // 音频生成（fun-music-v1）：prompt/gender/lyrics/format 全部置于 input，
+        // 无 parameters 包裹层（与 DashScope music generation API 形状一致）
+        return {
+          model: modelConfig.id,
+          input,
+        }
+      }
+
       default:
         throw new Error(`未知的 requestType: ${requestType}`)
     }
@@ -428,6 +439,73 @@ export class DashScopeClient {
         },
         usage: {
           imageCount: usage.image_count || urls.length,
+        },
+      }
+    }
+    catch (error) {
+      notifyProviderCallObservers(model, Date.now() - startTime, false)
+      const msg = error instanceof Error ? error.message : String(error)
+      return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+    }
+  }
+
+  /**
+   * 音频生成 — 调用 fun-music-v1（FunMusic）生成 BGM（同步）
+   *
+   * 与图片生成同为同步 API：POST 后直接返回 output.audio.url（OSS，24h 有效），
+   * 调用方需尽快转存。usage.duration 为生成音频时长（秒），用于按秒计费。
+   *
+   * 仅支持非流式（X-DashScope-SSE 不设置）—— BGM 无需逐帧流式。
+   */
+  async generateAudio(model: string, params: ValidatedModelParameters): Promise<AudioProviderResult | FailedProviderResult> {
+    runProviderCallGuards(model)
+    const modelConfig = getModelById(model)
+    if (!modelConfig) {
+      return this.failed(model, `未知模型: ${model}`)
+    }
+
+    const body = this.buildRequestBody(modelConfig, params)
+
+    const startTime = Date.now()
+    try {
+      const response = await fetch(modelConfig.endpoint, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify(body),
+      })
+
+      const data = await response.json() as FunMusicResponse
+
+      if (response.status !== 200) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
+        return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: ${parseDashScopeError(data)}`)
+      }
+
+      const audio = data.output?.audio
+      const url = audio?.url
+      if (!url) {
+        notifyProviderCallObservers(model, Date.now() - startTime, false)
+        return this.failed(model, `模型 ${modelConfig.name}（${modelConfig.id}）: 未返回 audio.url`)
+      }
+
+      // FunMusic usage.duration 为生成音频时长（秒）
+      const durationSeconds = typeof data.usage?.duration === 'number' ? data.usage.duration : 0
+
+      notifyProviderCallObservers(model, Date.now() - startTime, true)
+      return {
+        type: 'audio',
+        success: true,
+        model,
+        output: {
+          type: 'audio',
+          url,
+          durationSeconds,
+          // format 由请求参数决定，缺省 mp3（见 fun-music-v1 配置 defaultValue）
+          format: typeof params.format === 'string' ? params.format : 'mp3',
+          raw: data,
+        },
+        usage: {
+          audioDuration: durationSeconds,
         },
       }
     }
@@ -831,6 +909,8 @@ export class DashScopeClient {
         return this.generateImage(model, params)
       case 'video':
         return this.submitVideoTask(model, params, referenceUrls)
+      case 'audio':
+        return this.generateAudio(model, params)
       default:
         return this.failed(model, `不支持的模型类别: ${modelConfig.category}`)
     }

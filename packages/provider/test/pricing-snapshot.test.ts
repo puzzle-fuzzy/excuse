@@ -35,6 +35,10 @@ const EXPECTED_PRICING: Record<string, ModelPricing> = {
   'qwen-image-2.0-pro': { inputPriceCents: 25, unit: 'image' },
   'qwen-image-max': { inputPriceCents: 25, unit: 'image' },
 
+  // ===== 音频模型 =====
+  // fun-music-v1 邀测期定价 0.002元/1000秒 = 0.0002分/秒（按秒小数计费，见 docs/bailian/模型调用价格.md）
+  'fun-music-v1': { inputPriceCents: 0.0002, unit: 'audio' },
+
   // ===== 视频模型 =====
   'happyhorse-1.0-t2v': { inputPriceCents: 90, inputPrice1080Cents: 160, unit: 'video' },
   'happyhorse-1.0-i2v': { inputPriceCents: 90, inputPrice1080Cents: 160, unit: 'video' },
@@ -104,19 +108,23 @@ describe('价格快照 (P1.8)', () => {
     expect(violations).toHaveLength(0)
   })
 
-  it('所有定价金额为正整数分', () => {
+  it('所有定价金额为正数（token/image/video 为正整数分；audio 按秒可小数计费）', () => {
     const violations: string[] = []
     for (const model of Object.values(MODELS)) {
       const p = model.pricing
-      if (!Number.isInteger(p.inputPriceCents) || p.inputPriceCents <= 0) {
-        violations.push(`${model.id}: inputPriceCents=${p.inputPriceCents} 不是正整数分`)
+      // audio 模型按秒计费，单价可为小数分（如 fun-music-v1 = 0.0002分/秒，
+      // 与 ASR 0.008分/秒 同属按秒小数定价）—— 仅要求为正数。
+      const requireInteger = p.unit !== 'audio'
+      const check = (label: string, value: number | undefined) => {
+        if (value === undefined)
+          return
+        if (value <= 0 || (requireInteger && !Number.isInteger(value))) {
+          violations.push(`${model.id}: ${label}=${value} ${requireInteger ? '不是正整数分' : '不是正数'}`)
+        }
       }
-      if (p.outputPriceCents !== undefined && (!Number.isInteger(p.outputPriceCents) || p.outputPriceCents <= 0)) {
-        violations.push(`${model.id}: outputPriceCents=${p.outputPriceCents} 不是正整数分`)
-      }
-      if (p.inputPrice1080Cents !== undefined && (!Number.isInteger(p.inputPrice1080Cents) || p.inputPrice1080Cents <= 0)) {
-        violations.push(`${model.id}: inputPrice1080Cents=${p.inputPrice1080Cents} 不是正整数分`)
-      }
+      check('inputPriceCents', p.inputPriceCents)
+      check('outputPriceCents', p.outputPriceCents)
+      check('inputPrice1080Cents', p.inputPrice1080Cents)
     }
     expect(violations).toHaveLength(0)
   })

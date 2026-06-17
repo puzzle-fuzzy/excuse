@@ -13,6 +13,8 @@ export { AssetStorage } from './storage'
 export { burnSubtitlesToVideo } from './subtitle-burner'
 export type { BurnResult } from './subtitle-burner'
 export type {
+  AudioProviderOutput,
+  AudioProviderResult,
   DashScopeConfig,
   DashScopeTaskOutput,
   FailedProviderResult,

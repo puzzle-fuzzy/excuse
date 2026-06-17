@@ -18,7 +18,7 @@ describe('getModelById', () => {
     for (const [id, model] of Object.entries(MODELS)) {
       expect(model.id).toBe(id)
       expect(model.name).toBeTruthy()
-      expect(['text', 'image', 'video']).toContain(model.category)
+      expect(['text', 'image', 'video', 'audio']).toContain(model.category)
       expect(['generation', 'understanding', 'editing']).toContain(model.type)
       expect(model.endpoint).toBeTruthy()
       expect(model.pricing.inputPriceCents).toBeGreaterThan(0)
@@ -46,8 +46,14 @@ describe('getModelsByCategory', () => {
     expect(videoModels.every(m => m.category === 'video')).toBe(true)
   })
 
+  it('返回音频模型列表', () => {
+    const audioModels = getModelsByCategory('audio')
+    expect(audioModels.length).toBeGreaterThan(0)
+    expect(audioModels.every(m => m.category === 'audio')).toBe(true)
+  })
+
   it('不存在类别返回空数组', () => {
-    expect(getModelsByCategory('audio')).toHaveLength(0)
+    expect(getModelsByCategory('nonexistent')).toHaveLength(0)
   })
 })
 
@@ -222,6 +228,7 @@ describe('模型配置一致性 (P1.8)', () => {
         text: ['token'],
         image: ['image'],
         video: ['video'],
+        audio: ['audio'],
       }
       const allowed = expectedUnits[model.category]
       if (allowed && model.pricing.unit && !allowed.includes(model.pricing.unit)) {

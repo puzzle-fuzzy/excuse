@@ -52,6 +52,16 @@ const VIDEO_MEDIA_MAPPING: Record<string, InputMapping> = {
   audio_setting: { target: 'parameter' },
 }
 
+// 音频模型（fun-music-v1）映射 — 所有字段置于 input 层（无 parameters 包裹）
+// prompt 为音乐描述；lyrics/gender/format/enable_aigc_watermark 为模型特有 input 字段
+const AUDIO_MAPPING: Record<string, InputMapping> = {
+  prompt: { target: 'prompt' },
+  lyrics: { target: 'mediaField', field: 'lyrics' },
+  gender: { target: 'mediaField', field: 'gender' },
+  format: { target: 'mediaField', field: 'format' },
+  enable_aigc_watermark: { target: 'mediaField', field: 'enable_aigc_watermark' },
+}
+
 // ── 模型配置 ────────────────────────────────────────────
 
 export const MODELS: Record<string, ModelConfig> = {
@@ -214,6 +224,36 @@ export const MODELS: Record<string, ModelConfig> = {
       { name: 'watermark', type: 'boolean', defaultValue: false, description: '添加水印' },
       { name: 'prompt_extend', type: 'boolean', defaultValue: true, description: '智能改写提示词' },
       { name: 'seed', type: 'number', min: 0, max: 2147483647, description: '随机数种子' },
+    ],
+  },
+
+  // ===== 音频生成模型 =====
+
+  'fun-music-v1': {
+    id: 'fun-music-v1',
+    name: 'FunMusic 音乐生成',
+    category: 'audio',
+    type: 'generation',
+    description: '阿里云音乐生成模型，按文本描述生成 BGM（邀测期模型）',
+    endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/audio/music/generation',
+    async: false,
+    // 定价：0.002 元 / 1000 秒（邀测期，见 docs/bailian/模型调用价格.md）= 0.0002 分/秒。
+    // 按秒计费（unit=audio），currency.js precision=4 可精确表示。
+    pricing: { inputPriceCents: 0.0002, unit: 'audio', note: '0.002元/1000秒（邀测期）' },
+    requestType: 'audio',
+    inputMapping: AUDIO_MAPPING,
+    parameters: [
+      { name: 'prompt', type: 'text', required: true, description: '音乐描述（风格/情绪/乐器/场景，1~2000 字符）' },
+      { name: 'lyrics', type: 'text', description: '歌词（与 prompt 二选一，中文 5~350 字符）' },
+      { name: 'gender', type: 'select', defaultValue: 'female', description: '演唱声性别', options: [
+        { label: '女声', value: 'female' },
+        { label: '男声', value: 'male' },
+      ] },
+      { name: 'format', type: 'select', defaultValue: 'mp3', description: '音频编码格式', options: [
+        { label: 'MP3（网络传输）', value: 'mp3' },
+        { label: 'WAV（高质量）', value: 'wav' },
+      ] },
+      { name: 'enable_aigc_watermark', type: 'boolean', defaultValue: false, description: 'AIGC 水印（追加摩尔斯电码标识）' },
     ],
   },
 

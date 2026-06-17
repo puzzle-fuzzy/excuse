@@ -224,6 +224,69 @@ describe('DashScopeClient', () => {
     })
   })
 
+  // ── generateAudio (fun-music-v1) ──
+
+  describe('generateAudio', () => {
+    it('成功返回音频 URL + 时长', async () => {
+      withMock(200, {
+        output: {
+          audio: { url: 'https://cdn.example.com/bgm.mp3', id: 'audio_1', expires_at: 1774936147 },
+          extra_info: { channels: 2, sample_rate: '48000' },
+          finish_reason: 'stop',
+        },
+        usage: { duration: 200 },
+        request_id: 'req-1',
+      })
+
+      const result = await client.generateAudio('fun-music-v1', { prompt: '舒缓钢琴 BGM' })
+      restoreFetch()
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.type).toBe('audio')
+        expect(result.output.url).toBe('https://cdn.example.com/bgm.mp3')
+        expect(result.output.durationSeconds).toBe(200)
+        expect(result.output.format).toBe('mp3')
+        expect(result.usage!.audioDuration).toBe(200)
+      }
+    })
+
+    it('未知音频模型返回错误', async () => {
+      const result = await client.generateAudio('nonexistent', { prompt: 'x' })
+      expect(result.success).toBe(false)
+    })
+
+    it('响应缺少 audio.url 时返回失败', async () => {
+      withMock(200, { output: { audio: {} }, usage: { duration: 100 } })
+      const result = await client.generateAudio('fun-music-v1', { prompt: 'x' })
+      restoreFetch()
+      expect(result.success).toBe(false)
+    })
+
+    it('API 返回非 200 时解析错误', async () => {
+      withMock(400, { code: 'InvalidParameter', message: 'prompt too long' })
+      const result = await client.generateAudio('fun-music-v1', { prompt: 'x' })
+      restoreFetch()
+      expect(result.success).toBe(false)
+    })
+
+    it('请求体按 audio requestType 组装（input 内 prompt/gender，无 parameters 包裹）', async () => {
+      let capturedBody: Record<string, unknown> = {}
+      globalThis.fetch = mockFetch((_url, init) => {
+        capturedBody = parseJsonBody(init)
+        return Promise.resolve(new Response(JSON.stringify({
+          output: { audio: { url: 'https://cdn.example.com/bgm.wav' }, finish_reason: 'stop' },
+          usage: { duration: 60 },
+        }), { status: 200 }))
+      })
+      await client.generateAudio('fun-music-v1', { prompt: '电子 BGM', gender: 'male', format: 'wav' })
+
+      expect(capturedBody.model).toBe('fun-music-v1')
+      expect(capturedBody.input).toMatchObject({ prompt: '电子 BGM', gender: 'male', format: 'wav' })
+      expect(capturedBody.parameters).toBeUndefined()
+    })
+  })
+
   // ── submitVideoTask ──
 
   describe('submitVideoTask', () => {

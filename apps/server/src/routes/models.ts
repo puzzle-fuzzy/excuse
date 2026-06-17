@@ -10,7 +10,9 @@ import { Elysia } from 'elysia'
  */
 export const modelsRoutes = new Elysia({ prefix: '/api/models' })
   .get('/', () => {
-    const models = Object.values(MODELS).map(m => ({
+    // audio 类模型（fun-music-v1）为 Canvas BGM 流水线内部使用，邀测期且非通用生成类别
+    // （generation_category 枚举不含 audio），不暴露到通用生成 UI，避免误提交。
+    const models = Object.values(MODELS).filter(m => m.category !== 'audio').map(m => ({
       id: m.id,
       name: m.name,
       category: m.category,

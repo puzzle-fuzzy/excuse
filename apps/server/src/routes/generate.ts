@@ -87,6 +87,13 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         throw new ValidationError(`Unknown model: ${model}`)
       }
 
+      // 类别守卫 — generate 流程仅支持 text/image/video/subtitle。
+      // audio（fun-music-v1）为 Canvas BGM 内部模型，由 canvas.bgm 阶段驱动，不通过通用生成接口调用。
+      const category = modelConfig.category
+      if (category !== 'text' && category !== 'image' && category !== 'video' && category !== 'subtitle') {
+        throw new ValidationError(`模型 ${model} 的类别 "${category}" 不支持通过生成接口调用`)
+      }
+
       // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
       const validationResult = validateAndMerge(modelConfig, parameters)
       if (!validationResult.ok) {
@@ -94,8 +101,6 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         throw new ValidationError(detail)
       }
       const validatedParams = validationResult.params
-
-      const category = modelConfig.category
 
       // 视频模型独立限流 — 5 次/分钟/用户，防止高成本任务滥用
       if (category === 'video') {
@@ -378,7 +383,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         taskId: newTaskId,
         traceId: record.traceId ?? undefined,
         modelConfig,
-        category: modelConfig.category,
+        category: record.category,
         parameters: validatedParams,
         referenceUrls,
         inputParams,

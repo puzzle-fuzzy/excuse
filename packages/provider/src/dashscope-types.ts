@@ -84,6 +84,38 @@ export interface DashScopeImageResponse {
   message?: string
 }
 
+// ── Audio（FunMusic 音乐生成）同步响应 ──
+
+/**
+ * fun-music-v1 非流式响应
+ *
+ * output.audio.url: 生成的音频 OSS URL（24h 有效）
+ * output.audio.expires_at / id: 音频元信息
+ * output.extra_info: channels / sample_rate / lyrics
+ * usage.duration: 生成音频时长（秒），用于按秒计费
+ */
+export interface FunMusicResponse {
+  output?: {
+    audio?: {
+      url?: string
+      id?: string
+      expires_at?: number
+    }
+    extra_info?: {
+      channels?: number
+      sample_rate?: string
+      lyrics?: string
+    }
+    finish_reason?: string | null
+  }
+  usage?: {
+    duration?: number
+  }
+  request_id?: string
+  code?: string
+  message?: string
+}
+
 // ── Video 异步任务 ──
 
 /** 视频任务提交响应 */

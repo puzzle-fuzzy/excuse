@@ -79,16 +79,18 @@ describe('Pipeline Stepper', () => {
     mockFindActiveRunForPhase.mockResolvedValue(null)
   })
 
-  it('PHASE_ORDER 有 9 个阶段', () => {
-    expect(PHASE_ORDER).toHaveLength(9)
+  it('PHASE_ORDER 有 12 个阶段', () => {
+    expect(PHASE_ORDER).toHaveLength(12)
     expect(PHASE_ORDER[0]).toBe('analyze')
-    expect(PHASE_ORDER[8]).toBe('videos')
+    expect(PHASE_ORDER[8]).toBe('dialogue')
+    expect(PHASE_ORDER[11]).toBe('assemble')
   })
 
-  it('PAUSE_BEFORE 包含 storyboard 和 videos', () => {
+  it('PAUSE_BEFORE 包含 storyboard / videos / assemble', () => {
     expect(PAUSE_BEFORE.has('storyboard')).toBe(true)
     expect(PAUSE_BEFORE.has('videos')).toBe(true)
-    expect(PAUSE_BEFORE.size).toBe(2)
+    expect(PAUSE_BEFORE.has('assemble')).toBe(true)
+    expect(PAUSE_BEFORE.size).toBe(3)
   })
 
   it('非 canvas domain 不推进', async () => {
@@ -109,11 +111,11 @@ describe('Pipeline Stepper', () => {
     expect(result).toBeNull()
   })
 
-  it('最后一个阶段（videos）不推进', async () => {
+  it('最后一个阶段（assemble）不推进', async () => {
     mockGetCanvasProjectById.mockResolvedValue(makeProject(true))
 
     const result = await advancePipelineAfterTaskSuccess(
-      makeTask({ type: 'canvas.videos' }),
+      makeTask({ type: 'canvas.assemble' }),
       mockConfig,
     )
     expect(result).toBeNull()
@@ -189,11 +191,12 @@ describe('Pipeline Stepper', () => {
     expect(result).toBeNull()
   })
 
-  it('rebuild → videos 不推进（PAUSE_BEFORE）', async () => {
+  it('dialogue → videos 不推进（PAUSE_BEFORE）', async () => {
+    // dialogue 之后是 videos，videos 在 PAUSE_BEFORE 中 → 不自动推进
     mockGetCanvasProjectById.mockResolvedValue(makeProject(true))
 
     const result = await advancePipelineAfterTaskSuccess(
-      makeTask({ type: 'canvas.rebuild' }),
+      makeTask({ type: 'canvas.dialogue' }),
       mockConfig,
     )
     expect(result).toBeNull()
