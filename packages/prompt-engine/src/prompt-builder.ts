@@ -31,6 +31,11 @@ export interface PromptShot {
   }
   timeline?: Array<{ time: string, action: string }>
   environment?: PromptEnvironment
+  /**
+   * narrative 是否含角色对白（由调用方用 `hasDialogueAudio(narrative)` 预判传入）。
+   * 缺省时 builder 自己用引号启发式兜底判定。决定是否编排「对话音频」段。
+   */
+  hasDialogue?: boolean
 }
 
 export interface PromptCharacter {
@@ -140,6 +145,42 @@ function buildTimelineSection(
   return fallback.join('\n')
 }
 
+/** 引号启发式：narrative 是否含角色对白（兜底判定，调用方可经 shot.hasDialogue 显式传入） */
+function narrativeHasDialogue(narrative: string): boolean {
+  return /["“”‘’「」『』]/u.test(narrative)
+}
+
+/**
+ * 构建「音频」段 — 指示 HappyHorse 原生生成镜头内对白音频 + 环境音效。
+ *
+ * - 有对白：复用 narrative 里已编排的对白（中文引号包裹），用 continuity 情绪标注语气，
+ *   要求模型生成与对白文本一致的语音。
+ * - 无对白：明确 `no character dialogue`，仅描述环境音效。
+ * - 环境音效：从 environment（backgroundMotion/lighting/mood）派生 ambient sound 描述。
+ *
+ * 该段紧跟在 Current shot 之后，引导模型把「画面 + 声音」一并生成（HappyHorse 原生音视频）。
+ */
+function buildAudioSection(
+  shot: PromptShot,
+  environment: PromptEnvironment | undefined,
+): string {
+  const hasDialogue = shot.hasDialogue ?? narrativeHasDialogue(shot.narrative)
+
+  const ambientSound = environment?.backgroundMotion
+    ? `ambient sound: ${environment.backgroundMotion.toLowerCase()}`
+    : 'ambient sound: subtle environmental ambience'
+
+  const dialogueLine = hasDialogue
+    ? `- Generate the character dialogue exactly as written in the shot description above (text in quotes), with voice tone matching the scene emotion (${shot.continuity.emotionStart || 'neutral'} → ${shot.continuity.emotionEnd || 'neutral'}).`
+    : '- No character dialogue in this shot (ambient only).'
+
+  return `Audio: dialogue & sound effects:
+${dialogueLine}
+- ${ambientSound}
+- Sync all sound to the on-screen action and timeline below.
+`
+}
+
 /**
  * 为单个镜头构建完整的视频生成提示词
  *
@@ -147,12 +188,13 @@ function buildTimelineSection(
  *   1. Character consistency — 角色 identityPrompt（保证外貌一致）
  *   2. Scene consistency — 场景 scenePrompt（保证环境一致）
  *   3. Current shot — 镜头叙事描述
- *   4. Frame-by-frame timeline — 逐秒动作时间线
- *   5. Emotion continuity — 起始/结束情绪
- *   6. Character facing — 角色朝向（遵守 180 度规则）
- *   7. Environment — 光线/氛围/风格/背景动态
- *   8. Camera — shotSize/angle/movement/lens
- *   9. Quality requirements — 高一致性 AI 视频的硬性约束
+ *   4. Audio — 对白音频 + 环境音效（HappyHorse 原生音视频）
+ *   5. Frame-by-frame timeline — 逐秒动作时间线
+ *   6. Emotion continuity — 起始/结束情绪
+ *   7. Character facing — 角色朝向（遵守 180 度规则）
+ *   8. Environment — 光线/氛围/风格/背景动态
+ *   9. Camera — shotSize/angle/movement/lens
+ *   10. Quality requirements — 高一致性 AI 视频的硬性约束
  */
 export function buildShotVideoPrompt(args: {
   shot: PromptShot
@@ -199,6 +241,8 @@ Style: ${environment.style || 'cinematic'}`
     `Lens: ${shot.camera.lens}`,
   ].join(', ')
 
+  const audioSection = buildAudioSection(shot, environment)
+
   const videoPrompt = `Character consistency:
 ${characterSection}
 
@@ -208,7 +252,7 @@ ${location.scenePrompt}
 Current shot:
 ${shot.narrative}
 
-Frame-by-frame timeline (total ${duration}s):
+${audioSection}Frame-by-frame timeline (total ${duration}s):
 ${timelineSection}
 
 Emotion continuity:

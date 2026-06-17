@@ -160,6 +160,30 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('180-degree axis')
   })
 
+  // ── 音频段（对话 + 环境音效） ────────────────────────
+
+  it('含对白 narrative → videoPrompt 编排对话音频段', () => {
+    const result = buildShotVideoPrompt({
+      shot: makeShot({ narrative: 'Alice turns and says "I will not leave you behind"' }),
+      characters: [makeCharacter()],
+      location: makeLocation(),
+    })
+    expect(result.videoPrompt).toContain('Audio: dialogue & sound effects')
+    expect(result.videoPrompt).toContain('Generate the character dialogue exactly as written')
+    expect(result.videoPrompt).toContain('calm → determined')
+  })
+
+  it('无对白 narrative → videoPrompt 标注 no character dialogue + 环境音效', () => {
+    const result = buildShotVideoPrompt({
+      shot: makeShot({ narrative: 'A girl walks silently through the forest' }),
+      characters: [makeCharacter()],
+      location: makeLocation(),
+      environment: { backgroundMotion: 'wind in trees', lighting: 'moonlight', mood: 'mysterious', style: 'cinematic' },
+    })
+    expect(result.videoPrompt).toContain('No character dialogue')
+    expect(result.videoPrompt).toContain('ambient sound: wind in trees')
+  })
+
   it('处理多个角色', () => {
     const char2: NormalizedCharacter = {
       id: 'char-2',

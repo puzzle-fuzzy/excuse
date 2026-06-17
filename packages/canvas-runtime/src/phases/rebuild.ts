@@ -1,5 +1,6 @@
 import type { CanvasProjectDetail } from '../normalize'
 import { buildShotVideoPrompt } from '@excuse/prompt-engine'
+import { hasDialogueAudio } from '@excuse/shared'
 import { toNormalizedCharacter, toNormalizedLocation, toNormalizedShot } from '../normalize'
 
 type ShotRow = CanvasProjectDetail['shots'][number]
@@ -26,8 +27,14 @@ export interface ShotVideoPromptEntityResult {
 }
 
 export function buildShotVideoPromptEntity(input: ShotVideoPromptEntityInput): ShotVideoPromptEntityResult {
+  const normalizedShot = toNormalizedShot(input.shot)
   return buildShotVideoPrompt({
-    shot: toNormalizedShot(input.shot),
+    shot: {
+      ...normalizedShot,
+      // 用共享启发式预判 narrative 是否含对白，驱动 audio 段的对话编排。
+      // builder 也内置引号兜底，这里显式传入以保持 client/server/worker 判定一致。
+      hasDialogue: hasDialogueAudio(normalizedShot.narrative),
+    },
     characters: input.characters.map(toNormalizedCharacter),
     location: toNormalizedLocation(input.location),
     timeline: input.shot.timelineJson ?? undefined,
