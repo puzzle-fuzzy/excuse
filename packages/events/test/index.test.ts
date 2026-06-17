@@ -130,8 +130,8 @@ describe('@excuse/events', () => {
     const first = (event: string, data: unknown) => received.push({ event, data })
     const second = (event: string, data: unknown) => received.push({ event, data })
 
-    expect(hub.addConnection('user-1', first)).toBe(1)
-    expect(hub.addConnection('user-1', second)).toBe(2)
+    expect(hub.addConnection('user-1', first)).toEqual({ accepted: true, userCount: 1, totalCount: 1 })
+    expect(hub.addConnection('user-1', second)).toEqual({ accepted: true, userCount: 2, totalCount: 2 })
     expect(hub.getOnlineUserCount()).toBe(1)
     expect(hub.getConnectionCount('user-1')).toBe(2)
 
@@ -144,6 +144,34 @@ describe('@excuse/events', () => {
     expect(hub.removeConnection('user-1', first)).toBe(1)
     expect(hub.removeConnection('user-1', second)).toBe(0)
     expect(hub.getOnlineUserCount()).toBe(0)
+  })
+
+  it('超过单用户连接上限时拒绝并返回 reason', () => {
+    const hub = new UserEventHub(10_000, 3) // maxTotal, maxConnectionsPerUser
+    const conn = (i: number) => () => i
+    expect(hub.addConnection('user-1', conn(1)).accepted).toBe(true)
+    expect(hub.addConnection('user-1', conn(2)).accepted).toBe(true)
+    expect(hub.addConnection('user-1', conn(3)).accepted).toBe(true)
+
+    // 第 4 个连接超过单用户上限（3）→ 拒绝，原连接不受影响
+    const rejected = hub.addConnection('user-1', conn(4))
+    expect(rejected.accepted).toBe(false)
+    expect(rejected.userCount).toBe(3)
+    expect(rejected.reason).toMatch(/单用户上限/)
+    expect(hub.getConnectionCount('user-1')).toBe(3)
+  })
+
+  it('超过全局连接上限时拒绝并返回 reason', () => {
+    const hub = new UserEventHub(2, 3) // maxTotal=2
+    expect(hub.addConnection('user-1', () => {}).accepted).toBe(true)
+    expect(hub.addConnection('user-2', () => {}).accepted).toBe(true)
+
+    // 第 3 个连接超过全局上限（2）→ 拒绝
+    const rejected = hub.addConnection('user-3', () => {})
+    expect(rejected.accepted).toBe(false)
+    expect(rejected.totalCount).toBe(2)
+    expect(rejected.reason).toMatch(/全局上限/)
+    expect(hub.getOnlineUserCount()).toBe(2)
   })
 
   it('某个 sender 抛出异常时继续分发', () => {
