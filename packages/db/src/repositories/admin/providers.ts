@@ -32,7 +32,7 @@ export async function getAdminProviderStats(
       totalCalls: sql<number>`count(*)::int`,
       succeededCalls: sql<number>`count(*) filter (where ${generationRecords.status} = 'succeeded')::int`,
       failedCalls: sql<number>`count(*) filter (where ${generationRecords.status} = 'failed')::int`,
-      totalCostCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+      totalCostCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)`,
       totalInputTokens: sql<number>`coalesce(sum((${generationRecords.cost}->>'inputTokens')::numeric), 0)::int`,
       totalOutputTokens: sql<number>`coalesce(sum((${generationRecords.cost}->>'outputTokens')::numeric), 0)::int`,
     })

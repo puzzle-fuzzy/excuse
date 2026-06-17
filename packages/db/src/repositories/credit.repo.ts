@@ -318,8 +318,10 @@ export type CreditErrorCode
 type GenerationCreditTransactionType = 'reserve' | 'debit' | 'refund'
 
 function assertPositiveAmount(amountCents: number) {
-  if (!Number.isInteger(amountCents) || amountCents <= 0) {
-    throw new CreditError('INVALID_AMOUNT', `金额必须是正整数分: ${amountCents}`)
+  // 允许小数分：分值列已改为 numeric(20,4)，文本（按 token）与音频（按秒）计价产生 sub-cent
+  // 金额（如 qwen-max 1000/500 token → 0.72 分）。仍拒绝 0 / 负数 / NaN。
+  if (!(amountCents > 0)) {
+    throw new CreditError('INVALID_AMOUNT', `金额必须是正数: ${amountCents}`)
   }
 }
 

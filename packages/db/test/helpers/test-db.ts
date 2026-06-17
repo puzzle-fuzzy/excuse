@@ -20,7 +20,7 @@ import { resolve } from 'node:path'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
-import { setDb } from '../../src/db'
+import { numericTypeParser, setDb } from '../../src/db'
 
 import * as schema from '../../src/schema'
 
@@ -39,7 +39,7 @@ let savepointCounter = 0
  * beforeAll 调用：连接测试库并运行迁移
  */
 export async function initTestDb() {
-  const client = postgres(TEST_DATABASE_URL, { max: 1 })
+  const client = postgres(TEST_DATABASE_URL, { max: 1, types: numericTypeParser })
   db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
 }

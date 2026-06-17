@@ -151,12 +151,12 @@ export class FakeDashScopeClient {
   }
 
   private textResult(model: string): TextProviderResult {
-    // usage 置 0：qwen 类文本模型按「每百万 token」计价，任何非零 token 量都产生 fractional
-    // cents（如 10/20 token → 0.0216 分），而 generation_records.total_price_cents 与 credit
-    // ledger 均为 integer 列——这是仓库既有的「integer 计费 vs sub-cent 文本/音频定价」设计冲突
-    // （见 e2e/README.md「已知限制」），非本 E2E 范围。置 0 使文本/gateway 旅程能在不触发该冲突的
-    // 前提下验证 provider 注入与输出落库；视频旅程（整数分 300）覆盖完整 reserve→debit 计费路径。
-    const usage: ProviderUsage = { inputTokens: 0, outputTokens: 0 }
+    // 非零 usage：qwen 类文本模型按「每百万 token」计价，1000 input + 500 output token
+    // 在 qwen-max（240/960 每 1M token）下 = 0.24 + 0.48 = 0.72 分（sub-cent）。
+    // 计费列已改为 numeric(20,4) + numeric→Number parser（见 packages/db/src/db.ts），
+    // 该 sub-cent 金额能完整 reserve→debit 落库——这正是「integer 计费 vs sub-cent 定价」
+    // 冲突修复后的直接验证。注册赠送 1000 分覆盖该 debit。
+    const usage: ProviderUsage = { inputTokens: 1000, outputTokens: 500 }
     return {
       type: 'text',
       success: true,

@@ -50,8 +50,8 @@ export async function listAdminGatewayClients(
         email: accounts.email,
         totalKeyCount: sql<number>`count(*)::int`,
         activeKeyCount: sql<number>`count(*) filter (where ${apiKeys.revokedAt} is null)::int`,
-        totalSpendCents: sql<number>`coalesce(sum(${apiKeys.totalSpendCents}), 0)::int`,
-        totalQuotaCents: sql<number | null>`case when count(*) filter (where ${apiKeys.quotaMaxCents} is null) > 0 then null else coalesce(sum(${apiKeys.quotaMaxCents}), 0)::int end`,
+        totalSpendCents: sql<number>`coalesce(sum(${apiKeys.totalSpendCents}), 0)`,
+        totalQuotaCents: sql<number | null>`case when count(*) filter (where ${apiKeys.quotaMaxCents} is null) > 0 then null else coalesce(sum(${apiKeys.quotaMaxCents}), 0) end`,
         lastKeyActivityAt: sql<Date | null>`max(${apiKeys.lastUsedAt})`,
       })
       .from(accounts)
@@ -127,7 +127,7 @@ export async function getAdminGatewayClientDetail(
         id: accounts.id,
         username: accounts.username,
         email: accounts.email,
-        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)::int`,
+        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)`,
       })
       .from(accounts)
       .leftJoin(creditAccounts, eq(creditAccounts.accountId, accounts.id))
@@ -137,8 +137,8 @@ export async function getAdminGatewayClientDetail(
       .select({
         totalKeyCount: sql<number>`count(*)::int`,
         activeKeyCount: sql<number>`count(*) filter (where ${apiKeys.revokedAt} is null)::int`,
-        totalSpendCents: sql<number>`coalesce(sum(${apiKeys.totalSpendCents}), 0)::int`,
-        totalQuotaCents: sql<number | null>`case when count(*) filter (where ${apiKeys.quotaMaxCents} is null) > 0 then null else coalesce(sum(${apiKeys.quotaMaxCents}), 0)::int end`,
+        totalSpendCents: sql<number>`coalesce(sum(${apiKeys.totalSpendCents}), 0)`,
+        totalQuotaCents: sql<number | null>`case when count(*) filter (where ${apiKeys.quotaMaxCents} is null) > 0 then null else coalesce(sum(${apiKeys.quotaMaxCents}), 0) end`,
         lastKeyActivityAt: sql<Date | null>`max(${apiKeys.lastUsedAt})`,
       })
       .from(apiKeys)
@@ -146,7 +146,7 @@ export async function getAdminGatewayClientDetail(
     getDb()
       .select({
         gatewayCalls: sql<number>`count(*)::int`,
-        gatewaySpendCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+        gatewaySpendCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)`,
       })
       .from(generationRecords)
       .where(and(eq(generationRecords.accountId, accountId), sql`input_params->>'source' = 'gateway'`)),

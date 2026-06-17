@@ -10,7 +10,7 @@
 |---|------|--------|
 | 1 | 健康就绪 | `/api/health/live` `/db` `/ready` — 真实 PG + 可写存储 |
 | 2 | 注册 / 登录 | httpOnly cookie + JWT（E2E 用 Bearer 第 3 通道）；未认证 → 401 |
-| 3 | 提交文本生成 | **server 侧 fake provider**：`generate` 被调用、输出落库、记录 `succeeded` |
+| 3 | 提交文本生成 | **server 侧 fake provider**：`generate` 被调用、输出落库、记录 `succeeded`；**sub-cent 计费落库**（fake usage 1000/500 token → 0.72 分，numeric(20,4) 列 reserve→debit 验证） |
 | 4 | API Key + Gateway | **gateway 侧 fake provider**：创建 `exc_` key、`/v1/chat/completions` 返回 OpenAI 形态 |
 | 5 | Canvas analyze 阶段 | **canvas 路径 fake provider**：创建项目 → analyze（in-process fire-and-forget）→ run `succeeded`、项目 `analyzed` |
 | 6 | 视频生成 → worker | **worker 侧 fake provider**：提交 → worker 处理器 `queryTask` → `succeeded`，覆盖 reserve→debit 计费闭环 |
@@ -53,8 +53,5 @@ DATABASE_URL="postgres://excuse:excuse_dev@localhost:5433/excuse_e2e" bun run te
 
 ## 已知限制（非 E2E 范围）
 
-- **整数分计费 vs sub-cent 文本/音频定价**：`generation_records.total_price_cents` 与 credit ledger（`credit_transactions.amount_cents` 等）均为 `integer` 列，而 `calculateCost` 对文本（按 1M token 计价）与音频（按秒计价）产出 fractional cents（如 10/20 token → 0.0216 分）。落库会抛 `22P02 invalid input syntax for type integer`。
-  - 这是仓库既有的设计冲突（credit ledger 全程 integer，但音频/文本存在 sub-cent 定价），需单独决策（取整 vs 改 numeric 列），**不在本 E2E 范围**。
-  - 当前规避：fake 的文本 usage 置 0（cost 0），使文本/gateway 旅程能在不触发该冲突的前提下验证 provider 注入与输出落库。**视频旅程（整数分 300）覆盖完整 reserve→debit 计费路径**。
 - **媒体下载桩化**：视频旅程的 `downloadAndMap` 桩化（不真下载）。真实下载由 `packages/storage` 单测与 assemble 真实冒烟覆盖，E2E 不重复其 flaky 风险。
 - **浏览器层未覆盖**：本套件为 HTTP 全栈 E2E（非 Playwright 浏览器自动化）。TODO 原文「Playwright（或等价 E2E）」——HTTP 全栈同等覆盖关键旅程，且更 CI 稳定（无浏览器二进制、无跨层时序 flaky）。浏览器专属交互（httpOnly cookie 在真实浏览器、SSE `fetch-event-source`）可后续按需加 Playwright 层。

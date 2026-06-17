@@ -73,7 +73,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       .select({
         totalGenerationRecords: sql<number>`count(*)::int`,
         failedGenerationRecords: sql<number>`count(*) filter (where ${generationRecords.status} = 'failed')::int`,
-        totalCostCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+        totalCostCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)`,
       })
       .from(generationRecords),
     getDb()

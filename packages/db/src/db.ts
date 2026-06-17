@@ -13,10 +13,31 @@ const connectionString = process.env.DATABASE_URL || 'postgres://excuse:excuse_d
 // - idle_timeout：空闲连接自动释放，回收 PG slot
 // 注：未设 prepare:false —— 本项目未使用 PgBouncer（见部署文档），
 // 保留默认 prepared statement 以获得查询性能。
+//
+// numeric 类型解析覆盖：postgres 库默认把 numeric/decimal（OID 1700）解析为
+// JS string（防大数精度丢失）。但本项目所有分值列（totalPriceCents / credit ledger /
+// api-key spend）均为 numeric(20,4)——值域远小于 Number.MAX_SAFE_INTEGER（最大约
+// 10^9 分 × 4 位小数 = 13 位有效数字 < float64 的 15~17 位），按 number 解析无损且与
+// 既有分值运算/比较（如 `availableCents - amount`、`totalPriceCents > 0`）兼容。
+// 否则 credit ledger 的 SQL 内运算虽在 PG 侧精确，但读回的 string 会让 JS 侧
+// `totalSpendCents + actualCost` 退化为字符串拼接。
+//
+// 导出复用：测试 helper（packages/db/test/helpers/test-db.ts）自建 postgres 客户端，
+// 必须挂同一 parser，否则分值列在测试里以 string 返回（与生产行为不一致）。
+export const numericTypeParser = {
+  numeric: {
+    to: 1700,
+    from: [1700],
+    parse: (x: string) => Number.parseFloat(x),
+    serialize: (x: number) => `${x}`,
+  },
+}
+
 export const pgClient = postgres(connectionString, {
   max: Number(process.env.DB_MAX_CONNECTIONS) || 10,
   connect_timeout: 10,
   idle_timeout: 20,
+  types: numericTypeParser,
 })
 
 // 内部实例 — 通过 getDb() 访问，不直接导出

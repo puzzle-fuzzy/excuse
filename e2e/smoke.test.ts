@@ -88,7 +88,7 @@ describe('auth journey', () => {
 
 // ── 3. 文本生成（同步，server 侧 fake provider） ─────────
 describe('text generation (sync, fake provider on server)', () => {
-  it('提交文本生成 → 记录 succeeded + 输出落库 + provider 被调用', async () => {
+  it('提交文本生成 → 记录 succeeded + 输出落库 + sub-cent 计费落库 + provider 被调用', async () => {
     const user = await registerUnique(stack)
     const before = stack.control.calls.generate.length
 
@@ -97,13 +97,21 @@ describe('text generation (sync, fake provider on server)', () => {
       parameters: { prompt: '讲一个简短的笑话' },
     }))
     expect(res.ok).toBe(true)
-    const body = await res.json() as { success: boolean, record: { status: string, outputResult: { text?: string } | null } }
+    const body = await res.json() as { success: boolean, record: { id: string, status: string, outputResult: { text?: string } | null } }
     expect(body.success).toBe(true)
     expect(body.record.status).toBe('succeeded')
     expect(body.record.outputResult?.text).toBeTruthy()
 
     // provider 注入生效：generate 被真实调用（非真实 DashScope）
     expect(stack.control.calls.generate.length).toBeGreaterThan(before)
+
+    // sub-cent 计费落库验证：fake 文本 usage 1000/500 token 在 qwen-max 下 = 0.72 分（小数分）。
+    // 计费列为 numeric(20,4)，该小数分能 reserve→debit 落库——这正是「integer 计费 vs sub-cent
+    // 定价」冲突修复的直接证据（修复前会抛 22P02 invalid input syntax for type integer）。
+    const costRes = await stack.api(`/api/records/${body.record.id}`, authJson(user.token, 'GET'))
+    expect(costRes.ok).toBe(true)
+    const costBody = await costRes.json() as { record: { cost: { totalPriceCents?: number } | null } }
+    expect(costBody.record.cost?.totalPriceCents).toBeGreaterThan(0)
   })
 })
 

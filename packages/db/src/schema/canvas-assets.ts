@@ -1,5 +1,5 @@
 import type { CanvasAssetOutput, CostDetail } from '../domain-types'
-import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+import { boolean, index, jsonb, numeric, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 import { canvasPipelineRuns } from './canvas-pipeline-runs'
 import { canvasProjects } from './canvas-projects'
@@ -109,8 +109,8 @@ export const canvasAssets = pgTable('canvas_assets', {
   // ── 成本追踪 ────────────────────────────────────
   /** 费用明细（token/image/video 成本） */
   cost: jsonb('cost').$type<CostDetail>(),
-  /** 权威费用值（整数分），冗余存储用于 SQL 聚合 */
-  totalPriceCents: integer('total_price_cents'),
+  /** 权威费用值（分，numeric(20,4) 支持 sub-cent），冗余存储用于 SQL 聚合 */
+  totalPriceCents: numeric('total_price_cents', { precision: 20, scale: 4, mode: 'number' }),
 
   // ── 错误处理 ────────────────────────────────────
   /** 失败时的错误信息 */

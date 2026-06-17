@@ -89,15 +89,15 @@ export async function listAdminUsers(
         email: accounts.email,
         isActive: accounts.isActive,
         createdAt: accounts.createdAt,
-        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)::int`,
-        totalCostCents: sql<number>`coalesce(agg.total_cost, 0)::int`,
+        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)`,
+        totalCostCents: sql<number>`coalesce(agg.total_cost, 0)`,
         totalCalls: sql<number>`coalesce(agg.total_calls, 0)::int`,
         lastActivityAt: sql<Date | null>`agg.last_activity`,
       })
       .from(accounts)
       .leftJoin(creditAccounts, eq(creditAccounts.accountId, accounts.id))
       .leftJoin(
-        sql`(SELECT account_id, sum(total_price_cents)::int AS total_cost, count(*)::int AS total_calls, max(created_at) AS last_activity FROM generation_records GROUP BY account_id) AS agg`,
+        sql`(SELECT account_id, sum(total_price_cents) AS total_cost, count(*)::int AS total_calls, max(created_at) AS last_activity FROM generation_records GROUP BY account_id) AS agg`,
         sql`agg.account_id = ${accounts.id}`,
       )
       .where(where)
@@ -137,15 +137,15 @@ export async function getAdminUserDetail(
         email: accounts.email,
         isActive: accounts.isActive,
         createdAt: accounts.createdAt,
-        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)::int`,
-        totalCostCents: sql<number>`coalesce(agg.total_cost, 0)::int`,
+        creditBalanceCents: sql<number>`coalesce(${creditAccounts.availableCents}, 0)`,
+        totalCostCents: sql<number>`coalesce(agg.total_cost, 0)`,
         totalCalls: sql<number>`coalesce(agg.total_calls, 0)::int`,
         lastActivityAt: sql<Date | null>`agg.last_activity`,
       })
       .from(accounts)
       .leftJoin(creditAccounts, eq(creditAccounts.accountId, accounts.id))
       .leftJoin(
-        sql`(SELECT account_id, sum(total_price_cents)::int AS total_cost, count(*)::int AS total_calls, max(created_at) AS last_activity FROM generation_records GROUP BY account_id) AS agg`,
+        sql`(SELECT account_id, sum(total_price_cents) AS total_cost, count(*)::int AS total_calls, max(created_at) AS last_activity FROM generation_records GROUP BY account_id) AS agg`,
         sql`agg.account_id = ${accounts.id}`,
       )
       .where(eq(accounts.id, accountId))
@@ -153,7 +153,7 @@ export async function getAdminUserDetail(
     getDb()
       .select({
         date: sql<string>`to_char(date_trunc('day', ${generationRecords.createdAt}), 'YYYY-MM-DD')`,
-        costCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+        costCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)`,
         calls: sql<number>`count(*)::int`,
       })
       .from(generationRecords)
@@ -167,7 +167,7 @@ export async function getAdminUserDetail(
       .select({
         model: generationRecords.model,
         calls: sql<number>`count(*)::int`,
-        costCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)::int`,
+        costCents: sql<number>`coalesce(sum(${generationRecords.totalPriceCents}), 0)`,
       })
       .from(generationRecords)
       .where(eq(generationRecords.accountId, accountId))
@@ -179,7 +179,7 @@ export async function getAdminUserDetail(
         id: generationRecords.id,
         model: generationRecords.model,
         status: generationRecords.status,
-        costCents: sql<number>`coalesce(${generationRecords.totalPriceCents}, 0)::int`,
+        costCents: sql<number>`coalesce(${generationRecords.totalPriceCents}, 0)`,
         createdAt: generationRecords.createdAt,
         providerTaskId: generationRecords.taskId,
         source: sql<string | null>`${generationRecords.inputParams}->>'source'`,

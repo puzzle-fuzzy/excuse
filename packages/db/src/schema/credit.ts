@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgEnum, pgTable, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
+import { index, jsonb, numeric, pgEnum, pgTable, timestamp, unique, uuid, varchar } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 import { generationRecords } from './generation-records'
 
@@ -31,10 +31,10 @@ export const creditTransactionTypeEnum = pgEnum('credit_transaction_type', [
 export const creditAccounts = pgTable('credit_accounts', {
   id: uuid('id').defaultRandom().primaryKey(),
   accountId: uuid('account_id').references(() => accounts.id).notNull(),
-  /** 可用余额（整数分） */
-  availableCents: integer('available_cents').notNull().default(0),
-  /** 冻结金额（整数分） — 已 reserve 但尚未 debit/refund */
-  frozenCents: integer('frozen_cents').notNull().default(0),
+  /** 可用余额（分，numeric(20,4) 支持 sub-cent：文本按 token、音频按秒计价产生小数分） */
+  availableCents: numeric('available_cents', { precision: 20, scale: 4, mode: 'number' }).notNull().default(0),
+  /** 冻结金额（分） — 已 reserve 但尚未 debit/refund */
+  frozenCents: numeric('frozen_cents', { precision: 20, scale: 4, mode: 'number' }).notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [
@@ -53,12 +53,12 @@ export const creditTransactions = pgTable('credit_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
   accountId: uuid('account_id').references(() => accounts.id).notNull(),
   type: creditTransactionTypeEnum('type').notNull(),
-  /** 变动金额（整数分，始终为正） */
-  amountCents: integer('amount_cents').notNull(),
+  /** 变动金额（分，始终为正；可为小数） */
+  amountCents: numeric('amount_cents', { precision: 20, scale: 4, mode: 'number' }).notNull(),
   /** 变动后可用余额快照 */
-  balanceAfterCents: integer('balance_after_cents').notNull(),
+  balanceAfterCents: numeric('balance_after_cents', { precision: 20, scale: 4, mode: 'number' }).notNull(),
   /** 变动后冻结金额快照 */
-  frozenAfterCents: integer('frozen_after_cents').notNull(),
+  frozenAfterCents: numeric('frozen_after_cents', { precision: 20, scale: 4, mode: 'number' }).notNull(),
   /** 关联的生成记录（reserve/debit/refund 时非空） */
   generationRecordId: uuid('generation_record_id').references(() => generationRecords.id),
   /** 描述/原因 */
@@ -87,10 +87,10 @@ export const usageEvents = pgTable('usage_events', {
   debitTxId: uuid('debit_tx_id'),
   /** refund 交易 ID（失败时非空） */
   refundTxId: uuid('refund_tx_id'),
-  /** 预留金额（整数分） */
-  reservedCents: integer('reserved_cents'),
-  /** 实际扣款金额（整数分） */
-  debitedCents: integer('debited_cents'),
+  /** 预留金额（分） */
+  reservedCents: numeric('reserved_cents', { precision: 20, scale: 4, mode: 'number' }),
+  /** 实际扣款金额（分） */
+  debitedCents: numeric('debited_cents', { precision: 20, scale: 4, mode: 'number' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [

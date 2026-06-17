@@ -1,6 +1,6 @@
 import type { CostDetail, GenerationInputParams, OutputResult } from '../domain-types'
 import { sql } from 'drizzle-orm'
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+import { index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 
 /**
@@ -76,8 +76,8 @@ export const generationRecords = pgTable('generation_records', {
   /** 费用明细（token 数量、单价、总费用等） */
   cost: jsonb('cost').$type<CostDetail>(),
 
-  /** 权威费用值（整数分），从 cost.totalPriceCents 冗余，用于 SQL 聚合避免 JSONB 解析 */
-  totalPriceCents: integer('total_price_cents'),
+  /** 权威费用值（分，numeric(20,4) 支持 sub-cent），从 cost.totalPriceCents 冗余，用于 SQL 聚合避免 JSONB 解析 */
+  totalPriceCents: numeric('total_price_cents', { precision: 20, scale: 4, mode: 'number' }),
 
   /** 失败时的错误信息 */
   errorMessage: text('error_message'),

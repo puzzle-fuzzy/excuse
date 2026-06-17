@@ -103,7 +103,7 @@
 
 > 下列为代码冗余/死代码/命名/a11y 债务，2026-06-17 逐条核对当前代码，仅录入「仍存在」与「待确认」项（关键问题与已修复项不录入）。原则：接触相关区域时顺手做，不专门开冲刺。
 
-- **计费 integer 列 vs sub-cent 定价（需决策，非「顺手做」级）**：`generation_records.total_price_cents` 与 credit ledger（`credit_transactions.amount_cents` / `credit_accounts.{available,frozen}_cents`）均为 `integer`，但 `calculateCost` 对文本（按 1M token 计价）与音频（按秒计价）产出 fractional cents（如 10/20 token → 0.0216 分）。非整数分成本落库抛 `22P02 invalid input syntax for type integer`，导致 `/api/generate` 文本与 `/v1/chat/completions` gateway 任何非整分成本都会失败（E2E 冒烟实测触发；视频/图片为整数分，不受影响）。需决策：①credit ledger 统一改 `numeric`/`decimal`（支持 sub-cent，含 schema 迁移）；或 ②在 storage 边界统一取整（sub-cent 计费精度丢失，影响 ASR / fun-music 真实收入）。E2E 文本/gateway 旅程暂以 fake usage=0 规避，视频旅程覆盖完整 reserve→debit。
+- ~~**计费 integer 列 vs sub-cent 定价（需决策，非「顺手做」级）**~~ ✅ 已解决：计费列统一改为 `numeric(20,4)`（generation_records / canvas_assets / credit ledger / api_keys 共 11 列），`packages/db/src/db.ts` 注册 numeric→Number type parser 使分值全程按 number 流转，credit.repo.ts `assertPositiveAmount` 放宽为允许正小数，admin 聚合去掉 `::int` 截断保留精度，迁移 `0037_billing_fractional_cents.sql`。E2E 文本旅程以非零 token usage 验证 sub-cent（0.72 分）reserve→debit 落库。
 - ~~**Gateway 流式/非流式计费编排重复**~~ ✅ 已由 `setupGatewayCall` / `settleGatewaySuccess` / `settleGatewayFailure` 三条共用原语覆盖，流式非流式均使用。
 - ~~**Admin 手动 Dialog 绕过 Radix**~~ ✅ 已替换 `Admin/index.tsx` 中全部 5 处手动遮罩为 `<DialogContent>`。
 - ~~**`CATEGORY_LABELS` 命名/值不一致**~~ ✅ 已提取 `@/lib/category-labels` 共享模块，补齐 `audio`。

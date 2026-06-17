@@ -11,7 +11,7 @@ export interface CostRecord {
 }
 
 /**
- * 从生成记录列表中聚合统计计费数据（整数分计费）
+ * 从生成记录列表中聚合统计计费数据（分计费，支持 sub-cent 小数；currency.js precision 4 累加）
  *
  * 只汇总 billable 记录（cost.billable !== false），
  * 非 billable 记录（失败/取消）单独计入 auditFailedCents
