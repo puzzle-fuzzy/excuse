@@ -1,4 +1,4 @@
-import type { SSEGenerationStatusEvent, SSENotificationEvent, SSEPipelineNodeEvent } from '@excuse/shared'
+import type { CanvasEntityPatch, SSEGenerationStatusEvent, SSENotificationEvent, SSEPipelineNodeEvent } from '@excuse/shared'
 import { create } from 'zustand'
 import { sseClient } from '@/api/sse'
 import { handleNotificationSSEEvent } from '@/stores/notifications'
@@ -26,6 +26,15 @@ interface RealtimeSyncState {
    */
   projectVersions: Record<string, number>
 
+  /**
+   * 实体补丁队列 — SSE 事件携带具体实体变更时，不递增 projectVersion，
+   * 而是将补丁存入此队列供 CanvasEditor 消费做局部更新。
+   */
+  entityPatches: CanvasEntityPatch[]
+
+  /** 消费并清空指定项目的实体补丁 */
+  consumeEntityPatches: (projectId: string) => CanvasEntityPatch[]
+
   /** SSE/轮询连接模式 — SSE 正常 | polling 降级 | 断开 */
   connectionMode: ConnectionMode
 
@@ -45,6 +54,7 @@ interface RealtimeSyncState {
 export const useRealtimeSync = create<RealtimeSyncState>((set, get) => ({
   phaseDone: null,
   projectVersions: {},
+  entityPatches: [],
   connectionMode: 'sse', // 初始假设 SSE 连接即将建立
   lastEventAt: null,
 
@@ -54,6 +64,15 @@ export const useRealtimeSync = create<RealtimeSyncState>((set, get) => ({
 
   consumePhaseDone: () => {
     set({ phaseDone: null })
+  },
+
+  consumeEntityPatches: (projectId: string) => {
+    const { entityPatches } = get()
+    const patches = entityPatches.filter(p => p.projectId === projectId)
+    if (patches.length > 0) {
+      set({ entityPatches: entityPatches.filter(p => p.projectId !== projectId) })
+    }
+    return patches
   },
 
   initialize: () => {
@@ -112,25 +131,40 @@ function handlePipelineNodeUpdate(
   set: (partial: Partial<RealtimeSyncState>) => void,
   get: () => RealtimeSyncState,
 ) {
-  const { projectVersions } = get()
+  const { projectVersions, entityPatches } = get()
 
-  // 递增项目版本，触发 CanvasEditor 重新加载
-  set({
-    projectVersions: {
-      ...projectVersions,
-      [event.projectId]: (projectVersions[event.projectId] || 0) + 1,
-    },
-  })
-
-  // Pipeline 阶段完成信号 — 传递给 PipelineController
-  if (event.nodeType === 'phase' && (event.status === 'completed' || event.status === 'failed')) {
+  // Phase 级别事件 → 全量版本递增（阶段完成/失败需整体刷新）
+  if (event.nodeType === 'phase') {
     set({
-      phaseDone: {
-        projectId: event.projectId,
-        key: event.nodeId,
-        status: event.status === 'completed' ? 'completed' : 'failed',
-        error: event.error,
+      projectVersions: {
+        ...projectVersions,
+        [event.projectId]: (projectVersions[event.projectId] || 0) + 1,
       },
     })
+
+    // Pipeline 阶段完成信号 — 传递给 PipelineController
+    if (event.status === 'completed' || event.status === 'failed') {
+      set({
+        phaseDone: {
+          projectId: event.projectId,
+          key: event.nodeId,
+          status: event.status === 'completed' ? 'completed' : 'failed',
+          error: event.error,
+        },
+      })
+    }
+    return
   }
+
+  // 实体级别事件（shot/character/location）→ 存入补丁队列，不做全量 reload
+  // CanvasEditor 消费这些补丁做局部更新
+  const patch: CanvasEntityPatch = {
+    projectId: event.projectId,
+    nodeType: event.nodeType,
+    nodeId: event.nodeId,
+    status: event.status,
+    error: event.error,
+    data: event.data,
+  }
+  set({ entityPatches: [...entityPatches, patch] })
 }

@@ -221,6 +221,21 @@ export interface AcceptedResponse {
   runId?: string
 }
 
+/**
+ * SSE 实体补丁 — pipeline_node_update 事件中携带的局部实体状态变更。
+ *
+ * 用于 delta patch：当 SSE 事件指明具体实体变更时（如单镜头状态变 completed），
+ * 前端直接 patch 该实体到 store，避免触发全量 reload。
+ */
+export interface CanvasEntityPatch {
+  projectId: string
+  nodeType: string
+  nodeId: string
+  status: string
+  error?: string
+  data?: Record<string, unknown>
+}
+
 // ===== 画布布局类型（前端 UI 状态，后端不解释） =====
 
 // ===== SSE 事件 =====
@@ -311,6 +326,64 @@ export type CanvasLocationResponse = EntityResponse<LocationDTO>
 export type CanvasShotResponse = EntityResponse<ShotDTO>
 
 export type CanvasMutationOkResponse = MutationOkResponse
+
+// ===== 摘要/详情 DTO 拆分（大项目 Canvas 性能优化） =====
+
+/**
+ * Canvas 实体摘要 — 画布节点渲染所需的最小字段。
+ *
+ * 角色、场景、镜头共用同一缩略类型，通过可选字段区分不同实体类型的需要。
+ * 当项目有 200+ 镜头时，摘要显著减少 payload 体积和序列化开销。
+ */
+export interface CanvasEntitySummary {
+  id: string
+
+  // 角色字段
+  name?: string | null
+  role?: string | null
+  referenceImageUrl?: string | null
+  turnaroundSheetUrl?: string | null
+  locked?: boolean
+
+  // 场景字段
+  type?: string | null
+
+  // 镜头字段
+  shotIndex?: number
+  duration?: number
+  narrative?: string
+  videoUrl?: string | null
+  status?: CanvasShotStatus
+  errorMessage?: string | null
+  characterIds?: string[]
+  locationId?: string | null
+}
+
+/**
+ * Canvas 项目摘要 — 主画布渲染所需数据。
+ *
+ * 只含画布节点渲染必需的字段（项目头 + 实体摘要列表），
+ * 不包含实体的 JSONB profile/prompt 等大字段。
+ * 右侧详情面板通过按需加载的明细端点获取完整数据。
+ */
+export interface CanvasProjectSummaryDTO {
+  id: string
+  accountId: string
+  title: string | null
+  storyText: string
+  status: CanvasProjectStatus
+  analysis: NovelAnalysis | null
+  modelPreferences: CanvasModelPreferences | null
+  characters: CanvasEntitySummary[]
+  locations: CanvasEntitySummary[]
+  shots: CanvasEntitySummary[]
+  continuityIssues: ContinuityIssue[]
+  canvasLayout: CanvasLayoutDto | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CanvasProjectSummaryResponse = EntityResponse<CanvasProjectSummaryDTO>
 
 // ===== 资产轮询类型 =====
 
