@@ -1,7 +1,8 @@
 import type { OutputResult } from '@excuse/db'
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
-import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
+import type { ApiKeyMeta } from '../plugins/auth'
+import { calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
   CreditError,
@@ -17,7 +18,6 @@ import {
   insufficientBalanceError,
 } from '@excuse/gateway'
 import { extractBillingParams } from '@excuse/shared'
-import type { ApiKeyMeta } from '../plugins/auth'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { audit } from './audit'
 import { recordGenerationStatus } from './metrics'
@@ -148,7 +148,7 @@ export async function setupGatewayCall(opts: {
  * stream 和非 stream 路径共用。
  */
 export async function settleGatewaySuccess(opts: GatewaySuccessInput): Promise<void> {
-  const { userId, modelConfig, validatedParams, recordId, estimatedCost, text, usage, apiKeyMeta } = opts
+  const { userId, modelConfig, validatedParams, recordId, text, usage, apiKeyMeta } = opts
 
   const actualCost = {
     ...calculateCost(modelConfig, extractBillingParams(validatedParams), usage),
@@ -259,8 +259,14 @@ export async function handleGatewayChatCompletion(
   try {
     const result = await callProvider()
     await settleGatewaySuccess({
-      userId, modelConfig, validatedParams, recordId, estimatedCost,
-      text: result.text, usage: result.usage, apiKeyMeta,
+      userId,
+      modelConfig,
+      validatedParams,
+      recordId,
+      estimatedCost,
+      text: result.text,
+      usage: result.usage,
+      apiKeyMeta,
     })
     return { success: true, recordId, text: result.text, usage: result.usage, createdAt: new Date() }
   }
@@ -269,5 +275,100 @@ export async function handleGatewayChatCompletion(
     const message = error instanceof Error ? error.message : String(error)
     const err = generationFailedError(message)
     return { success: false, status: err.status, response: err.response as unknown as Record<string, unknown> }
+  }
+}
+
+// ── stream 编排器 ────────────────────────────────────────────
+
+/** stream 路径的单个 provider chunk —— service 不耦合 ReadableStream，把 chunk 交给 route 的 sink */
+export interface GatewayStreamChunk {
+  /** 本批增量文本（首次 chunk 含 role；后续纯 delta）；finishReason='stop' 的收尾 chunk delta 为空 */
+  delta: string
+  /** OpenAI 协议的 finish_reason：中间 chunk 为 null，收尾 chunk 为 'stop'（或 'length' 触顶） */
+  finishReason: 'stop' | 'length' | null
+  isFirst: boolean
+  usage?: { inputTokens?: number, outputTokens?: number }
+}
+
+/** stream 编排器对每个 chunk 的回调 —— route 负责编码为 SSE 并写入 ReadableStream */
+export type StreamChunkSink = (chunk: GatewayStreamChunk) => Promise<void> | void
+
+/** GatewayStreamChatCompletionInput.callProvider 逐批产出的 provider 增量 */
+export interface GatewayStreamProviderChunk {
+  delta?: string
+  usage?: { inputTokens?: number, outputTokens?: number }
+}
+
+/** stream 编排器的输入 —— 与非 stream 的 GatewayChatCompletionInput 对称但 provider 是「逐批产出」而非「一次返回」 */
+export interface GatewayStreamChatCompletionInput {
+  userId: string
+  modelConfig: ModelConfig
+  validatedParams: ValidatedModelParameters
+  request: OpenAIChatRequest
+  /** 逐批拉取 provider 增量（route 包装 DashScopeClient.chatCompletionStream 的 async iterator） */
+  callProvider: () => AsyncIterable<GatewayStreamProviderChunk>
+  apiKeyMeta?: ApiKeyMeta
+}
+
+/**
+ * OpenAI Gateway Chat Completions stream 编排器
+ *
+ * 与 `handleGatewayChatCompletion`（非 stream）对称：复用同一套 setupGatewayCall /
+ * settleGatewaySuccess / settleGatewayFailure 原语，但 provider 增量 chunk 不收集为整段文本响应，
+ * 而是逐个通过 `onChunk` 回调交给 route（由 route 编码为 OpenAI SSE 写入 ReadableStream）。
+ *
+ * - setup 失败（余额不足）返回 `{ ok: false, status, response }`，route 直接作为非 SSE 错误响应返回。
+ * - provider 抛错时 settleGatewayFailure 收尾，并向 onChunk 发送一个 finishReason='stop' 的收尾 chunk。
+ * - fullText 在 service 内聚合并参与成功结算（计费用 usage）。
+ *
+ * ReadableStream 的构造留在 route（HTTP 契约），service 只产出 chunk 序列 ——
+ * 保持 service 不耦合 Web Streams API，与非 stream 编排器的边界一致。
+ */
+export async function handleGatewayStreamChatCompletion(
+  input: GatewayStreamChatCompletionInput,
+  onChunk: StreamChunkSink,
+): Promise<{ ok: true } | { ok: false, status: number, response: Record<string, unknown> }> {
+  const { userId, modelConfig, validatedParams, request, callProvider, apiKeyMeta } = input
+
+  const setup = await setupGatewayCall({ userId, modelConfig, validatedParams, request })
+  if (!setup.ok) {
+    return { ok: false, status: setup.status, response: setup.response }
+  }
+  const { recordId, estimatedCost } = setup.result
+
+  let fullText = ''
+  let lastUsage: { inputTokens?: number, outputTokens?: number } | undefined
+  let isFirst = true
+  try {
+    for await (const chunk of callProvider()) {
+      if (chunk.delta) {
+        fullText += chunk.delta
+        await onChunk({ delta: chunk.delta, finishReason: null, isFirst, usage: undefined })
+        isFirst = false
+      }
+      if (chunk.usage) {
+        lastUsage = chunk.usage
+      }
+    }
+    // 收尾 chunk（finishReason='stop'）—— OpenAI 协议要求的结束标记
+    await onChunk({ delta: '', finishReason: 'stop', isFirst: false, usage: lastUsage })
+
+    await settleGatewaySuccess({
+      userId,
+      modelConfig,
+      validatedParams,
+      recordId,
+      estimatedCost,
+      text: fullText,
+      usage: lastUsage,
+      apiKeyMeta,
+    })
+    return { ok: true }
+  }
+  catch (error) {
+    await settleGatewayFailure({ userId, modelConfig, recordId, estimatedCost, error })
+    // 失败也发收尾 chunk，让客户端的流干净结束（错误信息已在 settleGatewayFailure 记账）
+    await onChunk({ delta: '', finishReason: 'stop', isFirst: false, usage: lastUsage })
+    return { ok: true }
   }
 }

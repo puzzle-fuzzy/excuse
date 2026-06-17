@@ -26,7 +26,10 @@ import {
 import { DashScopeClient, getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
-import { handleGatewayChatCompletion, setupGatewayCall, settleGatewayFailure, settleGatewaySuccess } from '../services/gateway-service'
+import {
+  handleGatewayChatCompletion,
+  handleGatewayStreamChatCompletion,
+} from '../services/gateway-service'
 import { notifyApiKeyQuota } from '../services/notifications'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
@@ -67,7 +70,11 @@ async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<{ status: numbe
  * 供外部开发者工具接入使用。仅支持文本模型。
  *
  * 认证：API Key（Bearer exc_xxx）或 JWT
- * 计费：同一套 GenerationRecord + calculateCost
+ * 计费：同一套 GenerationRecord + calculateCost（编排逻辑在 services/gateway-service.ts）
+ *
+ * 本文件只做 HTTP 层：参数解析 / API Key scope+quota 访问控制 / stream 分支 / 响应塑形。
+ * stream 与非 stream 的业务编排（记录创建、额度预留/结算、审计、provider 调用）均下沉
+ * `services/gateway-service.ts`（handleGatewayChatCompletion / handleGatewayStreamChatCompletion）。
  */
 
 export function createOpenAIGatewayRoutes(config: ServerConfig) {
@@ -80,10 +87,11 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
   })
 
   /**
-   * 流式 chat completions 处理器
+   * 流式 chat completions 处理器（HTTP 层）
    *
-   * 借用 handleGatewayChatCompletion 的 upfront 验证/预留逻辑，
-   * 但流式返回 Response 不走标准编排器（需要 ReadableStream）。
+   * 构造 ReadableStream，把 service 产出的每个 GatewayStreamChunk 编码为 OpenAI SSE 事件写入控制器；
+   * 业务编排（记录创建 / 额度预留 / 成功失败结算 / provider 逐批拉取）下沉
+   * `handleGatewayStreamChatCompletion`，与 `handleGatewayChatCompletion` 共用同一套原语。
    */
   async function handleStreamChatCompletions(opts: {
     userId: string
@@ -94,77 +102,45 @@ export function createOpenAIGatewayRoutes(config: ServerConfig) {
   }): Promise<Response> {
     const { userId, modelConfig, validatedParams, request, apiKeyMeta } = opts
 
-    // 复用编排原语：估算成本 → 创建记录 → 预留额度
-    const setup = await setupGatewayCall({ userId, modelConfig, validatedParams, request })
-    if (!setup.ok) {
-      return new Response(JSON.stringify(setup.response), {
-        status: setup.status,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
-    const { recordId, estimatedCost } = setup.result
-
-    const completionId = `chatcmpl-${recordId}`
+    const completionId = `chatcmpl-${crypto.randomUUID()}`
     const createdAt = new Date()
+    const encoder = new TextEncoder()
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const encoder = new TextEncoder()
-        let fullText = ''
-        let lastUsage: { prompt_tokens: number, completion_tokens: number } | undefined
-        let isFirst = true
-        try {
-          for await (const chunk of client.chatCompletionStream(modelConfig.id, validatedParams)) {
-            if (chunk.delta) {
-              fullText += chunk.delta
-              const chunkEvent = serializeOpenAIStreamChunk(createOpenAIStreamChunk({
-                id: completionId,
-                createdAt,
-                requestedModel: request.model,
-                delta: chunk.delta,
-                finishReason: null,
-                isFirst,
-              }))
-              controller.enqueue(encoder.encode(chunkEvent))
-              isFirst = false
-            }
-            if (chunk.usage) {
-              lastUsage = {
-                prompt_tokens: chunk.usage.inputTokens ?? 0,
-                completion_tokens: chunk.usage.outputTokens ?? 0,
-              }
-            }
-          }
-
-          const finalChunk = serializeOpenAIStreamChunk(createOpenAIStreamChunk({
-            id: completionId,
-            createdAt,
-            requestedModel: request.model,
-            delta: '',
-            finishReason: 'stop',
-            isFirst: false,
-            usage: lastUsage,
-          }))
-          controller.enqueue(encoder.encode(finalChunk))
-          controller.enqueue(encoder.encode(OPENAI_STREAM_DONE))
-          controller.close()
-
-          // 复用编排原语：成功结算
-          await settleGatewaySuccess({
-            userId, modelConfig, validatedParams, recordId, estimatedCost,
-            text: fullText,
-            usage: lastUsage
-              ? { inputTokens: lastUsage.prompt_tokens, outputTokens: lastUsage.completion_tokens }
-              : undefined,
+        const result = await handleGatewayStreamChatCompletion(
+          {
+            userId,
+            modelConfig,
+            validatedParams,
+            request,
             apiKeyMeta,
-          })
-        }
-        catch (error) {
-          try { controller.close() } catch { /* controller 已关闭时忽略 */ }
+            callProvider: () => client.chatCompletionStream(modelConfig.id, validatedParams),
+          },
+          // onChunk：把 service 的领域 chunk 编码为 OpenAI SSE 事件并写入流
+          (chunk) => {
+            const event = serializeOpenAIStreamChunk(createOpenAIStreamChunk({
+              id: completionId,
+              createdAt,
+              requestedModel: request.model,
+              delta: chunk.delta,
+              finishReason: chunk.finishReason,
+              isFirst: chunk.isFirst,
+              usage: chunk.usage
+                ? { prompt_tokens: chunk.usage.inputTokens ?? 0, completion_tokens: chunk.usage.outputTokens ?? 0 }
+                : undefined,
+            }))
+            controller.enqueue(encoder.encode(event))
+          },
+        )
 
-          // 复用编排原语：失败结算
-          await settleGatewayFailure({ userId, modelConfig, recordId, estimatedCost, error })
+        // setup 失败（余额不足）：service 未产出任何 chunk，直接发一个非 SSE JSON 错误。
+        if (!result.ok) {
+          // 流尚未写入业务 chunk，用 error 事件回传结构化错误后结束。
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: result.response })}\n\n`))
         }
+        controller.enqueue(encoder.encode(OPENAI_STREAM_DONE))
+        controller.close()
       },
     })
 
