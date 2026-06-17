@@ -1,6 +1,6 @@
 import type { CanvasContinuityRow, CanvasProjectInsert, CanvasProjectRow } from '../types'
-import { and, desc, eq, inArray } from 'drizzle-orm'
 import { createLogger } from '@excuse/shared'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getDb } from '../db'
 import { canvasCharacters } from '../schema/canvas-characters'
 import { canvasContinuityReports } from '../schema/canvas-continuity'

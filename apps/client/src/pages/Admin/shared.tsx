@@ -2,7 +2,8 @@
  * Admin 共享组件与工具函数
  */
 import type { AdminOverview, AdminTaskItem } from '@excuse/shared'
-import { Activity, Ban, RotateCcw } from 'lucide-react'
+import type { Activity } from 'lucide-react'
+import { Ban, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,37 +13,56 @@ export const TASK_LIMIT = 40
 export const USERS_PAGE_SIZE = 20
 
 export const STATUS_LABELS: Record<string, string> = {
-  queued: '等待', running: '运行', retrying: '重试', succeeded: '成功',
-  failed: '失败', cancelled: '取消', pending: '待处理', submitting: '提交中',
-  processing: '处理中', saving_output: '保存中', draft: '草稿',
-  completed: '完成', partial_failed: '部分失败',
+  queued: '等待',
+  running: '运行',
+  retrying: '重试',
+  succeeded: '成功',
+  failed: '失败',
+  cancelled: '取消',
+  pending: '待处理',
+  submitting: '提交中',
+  processing: '处理中',
+  saving_output: '保存中',
+  draft: '草稿',
+  completed: '完成',
+  partial_failed: '部分失败',
 }
 
 export const KIND_LABELS: Record<string, string> = {
-  generation: '生成', task: '任务', canvas_pipeline: 'Canvas',
+  generation: '生成',
+  task: '任务',
+  canvas_pipeline: 'Canvas',
 }
 
 export const TASK_STATUS_OPTIONS = [
   { label: '全部状态', value: 'all' },
-  { label: '等待', value: 'queued' }, { label: '运行', value: 'running' },
-  { label: '重试', value: 'retrying' }, { label: '失败', value: 'failed' },
-  { label: '成功', value: 'succeeded' }, { label: '取消', value: 'cancelled' },
+  { label: '等待', value: 'queued' },
+  { label: '运行', value: 'running' },
+  { label: '重试', value: 'retrying' },
+  { label: '失败', value: 'failed' },
+  { label: '成功', value: 'succeeded' },
+  { label: '取消', value: 'cancelled' },
 ]
 
 export const TASK_DOMAIN_OPTIONS = [
   { label: '全部领域', value: 'all' },
-  { label: 'Canvas', value: 'canvas' }, { label: '生成', value: 'generate' },
-  { label: '字幕', value: 'subtitle' }, { label: 'Gateway', value: 'gateway' },
+  { label: 'Canvas', value: 'canvas' },
+  { label: '生成', value: 'generate' },
+  { label: '字幕', value: 'subtitle' },
+  { label: 'Gateway', value: 'gateway' },
 ]
 
 export const USER_STATUS_OPTIONS = [
   { label: '全部状态', value: 'all' },
-  { label: '已启用', value: 'true' }, { label: '已禁用', value: 'false' },
+  { label: '已启用', value: 'true' },
+  { label: '已禁用', value: 'false' },
 ]
 
 export const PROVIDER_WINDOW_OPTIONS = [
-  { label: '近 1 小时', value: '1' }, { label: '近 6 小时', value: '6' },
-  { label: '近 24 小时', value: '24' }, { label: '近 7 天', value: '168' },
+  { label: '近 1 小时', value: '1' },
+  { label: '近 6 小时', value: '6' },
+  { label: '近 24 小时', value: '24' },
+  { label: '近 7 天', value: '168' },
 ]
 
 /** @deprecated 使用 TASK_CATEGORY_LABELS（自 @/lib/category-labels） */
@@ -53,26 +73,37 @@ export function statusLabel(status: string) {
 }
 
 export function formatDate(value: string | null) {
-  if (!value) return '-'
+  if (!value)
+    return '-'
   return new Date(value).toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
 export function shortId(value: string | null) {
-  if (!value) return '-'
+  if (!value)
+    return '-'
   return value.length > 12 ? `${value.slice(0, 8)}...${value.slice(-4)}` : value
 }
 
 export function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'failed') return 'destructive'
-  if (status === 'running' || status === 'queued' || status === 'retrying') return 'default'
-  if (status === 'cancelled') return 'outline'
+  if (status === 'failed')
+    return 'destructive'
+  if (status === 'running' || status === 'queued' || status === 'retrying')
+    return 'default'
+  if (status === 'cancelled')
+    return 'outline'
   return 'secondary'
 }
 
 export function StatCard({ title, value, hint, icon: Icon }: {
-  title: string; value: string | number; hint: string; icon: typeof Activity
+  title: string
+  value: string | number
+  hint: string
+  icon: typeof Activity
 }) {
   return (
     <Card>
@@ -90,7 +121,7 @@ export function StatCard({ title, value, hint, icon: Icon }: {
   )
 }
 
-export function StatusList({ title, rows }: { title: string; rows: AdminOverview['generationStatus'] }) {
+export function StatusList({ title, rows }: { title: string, rows: AdminOverview['generationStatus'] }) {
   return (
     <Card>
       <CardHeader className="pb-3"><CardTitle className="text-sm">{title}</CardTitle></CardHeader>
@@ -108,11 +139,17 @@ export function StatusList({ title, rows }: { title: string; rows: AdminOverview
 }
 
 export function TaskTable({ tasks, isLoading, isMutating, onRequeue, onCancel, onOpenDetail }: {
-  tasks: AdminTaskItem[]; isLoading: boolean; isMutating: boolean
-  onRequeue: (id: string) => void; onCancel: (id: string) => void; onOpenDetail: (id: string) => void
+  tasks: AdminTaskItem[]
+  isLoading: boolean
+  isMutating: boolean
+  onRequeue: (id: string) => void
+  onCancel: (id: string) => void
+  onOpenDetail: (id: string) => void
 }) {
-  if (isLoading) return <div className="py-10 text-center text-sm text-muted-foreground">正在读取任务队列...</div>
-  if (tasks.length === 0) return <div className="py-10 text-center text-sm text-muted-foreground">没有匹配的任务</div>
+  if (isLoading)
+    return <div className="py-10 text-center text-sm text-muted-foreground">正在读取任务队列...</div>
+  if (tasks.length === 0)
+    return <div className="py-10 text-center text-sm text-muted-foreground">没有匹配的任务</div>
 
   return (
     <div className="overflow-x-auto">
@@ -135,14 +172,25 @@ export function TaskTable({ tasks, isLoading, isMutating, onRequeue, onCancel, o
               <td className="py-2">
                 <div className="font-medium">{task.type}</div>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{task.domain}</span><span>{shortId(task.id)}</span>
+                  <span>{task.domain}</span>
+                  <span>{shortId(task.id)}</span>
                 </div>
               </td>
               <td className="py-2"><Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge></td>
-              <td className="py-2 text-muted-foreground">{task.attempts}/{task.maxAttempts}</td>
+              <td className="py-2 text-muted-foreground">
+                {task.attempts}
+                /
+                {task.maxAttempts}
+              </td>
               <td className="py-2 text-xs text-muted-foreground">
-                <div>project: {shortId(task.projectId)}</div>
-                <div>record: {shortId(task.generationRecordId)}</div>
+                <div>
+                  project:
+                  {shortId(task.projectId)}
+                </div>
+                <div>
+                  record:
+                  {shortId(task.generationRecordId)}
+                </div>
               </td>
               <td className="py-2 text-xs text-muted-foreground">
                 <div>{task.lockedBy || '-'}</div>
@@ -154,10 +202,12 @@ export function TaskTable({ tasks, isLoading, isMutating, onRequeue, onCancel, o
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={() => onOpenDetail(task.id)}>详情</Button>
                   <Button size="sm" variant="outline" disabled={!task.canRequeue || isMutating} onClick={() => onRequeue(task.id)}>
-                    <RotateCcw className="size-4" />重排
+                    <RotateCcw className="size-4" />
+                    重排
                   </Button>
                   <Button size="sm" variant="outline" disabled={!task.canCancel || isMutating} onClick={() => onCancel(task.id)}>
-                    <Ban className="size-4" />取消
+                    <Ban className="size-4" />
+                    取消
                   </Button>
                 </div>
               </td>

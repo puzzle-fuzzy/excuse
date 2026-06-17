@@ -10,11 +10,7 @@
  */
 import type { ServerConfig } from '../config'
 import type { ServerContext } from '../context'
-import { serialize } from '@excuse/db'
-import {
-  createSubject, deleteSubject, getSubjectById, listSubjects,
-  toggleSubjectFavorite, updateSubject,
-} from '@excuse/db'
+import { createSubject, deleteSubject, getSubjectById, listSubjects, serialize, toggleSubjectFavorite, updateSubject } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { NotFoundError, ValidationError } from '../utils/app-errors'
@@ -83,7 +79,8 @@ export function createSubjectRoutes(config: ServerConfig, _ctx: ServerContext) {
     // ── 详情 ──────────────────────────────────────────
     .get('/:id', async ({ params: { id }, userId }) => {
       const subject = await getSubjectById(id)
-      if (!subject || subject.accountId !== userId) throw new NotFoundError('资产不存在或无权访问')
+      if (!subject || subject.accountId !== userId)
+        throw new NotFoundError('资产不存在或无权访问')
       return { success: true, data: serialize(subject) }
     }, {
       params: t.Object({ id: t.String() }),
@@ -93,7 +90,8 @@ export function createSubjectRoutes(config: ServerConfig, _ctx: ServerContext) {
     // ── 更新 ──────────────────────────────────────────
     .patch('/:id', async ({ params: { id }, body, userId }) => {
       const subject = await getSubjectById(id)
-      if (!subject || subject.accountId !== userId) throw new NotFoundError('资产不存在或无权访问')
+      if (!subject || subject.accountId !== userId)
+        throw new NotFoundError('资产不存在或无权访问')
       const updated = await updateSubject(id, body)
       return { success: true, data: serialize(updated) }
     }, {
@@ -114,7 +112,8 @@ export function createSubjectRoutes(config: ServerConfig, _ctx: ServerContext) {
     // ── 删除 ──────────────────────────────────────────
     .delete('/:id', async ({ params: { id }, userId }) => {
       const subject = await getSubjectById(id)
-      if (!subject || subject.accountId !== userId) throw new NotFoundError('资产不存在或无权访问')
+      if (!subject || subject.accountId !== userId)
+        throw new NotFoundError('资产不存在或无权访问')
       await deleteSubject(id)
       return { success: true }
     }, {
@@ -125,7 +124,8 @@ export function createSubjectRoutes(config: ServerConfig, _ctx: ServerContext) {
     // ── 切换收藏 ──────────────────────────────────────
     .post('/:id/favorite', async ({ params: { id }, userId }) => {
       const subject = await getSubjectById(id)
-      if (!subject || subject.accountId !== userId) throw new NotFoundError('资产不存在或无权访问')
+      if (!subject || subject.accountId !== userId)
+        throw new NotFoundError('资产不存在或无权访问')
       const newValue = await toggleSubjectFavorite(id)
       return { success: true, isFavorite: newValue }
     }, {

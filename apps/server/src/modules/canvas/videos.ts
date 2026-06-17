@@ -1,3 +1,4 @@
+import type { DashScopeClient } from '@excuse/provider'
 import type { BatchItemLike } from '@excuse/workflow-engine'
 import { submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
@@ -13,7 +14,6 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
-import type { DashScopeClient } from '@excuse/provider'
 import { decideBatchOutcome } from '@excuse/workflow-engine'
 import { getProjectDetail } from './service-crud'
 import { getVideoModel, notifyNode } from './service-helpers'

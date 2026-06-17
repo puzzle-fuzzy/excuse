@@ -1,31 +1,53 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 /**
  * 主体资产库页面 — 跨项目复用角色/场景
  *
  * 见 docs/TODO.md §二、1
  */
-import { Heart, Search, Trash2, User, MapPin } from 'lucide-react'
+import { Heart, MapPin, Search, Trash2, User } from 'lucide-react'
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-type SubjectRow = {
-  id: string; subjectType: string; name: string; referenceImageUrl: string | null
-  tags: string[] | null; isFavorite: boolean; usageCount: number; createdAt: string; updatedAt: string
-  identityPrompt: string | null; scenePrompt: string | null
+
+interface SubjectRow {
+  id: string
+  subjectType: string
+  name: string
+  referenceImageUrl: string | null
+  tags: string[] | null
+  isFavorite: boolean
+  usageCount: number
+  createdAt: string
+  updatedAt: string
+  identityPrompt: string | null
+  scenePrompt: string | null
 }
 
-async function fetchSubjects(params: { subjectType?: string; search?: string; limit?: number; offset?: number }) {
+async function fetchSubjects(params: { subjectType?: string, search?: string, limit?: number, offset?: number }) {
   const searchParams = new URLSearchParams()
-  if (params.subjectType) searchParams.set('subjectType', params.subjectType)
-  if (params.search) searchParams.set('search', params.search)
-  if (params.limit) searchParams.set('limit', String(params.limit))
+  if (params.subjectType)
+    searchParams.set('subjectType', params.subjectType)
+  if (params.search)
+    searchParams.set('search', params.search)
+  if (params.limit)
+    searchParams.set('limit', String(params.limit))
   const res = await fetch(`/api/subjects?${searchParams}`, { credentials: 'include' })
   const json = await res.json()
-  return json as { success: boolean; items: SubjectRow[]; total: number }
+  return json as { success: boolean, items: SubjectRow[], total: number }
 }
 
 async function deleteSubject(id: string) {
@@ -52,9 +74,14 @@ export default function SubjectLibrary() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteSubject,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['subjects'] }); toast.success('已删除') },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
+      toast.success('已删除')
+    },
     onError: () => toast.error('删除失败'),
   })
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const favMutation = useMutation({
     mutationFn: toggleFavorite,
@@ -107,7 +134,12 @@ export default function SubjectLibrary() {
                 <Button variant="ghost" size="icon" className="size-7" onClick={() => favMutation.mutate(subject.id)}>
                   <Heart className={`size-3.5 ${subject.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
                 </Button>
-                <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => { if (confirm('确定删除？')) deleteMutation.mutate(subject.id) }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-destructive"
+                  onClick={() => setDeleteConfirmId(subject.id)}
+                >
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>
@@ -127,11 +159,44 @@ export default function SubjectLibrary() {
                   {subject.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
                 </div>
               )}
-              <p className="mt-2 text-xs text-muted-foreground">使用 {subject.usageCount} 次</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                使用
+                {subject.usageCount}
+                {' '}
+                次
+              </p>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      <AlertDialog
+        open={deleteConfirmId !== null}
+        onOpenChange={(open) => {
+          if (!open)
+            setDeleteConfirmId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>确定要删除这个主体资产吗？此操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmId(null)}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirmId)
+                  deleteMutation.mutate(deleteConfirmId)
+                setDeleteConfirmId(null)
+              }}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

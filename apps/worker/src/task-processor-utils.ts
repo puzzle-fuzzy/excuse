@@ -1,10 +1,10 @@
+import type { DashScopeTaskOutput } from '@excuse/provider'
 /**
  * 视频任务处理的纯工具函数 — 从 task-processor.ts 抽离
  *
  * 包含：URL/时长提取、退款、镜头/项目状态更新、项目完成检查
  */
 import type { CostDetail } from '@excuse/shared'
-import type { DashScopeTaskOutput } from '@excuse/provider'
 import type { TaskProcessorDeps } from './task-processor'
 import { listCanvasShotsByProject, updateCanvasProject, updateCanvasShot } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
@@ -13,23 +13,28 @@ const logger = createLogger('worker-processor')
 
 /** 提取 DashScope 视频输出的 URL */
 export function extractVideoUrl(output: DashScopeTaskOutput | undefined): string | undefined {
-  if (!output) return undefined
+  if (!output)
+    return undefined
   const videoUrl = output.video_url
-  if (typeof videoUrl === 'string') return videoUrl
+  if (typeof videoUrl === 'string')
+    return videoUrl
   const results = output.results
   if (Array.isArray(results) && results.length > 0) {
     const first = results[0]!
     const url = first.url || first.b64_image
-    if (typeof url === 'string') return url
+    if (typeof url === 'string')
+      return url
   }
   return undefined
 }
 
 /** 提取 DashScope 视频输出的实际时长 */
 export function extractVideoDuration(output: DashScopeTaskOutput | undefined): number | undefined {
-  if (!output) return undefined
+  if (!output)
+    return undefined
   const duration = output.video_duration ?? output.duration
-  if (typeof duration === 'number') return duration
+  if (typeof duration === 'number')
+    return duration
   return undefined
 }
 
@@ -39,7 +44,8 @@ export async function refundReservedCredit(
   refund: TaskProcessorDeps['refundCredit'],
   description: string,
 ) {
-  if (!record.cost || record.cost.totalPriceCents <= 0) return
+  if (!record.cost || record.cost.totalPriceCents <= 0)
+    return
   await refund({ accountId: record.accountId, generationRecordId: record.id, description })
 }
 

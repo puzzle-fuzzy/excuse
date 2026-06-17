@@ -1,9 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 /**
  * Admin 项目 Tab
  */
-import { Search, RefreshCw } from 'lucide-react'
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { RefreshCw, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useDebounce } from 'use-debounce'
 import { fetchAdminProjects } from '@/api/admin'
 import { Badge } from '@/components/ui/badge'
@@ -70,7 +70,11 @@ export function AdminProjectsTab() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-xs text-muted-foreground whitespace-nowrap">{data?.total ?? 0} 个项目</p>
+          <p className="text-xs text-muted-foreground whitespace-nowrap">
+            {data?.total ?? 0}
+            {' '}
+            个项目
+          </p>
         </div>
 
         {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">正在读取项目列表...</div>}

@@ -1,5 +1,5 @@
 import type { CharacterProfile, LocationProfile } from '@excuse/shared/domain-types'
-import { boolean, index, integer, jsonb, pgTable, text, timestamp, uuid, varchar, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 import { canvasProjects } from './canvas-projects'
 

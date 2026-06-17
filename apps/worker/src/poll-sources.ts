@@ -1,18 +1,18 @@
+import type { WorkerContext } from './context'
+import type { WorkerHealthState } from './health'
 /**
  * Worker 轮询源实现 — 三个 PollSource：统一任务队列 / 遗留视频轮询 / ASR 字幕
  */
 import type { PollSource } from './poll-source'
 import type { TaskResult } from './task-processor'
-import type { WorkerContext } from './context'
-import type { WorkerHealthState } from './health'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks } from '@excuse/db'
-import { claimNextTaskWithAdapter, completeTaskWithAdapter } from '@excuse/task-engine'
 import { createLogger } from '@excuse/shared'
-import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
+import { claimNextTaskWithAdapter, completeTaskWithAdapter } from '@excuse/task-engine'
 import { startTaskHeartbeat } from './heartbeat'
+import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
+import { processASRTask } from './subtitle-processor'
 import { handleTask, handleTaskError } from './task-handler'
 import { createTaskProcessor } from './task-processor'
-import { processASRTask } from './subtitle-processor'
 
 const logger = createLogger('poll-sources')
 
@@ -33,7 +33,8 @@ export function createTaskPollSource(
         claimTtlMs: ctx.config.claimTtlMs,
         adapter: { claimNextTask },
       })
-      if (!claimedTask) return 0
+      if (!claimedTask)
+        return 0
 
       healthState.tasksClaimed++
       healthState.currentTaskId = claimedTask.id
@@ -94,7 +95,8 @@ export function createVideoPollSource(
       let count = 0
 
       for (const record of records) {
-        if (!refs.runningRef.value) break
+        if (!refs.runningRef.value)
+          break
 
         const taskLogger = logger.child({ taskId: record.taskId, traceId: record.traceId })
         refs.currentTaskPromiseRef.value = processor.processTask(record)
@@ -140,7 +142,8 @@ export function createAsrPollSource(
       let count = 0
 
       for (const project of asrProjects) {
-        if (!healthState.isPolling) break // running 信号已在主循环检查
+        if (!healthState.isPolling)
+          break // running 信号已在主循环检查
         try {
           await processASRTask(project, ctx.asrClient)
           healthState.totalTasksProcessed++

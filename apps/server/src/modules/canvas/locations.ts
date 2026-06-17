@@ -1,4 +1,5 @@
 import type { CanvasAssetOutput } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { generateLocationEntity, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import {
   deleteCanvasLocationsByProject,
@@ -9,7 +10,6 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getProjectDetail } from './service-crud'
-import type { DashScopeClient } from '@excuse/provider'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 import { tryMatchLocation } from './subject-matching'
 

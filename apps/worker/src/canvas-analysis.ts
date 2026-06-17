@@ -1,6 +1,6 @@
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { NovelAnalysis } from '@excuse/shared'
 import type { DashScopeClient } from '@excuse/provider'
+import type { NovelAnalysis } from '@excuse/shared'
 import { runAnalysisPhase, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import { getCanvasProjectById } from '@excuse/db'
 import { getTextModel } from './canvas-execution'

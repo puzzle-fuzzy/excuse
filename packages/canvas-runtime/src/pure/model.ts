@@ -5,8 +5,8 @@
  */
 
 import type { CanvasVideoVariant } from '@excuse/shared'
-import { recommendCanvasVideoVariant } from '@excuse/shared'
 import { getModelById as getProviderModelById } from '@excuse/provider'
+import { recommendCanvasVideoVariant } from '@excuse/shared'
 
 /** 变体降级优先级：i2v → r2v → t2v；r2v → t2v；t2v 不降级 */
 export const VARIANT_FALLBACK: Record<CanvasVideoVariant, CanvasVideoVariant[]> = {

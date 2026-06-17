@@ -1,10 +1,10 @@
+import type { CharacterProfile, LocationProfile } from '@excuse/shared/domain-types'
 /**
  * 主体资产库 Repository — 跨项目复用角色/场景
  *
  * 见 docs/TODO.md §二、1
  */
 import { and, asc, count, eq, ilike, sql } from 'drizzle-orm'
-import type { CharacterProfile, LocationProfile } from '@excuse/shared/domain-types'
 import { getDb } from '../db'
 import { projectSubjectRefs, subjectLibrary } from '../schema'
 
@@ -151,7 +151,8 @@ export async function incrementSubjectUsage(id: string): Promise<void> {
 
 export async function toggleSubjectFavorite(id: string): Promise<boolean | null> {
   const subject = await getSubjectById(id)
-  if (!subject) return null
+  if (!subject)
+    return null
   const newValue = !subject.isFavorite
   await updateSubject(id, { isFavorite: newValue })
   return newValue

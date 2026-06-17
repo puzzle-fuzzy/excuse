@@ -114,13 +114,13 @@ mock.module('@excuse/billing', () => ({
 }))
 
 // eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
+// eslint-disable-next-line import/first
 import { createGenerateRoutes } from '../src/routes/generate'
 // eslint-disable-next-line import/first
 import { createOpenAIGatewayRoutes } from '../src/routes/openai-gateway'
 // eslint-disable-next-line import/first
 import { resetAuditWriter, setAuditWriter } from '../src/services/audit'
-// eslint-disable-next-line import/first
-import { createServerContext } from '../src/context'
 
 // ─── 测试配置 ──────────────────────────────────────────
 

@@ -1,13 +1,9 @@
 import type { TaskErrorInfo, TaskOutput } from '../domain-types'
 import type { TaskInsert, TaskRow } from '../types'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm'
 import { getDb, pgClient } from '../db'
-import { tasks } from '../schema/tasks'
 
-// ===== 列名映射工具 =====
-// `db.execute(rawSql)` 返回原始 PostgreSQL 行，列名为 snake_case，
-// 而 Drizzle 的 TaskRow 期望 camelCase。此映射解决类型安全缺口。
-import { getTableColumns } from 'drizzle-orm'
+import { tasks } from '../schema/tasks'
 
 // 构建反向映射：snake_case 列名 → camelCase 属性名
 function buildSnakeToCamelMap() {

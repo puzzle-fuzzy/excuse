@@ -190,10 +190,10 @@ mock.module('../src/modules/canvas/service', () => ({
 // 且 mock sse-manager 在并行测试时会干扰 SSE manager 测试的全局 connections Map
 
 // eslint-disable-next-line import/first
-import { createCanvasRoutes } from '../src/routes/canvas'
+import { createServerContext } from '../src/context'
 
 // eslint-disable-next-line import/first
-import { createServerContext } from '../src/context'
+import { createCanvasRoutes } from '../src/routes/canvas'
 
 // ─── Config + auth ──────────────────────────────────────
 

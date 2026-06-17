@@ -104,10 +104,10 @@ mock.module('@excuse/billing', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { createGenerateRoutes } from '../src/routes/generate'
+import { createServerContext } from '../src/context'
 
 // eslint-disable-next-line import/first
-import { createServerContext } from '../src/context'
+import { createGenerateRoutes } from '../src/routes/generate'
 
 // ─── 测试配置 ────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import type { CanvasAssetOutput, createCanvasCharacter } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { generateCharacterEntity, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import {
   deleteCanvasCharactersByProject,
@@ -8,7 +9,6 @@ import {
   markPipelineRunSucceeded,
   updateCanvasProject,
 } from '@excuse/db'
-import type { DashScopeClient } from '@excuse/provider'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 import { tryMatchCharacter } from './subject-matching'

@@ -6,14 +6,14 @@
  */
 
 // Inline types — prompt-engine is a pure package without @excuse/shared dependency
-interface CharacterProfile { name: string; role?: string; age?: string; gender?: string; bodyShape?: string }
-interface LocationProfile { name: string; type?: string; location?: string; era?: string; atmosphere?: string }
+interface CharacterProfile { name: string, role?: string, age?: string, gender?: string, bodyShape?: string }
+interface LocationProfile { name: string, type?: string, location?: string, era?: string, atmosphere?: string }
 
 export interface DialogueInput {
   narrative: string
-  characters: Array<{ id: string; name: string; identityPrompt?: string | null; profileJson?: CharacterProfile | null }>
-  location?: { name: string; scenePrompt?: string | null; profileJson?: LocationProfile | null } | null
-  environment?: { backgroundMotion?: string | null; lighting?: string | null; mood?: string | null; style?: string | null } | null
+  characters: Array<{ id: string, name: string, identityPrompt?: string | null, profileJson?: CharacterProfile | null }>
+  location?: { name: string, scenePrompt?: string | null, profileJson?: LocationProfile | null } | null
+  environment?: { backgroundMotion?: string | null, lighting?: string | null, mood?: string | null, style?: string | null } | null
 }
 
 export function buildDialogueSystemPrompt(): string {

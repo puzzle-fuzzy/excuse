@@ -5,11 +5,12 @@
  */
 
 import type { WorkerConfig } from './config'
+import type { WorkerHealthState } from './health'
 import type { TaskResult } from './task-processor'
 import { sweepOrphanTasks } from '@excuse/db'
-import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
-import { createHealthServer, type WorkerHealthState } from './health'
+import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
+import { createHealthServer } from './health'
 import { getProviderCallsSnapshot } from './services/metrics'
 
 const logger = createLogger('worker-lifecycle')

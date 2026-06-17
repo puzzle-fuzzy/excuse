@@ -6,6 +6,7 @@
  * 镜头视频重新生成: 复制镜头数据创建新镜头行，提交视频任务
  */
 import type { CanvasAssetOutput } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { characterProfileSchema, locationProfileSchema } from '@excuse/canvas-engine'
 import { runCanvasAssetStep, submitShotVideoEntity } from '@excuse/canvas-runtime'
 import {
@@ -26,7 +27,6 @@ import {
   buildLocationPrompt,
   parseLLMJsonWithSchema,
 } from '@excuse/prompt-engine'
-import type { DashScopeClient } from '@excuse/provider'
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
 import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 

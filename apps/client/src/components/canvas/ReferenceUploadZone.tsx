@@ -1,5 +1,15 @@
-import { Pencil, Trash2, Upload, Undo2, ZoomIn } from 'lucide-react'
+import { Pencil, Trash2, Undo2, Upload, ZoomIn } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 
 /** 图片点击放大查看的简易 lightbox */
@@ -43,6 +53,8 @@ export function ReferenceUploadZone({
   const [viewerOpen, setViewerOpen] = useState(false)
   /** 已「删除」但仍可恢复的 URL（不清 DB，只隐藏 UI） */
   const [hiddenUrl, setHiddenUrl] = useState<string | null>(null)
+  /** 确认删除对话框 */
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -93,14 +105,12 @@ export function ReferenceUploadZone({
   }, [handleFile])
 
   /** 「删除」：不清 DB，只隐藏 UI，保留恢复能力 */
-  const handleRemove = useCallback(async () => {
-    if (confirmRemove && !window.confirm(confirmRemove))
-      return
+  const handleRemove = useCallback(() => {
     if (previewUrl) {
       setHiddenUrl(previewUrl)
       setPreviewUrl(null)
     }
-  }, [confirmRemove, previewUrl])
+  }, [previewUrl])
 
   /** 恢复之前隐藏的图片 */
   const handleRestore = useCallback(() => {
@@ -127,7 +137,10 @@ export function ReferenceUploadZone({
                 <Button
                   variant="secondary"
                   size="xs"
-                  onClick={(e) => { e.stopPropagation(); setViewerOpen(true) }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setViewerOpen(true)
+                  }}
                 >
                   <ZoomIn className="w-3 h-3 mr-1" />
                   查看
@@ -135,7 +148,10 @@ export function ReferenceUploadZone({
                 <Button
                   variant="secondary"
                   size="xs"
-                  onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    inputRef.current?.click()
+                  }}
                   disabled={uploading}
                 >
                   <Pencil className="w-3 h-3 mr-1" />
@@ -145,7 +161,10 @@ export function ReferenceUploadZone({
                   <Button
                     variant="destructive"
                     size="xs"
-                    onClick={(e) => { e.stopPropagation(); handleRemove() }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setConfirmOpen(true)
+                    }}
                   >
                     <Trash2 className="w-3 h-3 mr-1" />
                     隐藏
@@ -217,6 +236,21 @@ export function ReferenceUploadZone({
 
       {viewerOpen && previewUrl && (
         <ImageViewer src={previewUrl} alt={label} onClose={() => setViewerOpen(false)} />
+      )}
+
+      {confirmRemove && (
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认操作</AlertDialogTitle>
+              <AlertDialogDescription>{confirmRemove}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={handleRemove}>确认</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   )

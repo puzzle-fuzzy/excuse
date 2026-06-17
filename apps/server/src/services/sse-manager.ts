@@ -1,4 +1,3 @@
-import { pgClient } from '@excuse/db'
 /**
  * SSE 连接管理器 + PostgreSQL LISTEN 桥接
  *
@@ -15,6 +14,10 @@ import { pgClient } from '@excuse/db'
  *   - generation_status: 通用生成任务状态变更
  *   - pipeline_node_update: Canvas pipeline 进度（含 canvasMeta 时自动发送）
  */
+import type {
+  AddConnectionResult,
+} from '@excuse/events'
+import { pgClient } from '@excuse/db'
 import {
   createGenerationNotifyDispatcher,
   createNotificationDispatcher,
@@ -42,7 +45,7 @@ const eventHub = new UserEventHub()
  * 返回 AddConnectionResult，调用方（sse route）应检查 accepted 字段，
  * 被拒绝时返回 503（连接数超限）。
  */
-export function addConnection(userId: string, send: Sender) {
+export function addConnection(userId: string, send: Sender): AddConnectionResult {
   return eventHub.addConnection(userId, send)
 }
 

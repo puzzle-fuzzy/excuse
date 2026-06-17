@@ -1,3 +1,4 @@
+export * from './admin/gateway'
 /**
  * Admin repository — barrel re-export
  *
@@ -9,8 +10,7 @@
  * `admin/internal.ts` 为跨域私有 helper（numberValue / iso），不在此导出。
  */
 export * from './admin/overview'
+export * from './admin/projects'
+export * from './admin/providers'
 export * from './admin/tasks'
 export * from './admin/users'
-export * from './admin/providers'
-export * from './admin/projects'
-export * from './admin/gateway'

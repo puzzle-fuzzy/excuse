@@ -178,10 +178,10 @@ mock.module('../src/modules/canvas/service', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { createCanvasRoutes } from '../src/routes/canvas'
+import { createServerContext } from '../src/context'
 
 // eslint-disable-next-line import/first
-import { createServerContext } from '../src/context'
+import { createCanvasRoutes } from '../src/routes/canvas'
 
 // ─── Config + auth ──────────────────────────────────────
 

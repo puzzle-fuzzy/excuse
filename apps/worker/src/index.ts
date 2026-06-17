@@ -18,10 +18,10 @@ import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { loadConfig } from './config'
 import { createWorkerContext } from './context'
-import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startOrphanSweep } from './worker-lifecycle'
 import { createAsrPollSource, createTaskPollSource, createVideoPollSource } from './poll-sources'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
+import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startOrphanSweep } from './worker-lifecycle'
 
 const config = loadConfig()
 const logger = createLogger('worker')
@@ -89,7 +89,8 @@ async function main() {
     healthState.isPolling = true
     try {
       for (const source of pollSources) {
-        if (!runningRef.value) break
+        if (!runningRef.value)
+          break
         await source.poll()
         healthState.lastPollAt = new Date()
         healthState.lastPollError = null

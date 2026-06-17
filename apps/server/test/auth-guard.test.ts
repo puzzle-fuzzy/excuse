@@ -106,6 +106,8 @@ mock.module('@excuse/billing', () => ({
   calculateCost: mock(() => ({ totalPriceCents: 1, totalPrice: 0.01, estimated: true })),
 }))
 
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
 // ─── 在 mock 之后 import（Bun 会自动提升 mock.module 到 import 之前）──────
 // eslint-disable-next-line import/first
 import { createAuthRoutes } from '../src/routes/auth'
@@ -113,8 +115,6 @@ import { createAuthRoutes } from '../src/routes/auth'
 import { createGenerateRoutes } from '../src/routes/generate'
 // eslint-disable-next-line import/first
 import { createUploadRoutes } from '../src/routes/upload'
-// eslint-disable-next-line import/first
-import { createServerContext } from '../src/context'
 
 // ─── 测试配置 ──────────────────────────────────────
 

@@ -2,9 +2,9 @@
  * Admin 审计日志 Tab
  */
 import type { AdminAuditLogItem } from '@excuse/shared'
-import { FileText, Search } from 'lucide-react'
-import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { FileText, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { adminAuditLogQueryKeys, fetchAdminAuditLogs } from '@/api/admin'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -82,7 +82,13 @@ export function AdminAuditLogsTab() {
       </CardHeader>
       <CardContent>
         <div className="mb-3 grid gap-2 md:grid-cols-[200px_200px_180px_180px]">
-          <Select value={actionFilter} onValueChange={v => { setActionFilter(v); setPage(0) }}>
+          <Select
+            value={actionFilter}
+            onValueChange={(v) => {
+              setActionFilter(v)
+              setPage(0)
+            }}
+          >
             <SelectTrigger><SelectValue placeholder="全部操作" /></SelectTrigger>
             <SelectContent>
               {AUDIT_ACTION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
@@ -90,10 +96,34 @@ export function AdminAuditLogsTab() {
           </Select>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2 size-4 text-muted-foreground" />
-            <Input value={accountSearch} onChange={e => { setAccountSearch(e.target.value); setPage(0) }} className="pl-8" placeholder="搜索用户 ID" />
+            <Input
+              value={accountSearch}
+              onChange={(e) => {
+                setAccountSearch(e.target.value)
+                setPage(0)
+              }}
+              className="pl-8"
+              placeholder="搜索用户 ID"
+            />
           </div>
-          <Input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(0) }} aria-label="开始日期" />
-          <Input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(0) }} aria-label="结束日期" />
+          <Input
+            type="date"
+            value={fromDate}
+            onChange={(e) => {
+              setFromDate(e.target.value)
+              setPage(0)
+            }}
+            aria-label="开始日期"
+          />
+          <Input
+            type="date"
+            value={toDate}
+            onChange={(e) => {
+              setToDate(e.target.value)
+              setPage(0)
+            }}
+            aria-label="结束日期"
+          />
         </div>
 
         {isLoading
@@ -101,49 +131,65 @@ export function AdminAuditLogsTab() {
           : items.length === 0
             ? <p className="py-8 text-center text-sm text-muted-foreground">没有匹配的审计记录</p>
             : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-250 text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-2 font-medium">时间</th>
-                      <th className="py-2 font-medium">用户</th>
-                      <th className="py-2 font-medium">操作</th>
-                      <th className="py-2 font-medium">对象</th>
-                      <th className="py-2 font-medium">IP</th>
-                      <th className="py-2 font-medium">详情</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map(item => (
-                      <tr key={item.id} className="border-b last:border-b-0">
-                        <td className="py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(item.createdAt)}</td>
-                        <td className="py-2"><span className="font-mono text-xs" title={item.accountId ?? undefined}>{shortId(item.accountId)}</span></td>
-                        <td className="py-2"><Badge variant="outline">{auditActionLabel(item.action)}</Badge></td>
-                        <td className="py-2"><span className="font-mono text-xs text-muted-foreground">{shortId(item.targetId)}</span></td>
-                        <td className="py-2 text-xs text-muted-foreground">{item.ip || '-'}</td>
-                        <td className="py-2">
-                          {item.detail && Object.keys(item.detail).length > 0
-                            ? <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
-                                <FileText className="size-3.5 mr-1" />{expandedId === item.id ? '收起' : '查看'}
-                              </Button>
-                            : <span className="text-xs text-muted-foreground">-</span>}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-250 text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-muted-foreground">
+                        <th className="py-2 font-medium">时间</th>
+                        <th className="py-2 font-medium">用户</th>
+                        <th className="py-2 font-medium">操作</th>
+                        <th className="py-2 font-medium">对象</th>
+                        <th className="py-2 font-medium">IP</th>
+                        <th className="py-2 font-medium">详情</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {items.map(item =>
-                  expandedId === item.id && item.detail && Object.keys(item.detail).length > 0
-                    ? <div key={`detail-${item.id}`} className="border-b bg-muted/20 px-4 py-3">
-                        <pre className="overflow-x-auto text-xs whitespace-pre-wrap break-all">{JSON.stringify(item.detail, null, 2)}</pre>
-                      </div>
-                    : null,
-                )}
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {items.map(item => (
+                        <tr key={item.id} className="border-b last:border-b-0">
+                          <td className="py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(item.createdAt)}</td>
+                          <td className="py-2"><span className="font-mono text-xs" title={item.accountId ?? undefined}>{shortId(item.accountId)}</span></td>
+                          <td className="py-2"><Badge variant="outline">{auditActionLabel(item.action)}</Badge></td>
+                          <td className="py-2"><span className="font-mono text-xs text-muted-foreground">{shortId(item.targetId)}</span></td>
+                          <td className="py-2 text-xs text-muted-foreground">{item.ip || '-'}</td>
+                          <td className="py-2">
+                            {item.detail && Object.keys(item.detail).length > 0
+                              ? (
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
+                                    <FileText className="size-3.5 mr-1" />
+                                    {expandedId === item.id ? '收起' : '查看'}
+                                  </Button>
+                                )
+                              : <span className="text-xs text-muted-foreground">-</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {items.map(item =>
+                    expandedId === item.id && item.detail && Object.keys(item.detail).length > 0
+                      ? (
+                          <div key={`detail-${item.id}`} className="border-b bg-muted/20 px-4 py-3">
+                            <pre className="overflow-x-auto text-xs whitespace-pre-wrap break-all">{JSON.stringify(item.detail, null, 2)}</pre>
+                          </div>
+                        )
+                      : null,
+                  )}
+                </div>
+              )}
 
         <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span>第 {total === 0 ? 0 : page * PAGE_SIZE + 1} - {Math.min((page + 1) * PAGE_SIZE, total)} 条 / 共 {total} 条</span>
+          <span>
+            第
+            {total === 0 ? 0 : page * PAGE_SIZE + 1}
+            {' '}
+            -
+            {Math.min((page + 1) * PAGE_SIZE, total)}
+            {' '}
+            条 / 共
+            {total}
+            {' '}
+            条
+          </span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>上一页</Button>
             <Button variant="outline" size="sm" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage(p => p + 1)}>下一页</Button>

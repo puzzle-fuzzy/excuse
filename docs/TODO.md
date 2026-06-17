@@ -1,8 +1,16 @@
 # 项目统一 TODO
 
-更新时间：2026-06-17
+更新时间：2026-06-18
 
 本文是 `excuse` 后续产品迭代、技术治理和验收标准的唯一入口。后续 Claude / Codex 只处理本文，不再拆分处理多份清单。
+
+## ⚠ Drizzle 迁移纪律
+
+**正常流程：修改 TS schema → `db:generate`（自动生成 SQL + snapshot + journal 条目）→ `db:migrate`（应用到数据库）。**
+
+- **禁止使用 `db:push`**（开发快捷命令，绕过迁移系统，直接把 schema 推到 DB）。`db:push` 不生成迁移文件，导致迁移 journal 出现缺口——新数据库 `db:migrate` 会漏掉这些变更。
+- 历史教训（0034–0038 缺口）：曾有人连续 5 次 `db:push` 而未跑 `db:generate`，导致空库 `db:migrate` 缺 5 张表/列。后经手动补录 SQL + snapshot + journal 修复（commit `4a06b7ea`）。
+- **今后所有 schema 变更只走 `db:generate` → `db:migrate`，迁移文件由 drizzle-kit 自动生成，不需要手动编写 SQL。**
 
 ## 使用规则
 

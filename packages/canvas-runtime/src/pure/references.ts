@@ -37,21 +37,25 @@ export function resolveShotVideoReferences(
   for (const id of input.shot.characterIdsJson) {
     const character = characterMap.get(id)
     const url = character?.turnaroundSheetUrl || character?.referenceImageUrl
-    if (url) refs.push({ url, role: 'character', characterId: id })
+    if (url)
+      refs.push({ url, role: 'character', characterId: id })
   }
 
   if (input.shot.locationId) {
     const url = locationMap.get(input.shot.locationId)?.referenceImageUrl
-    if (url) refs.push({ url, role: 'location', locationId: input.shot.locationId })
+    if (url)
+      refs.push({ url, role: 'location', locationId: input.shot.locationId })
   }
 
   for (const asset of input.shot.referenceAssetsJson ?? []) {
-    if (asset.url) refs.push({ url: asset.url, role: asset.role })
+    if (asset.url)
+      refs.push({ url: asset.url, role: asset.role })
   }
 
   const seen = new Set<string>()
   return refs.filter((ref) => {
-    if (seen.has(ref.url)) return false
+    if (seen.has(ref.url))
+      return false
     seen.add(ref.url)
     return true
   })
@@ -66,7 +70,8 @@ export function toPromptReferenceEntries(
   const entries: PromptReferenceEntry[] = []
   references.forEach((ref, index) => {
     const targetId = ref.characterId ?? ref.locationId
-    if (targetId) entries.push({ targetId, imageNumber: index + 1 })
+    if (targetId)
+      entries.push({ targetId, imageNumber: index + 1 })
   })
   return entries
 }

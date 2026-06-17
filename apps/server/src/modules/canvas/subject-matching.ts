@@ -6,8 +6,7 @@
  */
 
 import type { CharacterProfile, LocationProfile } from '@excuse/shared/domain-types'
-import { searchSubjectsByName } from '@excuse/db'
-import { createCanvasCharacter, createCanvasLocation } from '@excuse/db'
+import { createCanvasCharacter, createCanvasLocation, searchSubjectsByName } from '@excuse/db'
 
 export interface MatchedCharacterResult {
   matched: true
@@ -31,7 +30,8 @@ export async function tryMatchCharacter(
   characterName: string,
 ): Promise<MatchedCharacterResult | NoMatchResult> {
   const matches = await searchSubjectsByName(accountId, characterName, 'character')
-  if (matches.length === 0) return { matched: false }
+  if (matches.length === 0)
+    return { matched: false }
 
   const subject = matches[0]!
   const character = await createCanvasCharacter({
@@ -56,7 +56,8 @@ export async function tryMatchLocation(
   locationName: string,
 ): Promise<MatchedLocationResult | NoMatchResult> {
   const matches = await searchSubjectsByName(accountId, locationName, 'location')
-  if (matches.length === 0) return { matched: false }
+  if (matches.length === 0)
+    return { matched: false }
 
   const subject = matches[0]!
   const location = await createCanvasLocation({

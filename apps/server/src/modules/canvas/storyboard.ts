@@ -1,4 +1,5 @@
 import type { CanvasAssetOutput } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { runCanvasAssetStep, runStoryboardPhase } from '@excuse/canvas-runtime'
 import {
   getCanvasProjectDetail,
@@ -8,7 +9,6 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getProjectDetail } from './service-crud'
-import type { DashScopeClient } from '@excuse/provider'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
 export async function generateStoryboard(projectId: string, client: DashScopeClient, runId?: string) {

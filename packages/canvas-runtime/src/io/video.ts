@@ -7,6 +7,7 @@
 
 import type { GenerationInputParams } from '@excuse/db'
 import type { ValidatedModelParameters } from '@excuse/provider'
+import type { CanvasVideoSubmitInput, CanvasVideoSubmitResult } from './types'
 import { calculateCost } from '@excuse/billing'
 import {
   bindCanvasAssetTaskId,
@@ -18,7 +19,6 @@ import {
   validateAndMerge as validateProviderAndMerge,
 } from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
-import type { CanvasVideoSubmitInput, CanvasVideoSubmitResult } from './types'
 
 type CanvasVideoResolution = '720P' | '1080P'
 
@@ -98,7 +98,8 @@ export function prepareCanvasVideoParams(
   deps: PrepareCanvasVideoParamDeps = providerParamDeps,
 ): { modelConfig: ReturnType<typeof deps.getModelById>, params: ValidatedModelParameters } {
   const modelConfig = deps.getModelById(model)
-  if (!modelConfig) throw new Error(`未知视频模型：${model}`)
+  if (!modelConfig)
+    throw new Error(`未知视频模型：${model}`)
 
   const declaredParams = new Set(modelConfig.parameters.map(parameter => parameter.name))
   const rawParams: Record<string, unknown> = {

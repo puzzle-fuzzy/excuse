@@ -5,8 +5,8 @@
  */
 
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { ModelConfig } from '@excuse/shared'
 import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { ModelConfig } from '@excuse/shared'
 import {
   createCanvasAsset,
   markCanvasAssetFailed,
@@ -51,7 +51,8 @@ export async function runCanvasAssetStep<T>(args: RunCanvasAssetStepInput<T>): P
     await markCanvasAssetRunning(asset.id)
     const { result, output } = await args.execute(asset.id)
     await markCanvasAssetSucceeded(asset.id, output)
-    if (args.setActive ?? true) await setCanvasAssetActive(asset.id)
+    if (args.setActive ?? true)
+      await setCanvasAssetActive(asset.id)
     return result
   }
   catch (error) {
@@ -78,10 +79,12 @@ export async function generateCanvasImageAsset(
   }
 
   const result = await input.client.generateImage(input.imageModel, validation.params)
-  if (result.type === 'failed') throw new Error(result.error || input.errorMessage)
+  if (result.type === 'failed')
+    throw new Error(result.error || input.errorMessage)
 
   const urls = result.output.urls
-  if (!Array.isArray(urls) || urls.length === 0) return null
+  if (!Array.isArray(urls) || urls.length === 0)
+    return null
 
   const providerUrls = urls as string[]
   const savedUrls = await input.storage.downloadAndMap(providerUrls, input.subDir, input.prefix)

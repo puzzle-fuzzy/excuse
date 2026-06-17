@@ -31,9 +31,9 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatLatencyMs, formatNumber, pipelinePhaseLabel } from '@/lib/admin-format'
 import { formatCents } from '@/lib/generation-utils'
-import { AdminProvidersTab } from './Providers'
-import { AdminProjectsTab } from './Projects'
 import { AdminAuditLogsTab } from './Audit'
+import { AdminProjectsTab } from './Projects'
+import { AdminProvidersTab } from './Providers'
 
 const TASK_LIMIT = 40
 const USERS_PAGE_SIZE = 20
@@ -694,203 +694,203 @@ function AdminTaskDetailDialog({
                   </p>
                 )
               : !task
-                    ? (
-                        <p className="py-6 text-center text-sm text-muted-foreground">
-                          任务不存在
-                        </p>
-                      )
-                    : (
-                        <>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate text-lg font-semibold">{task.type}</h3>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                <span>{task.domain}</span>
-                                <span>·</span>
-                                <span className="font-mono">{shortId(task.id)}</span>
-                              </div>
-                            </div>
-                            <Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">尝试</p>
-                              <p className="mt-1 font-mono">
-                                {task.attempts}
-                                /
-                                {task.maxAttempts}
-                              </p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">开始</p>
-                              <p className="mt-1 text-xs">{formatDate(task.startedAt)}</p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">结束</p>
-                              <p className="mt-1 text-xs">{formatDate(task.finishedAt)}</p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">下次执行</p>
-                              <p className="mt-1 text-xs">{formatDate(task.nextRunAt)}</p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">项目</p>
-                              <p className="mt-1 font-mono text-xs">{shortId(task.projectId)}</p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                              <p className="text-xs text-muted-foreground">账号</p>
-                              <p className="mt-1 font-mono text-xs">{shortId(task.accountId)}</p>
+                  ? (
+                      <p className="py-6 text-center text-sm text-muted-foreground">
+                        任务不存在
+                      </p>
+                    )
+                  : (
+                      <>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="truncate text-lg font-semibold">{task.type}</h3>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span>{task.domain}</span>
+                              <span>·</span>
+                              <span className="font-mono">{shortId(task.id)}</span>
                             </div>
                           </div>
+                          <Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge>
+                        </div>
 
-                          {task.errorMessage && (
-                            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-                              <p className="mb-1 text-xs font-medium text-destructive">错误信息</p>
-                              <p className="whitespace-pre-wrap break-all text-sm text-destructive">{task.errorMessage}</p>
-                            </div>
-                          )}
+                        <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">尝试</p>
+                            <p className="mt-1 font-mono">
+                              {task.attempts}
+                              /
+                              {task.maxAttempts}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">开始</p>
+                            <p className="mt-1 text-xs">{formatDate(task.startedAt)}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">结束</p>
+                            <p className="mt-1 text-xs">{formatDate(task.finishedAt)}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">下次执行</p>
+                            <p className="mt-1 text-xs">{formatDate(task.nextRunAt)}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">项目</p>
+                            <p className="mt-1 font-mono text-xs">{shortId(task.projectId)}</p>
+                          </div>
+                          <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">账号</p>
+                            <p className="mt-1 font-mono text-xs">{shortId(task.accountId)}</p>
+                          </div>
+                        </div>
 
-                          <div>
-                            <div className="mb-2 flex items-center justify-between">
-                              <p className="text-sm font-medium">Canvas pipeline run 时间线</p>
-                              <span className="text-xs text-muted-foreground">
-                                {runs.length}
-                                {' '}
-                                条
-                              </span>
-                            </div>
-                            {runs.length === 0
-                              ? (
-                                  <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                                    该任务无关联 Canvas pipeline run（可能是 generate / gateway / subtitle 域任务）。
-                                  </p>
-                                )
-                              : (
-                                  <div className="space-y-2">
-                                    {runs.map(run => (
-                                      <div key={run.id} className="rounded-lg border p-3 text-sm">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <div className="flex items-center gap-2">
-                                            <Badge variant="outline">{pipelinePhaseLabel(run.phase)}</Badge>
-                                            <Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
-                                          </div>
-                                          <span className="font-mono text-xs text-muted-foreground">
-                                            {formatLatencyMs(run.durationMs)}
-                                          </span>
+                        {task.errorMessage && (
+                          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                            <p className="mb-1 text-xs font-medium text-destructive">错误信息</p>
+                            <p className="whitespace-pre-wrap break-all text-sm text-destructive">{task.errorMessage}</p>
+                          </div>
+                        )}
+
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-sm font-medium">Canvas pipeline run 时间线</p>
+                            <span className="text-xs text-muted-foreground">
+                              {runs.length}
+                              {' '}
+                              条
+                            </span>
+                          </div>
+                          {runs.length === 0
+                            ? (
+                                <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                                  该任务无关联 Canvas pipeline run（可能是 generate / gateway / subtitle 域任务）。
+                                </p>
+                              )
+                            : (
+                                <div className="space-y-2">
+                                  {runs.map(run => (
+                                    <div key={run.id} className="rounded-lg border p-3 text-sm">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline">{pipelinePhaseLabel(run.phase)}</Badge>
+                                          <Badge variant={statusVariant(run.status)}>{statusLabel(run.status)}</Badge>
                                         </div>
-                                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
-                                          <div>
-                                            开始：
-                                            {formatDate(run.startedAt)}
-                                          </div>
-                                          <div>
-                                            结束：
-                                            {formatDate(run.finishedAt)}
-                                          </div>
-                                          <div>
-                                            项目：
-                                            {shortId(run.projectId)}
-                                          </div>
-                                        </div>
-                                        {run.errorMessage && (
-                                          <p className="mt-2 break-all text-xs text-destructive">{run.errorMessage}</p>
-                                        )}
-                                        {run.outputSummary && Object.keys(run.outputSummary).length > 0 && (
-                                          <details className="mt-2">
-                                            <summary className="cursor-pointer text-xs text-muted-foreground">输出摘要</summary>
-                                            <pre className="mt-1 overflow-x-auto rounded bg-muted p-2 text-xs">
-                                              {JSON.stringify(run.outputSummary, null, 2)}
-                                            </pre>
-                                          </details>
-                                        )}
+                                        <span className="font-mono text-xs text-muted-foreground">
+                                          {formatLatencyMs(run.durationMs)}
+                                        </span>
                                       </div>
-                                    ))}
-                                  </div>
-                                )}
-                          </div>
-
-                          <div>
-                            <div className="mb-2 flex items-center justify-between">
-                              <p className="text-sm font-medium">关联生成记录</p>
-                              <span className="text-xs text-muted-foreground">
-                                {genRecords.length}
-                                {' '}
-                                条
-                              </span>
-                            </div>
-                            {genRecords.length === 0
-                              ? (
-                                  <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                                    暂无关联生成记录。
-                                  </p>
-                                )
-                              : (
-                                  <div className="space-y-2">
-                                    {genRecords.map(record => (
-                                      <div key={record.id} className="rounded-lg border p-3 text-sm">
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                          <div className="flex flex-wrap items-center gap-2">
-                                            <Badge variant="outline" className="font-mono">{record.model}</Badge>
-                                            <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
-                                            <Badge variant={record.matchReason === 'time-window' ? 'outline' : 'secondary'}>
-                                              {generationRecordMatchLabel(record.matchReason)}
-                                            </Badge>
-                                          </div>
-                                          <span className="font-mono text-xs text-muted-foreground">
-                                            {record.costCents !== null ? `¥${(record.costCents / 100).toFixed(2)}` : '—'}
-                                          </span>
+                                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
+                                        <div>
+                                          开始：
+                                          {formatDate(run.startedAt)}
                                         </div>
-                                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
-                                          <div>
-                                            分类：
-                                            {record.category}
-                                          </div>
-                                          <div>
-                                            创建：
-                                            {formatDate(record.createdAt)}
-                                          </div>
-                                          <div className="font-mono">
-                                            {shortId(record.id)}
-                                          </div>
+                                        <div>
+                                          结束：
+                                          {formatDate(run.finishedAt)}
                                         </div>
-                                        {record.errorMessage && (
-                                          <p className="mt-2 break-all text-xs text-destructive">{record.errorMessage}</p>
-                                        )}
+                                        <div>
+                                          项目：
+                                          {shortId(run.projectId)}
+                                        </div>
                                       </div>
-                                    ))}
-                                    {genRecords.some(r => r.matchReason === 'time-window') && (
-                                      <p className="text-xs text-muted-foreground">
-                                        候选记录按 accountId + 任务执行时间窗口匹配，可能含并发产生的记录，请结合创建时间人工判断。
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                          </div>
+                                      {run.errorMessage && (
+                                        <p className="mt-2 break-all text-xs text-destructive">{run.errorMessage}</p>
+                                      )}
+                                      {run.outputSummary && Object.keys(run.outputSummary).length > 0 && (
+                                        <details className="mt-2">
+                                          <summary className="cursor-pointer text-xs text-muted-foreground">输出摘要</summary>
+                                          <pre className="mt-1 overflow-x-auto rounded bg-muted p-2 text-xs">
+                                            {JSON.stringify(run.outputSummary, null, 2)}
+                                          </pre>
+                                        </details>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                        </div>
 
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!task.canRequeue || isMutating}
-                              onClick={() => onRequeue(task.id)}
-                            >
-                              <RotateCcw className="size-4" />
-                              重排
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!task.canCancel || isMutating}
-                              onClick={() => onCancel(task.id)}
-                            >
-                              <Ban className="size-4" />
-                              取消
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                        <div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-sm font-medium">关联生成记录</p>
+                            <span className="text-xs text-muted-foreground">
+                              {genRecords.length}
+                              {' '}
+                              条
+                            </span>
                           </div>
-                        </>
-                      )}
+                          {genRecords.length === 0
+                            ? (
+                                <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                                  暂无关联生成记录。
+                                </p>
+                              )
+                            : (
+                                <div className="space-y-2">
+                                  {genRecords.map(record => (
+                                    <div key={record.id} className="rounded-lg border p-3 text-sm">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge variant="outline" className="font-mono">{record.model}</Badge>
+                                          <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                          <Badge variant={record.matchReason === 'time-window' ? 'outline' : 'secondary'}>
+                                            {generationRecordMatchLabel(record.matchReason)}
+                                          </Badge>
+                                        </div>
+                                        <span className="font-mono text-xs text-muted-foreground">
+                                          {record.costCents !== null ? `¥${(record.costCents / 100).toFixed(2)}` : '—'}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground md:grid-cols-3">
+                                        <div>
+                                          分类：
+                                          {record.category}
+                                        </div>
+                                        <div>
+                                          创建：
+                                          {formatDate(record.createdAt)}
+                                        </div>
+                                        <div className="font-mono">
+                                          {shortId(record.id)}
+                                        </div>
+                                      </div>
+                                      {record.errorMessage && (
+                                        <p className="mt-2 break-all text-xs text-destructive">{record.errorMessage}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {genRecords.some(r => r.matchReason === 'time-window') && (
+                                    <p className="text-xs text-muted-foreground">
+                                      候选记录按 accountId + 任务执行时间窗口匹配，可能含并发产生的记录，请结合创建时间人工判断。
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!task.canRequeue || isMutating}
+                            onClick={() => onRequeue(task.id)}
+                          >
+                            <RotateCcw className="size-4" />
+                            重排
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!task.canCancel || isMutating}
+                            onClick={() => onCancel(task.id)}
+                          >
+                            <Ban className="size-4" />
+                            取消
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                        </div>
+                      </>
+                    )}
         </DialogContent>
       )}
     </Dialog>
@@ -935,150 +935,150 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
       <Dialog open={!!userId} onOpenChange={open => !open && onClose()}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" showCloseButton>
           {isLoading || !detail
-              ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">正在加载用户详情...</p>
-                )
-              : (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold">{detail.summary.username}</h3>
-                        <p className="text-xs text-muted-foreground">{detail.summary.email ?? '-'}</p>
-                      </div>
-                      <Badge variant={detail.summary.isActive ? 'default' : 'outline'}>
-                        {detail.summary.isActive ? '启用' : '禁用'}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-sm">
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground">余额</p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => setRechargeOpen(true)}
-                          >
-                            <Coins className="mr-1 size-3" />
-                            充值
-                          </Button>
-                        </div>
-                        <p className="mt-1 font-mono">{formatCents(detail.summary.creditBalanceCents)}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">总成本</p>
-                        <p className="mt-1 font-mono">{formatCents(detail.summary.totalCostCents)}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">总调用</p>
-                        <p className="mt-1">{formatNumber(detail.summary.totalCalls)}</p>
-                      </div>
-                    </div>
-
+            ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">正在加载用户详情...</p>
+              )
+            : (
+                <>
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="mb-2 text-sm font-medium">最近 30 天成本趋势</p>
-                      {detail.dailyCost.length === 0
-                        ? <p className="text-xs text-muted-foreground">最近 30 天无活动</p>
-                        : (
-                            <div className="space-y-1">
-                              {detail.dailyCost.map(row => (
-                                <div key={row.date} className="flex items-center gap-2 text-xs">
-                                  <span className="w-24 shrink-0 font-mono text-muted-foreground">{row.date}</span>
-                                  <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted">
-                                    <div
-                                      className="h-full bg-primary/60"
-                                      style={{ width: maxDailyCost === 0 ? '0%' : `${(row.costCents / maxDailyCost) * 100}%` }}
-                                    />
-                                  </div>
-                                  <span className="w-20 shrink-0 text-right font-mono">{formatCents(row.costCents)}</span>
-                                  <span className="w-12 shrink-0 text-right text-muted-foreground">
-                                    {row.calls}
-                                    次
-                                  </span>
+                      <h3 className="text-lg font-semibold">{detail.summary.username}</h3>
+                      <p className="text-xs text-muted-foreground">{detail.summary.email ?? '-'}</p>
+                    </div>
+                    <Badge variant={detail.summary.isActive ? 'default' : 'outline'}>
+                      {detail.summary.isActive ? '启用' : '禁用'}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">余额</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setRechargeOpen(true)}
+                        >
+                          <Coins className="mr-1 size-3" />
+                          充值
+                        </Button>
+                      </div>
+                      <p className="mt-1 font-mono">{formatCents(detail.summary.creditBalanceCents)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">总成本</p>
+                      <p className="mt-1 font-mono">{formatCents(detail.summary.totalCostCents)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">总调用</p>
+                      <p className="mt-1">{formatNumber(detail.summary.totalCalls)}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-medium">最近 30 天成本趋势</p>
+                    {detail.dailyCost.length === 0
+                      ? <p className="text-xs text-muted-foreground">最近 30 天无活动</p>
+                      : (
+                          <div className="space-y-1">
+                            {detail.dailyCost.map(row => (
+                              <div key={row.date} className="flex items-center gap-2 text-xs">
+                                <span className="w-24 shrink-0 font-mono text-muted-foreground">{row.date}</span>
+                                <div className="relative h-4 flex-1 overflow-hidden rounded bg-muted">
+                                  <div
+                                    className="h-full bg-primary/60"
+                                    style={{ width: maxDailyCost === 0 ? '0%' : `${(row.costCents / maxDailyCost) * 100}%` }}
+                                  />
                                 </div>
+                                <span className="w-20 shrink-0 text-right font-mono">{formatCents(row.costCents)}</span>
+                                <span className="w-12 shrink-0 text-right text-muted-foreground">
+                                  {row.calls}
+                                  次
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-medium">模型成本分解（前 10）</p>
+                    {detail.modelBreakdown.length === 0
+                      ? <p className="text-xs text-muted-foreground">暂无模型调用记录</p>
+                      : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left text-muted-foreground">
+                                <th className="py-1.5 font-medium">模型</th>
+                                <th className="py-1.5 text-right font-medium">调用</th>
+                                <th className="py-1.5 text-right font-medium">成本</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.modelBreakdown.map(row => (
+                                <tr key={row.model} className="border-b last:border-b-0">
+                                  <td className="py-1.5 font-mono text-xs">{row.model}</td>
+                                  <td className="py-1.5 text-right">{formatNumber(row.calls)}</td>
+                                  <td className="py-1.5 text-right font-mono text-xs">{formatCents(row.costCents)}</td>
+                                </tr>
                               ))}
-                            </div>
-                          )}
-                    </div>
+                            </tbody>
+                          </table>
+                        )}
+                  </div>
 
-                    <div>
-                      <p className="mb-2 text-sm font-medium">模型成本分解（前 10）</p>
-                      {detail.modelBreakdown.length === 0
-                        ? <p className="text-xs text-muted-foreground">暂无模型调用记录</p>
-                        : (
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="border-b text-left text-muted-foreground">
-                                  <th className="py-1.5 font-medium">模型</th>
-                                  <th className="py-1.5 text-right font-medium">调用</th>
-                                  <th className="py-1.5 text-right font-medium">成本</th>
+                  <div>
+                    <p className="mb-2 text-sm font-medium">最近 10 条生成记录</p>
+                    {detail.recentRecords.length === 0
+                      ? <p className="text-xs text-muted-foreground">暂无生成记录</p>
+                      : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-left text-muted-foreground">
+                                <th className="py-1.5 font-medium">模型</th>
+                                <th className="py-1.5 font-medium">状态</th>
+                                <th className="py-1.5 font-medium">执行</th>
+                                <th className="py-1.5 text-right font-medium">成本</th>
+                                <th className="py-1.5 font-medium">时间</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detail.recentRecords.map(record => (
+                                <tr key={record.id} className="border-b last:border-b-0">
+                                  <td className="py-1.5 font-mono text-xs">{record.model}</td>
+                                  <td className="py-1.5">
+                                    <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                  </td>
+                                  <td className="py-1.5">
+                                    <div className="flex flex-col gap-1">
+                                      <Badge variant={record.executionKind === 'legacy-provider-task' ? 'outline' : 'secondary'} className="w-fit">
+                                        {recentRecordExecutionLabel(record.executionKind)}
+                                      </Badge>
+                                      {record.providerTaskId && (
+                                        <span className="font-mono text-[11px] text-muted-foreground">
+                                          {shortId(record.providerTaskId)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
+                                  <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {detail.modelBreakdown.map(row => (
-                                  <tr key={row.model} className="border-b last:border-b-0">
-                                    <td className="py-1.5 font-mono text-xs">{row.model}</td>
-                                    <td className="py-1.5 text-right">{formatNumber(row.calls)}</td>
-                                    <td className="py-1.5 text-right font-mono text-xs">{formatCents(row.costCents)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                    </div>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                  </div>
 
-                    <div>
-                      <p className="mb-2 text-sm font-medium">最近 10 条生成记录</p>
-                      {detail.recentRecords.length === 0
-                        ? <p className="text-xs text-muted-foreground">暂无生成记录</p>
-                        : (
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="border-b text-left text-muted-foreground">
-                                  <th className="py-1.5 font-medium">模型</th>
-                                  <th className="py-1.5 font-medium">状态</th>
-                                  <th className="py-1.5 font-medium">执行</th>
-                                  <th className="py-1.5 text-right font-medium">成本</th>
-                                  <th className="py-1.5 font-medium">时间</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {detail.recentRecords.map(record => (
-                                  <tr key={record.id} className="border-b last:border-b-0">
-                                    <td className="py-1.5 font-mono text-xs">{record.model}</td>
-                                    <td className="py-1.5">
-                                      <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
-                                    </td>
-                                    <td className="py-1.5">
-                                      <div className="flex flex-col gap-1">
-                                        <Badge variant={record.executionKind === 'legacy-provider-task' ? 'outline' : 'secondary'} className="w-fit">
-                                          {recentRecordExecutionLabel(record.executionKind)}
-                                        </Badge>
-                                        {record.providerTaskId && (
-                                          <span className="font-mono text-[11px] text-muted-foreground">
-                                            {shortId(record.providerTaskId)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
-                                    <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                    </div>
+                  {/* API Key 列表 */}
+                  <AdminUserApiKeysSection userId={userId} />
 
-                    {/* API Key 列表 */}
-                    <AdminUserApiKeysSection userId={userId} />
-
-                    <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
-                    </div>
-                  </>
-                )}
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                  </div>
+                </>
+              )}
         </DialogContent>
       </Dialog>
 
@@ -1086,41 +1086,41 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
       <Dialog open={rechargeOpen} onOpenChange={setRechargeOpen}>
         <DialogContent className="max-w-sm" showCloseButton>
           <h3 className="mb-4 text-base font-semibold">充值</h3>
-            <p className="mb-3 text-xs text-muted-foreground">
-              用户：
-              {detail?.summary.username}
-            </p>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs text-muted-foreground">金额（元）</label>
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="例如 10.00"
-                  value={rechargeAmount}
-                  onChange={e => setRechargeAmount(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">备注（可选）</label>
-                <Input
-                  placeholder="管理后台充值"
-                  value={rechargeDesc}
-                  onChange={e => setRechargeDesc(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setRechargeOpen(false)}>取消</Button>
-                <Button
-                  size="sm"
-                  disabled={!rechargeAmount || Number.parseFloat(rechargeAmount) <= 0 || rechargeMutation.isPending}
-                  onClick={() => rechargeMutation.mutate()}
-                >
-                  {rechargeMutation.isPending ? '充值中...' : '确认充值'}
-                </Button>
-              </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            用户：
+            {detail?.summary.username}
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">金额（元）</label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="例如 10.00"
+                value={rechargeAmount}
+                onChange={e => setRechargeAmount(e.target.value)}
+              />
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground">备注（可选）</label>
+              <Input
+                placeholder="管理后台充值"
+                value={rechargeDesc}
+                onChange={e => setRechargeDesc(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setRechargeOpen(false)}>取消</Button>
+              <Button
+                size="sm"
+                disabled={!rechargeAmount || Number.parseFloat(rechargeAmount) <= 0 || rechargeMutation.isPending}
+                onClick={() => rechargeMutation.mutate()}
+              >
+                {rechargeMutation.isPending ? '充值中...' : '确认充值'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>
@@ -1399,102 +1399,102 @@ function AdminGatewayClientDetailDialog({ accountId, onClose }: { accountId: str
       <Dialog open={!!accountId} onOpenChange={open => !open && onClose()}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" showCloseButton>
           {isLoading || !summary
-              ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">正在加载客户详情...</p>
-                )
-              : (
-                  <>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-lg font-semibold">{summary.username}</h3>
-                        <p className="text-xs text-muted-foreground">{summary.email ?? '-'}</p>
-                      </div>
-                      <Badge variant={summary.activeKeyCount > 0 ? 'default' : 'outline'}>
-                        {summary.activeKeyCount > 0 ? '活跃' : '无活跃 key'}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">账户余额</p>
-                        <p className="mt-1 font-mono">{formatCents(summary.creditBalanceCents)}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">Key 消耗</p>
-                        <p className="mt-1 font-mono">{formatCents(summary.totalSpendCents)}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">Gateway 调用</p>
-                        <p className="mt-1">{formatNumber(summary.gatewayCalls)}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-xs text-muted-foreground">Gateway 累计</p>
-                        <p className="mt-1 font-mono">{formatCents(summary.gatewaySpendCents)}</p>
-                      </div>
-                    </div>
-
+            ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">正在加载客户详情...</p>
+              )
+            : (
+                <>
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="mb-2 flex items-center justify-between">
-                        <p className="text-sm font-medium">API Key 管理</p>
-                        <span className="text-xs text-muted-foreground">
-                          活跃
-                          {' '}
-                          {summary.activeKeyCount}
-                          {' '}
-                          /
-                          {' '}
-                          {summary.totalKeyCount}
-                        </span>
-                      </div>
-                      <AdminGatewayKeysTable
-                        keys={keys}
-                        isMutating={isMutating}
-                        onEdit={setEditingKey}
-                        onReset={key => setPendingAction({ kind: 'reset', key })}
-                        onRevoke={key => setPendingAction({ kind: 'revoke', key })}
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        限流（次/分）为单进程内计数，多实例部署下不互通；额度按配额周期自动重置，也可在此手动重置。
-                      </p>
+                      <h3 className="text-lg font-semibold">{summary.username}</h3>
+                      <p className="text-xs text-muted-foreground">{summary.email ?? '-'}</p>
                     </div>
+                    <Badge variant={summary.activeKeyCount > 0 ? 'default' : 'outline'}>
+                      {summary.activeKeyCount > 0 ? '活跃' : '无活跃 key'}
+                    </Badge>
+                  </div>
 
-                    <div>
-                      <p className="mb-2 text-sm font-medium">最近 Gateway 调用记录（前 50）</p>
-                      {recentRecords.length === 0
-                        ? <p className="text-xs text-muted-foreground">暂无 Gateway 调用记录</p>
-                        : (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="border-b text-left text-muted-foreground">
-                                    <th className="py-1.5 font-medium">模型</th>
-                                    <th className="py-1.5 font-medium">状态</th>
-                                    <th className="py-1.5 text-right font-medium">成本</th>
-                                    <th className="py-1.5 font-medium">时间</th>
+                  <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">账户余额</p>
+                      <p className="mt-1 font-mono">{formatCents(summary.creditBalanceCents)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Key 消耗</p>
+                      <p className="mt-1 font-mono">{formatCents(summary.totalSpendCents)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Gateway 调用</p>
+                      <p className="mt-1">{formatNumber(summary.gatewayCalls)}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Gateway 累计</p>
+                      <p className="mt-1 font-mono">{formatCents(summary.gatewaySpendCents)}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-sm font-medium">API Key 管理</p>
+                      <span className="text-xs text-muted-foreground">
+                        活跃
+                        {' '}
+                        {summary.activeKeyCount}
+                        {' '}
+                        /
+                        {' '}
+                        {summary.totalKeyCount}
+                      </span>
+                    </div>
+                    <AdminGatewayKeysTable
+                      keys={keys}
+                      isMutating={isMutating}
+                      onEdit={setEditingKey}
+                      onReset={key => setPendingAction({ kind: 'reset', key })}
+                      onRevoke={key => setPendingAction({ kind: 'revoke', key })}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      限流（次/分）为单进程内计数，多实例部署下不互通；额度按配额周期自动重置，也可在此手动重置。
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-medium">最近 Gateway 调用记录（前 50）</p>
+                    {recentRecords.length === 0
+                      ? <p className="text-xs text-muted-foreground">暂无 Gateway 调用记录</p>
+                      : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b text-left text-muted-foreground">
+                                  <th className="py-1.5 font-medium">模型</th>
+                                  <th className="py-1.5 font-medium">状态</th>
+                                  <th className="py-1.5 text-right font-medium">成本</th>
+                                  <th className="py-1.5 font-medium">时间</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {recentRecords.map(record => (
+                                  <tr key={record.id} className="border-b last:border-b-0">
+                                    <td className="py-1.5 font-mono text-xs">{record.model}</td>
+                                    <td className="py-1.5">
+                                      <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
+                                    </td>
+                                    <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
+                                    <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
                                   </tr>
-                                </thead>
-                                <tbody>
-                                  {recentRecords.map(record => (
-                                    <tr key={record.id} className="border-b last:border-b-0">
-                                      <td className="py-1.5 font-mono text-xs">{record.model}</td>
-                                      <td className="py-1.5">
-                                        <Badge variant={statusVariant(record.status)}>{statusLabel(record.status)}</Badge>
-                                      </td>
-                                      <td className="py-1.5 text-right font-mono text-xs">{formatCents(record.costCents)}</td>
-                                      <td className="py-1.5 text-xs text-muted-foreground">{formatDate(record.createdAt)}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                    </div>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                  </div>
 
-                    <div className="flex justify-end">
-                      <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
-                    </div>
-                  </>
-                )}
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={onClose}>关闭</Button>
+                  </div>
+                </>
+              )}
         </DialogContent>
       </Dialog>
 
@@ -1752,7 +1752,7 @@ function AdminApiKeyConfigDialog({
             <Button type="submit" size="sm" disabled={submitting}>{submitting ? '保存中...' : '保存'}</Button>
           </div>
         </form>
-        </DialogContent>
+      </DialogContent>
     </Dialog>
   )
 }
