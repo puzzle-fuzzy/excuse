@@ -1,6 +1,7 @@
 import type { ProjectDTO, ShotDTO } from '@excuse/shared'
 import type { NodeProps } from '@xyflow/react'
 import type { RunningPhaseInfo } from '../PipelineController'
+import { hasDialogueAudio } from '@excuse/shared'
 import { Handle, Position } from '@xyflow/react'
 import { RunningBadge, runningBorder, RunningOverlay } from '../RunningOverlay'
 
@@ -35,6 +36,9 @@ export default function ShotNode({ data }: NodeProps) {
     ? project.locations.find(l => l.id === shot.locationId)?.name
     : null
 
+  // 镜头是否含角色对白（启发式，驱动音频指示器）
+  const hasDialogue = hasDialogueAudio(shot.narrative)
+
   return (
     <div className={`rounded-lg border-2 bg-cyan-50 shadow-md w-85 relative ${runningBorder(isRunning, 'border-cyan-400')}`}>
       <Handle type="target" position={Position.Top} className="bg-cyan-400!" />
@@ -57,10 +61,18 @@ export default function ShotNode({ data }: NodeProps) {
       <div className="p-3 space-y-2 text-sm">
         {/* 基本信息 */}
         <div className="text-xs space-y-1">
-          <div>
-            <span className="text-muted-foreground">时长：</span>
-            {shot.duration}
-            s
+          <div className="flex items-center gap-2">
+            <span>
+              <span className="text-muted-foreground">时长：</span>
+              {shot.duration}
+              s
+            </span>
+            <span
+              className={`text-[10px] rounded-full px-1.5 py-0.5 ${hasDialogue ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+              title={hasDialogue ? '本镜头含角色对白，生成的视频带对话音频' : '本镜头无角色对白，仅环境音'}
+            >
+              {hasDialogue ? '🔊 对话音频' : '🔇 无对白'}
+            </span>
           </div>
           {locName && (
             <div>
