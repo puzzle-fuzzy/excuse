@@ -47,7 +47,11 @@ export async function submitShotVideoEntity(input: ShotVideoEntityInput): Promis
     locations: input.locations,
   })
   const recommendation = recommendCanvasVideoModel(input.modelPreferences, references)
-  const referenceUrls = references.map(r => r.url)
+  // R2V 优先复用 dialogue 产出的预算参考媒体（≤9，按说话者优先排序，存 shot.reference_media）；
+  // dialogue 未产出时回退到全量解析引用。T2V 不带参考图。
+  const referenceUrls = recommendation.variant === 'r2v' && input.shot.referenceMedia && input.shot.referenceMedia.length > 0
+    ? input.shot.referenceMedia.map(m => m.url)
+    : references.map(r => r.url)
 
   const { taskId } = await submitCanvasShotVideo({
     accountId: input.accountId,

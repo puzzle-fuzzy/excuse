@@ -30,6 +30,8 @@ export * from './phases/storyboard'
 export * from './phases/videos'
 export { getCanvasVideoModel, recommendCanvasVideoModel, VARIANT_FALLBACK } from './pure/model'
 export type { CanvasVideoModelRecommendation } from './pure/model'
+export { buildR2VRequest, extractSpeakingCharacterIds, R2V_MAX_REFERENCES } from './pure/r2v'
+export type { BuildR2VRequestInput } from './pure/r2v'
 // 纯逻辑
 export { resolveShotVideoReferences, toPromptReferenceEntries } from './pure/references'
 export type { ResolveShotVideoReferencesInput } from './pure/references'

@@ -1,5 +1,5 @@
+import type { DialogueJson, R2VReferenceMedia } from '@excuse/shared/domain-types'
 import type { CanvasShotReferenceAsset, ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry } from '../domain-types'
-import type { DialogueJson } from '@excuse/shared/domain-types'
 import { sql } from 'drizzle-orm'
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { canvasLocations } from './canvas-locations'
@@ -74,8 +74,8 @@ export const canvasShots = pgTable('canvas_shots', {
   dialoguePrompt: text('dialogue_prompt'),
   /** 结构化对话数据（Phase 8.5 dialogue 生成） */
   dialogueJson: jsonb('dialogue_json').$type<DialogueJson>(),
-  /** R2V 参考媒体列表（角色 turnaround + 场景 reference_image） */
-  referenceMedia: jsonb('reference_media'),
+  /** R2V 参考媒体预算（buildR2VRequest 组装，≤9 张：角色 turnaround + 场景 reference_image） */
+  referenceMedia: jsonb('reference_media').$type<R2VReferenceMedia[]>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [

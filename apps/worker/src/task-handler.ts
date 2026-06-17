@@ -101,9 +101,12 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
       const { results } = await runDialoguePhase({ projectId, detail, client: ctx.client, textModel })
 
       for (const result of results) {
-        if (result.dialoguePrompt === null && result.dialogueJson === null)
+        if (result.dialoguePrompt === null && result.dialogueJson === null && result.referenceMedia.length === 0)
           continue
-        const patch: Record<string, unknown> = { dialoguePrompt: result.dialoguePrompt ?? undefined }
+        const patch: Record<string, unknown> = {
+          dialoguePrompt: result.dialoguePrompt ?? undefined,
+          referenceMedia: result.referenceMedia,
+        }
         if (result.dialogueJson)
           patch.dialogueJson = result.dialogueJson
         await updateCanvasShot(result.shotId, patch as Parameters<typeof updateCanvasShot>[1])
