@@ -1,3 +1,4 @@
+export * from './dialogue'
 export * from './json-helper'
 export * from './prompt-builder'
 export * from './prompts'

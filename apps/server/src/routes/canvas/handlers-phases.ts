@@ -65,10 +65,10 @@ export function handleVideosPhase(projectId: string, userId: string, ctx: Server
   return runPhase(projectId, userId, 'videos', runId => svc.generateVideos(projectId, ctx.client, runId))
 }
 
-export function handleDialoguePhase(projectId: string, userId: string, _ctx: ServerContext): Promise<AcceptedResponse> {
+export function handleDialoguePhase(projectId: string, userId: string, ctx: ServerContext): Promise<AcceptedResponse> {
   return runPhase(projectId, userId, 'dialogue', async (_runId) => {
-    // TODO: Phase 8.5 — LLM 为每个 shot 生成对话层 prompt
-    throw new Error('对话阶段尚未实现')
+    const { generateDialogue } = await import('../../modules/canvas/dialogue')
+    return generateDialogue(projectId, ctx.client)
   })
 }
 

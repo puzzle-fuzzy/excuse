@@ -11,6 +11,7 @@ export { getCanvasAssetsPoll } from './asset-poll'
 
 export { generateCharacters } from './characters'
 export { checkContinuity, rebuildShotPrompts } from './continuity-rebuild'
+export { generateDialogue } from './dialogue'
 export { generateLocations } from './locations'
 export { generateCharacterRefs, generateLocationRefs } from './references'
 export { regenerateCharacter, regenerateLocation, regenerateShotVideo } from './regenerate'

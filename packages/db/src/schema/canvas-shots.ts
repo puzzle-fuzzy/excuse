@@ -1,4 +1,5 @@
 import type { CanvasShotReferenceAsset, ShotCamera, ShotContinuity, ShotEnvironment, ShotTimelineEntry } from '../domain-types'
+import type { DialogueJson } from '@excuse/shared/domain-types'
 import { sql } from 'drizzle-orm'
 import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
 import { canvasLocations } from './canvas-locations'
@@ -69,6 +70,12 @@ export const canvasShots = pgTable('canvas_shots', {
   errorMessage: text('error_message'),
   /** 镜头额外参考资产列表（用户可选择多个参考图，生成时合并进 referenceUrls） */
   referenceAssetsJson: jsonb('reference_assets_json').$type<CanvasShotReferenceAsset[]>().default([]).notNull(),
+  /** 对话层 LLM 输出文本（Phase 8.5 dialogue 生成） */
+  dialoguePrompt: text('dialogue_prompt'),
+  /** 结构化对话数据（Phase 8.5 dialogue 生成） */
+  dialogueJson: jsonb('dialogue_json').$type<DialogueJson>(),
+  /** R2V 参考媒体列表（角色 turnaround + 场景 reference_image） */
+  referenceMedia: jsonb('reference_media'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, table => [

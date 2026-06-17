@@ -87,9 +87,25 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
   },
   {
     type: 'canvas.dialogue',
-    handler: async (_task, _ctx) => {
-      // TODO: Phase 8.5 — LLM 对话层生成
-      throw new Error('对话阶段尚未实现 (canvas.dialogue)')
+    handler: async (task, ctx) => {
+      const { getCanvasProjectDetail, updateCanvasShot } = await import('@excuse/db')
+      const { runDialoguePhase } = await import('@excuse/canvas-runtime')
+      const { getTextModel } = await import('./canvas-execution')
+
+      const projectId = task.projectId!
+      const detail = await getCanvasProjectDetail(projectId)
+      if (!detail) throw new Error('项目不存在')
+
+      const textModel = getTextModel(detail.project.modelPreferencesJson)
+      const { results } = await runDialoguePhase({ projectId, detail, client: ctx.client, textModel })
+
+      for (const result of results) {
+        if (result.dialoguePrompt === null && result.dialogueJson === null) continue
+        const patch: Record<string, unknown> = { dialoguePrompt: result.dialoguePrompt ?? undefined }
+        if (result.dialogueJson) patch.dialogueJson = result.dialogueJson
+        await updateCanvasShot(result.shotId, patch as Parameters<typeof updateCanvasShot>[1])
+      }
+      return { dialogueShotCount: results.filter(r => r.dialogueJson).length }
     },
   },
   {

@@ -579,3 +579,22 @@ export interface ProviderHealthDetail {
   reason?: string
   previousStatus?: ProviderModelHealthStatus
 }
+
+/** 对话层结构化数据（Phase 8.5 dialogue 生成） */
+export interface DialogueLine {
+  speaker: string
+  text: string
+  emotion: string
+  volume: string
+}
+
+export interface DialogueSoundEffect {
+  type: string
+  description: string
+}
+
+export interface DialogueJson {
+  lines: DialogueLine[]
+  soundEffects: DialogueSoundEffect[]
+  ambientSound: string
+}

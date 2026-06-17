@@ -60,18 +60,23 @@
 - ✅ Canvas analyze 阶段 characters/locations 自动匹配库中已有资产
 - ✅ Canvas 编辑器「资产库」快捷入口（CanvasStatusBar）
 
-### 2. 对话式音视频 + BGM + 合成（待排期）
+### 2. 对话式音视频 + BGM + 合成 🏗️
 
-> 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。需 DB migration（pgEnum 新增 `dialogue`/`bgm`/`assemble`）和流水线扩展，建议单独排期。
+> 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。
 
-**依赖项**
-- DB migration: `canvasPipelinePhaseEnum` 新增 `dialogue`/`bgm`/`assemble`
-- `canvas_shots` 新增 `dialogue_prompt`/`dialogue_json`/`reference_media` 列
-- `canvas_projects` 新增 `bgm_url` 列
-- Phase 8.5 `dialogue`: LLM 对话层生成
-- Phase 10 `bgm`: FunMusic BGM 生成
-- Phase 11 `assemble`: FFmpeg 视频+音频+BGM 合成
-- R2V builder: `buildR2VRequest` 组装多参考图模式
+**已完成**
+- ✅ `canvasPipelinePhaseEnum` 新增 `dialogue`(8.5)/`bgm`(10)/`assemble`(11)
+- ✅ `CANVAS_PHASE_ORDER` + `PAUSE_BEFORE` 同步更新
+- ✅ 共享 `CanvasPipelinePhase` 类型同步（3 处）
+- ✅ 0035 迁移 SQL（pgEnum + `canvas_shots` 新列 + `canvas_projects.bgm_url`）
+- ✅ Server route handler stubs（throw not implemented）
+- ✅ Worker task handler stubs（throw not implemented）
+
+**待实现**
+- 🏗️ Phase 8.5 `dialogue`: LLM 对话层生成（prompt builder + server module）
+- 🏗️ Phase 10 `bgm`: FunMusic BGM 生成
+- 🏗️ Phase 11 `assemble`: FFmpeg 视频+音频+BGM 合成
+- 🏗️ R2V builder: `buildR2VRequest` 组装多参考图模式
 
 ### 附：对话音视频 Prompt 规范要点
 
