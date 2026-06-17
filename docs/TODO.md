@@ -87,39 +87,7 @@
 
 ## 三、可观测性与测试
 
-### 1. 端到端冒烟测试【依赖地基一、1 的 provider 注入】
-
-> 状态：依赖前置的 provider 依赖注入重构（地基一、1），且需全栈起停编排 + 浏览器二进制，验证环境重，应单独排期。下述任务/范围/风险供排期时参考。
-
-**任务**
-
-1. 引入 Playwright（或等价 E2E）+ test DB + fake provider adapter，跑关键用户旅程。
-2. 最小冒烟集：注册/登录、提交文本生成、创建 Canvas 项目并跑 mock phase、资产中心查看生成结果、创建 API Key 并调用 gateway mock。
-3. `bun run test:e2e` 可在 CI 稳定运行；关键旅程失败阻断发布；失败保留 screenshot/trace。
-4. E2E 默认不访问真实 DashScope，provider 由测试环境 mock。
-
-**触及范围（blast radius）**
-
-- 前置阻塞 —— provider 依赖注入（地基一、1）：注入重构触及所有 provider 调用路由，本身即一个独立子任务。
-- 新增：`e2e/` 目录、Playwright config、fake provider adapter、global setup（起 server 5007 + worker 5100 against test DB + 健康等待 + teardown）。
-- CI：`.github/workflows/ci.yml` 加 e2e job（Chromium 二进制 + postgres service，复用 CI 已建的 DATABASE_URL 口径）。
-- `package.json`：新增 `test:e2e` 脚本。
-
-**可能出现的问题（风险）**
-
-- 浏览器二进制：Playwright 需下载 Chromium，CI 镜像变大、install 变慢。
-- 全栈起停编排 flaky：需同时起 server + worker + postgres，global setup/teardown 的时序、端口、健康轮询（复用 `/health/ready` 探针）容易抖动。
-- 跨层行为难稳定：SSE、轮询 fallback、httpOnly cookie、内存 token、React Query cache invalidation 正是 E2E 要覆盖的，但时序敏感、易 flaky。
-- Mock 与真实差异：fake provider 返回固定结果，无法覆盖真实 DashScope 协议边缘情况，需克制 mock 复杂度。
-- 本地/CI 环境差异导致 flaky，长期维护成本高；需明确只覆盖「关键旅程」而非追求广覆盖。
-
-**验收（排期时达成）**
-
-- `bun run test:e2e` 可在 CI 中稳定运行。
-- 关键用户旅程失败能阻断发布。
-- E2E 失败时保留 screenshot/trace。
-
-### 2. 测试体系原则（持续，非专项待办）
+### 测试体系原则（持续，非专项待办）
 
 测试补齐原则：不追 100%，只补高 ROI 路径。
 
@@ -135,6 +103,7 @@
 
 > 下列为代码冗余/死代码/命名/a11y 债务，2026-06-17 逐条核对当前代码，仅录入「仍存在」与「待确认」项（关键问题与已修复项不录入）。原则：接触相关区域时顺手做，不专门开冲刺。
 
+- **计费 integer 列 vs sub-cent 定价（需决策，非「顺手做」级）**：`generation_records.total_price_cents` 与 credit ledger（`credit_transactions.amount_cents` / `credit_accounts.{available,frozen}_cents`）均为 `integer`，但 `calculateCost` 对文本（按 1M token 计价）与音频（按秒计价）产出 fractional cents（如 10/20 token → 0.0216 分）。非整数分成本落库抛 `22P02 invalid input syntax for type integer`，导致 `/api/generate` 文本与 `/v1/chat/completions` gateway 任何非整分成本都会失败（E2E 冒烟实测触发；视频/图片为整数分，不受影响）。需决策：①credit ledger 统一改 `numeric`/`decimal`（支持 sub-cent，含 schema 迁移）；或 ②在 storage 边界统一取整（sub-cent 计费精度丢失，影响 ASR / fun-music 真实收入）。E2E 文本/gateway 旅程暂以 fake usage=0 规避，视频旅程覆盖完整 reserve→debit。
 - ~~**Gateway 流式/非流式计费编排重复**~~ ✅ 已由 `setupGatewayCall` / `settleGatewaySuccess` / `settleGatewayFailure` 三条共用原语覆盖，流式非流式均使用。
 - ~~**Admin 手动 Dialog 绕过 Radix**~~ ✅ 已替换 `Admin/index.tsx` 中全部 5 处手动遮罩为 `<DialogContent>`。
 - ~~**`CATEGORY_LABELS` 命名/值不一致**~~ ✅ 已提取 `@/lib/category-labels` 共享模块，补齐 `audio`。

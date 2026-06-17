@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "ali-oss": ["../types/ali-oss"],
+      "@excuse/*": ["../packages/*/src/index.ts"]
+    }
+  },
+  "include": ["./**/*.ts"]
+}

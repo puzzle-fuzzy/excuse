@@ -110,6 +110,39 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:client
 
+  # 端到端冒烟（docs/TODO.md §三、1）：真实 server + worker + Postgres + SSE，
+  # provider 由 fake 适配器注入（经 createServerContext/createWorkerContext overrides），
+  # 不访问真实 DashScope。复用 test job 的 postgres service + db:push 口径。
+  # typecheck:e2e 已由 typecheck job 覆盖（纳入根 typecheck 并发链）。
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: excuse
+          POSTGRES_PASSWORD: excuse_ci
+          POSTGRES_DB: excuse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://excuse:excuse_ci@localhost:5432/excuse_test
+      DASHSCOPE_API_KEY: fake-e2e-key
+      JWT_SECRET: e2e-test-jwt-secret-not-for-production-use
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Apply DB migrations
+        run: cd packages/db && bun run db:push
+      - name: Run E2E smoke suite
+        run: bun run test:e2e
+
   # Docker build：Dockerfile 变更必须经过 CI build，部署问题不到发布时才发现。
   # 验证 server / worker image target 能 build（client target 走 nginx，单独验证）。
   docker:

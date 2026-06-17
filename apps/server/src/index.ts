@@ -1,47 +1,13 @@
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
-import { cors } from '@elysia/cors'
-import { staticPlugin } from '@elysia/static'
-import { openapi } from '@elysiajs/openapi'
 import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { isPgTableNotFoundError, logger } from '@excuse/shared'
-import { Elysia } from 'elysia'
+import { createElysiaApp } from './app'
 import { loadConfig } from './config'
-import { createAuthPlugin } from './plugins/auth'
-import { errorHandlerPlugin } from './plugins/error-handler'
-import { loggerPlugin } from './plugins/logger'
-import { rateLimitPlugin } from './plugins/rate-limit'
-import { requestIdPlugin } from './plugins/request-id'
-import { createAdminRoutes } from './routes/admin'
-import { createApiKeyRoutes } from './routes/api-keys'
-import { createAssetTagRoutes } from './routes/asset-tags'
-import { createAssetsRoutes } from './routes/assets'
-import { createAuthRoutes } from './routes/auth'
-import { createBillingRoutes } from './routes/billing'
-import { createCanvasRoutes } from './routes/canvas'
-import { createGenerateRoutes } from './routes/generate'
-import { createHealthRoutes } from './routes/health'
-import { createMetricsRoutes } from './routes/metrics'
-import { modelsRoutes } from './routes/models'
-import { createNotificationRoutes } from './routes/notifications'
-import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
-import { createSSERoutes } from './routes/sse'
-import { createSubjectRoutes } from './routes/subjects'
-import { createSubtitleRoutes } from './routes/subtitle'
-import { createUploadRoutes } from './routes/upload'
 import { createServerContext } from './context'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { startSSEListener } from './services/sse-manager'
 
 const config = loadConfig()
-
-/**
- * OpenAPI 文档（Scalar UI + 规范）仅在非生产环境挂载。
- * 生产环境暴露 `/openapi` 会向匿名调用者泄露全部路由形状、schema 与鉴权方案，
- * 故生产环境不注册该插件（route 不存在 → 404）。
- */
-const enableOpenapi = process.env.NODE_ENV !== 'production'
 
 /**
  * 把 DashScopeClient 的所有调用接入进程内 metrics 收集器。
@@ -72,97 +38,19 @@ warmProviderHealthCache()
  * =====================================================
  *
  * 启动流程：
- *   1. 加载配置 → 2. 确保 uploads 目录 → 3. 组装 Elysia 中间件链
- *   → 4. 注册所有路由模块 → 5. 启动 HTTP 监听 → 6. 启动 SSE 监听器
+ *   1. 加载配置 → 2. 构造 ServerContext（注入共享 provider 实例）
+ *   → 3. 装配 Elysia 应用（createElysiaApp）→ 4. 启动 HTTP 监听 → 5. 启动 SSE 监听器
  *
+ * 应用装配（中间件 + 路由）抽到 `./app.ts` 的 `createElysiaApp`，便于 E2E / 集成测试
+ * 以「装配好但未监听」的方式复用同一套真实应用、注入 fake provider。
  * 导出的 `App` 类型供客户端 @elysia/eden treaty 做端到端类型推导。
  */
 
 // ServerContext — 构造期注入共享 provider 实例，测试可经 overrides 挂载 fake adapter
 const ctx = createServerContext(config)
 
-// 确保 uploads 目录存在
-const uploadsDir = join(import.meta.dir, '..', config.storageRoot)
-mkdirSync(uploadsDir, { recursive: true })
-
-/**
- * Elysia 应用实例
- *
- * 中间件注册顺序（从上到下依次生效）：
- *   OpenAPI → 日志 → CORS → 静态文件 → 认证 → 各业务路由
- */
-const app = new Elysia()
-  .use(enableOpenapi
-    ? openapi({
-        documentation: {
-          info: {
-            title: 'Excuse API',
-            version: '0.1.0',
-            description: 'AI 内容生成平台 — 创意流水线 API 文档',
-          },
-          tags: [
-            { name: '健康检查', description: '服务可用性探测' },
-            { name: '认证', description: '用户注册、登录、身份验证' },
-            { name: '模型', description: '可用 AI 模型目录' },
-            { name: '生成', description: 'AI 内容生成任务（文本/图片/视频）' },
-            { name: '资产', description: '统一资产中心 — 普通生成、Canvas 资产、上传文件' },
-            { name: 'Canvas', description: 'AI 视频制作流水线 — 项目管理、阶段执行、资源编辑' },
-            { name: '上传', description: '文件上传与管理' },
-            { name: '视频加字幕', description: '上传视频、ASR 转录、样式编辑、导出带字幕视频' },
-            { name: '计费', description: '费用统计与查询' },
-            { name: '实时推送', description: 'SSE 连接与事件推送' },
-          ],
-          components: {
-            securitySchemes: {
-              bearerAuth: {
-                type: 'http',
-                scheme: 'bearer',
-                bearerFormat: 'JWT',
-                description: '通过 Authorization: Bearer <token> 传递 JWT',
-              },
-            },
-          },
-        },
-        path: '/openapi',
-      })
-    : new Elysia())
-  .use(loggerPlugin)
-  .use(requestIdPlugin)
-  .use(rateLimitPlugin)
-  .use(cors({
-    // 生产环境收敛到仅允许配置的前端域名，避免开发地址（localhost:8007）
-    // 在线上仍被加入白名单带来的跨域安全隐患。
-    origin: process.env.NODE_ENV === 'production'
-      ? [config.frontendUrl]
-      : [config.frontendUrl, 'http://localhost:8007'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  }))
-  .use(staticPlugin({
-    assets: uploadsDir,
-    prefix: '/api/uploads',
-  }))
-  // 统一错误处理 — 在路由之前注册，捕获所有下游抛出的 AppError
-  .use(errorHandlerPlugin)
-  .use(createAuthPlugin(config))
-  .use(createAuthRoutes(config))
-  .use(createAdminRoutes(config))
-  .use(createApiKeyRoutes(config))
-  .use(createHealthRoutes(config))
-  .use(modelsRoutes)
-  .use(createCanvasRoutes(config, ctx))
-  .use(createGenerateRoutes(config, ctx))
-  .use(createAssetsRoutes(config))
-  .use(createAssetTagRoutes(config))
-  .use(createUploadRoutes(config))
-  .use(createSubjectRoutes(config, ctx))
-  .use(createSubtitleRoutes(config, ctx))
-  .use(createNotificationRoutes(config))
-  .use(createSSERoutes(config))
-  .use(createBillingRoutes(config))
-  .use(createOpenAIGatewayRoutes(config, ctx))
-  .use(createMetricsRoutes(config))
+// 装配应用（路由 + 中间件）；副作用（listen / SSE / 信号处理）留在本入口
+const app = createElysiaApp(config, ctx)
 
 /** 导出 App 类型，供客户端 eden treaty 进行端到端类型推导 */
 export type App = typeof app
