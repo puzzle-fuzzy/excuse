@@ -4,7 +4,8 @@ import type { TaskProcessorDeps } from '../src/task-processor'
 import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { createWorkerContext } from '../src/context'
 import { resetWorkerAuditWriter, setWorkerAuditWriter } from '../src/services/audit'
-import { createTaskProcessor, extractVideoUrl } from '../src/task-processor'
+import { createTaskProcessor } from '../src/task-processor'
+import { extractVideoUrl } from '../src/task-processor-utils'
 
 // 可按测试重置的 listCanvasShotsByProject — 用于触发 Canvas 全部完成场景
 const listCanvasShotsByProjectMock = mock(() => [])

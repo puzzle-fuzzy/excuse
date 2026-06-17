@@ -36,9 +36,9 @@
 
 | 文件 | 行数 | 拆分方向 |
 |------|------|----------|
-| `apps/client/src/pages/Admin.tsx` | 2249 | 按 tab 拆 `pages/Admin/`：index（Tab 框架）/ Overview / Users / Providers / Projects / Gateway / Audit |
-| `apps/worker/src/task-processor.ts` | 414 | SUCCEEDED/FAILED/timeout 三分枝拆 video-completion/video-failure/video-canvas-bridge/video-notifications |
-| `packages/canvas-runtime/src/index.ts` | 411 | 拆 pure/（资产模板/引用解析/模型推荐）与 io/（`submitCanvasShotVideo` 直接调 `createGenerationRecord` 的 DB 写移出 runtime 包） |
+| `apps/client/src/pages/Admin.tsx` | 2417 | 按 tab 拆 `pages/Admin/` |
+| ~~`apps/worker/src/task-processor.ts`~~ | ~~414~~ | ✅ 抽离 task-processor-utils.ts |
+| ~~`packages/canvas-runtime/src/index.ts`~~ | ~~411~~ | ✅ 拆 pure/（引用解析/模型推荐）+ io/（资产步骤/视频提交） |
 
 **验收**：拆分后行为不变（既有测试全绿），新增子文件单一职责，barrel 保持对外 API 不变。
 

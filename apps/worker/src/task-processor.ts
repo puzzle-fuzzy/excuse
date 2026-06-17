@@ -5,7 +5,6 @@ import type { WorkerContext } from './context'
 import { calculateCost } from '@excuse/billing'
 import {
   debitCredit,
-  listCanvasShotsByProject,
   markCanvasAssetFailedByTaskId,
   markCanvasAssetSucceededByTaskId,
   markGenerationFailed,
@@ -15,12 +14,11 @@ import {
   notifyNotification,
   refundCredit,
   setCanvasAssetActive,
-  updateCanvasProject,
-  updateCanvasShot,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
 import { createLogger, extractBillingParams, parseGenerationInputParamsMeta } from '@excuse/shared'
 import { audit } from './services/audit'
+import { extractVideoDuration, extractVideoUrl, refundReservedCredit, updateCanvasShotAndProject } from './task-processor-utils'
 
 const logger = createLogger('worker-processor')
 
@@ -340,75 +338,4 @@ export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProce
         return { action: 'ignored', taskId, status: taskStatus.status }
     }
   }
-}
-
-async function refundReservedCredit(
-  record: { id: string, accountId: string, cost: CostDetail | null },
-  refund: TaskProcessorDeps['refundCredit'],
-  description: string,
-) {
-  if (!record.cost || record.cost.totalPriceCents <= 0)
-    return
-  await refund({
-    accountId: record.accountId,
-    generationRecordId: record.id,
-    description,
-  })
-}
-
-async function updateCanvasShotAndProject(
-  projectId: string,
-  shotId: string,
-  patch: Parameters<typeof updateCanvasShot>[1],
-): Promise<'completed' | 'partial_failed' | undefined> {
-  await updateCanvasShot(shotId, patch).catch(err =>
-    logger.error({ err, shotId }, 'Failed to update canvas shot'),
-  )
-  return checkProjectCompletion(projectId).catch((err) => {
-    logger.error({ err, projectId }, 'Failed to check project completion')
-    return undefined
-  })
-}
-
-// ── 工具函数 ────────────────────────────────────────────
-
-export function extractVideoUrl(output: DashScopeTaskOutput | undefined): string | undefined {
-  if (!output)
-    return undefined
-  const videoUrl = output.video_url
-  if (typeof videoUrl === 'string')
-    return videoUrl
-  const results = output.results
-  if (Array.isArray(results) && results.length > 0) {
-    const first = results[0]!
-    const url = first.url || first.b64_image
-    if (typeof url === 'string')
-      return url
-  }
-  return undefined
-}
-
-export function extractVideoDuration(output: DashScopeTaskOutput | undefined): number | undefined {
-  if (!output)
-    return undefined
-  const duration = output.video_duration ?? output.duration
-  if (typeof duration === 'number')
-    return duration
-  return undefined
-}
-
-/**
- * Check if all canvas shots for a project have finished (no 'generating' shots left).
- * If so, update the project status to 'completed'.
- */
-async function checkProjectCompletion(projectId: string): Promise<'completed' | 'partial_failed' | undefined> {
-  const shots = await listCanvasShotsByProject(projectId)
-  const stillGenerating = shots.some(s => s.status === 'generating')
-  if (!stillGenerating && shots.length > 0) {
-    const allSucceeded = shots.every(s => s.status === 'completed')
-    const projectStatus = allSucceeded ? 'completed' : 'partial_failed'
-    await updateCanvasProject(projectId, { status: projectStatus })
-    return projectStatus
-  }
-  return undefined
 }
