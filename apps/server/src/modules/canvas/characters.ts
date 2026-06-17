@@ -11,6 +11,7 @@ import {
 import type { DashScopeClient } from '@excuse/provider'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
+import { tryMatchCharacter } from './subject-matching'
 
 type CharacterRow = Awaited<ReturnType<typeof createCanvasCharacter>>
 
@@ -32,6 +33,14 @@ export async function generateCharacters(projectId: string, client: DashScopeCli
 
   const created: CharacterRow[] = []
   for (const name of analysis.characterNames) {
+    // ── 先尝试匹配资产库 ──────────────────────────────
+    const match = await tryMatchCharacter(accountId, projectId, name)
+    if (match.matched) {
+      created.push(match.character)
+      notifyNode(accountId, projectId, 'character', match.character.id, 'completed', { name: match.character.name, source: 'subject_library' }, undefined, runId)
+      continue
+    }
+
     notifyNode(accountId, projectId, 'character', name, 'running', undefined, undefined, runId)
 
     try {

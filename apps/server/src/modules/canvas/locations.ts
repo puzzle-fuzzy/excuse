@@ -11,6 +11,7 @@ import {
 import { getProjectDetail } from './service-crud'
 import type { DashScopeClient } from '@excuse/provider'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
+import { tryMatchLocation } from './subject-matching'
 
 export async function generateLocations(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
@@ -29,6 +30,13 @@ export async function generateLocations(projectId: string, client: DashScopeClie
   await deleteCanvasShotsByProject(projectId)
 
   for (const name of analysis.sceneNames) {
+    // ── 先尝试匹配资产库 ──────────────────────────────
+    const match = await tryMatchLocation(accountId, projectId, name)
+    if (match.matched) {
+      notifyNode(accountId, projectId, 'location', match.location.id, 'completed', { name: match.location.name, source: 'subject_library' }, undefined, runId)
+      continue
+    }
+
     notifyNode(accountId, projectId, 'location', name, 'running', undefined, undefined, runId)
 
     try {
