@@ -10,6 +10,10 @@ coverage
 # Build artifacts
 **/dist
 
+# Database migrations (not needed at runtime)
+**/drizzle/
+**/drizzle.config.ts
+
 # Documentation
 docs
 
