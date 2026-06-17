@@ -4,12 +4,9 @@ import type { ServerConfig } from '../config'
 import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
-  CreditError,
   deleteGenerationRecord,
   getGenerationRecordById,
   listGenerationRecords,
-  markGenerationFailed,
-  reserveCredit,
   resetGenerationToPending,
   serialize,
 } from '@excuse/db'
@@ -20,7 +17,6 @@ import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { notifyInsufficientBalance } from '../services/notifications'
 import { ForbiddenError, NotFoundError, PaymentRequiredError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
 import { createDedupeKey } from '../utils/dedupe-key'
@@ -166,26 +162,15 @@ export function createGenerateRoutes(config: ServerConfig) {
       })
 
       if (estimatedCost.totalPriceCents > 0) {
-        try {
-          await reserveCredit({
-            accountId: userId,
-            generationRecordId: record.id,
-            amountCents: estimatedCost.totalPriceCents,
-            description: `生成任务预留：${modelConfig.id}`,
-          })
-          audit('credit_reserve', {
-            accountId: userId,
-            targetId: record.id,
-            detail: { accountId: userId, generationRecordId: record.id, amountCents: estimatedCost.totalPriceCents, description: `生成任务预留：${modelConfig.id}`, source: 'generate' },
-          })
-        }
-        catch (error) {
-          const message = error instanceof Error ? error.message : '余额不足，无法发起生成'
-          if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-            await notifyInsufficientBalance(userId).catch(() => {})
-          }
-          await markGenerationFailed(record.id, message)
-          throw new PaymentRequiredError(message)
+        const reservation = await svc.reserveGenerationCredit({
+          accountId: userId,
+          recordId: record.id,
+          estimatedCost,
+          source: 'generate',
+          description: `生成任务预留：${modelConfig.id}`,
+        })
+        if (!reservation.ok) {
+          throw new PaymentRequiredError(reservation.message)
         }
       }
 
@@ -381,26 +366,15 @@ export function createGenerateRoutes(config: ServerConfig) {
       const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
 
       if (estimatedCost.totalPriceCents > 0) {
-        try {
-          await reserveCredit({
-            accountId: userId,
-            generationRecordId: record.id,
-            amountCents: estimatedCost.totalPriceCents,
-            description: `重试生成任务预留：${modelConfig.id}`,
-          })
-          audit('credit_reserve', {
-            accountId: userId,
-            targetId: record.id,
-            detail: { accountId: userId, generationRecordId: record.id, amountCents: estimatedCost.totalPriceCents, description: `重试生成任务预留：${modelConfig.id}`, source: 'retry' },
-          })
-        }
-        catch (error) {
-          const message = error instanceof Error ? error.message : '余额不足，无法重试生成'
-          if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-            await notifyInsufficientBalance(userId).catch(() => {})
-          }
-          await markGenerationFailed(record.id, message)
-          throw new PaymentRequiredError(message)
+        const reservation = await svc.reserveGenerationCredit({
+          accountId: userId,
+          recordId: record.id,
+          estimatedCost,
+          source: 'retry',
+          description: `重试生成任务预留：${modelConfig.id}`,
+        })
+        if (!reservation.ok) {
+          throw new PaymentRequiredError(reservation.message)
         }
       }
 

@@ -18,6 +18,7 @@ import type { CostDetail, ModelConfig } from '@excuse/shared'
 import { calculateCost } from '@excuse/billing'
 import {
   cancelGenerationRecord,
+  CreditError,
   debitCredit,
   findGenerationByDedupeKeyForAccount,
   getGenerationRecordById,
@@ -27,10 +28,12 @@ import {
   markGenerationSucceeded,
   notifyGenerationStatus,
   refundCredit,
+  reserveCredit,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
+import { audit } from '../../services/audit'
 import { recordGenerationStatus } from '../../services/metrics'
-import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
+import { notifyInsufficientBalance, notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
 // ===== 接口定义 =====
@@ -265,6 +268,66 @@ export async function cancelGeneration(
 
   const updated = await getGenerationRecordById(recordId)
   return updated!
+}
+
+/** reserveGenerationCredit 的失败原因 — route 映射为对应 HTTP 错误（402 余额不足）。 */
+export type CreditReservationResult
+  = | { ok: true }
+    | { ok: false, reason: 'insufficient_balance', message: string }
+
+/**
+ * 预留生成额度 — reserve 成功写 credit_transactions + audit。
+ *
+ * 失败路径（INSUFFICIENT_BALANCE）原子地收尾：notifyInsufficientBalance + markGenerationFailed，
+ * 返回 `{ ok: false, reason: 'insufficient_balance', message }`，由 route 抛 PaymentRequiredError(402)。
+ * 其余预留失败同样 markGenerationFailed 后返回失败结果。
+ *
+ * result-style（不抛 AppError）以保持本 service「不涉及 HTTP 语义」的既有契约（对齐
+ * executeGeneration 返回 GenerationResult 的风格）——HTTP 错误码的映射是 route 的职责。
+ *
+ * 与 executeGeneration / cancelGeneration 内部的 refundReservedCredit / debitReservedCredit
+ * 构成 reserve → debit/refund 的完整 credit ledger 闭环。
+ */
+export async function reserveGenerationCredit(opts: {
+  accountId: string
+  recordId: string
+  estimatedCost: CostDetail
+  /** 审计 detail.source 标识来源（'generate' / 'retry'） */
+  source: string
+  /** 审计 detail.description 的人类可读描述（含模型 id） */
+  description: string
+}): Promise<CreditReservationResult> {
+  if (opts.estimatedCost.totalPriceCents <= 0)
+    return { ok: true }
+
+  try {
+    await reserveCredit({
+      accountId: opts.accountId,
+      generationRecordId: opts.recordId,
+      amountCents: opts.estimatedCost.totalPriceCents,
+      description: opts.description,
+    })
+    audit('credit_reserve', {
+      accountId: opts.accountId,
+      targetId: opts.recordId,
+      detail: {
+        accountId: opts.accountId,
+        generationRecordId: opts.recordId,
+        amountCents: opts.estimatedCost.totalPriceCents,
+        description: opts.description,
+        source: opts.source,
+      },
+    })
+    return { ok: true }
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : '余额不足，无法发起生成'
+    if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
+      await notifyInsufficientBalance(opts.accountId).catch(() => {})
+    }
+    await markGenerationFailed(opts.recordId, message)
+    return { ok: false, reason: 'insufficient_balance', message }
+  }
 }
 
 async function debitReservedCredit(opts: {
