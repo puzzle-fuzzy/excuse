@@ -139,6 +139,22 @@ describe('toPromptReferenceEntries', () => {
     expect(entries.map(e => e.imageNumber)).toEqual([1, 2, 3])
   })
 
+  it('中间插入无 id 的用户额外引用 → 占位导致后续 imageNumber 跳号（与 submit referenceUrls 顺序对齐）', () => {
+    // refs 顺序 = submit 发出的 referenceUrls 顺序 = provider media[] 顺序。
+    // 即便中间有无 id 的 style 引用（prompt 不指代它），它仍占数组位置，
+    // 故 loc1 的 imageNumber 必须是 3 而非 2，否则 prompt [Image 3] 与 media[2] 错位。
+    const refs = [
+      { url: 'a', role: 'character' as const, characterId: 'c1' },
+      { url: 'b', role: 'style' as const }, // 无 id，占位置 2
+      { url: 'c', role: 'location' as const, locationId: 'l1' },
+    ]
+    const entries = toPromptReferenceEntries(refs)
+    expect(entries).toEqual([
+      { targetId: 'c1', imageNumber: 1 },
+      { targetId: 'l1', imageNumber: 3 }, // 跳过位置 2（style），imageNumber = 3
+    ])
+  })
+
   it('空数组 → 空数组', () => {
     expect(toPromptReferenceEntries([])).toEqual([])
   })

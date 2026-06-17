@@ -195,6 +195,15 @@ describe('buildShotVideoPrompt', () => {
     expect(result.videoPrompt).toContain('Generate the character dialogue exactly as written')
   })
 
+  it('hasDialogue 显式传入 false 时即使 narrative 有引号也判定无对白', () => {
+    const result = buildShotVideoPrompt({
+      shot: makeShot({ narrative: 'Alice says "hi" but flag overrides', hasDialogue: false }),
+      characters: [makeCharacter()],
+      location: makeLocation(),
+    })
+    expect(result.videoPrompt).toContain('No character dialogue')
+  })
+
   // ── R2V [Image N] 指代 ────────────────────────────────
 
   it('传入 references → 角色/场景用 [Image N] 指代', () => {
