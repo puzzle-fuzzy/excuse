@@ -239,6 +239,41 @@
       "when": 1781590871492,
       "tag": "0033_jsonb_diagnostic_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781701063000,
+      "tag": "0034_subject_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781701063100,
+      "tag": "0035_dialogue_bgm_assemble",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781705322000,
+      "tag": "0036_assemble_final_video",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1781712239000,
+      "tag": "0037_billing_fractional_cents",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781715691208,
+      "tag": "0038_password_reset_tokens",
+      "breakpoints": true
     }
   ]
 }
