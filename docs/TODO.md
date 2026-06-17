@@ -60,22 +60,17 @@
 - ✅ Canvas analyze 阶段 characters/locations 自动匹配库中已有资产
 - ✅ Canvas 编辑器「资产库」快捷入口（CanvasStatusBar）
 
-### 2. 对话式音视频 + BGM + 合成 🏗️
+### 2. 对话式音视频 + BGM + 合成 ✅
 
 > 利用 HappyHorse 模型原生对话/音效能力 + R2V 角色一致性。
 
 **已完成**
-- ✅ 阶段枚举 + 流水线配置 + migration SQL
-- ✅ Phase 8.5 `dialogue` — 对话层 LLM 生成（完整实现：prompt builder → canvas-runtime → server handler → worker handler）
-- ✅ `canvas_shots` 新增 `dialogue_prompt`/`dialogue_json`/`reference_media` 列
-- ✅ `shared/domain-types` `DialogueJson` 结构化数据定义
-- ✅ Phase 10 `bgm` — 骨架（server module + handler stub）
-- ✅ Phase 11 `assemble` — 骨架（handler stub）
-
-**待实现**
-- 🏗️ Phase 10 `bgm`: 需 `fun-music-v1` 模型配置 + provider audio 支持
-- 🏗️ Phase 11 `assemble`: FFmpeg 视频拼接 + 对话音频合成 + BGM 叠加
-- 🏗️ R2V builder: `buildR2VRequest` 组装多参考图模式（依赖 dialogue 产出 reference_media）
+- ✅ 阶段枚举 + 流水线配置 + migration SQL（dialogue / bgm / assemble）
+- ✅ Phase 8.5 `dialogue` — 对话层 LLM 生成（prompt builder → canvas-runtime → server handler → worker handler）+ 产出 `reference_media` 预算
+- ✅ Phase 10 `bgm` — `fun-music-v1` 模型配置 + provider audio 同步生成 + BGM 阶段（prompt-engine → canvas-runtime → server → worker），写入 `canvas_projects.bgm_url`
+- ✅ Phase 11 `assemble` — FFmpeg 视频拼接（concat + 重编码保留对话音频）+ BGM 叠加（有声 amix / 无声 mux）+ 最终合成写入 `canvas_projects.final_video_url`
+- ✅ R2V builder — `buildR2VRequest` 多参考图预算（主要角色 turnaround → 次要 portrait → 场景 → 预留，≤9），dialogue 产出 `reference_media`、videos 阶段消费
+- ✅ `canvas_shots` `dialogue_prompt`/`dialogue_json`/`reference_media`（类型化）+ `canvas_projects` `bgm_url`/`final_video_url` 列
 
 ### 附：对话音视频 Prompt 规范要点
 
