@@ -117,7 +117,9 @@
 - **解法**：删 `TaskPauseAdapter` 及相关 pause/resume 函数与 5 个 `canPause*` 规则；把零逻辑透传的 cancel/sweep/extendLock 收敛为直接调用（或仅在确有逻辑处保留 adapter）。
 - **验收**：`grep -rn "pauseTaskWithAdapter\|resumeTaskWithAdapter\|TaskPauseAdapter"` 仅剩删除记录；adapter 接口数下降。
 
-### 3.4 🟡 client 10 处手写 `fetch()` 违反「Eden treaty only」硬规则
+### 3.4 🟢 client 10 处手写 `fetch()` 违反「Eden treaty only」硬规则 — ✅ 已修复
+
+> **已完成**（2026-06-18）：10 处 fetch 全部收敛为 Eden treaty wrapper 函数（client.ts）+ asset-library.ts 薄 re-export + SubjectLibrary.tsx typed import。移除 `parseError` helper。验收：typecheck/lint/build/client test(376)/server test(547) 全绿。
 
 - **证据**：grep 确认 10 个真实调用点——[asset-library.ts:51,68,91,100,114,128,142](apps/client/src/api/asset-library.ts#L51)（7 处，L49 注释「Eden treaty path is complex for nested source/id/hide」）、[SubjectLibrary.tsx:26,32,37](apps/client/src/pages/SubjectLibrary.tsx#L26)（3 处）。Eden 实际支持嵌套参数（见 [client.ts:608](apps/client/src/api/client.ts#L608) 已有 `api.api.canvas.assets(...)({id})` 用法）。手写版丢失类型安全、绕过 `unwrapEden` 的 401 清理。
 - **解法**：10 处全部改写为 `api.api.…` treaty 调用 + `unwrapEden<T>`；删 `parseError` helper；为 SubjectLibrary 补 typed `subjectApi`。

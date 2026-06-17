@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Heart, MapPin, Search, Trash2, User } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { deleteSubject, listSubjects, toggleSubjectFavorite } from '@/api/client'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,41 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-interface SubjectRow {
-  id: string
-  subjectType: string
-  name: string
-  referenceImageUrl: string | null
-  tags: string[] | null
-  isFavorite: boolean
-  usageCount: number
-  createdAt: string
-  updatedAt: string
-  identityPrompt: string | null
-  scenePrompt: string | null
-}
-
 async function fetchSubjects(params: { subjectType?: string, search?: string, limit?: number, offset?: number }) {
-  const searchParams = new URLSearchParams()
-  if (params.subjectType)
-    searchParams.set('subjectType', params.subjectType)
-  if (params.search)
-    searchParams.set('search', params.search)
-  if (params.limit)
-    searchParams.set('limit', String(params.limit))
-  const res = await fetch(`/api/subjects?${searchParams}`, { credentials: 'include' })
-  const json = await res.json()
-  return json as { success: boolean, items: SubjectRow[], total: number }
-}
-
-async function deleteSubject(id: string) {
-  const res = await fetch(`/api/subjects/${id}`, { method: 'DELETE', credentials: 'include' })
-  return res.json()
-}
-
-async function toggleFavorite(id: string) {
-  const res = await fetch(`/api/subjects/${id}/favorite`, { method: 'POST', credentials: 'include' })
-  return res.json()
+  return listSubjects(params)
 }
 
 export default function SubjectLibrary() {
@@ -84,7 +52,7 @@ export default function SubjectLibrary() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const favMutation = useMutation({
-    mutationFn: toggleFavorite,
+    mutationFn: toggleSubjectFavorite,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subjects'] }),
     onError: () => toast.error('操作失败'),
   })
