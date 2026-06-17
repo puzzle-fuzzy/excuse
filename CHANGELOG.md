@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **canvas.dialogue/bgm/assemble 跑过 markRunRunning/markRunSucceeded 信封**（TODO2 §2.2）：此前这 3 个后加阶段被内联在 `task-handler.ts`，成功时不标记 `canvas_pipeline_runs` 状态也不发 PG NOTIFY，导致前端进度条卡死在上一阶段。修复：创建 `canvas-dialogue.ts`/`canvas-bgm.ts`/`canvas-assemble.ts` 三个 execute 文件，在 `canvas-handlers.ts` 新增 3 个 handler 走统一 `markRunRunningAndNotify → execute* → markRunSucceededAndNotify` 信封，`task-handler.ts` 改为懒加载委派（与另 9 阶段一致）。验收：typecheck/lint/build/worker test/server test/client test/boundaries 全绿。
+
+- **Drizzle 迁移 journal 补齐 0034–0038**（TODO2 §2.1）：journal 仅 34 条（末尾 0033），磁盘有 0034–0037 四个手写 SQL 未入 journal + 无 snapshot，`db:migrate` 从空库拉不出当前 schema（缺 subject_library、dialogue/bgm/assemble 阶段列、计费 numeric 列等）。额外发现 `password_reset_tokens` 表从未有迁移。修复：① journal 加入 0034_subject_library / 0035_dialogue_bgm_assemble / 0036_assemble_final_video / 0037_billing_fractional_cents + 新增 0038_password_reset_tokens（手写 SQL）；② 生成 0037 + 0038 snapshot（全 schema 快照）；③ 验证：空库 `db:migrate` → 27 表齐全、计费列 numeric(20,4)、phase enum 12 值。`db:generate` 报 "No schema changes"（snapshot 与 schema TS 一致）。
+
 - **events 测试 addConnection 返回类型漂移（仓库预存在债，本提交）**：`packages/events/test/index.test.ts` 仍断言 `hub.addConnection(...)` 返回数字（`.toBe(1)` / `.toBe(2)`），但 `UserEventHub.addConnection` 早已演进为返回 `AddConnectionResult = { accepted, userCount, totalCount, reason? }`（新增全局/单用户连接上限检查）。生产侧 `apps/server/src/routes/sse.ts` 已正确消费新契约（`result.accepted` 拒绝时 503），仅测试过时。修复：更新断言为完整 `AddConnectionResult` 形状；补两处此前**完全未覆盖**的连接上限拒绝行为单测（单用户上限 3、全局上限，验证 `accepted:false` + `reason` + 原连接不受影响）——这正是返回类型变更的动机，属真实风险（SSE DoS 防护）。验收：events 测试 19/0（此前 1 失败）。无生产代码改动。
 
 ### Changed

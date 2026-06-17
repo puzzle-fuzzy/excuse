@@ -88,76 +88,22 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
   {
     type: 'canvas.dialogue',
     handler: async (task, ctx) => {
-      const { getCanvasProjectDetail, updateCanvasShot } = await import('@excuse/db')
-      const { runDialoguePhase } = await import('@excuse/canvas-runtime')
-      const { getTextModel } = await import('./canvas-execution')
-
-      const projectId = task.projectId!
-      const detail = await getCanvasProjectDetail(projectId)
-      if (!detail)
-        throw new Error('项目不存在')
-
-      const textModel = getTextModel(detail.project.modelPreferencesJson)
-      const { results } = await runDialoguePhase({ projectId, detail, client: ctx.client, textModel })
-
-      for (const result of results) {
-        if (result.dialoguePrompt === null && result.dialogueJson === null && result.referenceMedia.length === 0)
-          continue
-        const patch: Record<string, unknown> = {
-          dialoguePrompt: result.dialoguePrompt ?? undefined,
-          referenceMedia: result.referenceMedia,
-        }
-        if (result.dialogueJson)
-          patch.dialogueJson = result.dialogueJson
-        await updateCanvasShot(result.shotId, patch as Parameters<typeof updateCanvasShot>[1])
-      }
-      return { dialogueShotCount: results.filter(r => r.dialogueJson).length }
+      const { handleCanvasDialogue } = await import('./canvas-handlers')
+      return handleCanvasDialogue(task, ctx)
     },
   },
   {
     type: 'canvas.bgm',
     handler: async (task, ctx) => {
-      const { getCanvasProjectDetail, updateCanvasProject } = await import('@excuse/db')
-      const { runBgmPhase } = await import('@excuse/canvas-runtime')
-
-      const projectId = task.projectId!
-      const detail = await getCanvasProjectDetail(projectId)
-      if (!detail)
-        throw new Error('项目不存在')
-
-      const result = await runBgmPhase({ projectId, detail, client: ctx.client, storage: ctx.storage })
-      await updateCanvasProject(projectId, { bgmUrl: result.audioUrl })
-
-      return {
-        bgmUrl: result.audioUrl,
-        durationSeconds: result.durationSeconds,
-      }
+      const { handleCanvasBgm } = await import('./canvas-handlers')
+      return handleCanvasBgm(task, ctx)
     },
   },
   {
     type: 'canvas.assemble',
     handler: async (task, ctx) => {
-      const { getCanvasProjectDetail, updateCanvasProject } = await import('@excuse/db')
-      const { runAssemblePhase } = await import('@excuse/canvas-runtime')
-
-      const projectId = task.projectId!
-      const detail = await getCanvasProjectDetail(projectId)
-      if (!detail)
-        throw new Error('项目不存在')
-
-      const result = await runAssemblePhase({
-        projectId,
-        detail,
-        storage: ctx.storage,
-        storageRoot: ctx.config.storageRoot,
-      })
-      await updateCanvasProject(projectId, { finalVideoUrl: result.finalVideoUrl })
-
-      return {
-        finalVideoUrl: result.finalVideoUrl,
-        shotsConcatenated: result.shotsConcatenated,
-        bgmOverlaid: result.bgmOverlaid,
-      }
+      const { handleCanvasAssemble } = await import('./canvas-handlers')
+      return handleCanvasAssemble(task, ctx)
     },
   },
 

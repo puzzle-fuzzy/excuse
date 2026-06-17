@@ -7,7 +7,6 @@
 
 import type { TaskRow } from '@excuse/db'
 import type { WorkerContext } from './context'
-import { createLogger } from '@excuse/shared'
 import {
   getCanvasProjectById,
   markPipelineRunFailed,
@@ -15,17 +14,21 @@ import {
   markPipelineRunSucceeded,
   pgClient,
 } from '@excuse/db'
-
-const logger = createLogger('canvas-handlers')
+import { createLogger } from '@excuse/shared'
 import { executeCanvasAnalysis } from './canvas-analysis'
+import { executeCanvasAssemble } from './canvas-assemble'
+import { executeCanvasBgm } from './canvas-bgm'
 import { executeCanvasCharacterRefs } from './canvas-character-refs'
 import { executeCanvasCharacters } from './canvas-characters'
 import { executeCanvasContinuity } from './canvas-continuity'
+import { executeCanvasDialogue } from './canvas-dialogue'
 import { executeCanvasLocationRefs } from './canvas-location-refs'
 import { executeCanvasLocations } from './canvas-locations'
 import { executeCanvasRebuild } from './canvas-rebuild'
 import { executeCanvasStoryboard } from './canvas-storyboard'
 import { executeCanvasVideos } from './canvas-videos'
+
+const logger = createLogger('canvas-handlers')
 
 // ── PostgreSQL NOTIFY helper ──────────────────────────────
 
@@ -85,7 +88,8 @@ async function markRunSucceededAndNotify(task: TaskRow, outputSummary?: Record<s
   }
 
   const pid = task.projectId
-  if (!pid) return
+  if (!pid)
+    return
   const project = await getCanvasProjectById(pid)
   if (project) {
     const phaseKey = task.type.replace('canvas.', '')
@@ -177,6 +181,30 @@ export async function handleCanvasVideos(task: TaskRow, ctx: WorkerContext): Pro
   const projectId = task.projectId!
   const runId = await markRunRunningAndNotify(task)
   const result = await executeCanvasVideos(projectId, ctx.client, runId ?? undefined, task.id)
+  await markRunSucceededAndNotify(task, result)
+  return result
+}
+
+export async function handleCanvasDialogue(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
+  const projectId = task.projectId!
+  await markRunRunningAndNotify(task)
+  const result = await executeCanvasDialogue(projectId, ctx.client)
+  await markRunSucceededAndNotify(task, result)
+  return result
+}
+
+export async function handleCanvasBgm(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
+  const projectId = task.projectId!
+  await markRunRunningAndNotify(task)
+  const result = await executeCanvasBgm(projectId, ctx.client, ctx.storage)
+  await markRunSucceededAndNotify(task, result)
+  return result
+}
+
+export async function handleCanvasAssemble(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown>> {
+  const projectId = task.projectId!
+  await markRunRunningAndNotify(task)
+  const result = await executeCanvasAssemble(projectId, ctx.storage, ctx.config.storageRoot)
   await markRunSucceededAndNotify(task, result)
   return result
 }
