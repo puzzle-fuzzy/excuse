@@ -1,4 +1,3 @@
-import type { OpenAIGatewayUsageResponse } from '@excuse/shared'
 import { MODEL_ALIASES } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
 import { Copy, RefreshCw } from 'lucide-react'
@@ -7,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { fetchGatewayUsage } from '@/api/client'
 import { formatCents } from '@/lib/generation-utils'
 import { copyToClipboard } from '@/lib/utils'
 
@@ -129,10 +129,7 @@ function UsageSection() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['gateway', 'usage'],
     queryFn: async () => {
-      const res = await fetch(`${BASE_URL}/v1/usage`, { credentials: 'include' })
-      if (!res.ok)
-        throw new Error('获取用量失败')
-      return res.json() as Promise<OpenAIGatewayUsageResponse>
+      return fetchGatewayUsage()
     },
     refetchInterval: 60_000,
   })

@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, OpenAIGatewayUsageResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -647,5 +647,13 @@ export async function retrySubtitleProject(id: string): Promise<SubtitleProjectR
 export async function deleteSubtitleProject(id: string): Promise<SubtitleMutationOkResponse> {
   return unwrapEden<SubtitleMutationOkResponse>(
     await api.api.subtitle.projects({ id }).delete(),
+  )
+}
+
+// ===== Gateway API =====
+
+export async function fetchGatewayUsage(params?: { days?: number, limit?: number }): Promise<OpenAIGatewayUsageResponse> {
+  return unwrapEden<OpenAIGatewayUsageResponse>(
+    await api.v1.usage.get({ query: { days: params?.days, limit: params?.limit } }),
   )
 }
