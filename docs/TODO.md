@@ -36,7 +36,7 @@
 
 ## P2：前端体验和产品闭环
 
-### 1. 大项目 Canvas 性能风险【暂缓 — 需独立排期】
+### 1. 大项目 Canvas 性能风险
 
 > 状态：暂不动。这是一个跨层、多文件的前端性能重构，回归面广，应单独排期 + 先做性能预算测量再定方案。下述任务/范围/风险供排期时参考。
 
@@ -140,16 +140,6 @@
 
 成本结论先行：R2V 与 T2V 同价（¥1.6/秒 1080P），升级 R2V 零成本增量；BGM + LLM 对话设计仅增加约 10% 成本。
 
-### Phase 2.1：HappyHorse 对话 Prompt 优化（1-2 周，不改数据模型）
-
-**任务**
-
-1. 修改 `canvas-prompt-builder.ts` 的 `buildVideoPrompt()`：从 storyboard 提取每个 shot 的 dialogue / narration，融入 prompt（角色名 + 对白 + 语气），加环境音效描述。
-2. shot 生成时优先用 R2V（角色有 turnaround sheet 时）：自动收集 `turnaround_sheet_url` / `reference_image_url`，构建 `media: [{type:"reference_image", url}]`，prompt 中用 `[Image N]` 指代角色。
-3. 测试对话式 prompt 的音频生成效果；前端 shot 卡片显示音频标识（有/无对话音频）。
-
-**验收**：生成的视频带对话/环境音频；R2V 在有参考图时自动启用。
-
 ### Phase 2.2：主体资产库 MVP（2-3 周）
 
 **数据模型**（新增表）
@@ -199,21 +189,16 @@
 
 ## 代码治理与文件拆分 backlog
 
-> 来源：`qwen-max-architecture-review` #1-#13 复核。项目工程化水平高（生产代码仅 1 处 `as any`，strict mode 全开，纯规则包 + adapter 模式教科书级），这些是**可维护性技术债**而非功能/安全缺口，不阻断上线。原则：**接触相关区域时顺手拆，不专门开重构冲刺**。原两条横切面（统一错误处理 → `errorHandlerPlugin`、序列化统一 → `serialize<T>()`）均已完成（见 CHANGELOG）。下列行号为复核当日实测值。
+> 项目工程化水平高（生产代码仅 1 处 `as any`，strict mode 全开，纯规则包 + adapter 模式教科书级），这些是**可维护性技术债**而非功能/安全缺口，不阻断上线。原则：**接触相关区域时顺手拆，不专门开重构冲刺**。原两条横切面（统一错误处理 → `errorHandlerPlugin`、序列化统一 → `serialize<T>()`）均已完成（见 CHANGELOG）。下列行号为复核当日实测值。
 
 **大文件拆分（接触时顺手做，参照 `modules/canvas/service.ts` barrel 拆分模式）**
 
 | 文件 | 行数 | 拆分方向 |
 |------|------|----------|
-| `packages/db/src/repositories/admin.repo.ts` | 1178 | 按业务域拆 overview/tasks/users/providers/projects/gateway，barrel re-export |
 | `apps/server/src/routes/canvas.ts` | 898 | 拆 projects/pipeline/phases/resources/helpers，barrel 组装 |
-| `apps/server/src/routes/assets.ts` | 708 | 提取 `modules/assets/service.ts` 统一三来源查询/序列化 |
-| `apps/server/src/routes/openai-gateway.ts` | 504 | 路由只留参数解析，业务/流式/记录创建下沉 service（`services/gateway-service.ts` 已存在，继续抽薄） |
-| `apps/server/src/routes/generate.ts` | 472 | POST `/generate` 业务逻辑（category 限流/dedupe key/credit reserve）下沉 `modules/generation/service.ts`，route 只做 HTTP 层 |
-| `apps/worker/src/task-processor.ts` | 422 | SUCCEEDED/FAILED/timeout 三分支拆 video-completion/video-failure/video-canvas-bridge/video-notifications |
+| `apps/worker/src/task-processor.ts` | 422 | SUCCEEDED/FAILED/timeout 三分枝拆 video-completion/video-failure/video-canvas-bridge/video-notifications |
 | `packages/canvas-runtime/src/index.ts` | 384 | 拆 pure/（资产模板/引用解析/模型推荐）与 io/（`submitCanvasShotVideo` 直接调 `createGenerationRecord` 的 DB 写移出 runtime 包） |
 | `apps/worker/src/index.ts` | 299 | 拆 lifecycle/poll-loop/poll-sources，主循环只遍历 `PollSource[]` |
-| `apps/server/src/modules/generation/service.ts` | 299 | 随 generate.ts 边界清理一并理 |
 
 **其他**
 
