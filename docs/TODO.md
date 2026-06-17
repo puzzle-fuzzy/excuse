@@ -30,14 +30,15 @@
 ### 2. 大文件拆分（接触时顺手做，参照 `modules/canvas/service.ts` barrel 拆分模式）
 
 > 原则：**接触相关区域时顺手拆，不专门开重构冲刺**。拆分降低单文件耦合，多工作单元可并行落在不同子文件上。
+>
+> ✅ `apps/worker/src/index.ts` 已完成（→ lifecycle + poll-sources）。
+> ✅ `apps/server/src/routes/canvas.ts` 已完成（→ canvas/ helpers + 3 handlers + barrel）。
 
 | 文件 | 行数 | 拆分方向 |
 |------|------|----------|
 | `apps/client/src/pages/Admin.tsx` | 2249 | 按 tab 拆 `pages/Admin/`：index（Tab 框架）/ Overview / Users / Providers / Projects / Gateway / Audit |
-| `apps/server/src/routes/canvas.ts` | 898 | 拆 projects/pipeline/phases/resources/helpers，barrel 组装 |
-| `apps/worker/src/task-processor.ts` | 422 | SUCCEEDED/FAILED/timeout 三分枝拆 video-completion/video-failure/video-canvas-bridge/video-notifications |
-| `packages/canvas-runtime/src/index.ts` | 384 | 拆 pure/（资产模板/引用解析/模型推荐）与 io/（`submitCanvasShotVideo` 直接调 `createGenerationRecord` 的 DB 写移出 runtime 包） |
-| `apps/worker/src/index.ts` | 299 | 拆 lifecycle/poll-loop/poll-sources，主循环只遍历 `PollSource[]` |
+| `apps/worker/src/task-processor.ts` | 414 | SUCCEEDED/FAILED/timeout 三分枝拆 video-completion/video-failure/video-canvas-bridge/video-notifications |
+| `packages/canvas-runtime/src/index.ts` | 411 | 拆 pure/（资产模板/引用解析/模型推荐）与 io/（`submitCanvasShotVideo` 直接调 `createGenerationRecord` 的 DB 写移出 runtime 包） |
 
 **验收**：拆分后行为不变（既有测试全绿），新增子文件单一职责，barrel 保持对外 API 不变。
 

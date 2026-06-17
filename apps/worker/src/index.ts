@@ -1,161 +1,78 @@
-import type { WorkerHealthState } from './health'
+/**
+ * Worker — 统一任务轮询入口
+ *
+ * 职责：
+ *   1. 加载配置、创建共享 context（provider / storage 单例）
+ *   2. 注册 provider observer + guard（metrics / 断路器降级）
+ *   3. 启动健康 HTTP 服务器 + 孤儿任务清扫 + 优雅退出处理器
+ *   4. 主循环：迭代 3 个 PollSource（统一任务队列 / 遗留视频 / ASR 字幕）
+ *
+ * 设计（见 docs/TODO.md §一、2）：
+ *   - lifecycle 逻辑抽离到 worker-lifecycle.ts
+ *   - 主循环只遍历 PollSource[]，各源在 poll-sources.ts 中定义
+ *   - index.ts 仅做编排
+ */
+
 import type { TaskResult } from './task-processor'
-import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, sweepOrphanTasks } from '@excuse/db'
-import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
+import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
-import { claimNextTaskWithAdapter, completeTaskWithAdapter, sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { loadConfig } from './config'
 import { createWorkerContext } from './context'
-import { createHealthServer } from './health'
-import { startTaskHeartbeat } from './heartbeat'
-import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
-import { getProviderCallsSnapshot, recordProviderCall } from './services/metrics'
+import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startOrphanSweep } from './worker-lifecycle'
+import { createAsrPollSource, createTaskPollSource, createVideoPollSource } from './poll-sources'
+import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
-import { processASRTask } from './subtitle-processor'
-import { handleTask, handleTaskError } from './task-handler'
-import { createTaskProcessor } from './task-processor'
 
 const config = loadConfig()
-/**
- * Worker 进程级共享 context —— DashScopeClient / AssetStorage / ASRClient 构造一次，
- * 注入到所有 handler（见 docs/TODO.md §一、1）。消除各 handler / route 就地 new 的散点。
- */
-const ctx = createWorkerContext(config)
-const processor = createTaskProcessor(ctx)
+const logger = createLogger('worker')
 
-/**
- * 把 DashScopeClient 的所有调用接入 worker 进程内 metrics 收集器。
- *
- * 与 server（`apps/server/src/index.ts`）平行：每个进程独立注册 observer 到各自的
- * `MetricsCollector`。worker 侧覆盖 canvas 全链路 + 视频任务轮询的 provider 调用，
- * 经 worker `/metrics`（端口 5100）暴露给 Prometheus，与 server `/metrics`（5007）
- * 多 target 抓取聚合。
- */
+// ── 共享 context + provider observer/guard ──────────────
+const ctx = createWorkerContext(config)
+const processor = ctx // processor 通过 ctx 获取
+
 registerProviderCallObserver((model, durationMs, success) => {
   recordProviderCall(model, durationMs, success)
   void recordProviderCallOutcome(model, success)
 })
 
-/**
- * 注册 provider 调用前置 guard（断路器降级）：Canvas 全链路在 worker 发起的
- * provider 调用，模型连续失败进入冷却窗口时在此快速失败，避免空等长视频提交。
- * 与 server 共享 provider_model_health 表；本进程缓存 3s TTL。
- */
 registerProviderCallGuard(providerCallGuard)
 warmProviderHealthCache()
-const logger = createLogger('worker')
 
-// ── Worker ID ──────────────────────────────────────────
-const workerId = `worker-${process.env.HOSTNAME ?? 'local'}-${process.pid}`
+// ── 健康服务器 ──────────────────────────────────────────
+const { healthState, server } = setupHealthServer(config)
 
+// ── 引用包装（供 graceful shutdown 读写主循环中的 currentTaskPromise）─
+const runningRef = { value: true }
+const currentTaskPromiseRef = { value: null as Promise<TaskResult> | null }
+
+// ── 优雅退出 + 孤儿任务清扫 ────────────────────────────
+setupGracefulShutdown(runningRef, currentTaskPromiseRef, server)
+const stopSweep = startOrphanSweep(config, healthState)
+
+// ── 主循环 ──────────────────────────────────────────────
 /**
- * 轮询循环控制状态
- *
- * running: SIGINT/SIGTERM 时置 false，循环在下一轮检查后退出
- * currentTaskPromise: 当前正在处理的任务，用于优雅退出时等待其完成
+ * 三个轮询源，主循环依次遍历：
+ *   1. tasks  — 统一任务队列（claim → handle → complete → auto-advance）
+ *   2. video  — 遗留视频轮询（DashScope 异步 video 任务）
+ *   3. asr    — ASR 字幕轮询
  */
-let running = true
-let currentTaskPromise: Promise<TaskResult> | null = null
+const pollSources = [
+  createTaskPollSource(ctx, healthState),
+  createVideoPollSource(ctx, processor, healthState, {
+    runningRef,
+    currentTaskPromiseRef,
+  }),
+  createAsrPollSource(ctx, healthState),
+]
 
-/** 优雅退出最大等待时间 — 超过此时间强制退出，避免长时间挂起 */
-const GRACEFUL_TIMEOUT_MS = 30_000
-
-// ── Worker 健康状态 ──────────────────────────────────────
-
-const healthState: WorkerHealthState = {
-  isPolling: false,
-  lastPollAt: null,
-  lastPollError: null,
-  totalTasksProcessed: 0,
-  startedAt: new Date(),
-  workerId,
-  currentTaskId: null,
-  tasksClaimed: 0,
-  orphanSweeps: 0,
-  lastSweepAt: null,
-}
-
-const healthPort = Number(process.env.WORKER_HEALTH_PORT) || 5100
-createHealthServer(healthState, healthPort, {
-  providerCallsSnapshot: getProviderCallsSnapshot,
-  metricsAllowedCidrs: config.metricsAllowedCidrs,
-  metricsAccessToken: config.metricsAccessToken,
-  // ready 判停滞阈值 = 4 × 轮询间隔，确保长间隔配置下不误判轮询卡死
-  readyStaleMs: config.pollIntervalMs * 4,
-})
-
-// ── 优雅退出 ──────────────────────────────────────────
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, async () => {
-    logger.info({ signal }, '🛑 Received signal, shutting down gracefully...')
-    running = false
-
-    // Wait for current task to finish (max 30s), then force exit
-    if (currentTaskPromise) {
-      const timeout = setTimeout(() => {
-        logger.warn('⏰ Graceful timeout exceeded, forcing exit')
-        process.exit(1)
-      }, GRACEFUL_TIMEOUT_MS)
-
-      try {
-        await currentTaskPromise
-        logger.info('✅ Current task completed before exit')
-      }
-      catch {
-        logger.warn('⚠️ Current task failed during graceful shutdown')
-      }
-      clearTimeout(timeout)
-    }
-
-    process.exit(0)
-  })
-}
-
-// ── Orphan sweep 定时任务 ──────────────────────────────────
-// 启动时立即 sweep 一次，然后每隔 sweepIntervalMs 毫秒运行一次
-let sweepTimer: NodeJS.Timeout
-async function runOrphanSweep() {
-  try {
-    const recovered = await sweepOrphanTasksWithAdapter({ timeoutMinutes: 5, adapter: { sweepOrphanTasks } }) // 5 分钟 grace period
-    healthState.orphanSweeps++
-    healthState.lastSweepAt = new Date()
-    if (recovered > 0) {
-      logger.info({ recovered }, '🔄 Swept orphan tasks')
-    }
-  }
-  catch (err) {
-    if (isPgTableNotFoundError(err)) {
-      logger.error('❌ 数据库表不存在，请先运行数据库迁移：bun run --cwd packages/db db:push')
-      clearInterval(sweepTimer)
-      running = false
-      return
-    }
-    logger.error({ err }, 'Orphan sweep error')
-  }
-}
-
-runOrphanSweep()
-sweepTimer = setInterval(runOrphanSweep, config.sweepIntervalMs)
-
-// ── 轮询循环 ──────────────────────────────────────────
-/**
- * Worker 主循环 — 持续轮询 DB 中 pending 的视频任务 + claim tasks 表中的任务
- *
- * 流程（每个 cycle）:
- *   1. claimNextTask() → handler dispatch → heartbeat → 完成或失败
- *   2. pollPendingVideoTasks() → processor.processTask() → 根据 action 结果处理
- *   3. pollPendingASRProjects() → processASRTask()
- * 退出: SIGINT/SIGTERM → running=false → 当前任务完成后退出（最长 30s）
- */
 async function main() {
   // ── 启动前环境检查 ──────────────────────────────────
-  const ffmpegWarnings = await checkFFmpegAsync()
+  const ffmpegWarnings = await checkWorkerEnvironment()
   for (const w of ffmpegWarnings) {
     logger.warn(w)
   }
 
-  // 前置异步检查（orphan sweep / ffmpeg）期间可能已将 running 设为 false
-  if (!running) {
+  if (!runningRef.value) {
     logger.info('🤖 Worker stopped.')
     return
   }
@@ -164,109 +81,25 @@ async function main() {
     pollIntervalMs: config.pollIntervalMs,
     claimTtlMs: config.claimTtlMs,
     sweepIntervalMs: config.sweepIntervalMs,
-    healthPort,
-    workerId,
+    healthPort: (server as unknown as { port: number }).port ?? 5100,
+    workerId: healthState.workerId,
   }, '🤖 Worker started')
 
-  while (running) {
+  while (runningRef.value) {
     healthState.isPolling = true
     try {
-      // ── Claim tasks from unified task queue ────────────
-      const claimedTask = await claimNextTaskWithAdapter({ workerId, claimTtlMs: config.claimTtlMs, adapter: { claimNextTask } })
-      if (claimedTask) {
-        healthState.tasksClaimed++
-        healthState.currentTaskId = claimedTask.id
-        const stopHeartbeat = startTaskHeartbeat(claimedTask.id, workerId, config.claimTtlMs, { extendTaskLock })
-
-        try {
-          const output = await handleTask(claimedTask, ctx)
-          const succeeded = await completeTaskWithAdapter({
-            task: claimedTask,
-            output,
-            adapter: {
-              markTaskSucceeded,
-              notifyTaskStatusChange,
-            },
-          })
-          if (succeeded) {
-            healthState.totalTasksProcessed++
-            logger.info({ taskId: claimedTask.id, type: claimedTask.type }, '✅ Task completed')
-
-            // ── Pipeline auto-advance ──
-            // Worker 完成当前 phase task 后，如果 autoProgress=true，自动创建下一个 phase task
-            const nextTaskId = await advancePipelineAfterTaskSuccess(succeeded, config)
-            if (nextTaskId) {
-              logger.info({ nextTaskId, projectId: claimedTask.projectId }, '🔗 Pipeline auto-advanced')
-            }
-          }
-        }
-        catch (error) {
-          // Handler 失败 → handleTaskError (retryable vs permanent)
-          await handleTaskError(claimedTask, error)
-          const updatedTask = await getTaskById(claimedTask.id)
-          if (updatedTask) {
-            await notifyTaskStatusChange(updatedTask)
-          }
-        }
-        finally {
-          stopHeartbeat()
-          healthState.currentTaskId = null
-        }
-      }
-
-      // ── 轮询视频生成任务（generation_records）──────────
-      const records = await pollPendingVideoTasks()
-      healthState.lastPollAt = new Date()
-      healthState.lastPollError = null
-
-      for (const record of records) {
-        if (!running)
-          break // 退出信号检查
-
-        const taskLogger = logger.child({ taskId: record.taskId, traceId: record.traceId })
-        currentTaskPromise = processor.processTask(record)
-
-        const result = await currentTaskPromise
-        currentTaskPromise = null
-
-        if (result.action === 'completed') {
-          healthState.totalTasksProcessed++
-        }
-
-        switch (result.action) {
-          case 'completed':
-            taskLogger.info('✅ Task completed')
-            break
-          case 'skipped':
-            if (result.reason === 'no taskId') {
-              taskLogger.info({ recordId: record.id, reason: result.reason }, '⏭️ Record skipped')
-            }
-            break
-          case 'ignored':
-            taskLogger.warn({ status: result.status }, '⚠️ Unknown task status')
-            break
-        }
-      }
-
-      // ── 轮询 ASR 字幕任务 ────────────────────────────────
-      const asrProjects = await pollPendingASRProjects()
-      for (const project of asrProjects) {
-        if (!running)
-          break
-        try {
-          await processASRTask(project, ctx.asrClient)
-          healthState.totalTasksProcessed++
-        }
-        catch (err) {
-          logger.error({ err, projectId: project.id }, 'ASR task processing error')
-        }
+      for (const source of pollSources) {
+        if (!runningRef.value) break
+        await source.poll()
+        healthState.lastPollAt = new Date()
+        healthState.lastPollError = null
       }
     }
     catch (error: unknown) {
       if (isPgTableNotFoundError(error)) {
         logger.error('❌ 数据库表不存在，请先运行数据库迁移：bun run --cwd packages/db db:push')
         healthState.lastPollError = 'UNDEFINED_TABLE'
-        running = false
+        runningRef.value = false
         break
       }
 
@@ -275,7 +108,7 @@ async function main() {
       if (code === 'ECONNREFUSED') {
         logger.error('❌ PostgreSQL 未启动（连接被拒绝），请检查数据库服务')
         healthState.lastPollError = 'ECONNREFUSED'
-        running = false
+        runningRef.value = false
         break
       }
       healthState.lastPollError = err?.message ?? String(error)
@@ -287,14 +120,14 @@ async function main() {
     const sleepMs = config.pollIntervalMs
     const checkInterval = 1000
     let remaining = sleepMs
-    while (remaining > 0 && running) {
+    while (remaining > 0 && runningRef.value) {
       const step = Math.min(remaining, checkInterval)
       await Bun.sleep(step)
       remaining -= step
     }
   }
 
-  clearInterval(sweepTimer)
+  stopSweep()
   logger.info('🤖 Worker stopped.')
 }
 
