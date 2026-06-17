@@ -44,3 +44,4 @@ uploads
 
 # 系统文件
 .DS_Store
+.git-commit-msg
