@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { to: '/canvas', label: '画布', icon: Map },
   { to: '/subtitle', label: '加字幕', icon: ClosedCaption },
   { to: '/assets', label: '资产', icon: FolderOpen },
+  { to: '/subjects', label: '资产库', icon: FolderOpen },
   { to: '/billing', label: '计费', icon: Receipt },
   { to: '/api-keys', label: 'API Keys', icon: KeyRound },
   { to: '/developers', label: '开发者', icon: Code2 },

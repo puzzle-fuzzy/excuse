@@ -89,19 +89,24 @@ export function statusLabel(status: string) {
 }
 
 export function formatDate(value: string | null) {
-  if (!value) return '-'
+  if (!value)
+    return '-'
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
 export function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'succeeded' || status === 'completed') return 'default'
-  if (status === 'failed' || status === 'partial_failed') return 'destructive'
-  if (status === 'running' || status === 'processing' || status === 'submitting' || status === 'saving_output') return 'secondary'
+  if (status === 'succeeded' || status === 'completed')
+    return 'default'
+  if (status === 'failed' || status === 'partial_failed')
+    return 'destructive'
+  if (status === 'running' || status === 'processing' || status === 'submitting' || status === 'saving_output')
+    return 'secondary'
   return 'outline'
 }
 
 export function shortId(value: string | null) {
-  if (!value) return '-'
+  if (!value)
+    return '-'
   return value.length > 8 ? `${value.slice(0, 8)}…` : value
 }
 

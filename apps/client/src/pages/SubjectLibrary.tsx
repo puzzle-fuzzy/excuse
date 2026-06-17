@@ -1,0 +1,137 @@
+/**
+ * 主体资产库页面 — 跨项目复用角色/场景
+ *
+ * 见 docs/TODO.md §二、1
+ */
+import { Heart, Search, Trash2, User, MapPin } from 'lucide-react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+type SubjectRow = {
+  id: string; subjectType: string; name: string; referenceImageUrl: string | null
+  tags: string[] | null; isFavorite: boolean; usageCount: number; createdAt: string; updatedAt: string
+  identityPrompt: string | null; scenePrompt: string | null
+}
+
+async function fetchSubjects(params: { subjectType?: string; search?: string; limit?: number; offset?: number }) {
+  const searchParams = new URLSearchParams()
+  if (params.subjectType) searchParams.set('subjectType', params.subjectType)
+  if (params.search) searchParams.set('search', params.search)
+  if (params.limit) searchParams.set('limit', String(params.limit))
+  const res = await fetch(`/api/subjects?${searchParams}`, { credentials: 'include' })
+  const json = await res.json()
+  return json as { success: boolean; items: SubjectRow[]; total: number }
+}
+
+async function deleteSubject(id: string) {
+  const res = await fetch(`/api/subjects/${id}`, { method: 'DELETE', credentials: 'include' })
+  return res.json()
+}
+
+async function toggleFavorite(id: string) {
+  const res = await fetch(`/api/subjects/${id}/favorite`, { method: 'POST', credentials: 'include' })
+  return res.json()
+}
+
+export default function SubjectLibrary() {
+  const queryClient = useQueryClient()
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [search, setSearch] = useState('')
+
+  const subjectType = typeFilter === 'all' ? undefined : typeFilter
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['subjects', { subjectType, search }],
+    queryFn: () => fetchSubjects({ subjectType, search: search || undefined, limit: 50 }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSubject,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['subjects'] }); toast.success('已删除') },
+    onError: () => toast.error('删除失败'),
+  })
+
+  const favMutation = useMutation({
+    mutationFn: toggleFavorite,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subjects'] }),
+    onError: () => toast.error('操作失败'),
+  })
+
+  const items = data?.items ?? []
+
+  return (
+    <div className="mx-auto max-w-5xl p-4">
+      <div className="mb-4">
+        <h1 className="text-lg font-semibold">主体资产库</h1>
+        <p className="mt-1 text-sm text-muted-foreground">跨项目复用角色与场景，减少重复 AI 生成。</p>
+      </div>
+
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} className="pl-9" placeholder="搜索名称..." />
+        </div>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-36"><SelectValue placeholder="全部类型" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部类型</SelectItem>
+            <SelectItem value="character">角色</SelectItem>
+            <SelectItem value="location">场景</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isLoading && <p className="py-8 text-center text-sm text-muted-foreground">加载中...</p>}
+
+      {!isLoading && items.length === 0 && (
+        <div className="py-12 text-center">
+          <p className="text-sm text-muted-foreground">暂无保存的角色或场景</p>
+          <p className="mt-1 text-xs text-muted-foreground">在 Canvas 项目中完成角色/场景生成后，可以保存到资产库。</p>
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        {items.map(subject => (
+          <Card key={subject.id} className="overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-2">
+                {subject.subjectType === 'character' ? <User className="size-4 text-muted-foreground" /> : <MapPin className="size-4 text-muted-foreground" />}
+                <CardTitle className="text-sm font-medium truncate">{subject.name}</CardTitle>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => favMutation.mutate(subject.id)}>
+                  <Heart className={`size-3.5 ${subject.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => { if (confirm('确定删除？')) deleteMutation.mutate(subject.id) }}>
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Badge variant="outline" className="mb-2 text-xs">
+                {subject.subjectType === 'character' ? '角色' : '场景'}
+              </Badge>
+              {subject.referenceImageUrl && (
+                <img src={subject.referenceImageUrl} alt={subject.name} className="mb-2 h-32 w-full rounded object-cover" />
+              )}
+              {subject.identityPrompt && (
+                <p className="line-clamp-2 text-xs text-muted-foreground">{subject.identityPrompt}</p>
+              )}
+              {subject.tags && subject.tags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {subject.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">使用 {subject.usageCount} 次</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
