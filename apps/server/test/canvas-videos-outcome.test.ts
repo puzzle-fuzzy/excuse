@@ -46,7 +46,6 @@ mock.module('@excuse/db', () => ({
 }))
 
 mock.module('../src/modules/canvas/service-helpers', () => ({
-  createClient: () => ({}),
   getVideoModel: () => 'video-model',
   notifyNode: () => {},
 }))
@@ -58,7 +57,7 @@ mock.module('../src/modules/canvas/service-crud', () => ({
 // eslint-disable-next-line import/first
 import { generateVideos } from '../src/modules/canvas/videos'
 
-const config = { dashscopeApiKey: 'test', dashscopeBaseUrl: undefined }
+const mockClient = { chatCompletion: async () => ({ success: true, output: { text: 'mock' } }) } as any
 
 function makeShot(id: string, videoPrompt?: string) {
   return { id, videoPrompt }
@@ -102,7 +101,7 @@ describe('generateVideos batch outcome', () => {
       makeShot('shot-2', 'p2'),
     ]))
 
-    const result = await generateVideos('proj-1', config, 'run-1')
+    const result = await generateVideos('proj-1', mockClient, 'run-1')
 
     expect(result).toBeTruthy()
     expect(lastProjectStatus()).toBe('generating')
@@ -127,7 +126,7 @@ describe('generateVideos batch outcome', () => {
         throw new Error('dashscope down')
     })
 
-    await generateVideos('proj-1', config, 'run-1')
+    await generateVideos('proj-1', mockClient, 'run-1')
 
     expect(lastProjectStatus()).toBe('generating')
     expect(mockMarkPipelineRunSucceeded).toHaveBeenCalledTimes(1)
@@ -144,7 +143,7 @@ describe('generateVideos batch outcome', () => {
       throw new Error('dashscope down')
     })
 
-    await generateVideos('proj-1', config, 'run-1')
+    await generateVideos('proj-1', mockClient, 'run-1')
 
     expect(lastProjectStatus()).toBe('prompts_ready')
     expect(mockMarkPipelineRunFailed).toHaveBeenCalledWith('run-1', '所有视频提交失败')
@@ -157,7 +156,7 @@ describe('generateVideos batch outcome', () => {
       makeShot('shot-2', undefined),
     ]))
 
-    await generateVideos('proj-1', config, 'run-1')
+    await generateVideos('proj-1', mockClient, 'run-1')
 
     expect(lastProjectStatus()).toBe('prompts_ready')
     expect(mockMarkPipelineRunFailed).toHaveBeenCalledWith('run-1', '所有视频提交失败')

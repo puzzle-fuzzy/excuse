@@ -8,9 +8,10 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getProjectDetail } from './service-crud'
-import { assertNotGenerating, createClient, getTextModel, notifyNode } from './service-helpers'
+import type { DashScopeClient } from '@excuse/provider'
+import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
-export async function generateStoryboard(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
+export async function generateStoryboard(projectId: string, client: DashScopeClient, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
     throw new Error('项目不存在')
@@ -47,7 +48,7 @@ export async function generateStoryboard(projectId: string, config: { dashscopeA
           analysis,
           characters: detail.characters.map(c => ({ id: c.id, name: c.name, identityPrompt: c.identityPrompt || '' })),
           locations: detail.locations.map(l => ({ id: l.id, name: l.name, scenePrompt: l.scenePrompt || '' })),
-          client: createClient(config),
+          client,
           textModel,
         })
         const output: CanvasAssetOutput = { type: 'json', data: { shotsCount: shotsCreated.length, shots } }

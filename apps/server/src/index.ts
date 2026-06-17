@@ -28,6 +28,7 @@ import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
 import { createSSERoutes } from './routes/sse'
 import { createSubtitleRoutes } from './routes/subtitle'
 import { createUploadRoutes } from './routes/upload'
+import { createServerContext } from './context'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { startSSEListener } from './services/sse-manager'
@@ -75,6 +76,9 @@ warmProviderHealthCache()
  *
  * 导出的 `App` 类型供客户端 @elysia/eden treaty 做端到端类型推导。
  */
+
+// ServerContext — 构造期注入共享 provider 实例，测试可经 overrides 挂载 fake adapter
+const ctx = createServerContext(config)
 
 // 确保 uploads 目录存在
 const uploadsDir = join(import.meta.dir, '..', config.storageRoot)
@@ -146,16 +150,16 @@ const app = new Elysia()
   .use(createApiKeyRoutes(config))
   .use(createHealthRoutes(config))
   .use(modelsRoutes)
-  .use(createCanvasRoutes(config))
-  .use(createGenerateRoutes(config))
+  .use(createCanvasRoutes(config, ctx))
+  .use(createGenerateRoutes(config, ctx))
   .use(createAssetsRoutes(config))
   .use(createAssetTagRoutes(config))
   .use(createUploadRoutes(config))
-  .use(createSubtitleRoutes(config))
+  .use(createSubtitleRoutes(config, ctx))
   .use(createNotificationRoutes(config))
   .use(createSSERoutes(config))
   .use(createBillingRoutes(config))
-  .use(createOpenAIGatewayRoutes(config))
+  .use(createOpenAIGatewayRoutes(config, ctx))
   .use(createMetricsRoutes(config))
 
 /** 导出 App 类型，供客户端 eden treaty 进行端到端类型推导 */

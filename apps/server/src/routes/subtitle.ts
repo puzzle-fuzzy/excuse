@@ -15,6 +15,7 @@
 import type { SubtitleStyleConfig } from '@excuse/db'
 import type { SubtitleMutationOkResponse, SubtitleProjectListResponse, SubtitleProjectResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
+import type { ServerContext } from '../context'
 import {
   createGenerationRecord,
   createTask,
@@ -27,18 +28,14 @@ import {
   updateSubtitleSentences,
   updateSubtitleStyle,
 } from '@excuse/db'
-import { ASRClient } from '@excuse/provider'
 import { getTaskPriority } from '@excuse/task-engine'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/subtitle/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { NotFoundError } from '../utils/app-errors'
 
-export function createSubtitleRoutes(config: ServerConfig) {
-  const asrClient = new ASRClient({
-    apiKey: config.dashscopeApiKey,
-    baseUrl: config.dashscopeBaseUrl,
-  })
+export function createSubtitleRoutes(config: ServerConfig, ctx: ServerContext) {
+  const asrClient = ctx.asrClient
   const deps: svc.SubtitleDependencies = { asrClient }
 
   return new Elysia({ prefix: '/api/subtitle' })

@@ -26,12 +26,13 @@ import {
   buildLocationPrompt,
   parseLLMJsonWithSchema,
 } from '@excuse/prompt-engine'
+import type { DashScopeClient } from '@excuse/provider'
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
-import { createClient, getTextModel, getVideoModel, notifyNode } from './service-helpers'
+import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 
 // ── 角色重新生成 ──────────────────────────────────────
 
-export async function regenerateCharacter(characterId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
+export async function regenerateCharacter(characterId: string, client: DashScopeClient) {
   const character = await getCanvasCharacterById(characterId)
   if (!character)
     throw new Error('角色不存在')
@@ -46,8 +47,6 @@ export async function regenerateCharacter(characterId: string, config: { dashsco
   const textModel = getTextModel(project.modelPreferencesJson)
 
   notifyNode(accountId, character.projectId, 'character', characterId, 'running')
-
-  const client = createClient(config)
 
   try {
     const { newCharacter, profile } = await runCanvasAssetStep({
@@ -108,7 +107,7 @@ export async function regenerateCharacter(characterId: string, config: { dashsco
 
 // ── 场景重新生成 ──────────────────────────────────────
 
-export async function regenerateLocation(locationId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
+export async function regenerateLocation(locationId: string, client: DashScopeClient) {
   const location = await getCanvasLocationById(locationId)
   if (!location)
     throw new Error('场景不存在')
@@ -123,8 +122,6 @@ export async function regenerateLocation(locationId: string, config: { dashscope
   const textModel = getTextModel(project.modelPreferencesJson)
 
   notifyNode(accountId, location.projectId, 'location', locationId, 'running')
-
-  const client = createClient(config)
 
   try {
     const { newLocation, profile } = await runCanvasAssetStep({
@@ -184,7 +181,7 @@ export async function regenerateLocation(locationId: string, config: { dashscope
 
 // ── 镜头视频重新生成（创建同级变体）──────────────────
 
-export async function regenerateShotVideo(shotId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
+export async function regenerateShotVideo(shotId: string, client: DashScopeClient) {
   const shot = await getCanvasShotById(shotId)
   if (!shot)
     throw new Error('镜头不存在')
@@ -194,7 +191,6 @@ export async function regenerateShotVideo(shotId: string, config: { dashscopeApi
     throw new Error('项目不存在')
 
   const accountId = project.accountId
-  const client = createClient(config)
 
   // 创建同级镜头 — 复制原镜头数据但用新 ID
   const newShot = await createCanvasShot({

@@ -8,12 +8,13 @@ import {
   markPipelineRunSucceeded,
   updateCanvasProject,
 } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { getProjectDetail } from './service-crud'
-import { assertNotGenerating, createClient, getTextModel, notifyNode } from './service-helpers'
+import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
 type CharacterRow = Awaited<ReturnType<typeof createCanvasCharacter>>
 
-export async function generateCharacters(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
+export async function generateCharacters(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
   if (!project || !project.analysisJson)
     throw new Error('项目不存在或未分析')
@@ -29,7 +30,6 @@ export async function generateCharacters(projectId: string, config: { dashscopeA
   await deleteCanvasCharactersByProject(projectId, { excludeLocked: true })
   await deleteCanvasShotsByProject(projectId)
 
-  const client = createClient(config)
   const created: CharacterRow[] = []
   for (const name of analysis.characterNames) {
     notifyNode(accountId, projectId, 'character', name, 'running', undefined, undefined, runId)

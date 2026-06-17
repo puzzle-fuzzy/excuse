@@ -192,6 +192,9 @@ mock.module('../src/modules/canvas/service', () => ({
 // eslint-disable-next-line import/first
 import { createCanvasRoutes } from '../src/routes/canvas'
 
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
+
 // ─── Config + auth ──────────────────────────────────────
 
 const testConfig: ServerConfig = {
@@ -247,7 +250,8 @@ describe('canvas routes', () => {
     mockGetCanvasLocationDetail.mockClear()
     mockGetCanvasShotDetail.mockClear()
 
-    const app = createCanvasRoutes(testConfig)
+    const ctx = createServerContext(testConfig)
+    const app = createCanvasRoutes(testConfig, ctx)
     client = treaty(app)
   })
 

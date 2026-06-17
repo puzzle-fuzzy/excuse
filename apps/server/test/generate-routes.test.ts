@@ -14,6 +14,7 @@ import { beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test'
 // mock.module 提升到 import 之前（Bun 会自动提升 mock.module）
 
 import { createGenerateRoutes } from '../src/routes/generate'
+import { createServerContext } from '../src/context'
 
 import { resetCategoryRateLimit } from '../src/utils/category-rate-limit'
 import { extractEdenError, makeRecord, makeTestConfig, makeValidatedParams, signTestToken } from './helpers/test-factory'
@@ -189,7 +190,8 @@ describe('generate routes', () => {
     mockGetUploadedFilesByIdsForAccount.mockClear()
     mockNotifyNotification.mockClear()
 
-    const app = createGenerateRoutes(testConfig)
+    const ctx = createServerContext(testConfig)
+    const app = createGenerateRoutes(testConfig, ctx)
     client = treaty(app)
   })
 

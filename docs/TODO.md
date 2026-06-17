@@ -25,24 +25,7 @@
 
 ## 一、地基（优先级最高：多单元并行 + 可测试性的基础）
 
-> 多工作单元同时改动 Canvas 相关代码时频繁 git 撞车，根因有二：① 路由/运行时大文件高耦合（`canvas.ts` 898 行、`Admin.tsx` 2249 行），拆分时与功能迭代抢占同一文件；② `DashScopeClient` 在路由与 worker 各 handler 就地 `new`，无共享 context、无注入边界。本节两项一起做，能让后续产品迭代与测试在更清晰的边界上并行。
-
-### 1. provider / worker 依赖注入（WorkerContext 单例 + route 可注入）
-
-> 合并 E2E 的「provider 注入重构前置」与「Worker client 单例 / 可注入」两项。
-
-**任务**
-
-1. Worker 建 `WorkerContext` 单例：`DashScopeClient` / `AssetStorage` 在工厂闭包内构造一次、注入到各 handler，消除 `task-processor` / `canvas-execution` / `canvas-*-refs` / `media-handlers` 各自 `new` 的散点。
-2. Server route 的 `DashScopeClient` 就地 `new`（`apps/server/src/routes/generate.ts`、canvas routes、`subtitle`、`openai-gateway.ts`）抽成构造期可注入，为 fake adapter 挂载留口。
-3. 上述注入边界是「三、1 E2E 冒烟测试」的**硬前置** —— 不做注入，fake provider 无处挂载。
-
-> 注：`subtitle-processor.ts` 并无重复实例化、`task-processor.ts` 是工厂闭包内构造一次而非每任务 new —— 真实改进点仅「无共享 WorkerContext」。
-
-**验收**
-
-- worker / server 全链路只有一个 provider/AssetStorage 构造点，handler / route 通过参数接收。
-- 既有测试全绿；handler 可在测试中注入 fake adapter（见三、1）。
+> ~~多工作单元同时改动 Canvas 相关代码时频繁 git 撞车，根因有二：① 路由/运行时大文件高耦合（`canvas.ts` 898 行、`Admin.tsx` 2249 行），拆分时与功能迭代抢占同一文件；② `DashScopeClient` 在路由与 worker 各 handler 就地 `new`，无共享 context、无注入边界。本节两项一起做，能让后续产品迭代与测试在更清晰的边界上并行。~~ 项② 已完成：WorkerContext ✅ + ServerContext ✅。
 
 ### 2. 大文件拆分（接触时顺手做，参照 `modules/canvas/service.ts` barrel 拆分模式）
 

@@ -129,6 +129,8 @@ mock.module('@excuse/billing', () => ({
 import { createOpenAIGatewayRoutes } from '../src/routes/openai-gateway'
 // eslint-disable-next-line import/first
 import { resetCooldowns } from '../src/services/notification-cooldown'
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
 
 // ─── 测试配置 ──────────────────────────────────────────
 
@@ -140,8 +142,9 @@ async function getAuthHeaders(accountId = 'acc-001') {
 }
 
 function createGatewayApp() {
+  const ctx = createServerContext(testConfig)
   return new Elysia()
-    .use(createOpenAIGatewayRoutes(testConfig))
+    .use(createOpenAIGatewayRoutes(testConfig, ctx))
 }
 
 /** 从 Eden error 提取 OpenAI error message */

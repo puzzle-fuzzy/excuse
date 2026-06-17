@@ -13,21 +13,21 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import { decideBatchOutcome } from '@excuse/workflow-engine'
 import { getProjectDetail } from './service-crud'
-import { createClient, getVideoModel, notifyNode } from './service-helpers'
+import { getVideoModel, notifyNode } from './service-helpers'
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export async function generateVideos(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
+export async function generateVideos(projectId: string, client: DashScopeClient, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
     throw new Error('项目不存在')
 
   const accountId = detail.project.accountId
-  const client = createClient(config)
 
   if (runId)
     await markPipelineRunRunning(runId)
@@ -101,7 +101,7 @@ export async function generateVideos(projectId: string, config: { dashscopeApiKe
   return getProjectDetail(projectId)
 }
 
-export async function retryShotVideo(shotId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
+export async function retryShotVideo(shotId: string, client: DashScopeClient) {
   const shot = await getCanvasShotById(shotId)
   if (!shot)
     throw new Error('镜头不存在')
@@ -113,8 +113,6 @@ export async function retryShotVideo(shotId: string, config: { dashscopeApiKey: 
   const detail = await getCanvasProjectDetail(shot.projectId)
   if (!detail)
     throw new Error('项目不存在')
-
-  const client = createClient(config)
 
   await updateCanvasProject(shot.projectId, { status: 'generating' })
 
@@ -153,7 +151,7 @@ export async function retryShotVideo(shotId: string, config: { dashscopeApiKey: 
   }
 }
 
-export async function retryFailedShots(projectId: string, accountId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
+export async function retryFailedShots(projectId: string, accountId: string, client: DashScopeClient) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
     throw new Error('项目不存在')
@@ -163,8 +161,6 @@ export async function retryFailedShots(projectId: string, accountId: string, con
     throw new Error('没有失败的镜头可以重试')
 
   await updateCanvasProject(projectId, { status: 'generating' })
-
-  const client = createClient(config)
 
   for (const shot of failedShots) {
     await resetCanvasShotToDraft(shot.id)

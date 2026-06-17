@@ -9,9 +9,10 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getProjectDetail } from './service-crud'
-import { assertNotGenerating, createClient, getTextModel, notifyNode } from './service-helpers'
+import type { DashScopeClient } from '@excuse/provider'
+import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
-export async function generateLocations(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
+export async function generateLocations(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
   if (!project || !project.analysisJson)
     throw new Error('项目不存在或未分析')
@@ -26,8 +27,6 @@ export async function generateLocations(projectId: string, config: { dashscopeAp
 
   await deleteCanvasLocationsByProject(projectId, { excludeLocked: true })
   await deleteCanvasShotsByProject(projectId)
-
-  const client = createClient(config)
 
   for (const name of analysis.sceneNames) {
     notifyNode(accountId, projectId, 'location', name, 'running', undefined, undefined, runId)

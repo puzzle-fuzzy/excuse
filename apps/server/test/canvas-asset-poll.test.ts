@@ -110,6 +110,9 @@ mock.module('../src/plugins/auth', () => ({
 // eslint-disable-next-line import/first
 import { createCanvasRoutes } from '../src/routes/canvas'
 
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
+
 // ===== 测试基础设施 =====
 
 const testConfig = makeTestConfig({ jwtSecret: 'test-canvas-poll-secret' })
@@ -152,7 +155,8 @@ beforeEach(() => {
     m.mockClear()
   }
 
-  const app = createCanvasRoutes(testConfig)
+  const ctx = createServerContext(testConfig)
+  const app = createCanvasRoutes(testConfig, ctx)
   client = treaty(app)
 })
 

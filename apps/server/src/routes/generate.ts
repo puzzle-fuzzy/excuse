@@ -1,6 +1,7 @@
 import type { GenerationCategory, GenerationInputParams, GenerationRecordRow, GenerationStatus } from '@excuse/db'
 import type { DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
+import type { ServerContext } from '../context'
 import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
@@ -11,7 +12,7 @@ import {
   serialize,
 } from '@excuse/db'
 import { classifyRecovery } from '@excuse/error-recovery'
-import { AssetStorage, DashScopeClient, getModelById, validateAndMerge } from '@excuse/provider'
+import { getModelById, validateAndMerge } from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
@@ -37,19 +38,11 @@ import { createDedupeKey } from '../utils/dedupe-key'
  *   - 异步任务（视频）: provider 返回 video_task，Worker 轮询完成后更新
  *   - 同步任务（文本/图片）: 直接下载并保存输出，一步到位
  */
-export function createGenerateRoutes(config: ServerConfig) {
+export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
   const billingPolicy = getBillingPolicy('workspace.generate')
   assertCreditLedgerPolicy(billingPolicy, 'workspace.generate')
 
-  const client = new DashScopeClient({
-    apiKey: config.dashscopeApiKey,
-    baseUrl: config.dashscopeBaseUrl,
-  })
-  const storage = new AssetStorage({
-    storageRoot: config.storageRoot,
-    oss: config.oss,
-  })
-  const deps: svc.GenerationDependencies = { client, storage }
+  const deps: svc.GenerationDependencies = { client: ctx.client, storage: ctx.storage }
 
   const PROVIDER_CANCEL_STATUSES = ['not_requested', 'no_task', 'requested', 'succeeded', 'failed'] as const
 

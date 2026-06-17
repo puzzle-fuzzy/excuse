@@ -119,6 +119,8 @@ import { createGenerateRoutes } from '../src/routes/generate'
 import { createOpenAIGatewayRoutes } from '../src/routes/openai-gateway'
 // eslint-disable-next-line import/first
 import { resetAuditWriter, setAuditWriter } from '../src/services/audit'
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
 
 // ─── 测试配置 ──────────────────────────────────────────
 
@@ -134,12 +136,14 @@ async function getAuthHeaders(accountId = 'acc-001') {
   return { Authorization: `Bearer ${token}` }
 }
 
+const auditCtx = createServerContext(testConfig)
+
 function gatewayApp() {
-  return new Elysia().use(createOpenAIGatewayRoutes(testConfig))
+  return new Elysia().use(createOpenAIGatewayRoutes(testConfig, auditCtx))
 }
 
 function generateApp() {
-  return new Elysia().use(createGenerateRoutes(testConfig))
+  return new Elysia().use(createGenerateRoutes(testConfig, auditCtx))
 }
 
 // ─── 测试 ──────────────────────────────────────────────

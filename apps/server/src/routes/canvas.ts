@@ -37,6 +37,7 @@
 import type { CanvasPipelinePhase } from '@excuse/db'
 import type { AcceptedResponse, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunListResponse, CanvasPipelineRunResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasProjectSummaryResponse, CanvasShotReferenceAsset, CanvasShotResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
+import type { ServerContext } from '../context'
 import {
   cancelActiveCanvasAssetsByProject,
   cancelTask,
@@ -182,7 +183,7 @@ async function createFireAndForgetPhase(
   return acceptedResponse(run.id)
 }
 
-export function createCanvasRoutes(config: ServerConfig) {
+export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
   return new Elysia({ prefix: '/api/canvas' })
     .use(createRequireAuthPlugin(config))
 
@@ -301,7 +302,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.analyzeProject(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.analyzeProject(projectId, ctx.client, runId))
     })
 
     .post('/projects/:projectId/characters', async ({ params: { projectId }, userId }) => {
@@ -318,7 +319,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacters(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacters(projectId, ctx.client, runId))
     })
 
     .post('/projects/:projectId/locations', async ({ params: { projectId }, userId }) => {
@@ -335,7 +336,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocations(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocations(projectId, ctx.client, runId))
     })
 
     .post('/projects/:projectId/character-refs', async ({ params: { projectId }, userId }) => {
@@ -352,7 +353,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacterRefs(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateCharacterRefs(projectId, ctx.client, ctx.storage, runId))
     })
 
     .post('/projects/:projectId/location-refs', async ({ params: { projectId }, userId }) => {
@@ -369,7 +370,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocationRefs(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateLocationRefs(projectId, ctx.client, ctx.storage, runId))
     })
 
     .post('/projects/:projectId/storyboard', async ({ params: { projectId }, userId }) => {
@@ -387,7 +388,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateStoryboard(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateStoryboard(projectId, ctx.client, runId))
     })
 
     .post('/projects/:projectId/continuity', async ({ params: { projectId }, userId }) => {
@@ -438,7 +439,7 @@ export function createCanvasRoutes(config: ServerConfig) {
         return createTaskDrivenPhase(userId, projectId, phase)
       }
 
-      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateVideos(projectId, config, runId))
+      return createFireAndForgetPhase(userId, projectId, phase, runId => svc.generateVideos(projectId, ctx.client, runId))
     })
 
     // ── 终止当前活跃阶段 ──────────────────────────────────
@@ -752,7 +753,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       const shot = await getCanvasShotForAccount(shotId, userId)
       if (!shot)
         throw new NotFoundError('镜头不存在或无权访问')
-      svc.retryShotVideo(shotId, config).catch((err) => {
+      svc.retryShotVideo(shotId, ctx.client).catch((err) => {
         logger.error({ err, shotId }, 'retry failed')
         updateCanvasProject(shot.projectId, { status: 'failed' }).catch(dbErr =>
           logger.error({ err: dbErr, projectId: shot.projectId }, 'Failed to update project status to failed'),
@@ -773,7 +774,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       const project = await getCanvasProjectByIdForAccount(projectId, userId)
       if (!project)
         throw new NotFoundError('项目不存在或无权访问')
-      svc.retryFailedShots(projectId, userId, config).catch((err) => {
+      svc.retryFailedShots(projectId, userId, ctx.client).catch((err) => {
         logger.error({ err, projectId }, 'batch retry failed shots error')
         dispatchToUser(userId, 'pipeline_node_update', {
           projectId,
@@ -794,7 +795,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!character)
         throw new NotFoundError('角色不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: characterId, detail: { entityType: 'character', entityId: characterId, projectId: character.projectId } })
-      svc.regenerateCharacter(characterId, config).catch((err) => {
+      svc.regenerateCharacter(characterId, ctx.client).catch((err) => {
         logger.error({ err, characterId }, 'regenerate character failed')
       })
       return acceptedResponse()
@@ -806,7 +807,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!location)
         throw new NotFoundError('场景不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: locationId, detail: { entityType: 'location', entityId: locationId, projectId: location.projectId } })
-      svc.regenerateLocation(locationId, config).catch((err) => {
+      svc.regenerateLocation(locationId, ctx.client).catch((err) => {
         logger.error({ err, locationId }, 'regenerate location failed')
       })
       return acceptedResponse()
@@ -818,7 +819,7 @@ export function createCanvasRoutes(config: ServerConfig) {
       if (!shot)
         throw new NotFoundError('镜头不存在或无权访问')
       audit('canvas_asset_regenerate', { accountId: userId, targetId: shotId, detail: { entityType: 'shot', entityId: shotId, projectId: shot.projectId } })
-      svc.regenerateShotVideo(shotId, config).catch((err) => {
+      svc.regenerateShotVideo(shotId, ctx.client).catch((err) => {
         logger.error({ err, shotId }, 'regenerate shot video failed')
       })
       return acceptedResponse()

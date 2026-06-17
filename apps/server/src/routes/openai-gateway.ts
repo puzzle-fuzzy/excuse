@@ -1,6 +1,7 @@
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
+import type { ServerContext } from '../context'
 import type { ApiKeyMeta } from '../plugins/auth'
 import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
@@ -23,7 +24,7 @@ import {
   OPENAI_STREAM_DONE,
   serializeOpenAIStreamChunk,
 } from '@excuse/gateway'
-import { DashScopeClient, getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
+import { getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import {
@@ -77,14 +78,11 @@ async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<{ status: numbe
  * `services/gateway-service.ts`（handleGatewayChatCompletion / handleGatewayStreamChatCompletion）。
  */
 
-export function createOpenAIGatewayRoutes(config: ServerConfig) {
+export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerContext) {
   const billingPolicy = getBillingPolicy('openai.gateway.chat')
   assertCreditLedgerPolicy(billingPolicy, 'openai.gateway.chat')
 
-  const client = new DashScopeClient({
-    apiKey: config.dashscopeApiKey,
-    baseUrl: config.dashscopeBaseUrl,
-  })
+  const client = ctx.client
 
   /**
    * 流式 chat completions 处理器（HTTP 层）

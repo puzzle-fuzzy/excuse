@@ -106,6 +106,9 @@ mock.module('@excuse/billing', () => ({
 // eslint-disable-next-line import/first
 import { createGenerateRoutes } from '../src/routes/generate'
 
+// eslint-disable-next-line import/first
+import { createServerContext } from '../src/context'
+
 // ─── 测试配置 ────────────────────────────────────────────
 
 const testConfig = makeTestConfig({
@@ -153,7 +156,8 @@ describe('generate 路由 — 重试与取消', () => {
       m.mockClear()
     }
 
-    const app = createGenerateRoutes(testConfig)
+    const ctx = createServerContext(testConfig)
+    const app = createGenerateRoutes(testConfig, ctx)
     client = treaty(app)
     mockCancelTask.mockResolvedValue(true)
   })

@@ -1,4 +1,5 @@
 import type { CanvasAssetOutput } from '@excuse/db'
+import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis } from '@excuse/shared'
 import { runAnalysisPhase, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import {
@@ -8,9 +9,9 @@ import {
   markPipelineRunSucceeded,
 } from '@excuse/db'
 import { getProjectDetail } from './service-crud'
-import { createClient, getTextModel, notifyNode } from './service-helpers'
+import { getTextModel, notifyNode } from './service-helpers'
 
-export async function analyzeProject(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }, runId?: string) {
+export async function analyzeProject(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
   if (!project)
     throw new Error('项目不存在')
@@ -38,7 +39,7 @@ export async function analyzeProject(projectId: string, config: { dashscopeApiKe
           projectId,
           storyText: project.storyText,
           isReanalysis,
-          client: createClient(config),
+          client,
           textModel,
         })
         const output: CanvasAssetOutput = { type: 'json', data: { ...analysis } }

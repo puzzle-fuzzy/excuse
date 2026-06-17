@@ -1,4 +1,4 @@
-import type { OSSConfig } from '@excuse/provider'
+import type { AssetStorage, DashScopeClient } from '@excuse/provider'
 import {
   buildCharacterPortraitPrompt,
   buildCharacterTurnaroundPrompt,
@@ -15,18 +15,16 @@ import {
   markPipelineRunSucceeded,
   updateCanvasProject,
 } from '@excuse/db'
-import { AssetStorage, getModelById } from '@excuse/provider'
+import { getModelById } from '@excuse/provider'
 import { getProjectDetail } from './service-crud'
-import { assertNotGenerating, createClient, getImageModel, notifyNode } from './service-helpers'
+import { assertNotGenerating, getImageModel, notifyNode } from './service-helpers'
 
-export async function generateCharacterRefs(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string, storageRoot: string, oss?: OSSConfig }, runId?: string) {
+export async function generateCharacterRefs(projectId: string, client: DashScopeClient, storage: AssetStorage, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
     throw new Error('项目不存在')
   assertNotGenerating(detail.project.status)
 
-  const client = createClient(config)
-  const storage = new AssetStorage({ storageRoot: config.storageRoot, oss: config.oss })
   const accountId = detail.project.accountId
   const imageModel = getImageModel(detail.project.modelPreferencesJson)
   const imageModelConfig = getModelById(imageModel)
@@ -100,14 +98,12 @@ export async function generateCharacterRefs(projectId: string, config: { dashsco
   return getProjectDetail(projectId)
 }
 
-export async function generateLocationRefs(projectId: string, config: { dashscopeApiKey: string, dashscopeBaseUrl?: string, storageRoot: string, oss?: OSSConfig }, runId?: string) {
+export async function generateLocationRefs(projectId: string, client: DashScopeClient, storage: AssetStorage, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
     throw new Error('项目不存在')
   assertNotGenerating(detail.project.status)
 
-  const client = createClient(config)
-  const storage = new AssetStorage({ storageRoot: config.storageRoot, oss: config.oss })
   const accountId = detail.project.accountId
   const imageModel = getImageModel(detail.project.modelPreferencesJson)
   const imageModelConfig = getModelById(imageModel)
