@@ -26,6 +26,7 @@ import { modelsRoutes } from './routes/models'
 import { createNotificationRoutes } from './routes/notifications'
 import { createOpenAIGatewayRoutes } from './routes/openai-gateway'
 import { createSSERoutes } from './routes/sse'
+import { createSubjectRoutes } from './routes/subjects'
 import { createSubtitleRoutes } from './routes/subtitle'
 import { createUploadRoutes } from './routes/upload'
 import { createServerContext } from './context'
@@ -155,6 +156,7 @@ const app = new Elysia()
   .use(createAssetsRoutes(config))
   .use(createAssetTagRoutes(config))
   .use(createUploadRoutes(config))
+  .use(createSubjectRoutes(config, ctx))
   .use(createSubtitleRoutes(config, ctx))
   .use(createNotificationRoutes(config))
   .use(createSSERoutes(config))
