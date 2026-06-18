@@ -79,7 +79,6 @@ export function createTaskPollSource(
  */
 export function createVideoPollSource(
   ctx: WorkerContext,
-  _processor: unknown,
   healthState: WorkerHealthState,
   refs: {
     runningRef: { value: boolean }

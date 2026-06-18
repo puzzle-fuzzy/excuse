@@ -229,13 +229,9 @@
 
 ### 死代码清理清单（P3，可批量）
 
-- [ ] `pollExportingProjects`（[subtitle-projects.repo.ts:116](packages/db/src/repositories/subtitle-projects.repo.ts#L116)）— 零调用方
 - [ ] `generate.video` 在 [task-engine](packages/task-engine/src/index.ts#L387) 的分支 + schema docstring（随 §1.1 决策）
-- [ ] `createClient`（[modules/canvas/service-helpers.ts:13](apps/server/src/modules/canvas/service-helpers.ts#L13)）— 被 context.ts 取代，零引用
-- [ ] `pause/resume` adapter 链 + `canPause*`/`canResume*`（§3.3）— 零调用方
 - [ ] `workflows` repo（8 fn）+ schema（CLAUDE.md 自承「尚未激活」）— 零非测试调用方
 - [ ] `subject-library` repo（5 fn）— 若近期不接 UI 则一并清
-- [ ] `createVideoPollSource` 的 `_processor` 形参（[poll-sources.ts:81](apps/worker/src/poll-sources.ts#L81)）— 未使用
 - [ ] `canvas/index.ts` 的 `/subjects/import` 内联 handler（带 `as any`）→ 移入 handlers-resources 并正型（§2.4 顺带）
 
 ### 验收命令

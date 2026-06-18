@@ -111,12 +111,3 @@ export async function pollPendingASRProjects() {
     .where(eq(subtitleProjects.status, 'asr_processing'))
     .limit(50)
 }
-
-/** 轮询所有正在导出的字幕项目（Worker 专用） */
-export async function pollExportingProjects() {
-  return getDb()
-    .select()
-    .from(subtitleProjects)
-    .where(eq(subtitleProjects.status, 'exporting'))
-    .limit(50)
-}

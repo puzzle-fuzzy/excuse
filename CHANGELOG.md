@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **死代码清理：pollExportingProjects / createClient / createVideoPollSource `_processor` 形参**（TODO2 §八 死代码清单）：删除三处零调用方的死代码。① `packages/db/src/repositories/subtitle-projects.repo.ts` 删除 `pollExportingProjects`（字幕导出早已迁到 `media.burn-subtitle` task，该轮询函数零调用方；`processExportTask` 此前已删）；② `apps/server/src/modules/canvas/service-helpers.ts` 删除 `createClient`（被 `ServerContext`/`WorkerContext` 构造期注入取代，全仓库零引用）及其唯一消费者 `DashScopeClient` import；③ `apps/worker/src/poll-sources.ts` 的 `createVideoPollSource` 删除未使用的 `_processor: unknown` 形参（函数内部自行 `createTaskProcessor(ctx)`，外部传入的 processor 从未使用），同步移除 `apps/worker/src/index.ts` 的 `const processor = ctx` 与对应实参。验收：typecheck/lint/worker 104 test 全绿。
+
+
+
 - **client 10 处手写 fetch() 收敛为 Eden treaty**（TODO2 §3.4）：此前 `asset-library.ts`（7 处）与 `SubjectLibrary.tsx`（3 处）绕过 Eden treaty 手写 `fetch()`，丢失端到端类型安全与 `unwrapEden` 的 401 清理。修复：① `client.ts` 新增 `hideAsset` / `toggleFavoriteAsset` / `assignTagToAsset` / `unassignTagFromAsset`（资产操作）、`listAssetTags` / `createAssetTag` / `deleteAssetTag`（标签 CRUD）、`listSubjects` / `deleteSubject` / `toggleSubjectFavorite`（主体资产库）共 10 个 Eden treaty wrapper 函数，导出 `unwrapEden` 供复用；② `asset-library.ts` 退化为薄 re-export，移除 `parseError` helper 与全部 `fetch()` 调用；③ `SubjectLibrary.tsx` 3 处 `fetch()` 替换为 typed Eden import。验收：typecheck/lint/build/client test(376)/server test(547) 全绿。
 
 - **adapter 仪式清理：删除 pause/resume 死代码 + 未使用的 can* 守卫**（TODO2 §3.3）：`task-engine` 删除 `TaskPauseAdapter` / `PauseTaskWithAdapterInput` 接口、`pauseTaskWithAdapter` / `resumeTaskWithAdapter` 函数、`canPauseTask` / `canResumeTask` / `canRequeueTask` / `canCancelTask` 守卫（均零生产调用方）；`workflow-engine` 删除 `canRetryPipelineRun` / `canPausePipelineRun` / `canResumePipelineRun` / `canResumeFromPhase`（均零生产调用方）。保留 `canCancelPipelineRun`（被 handlers-phases.ts 使用）与 `isRetryablePipelineRun`（工具函数）。验收：typecheck/lint/build/boundaries/test(task-engine 25/workflow-engine 32/server 547) 全绿。

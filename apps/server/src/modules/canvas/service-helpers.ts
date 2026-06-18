@@ -7,12 +7,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
-import { DashScopeClient } from '@excuse/provider'
 import { dispatchToUser } from '../../services/sse-manager'
-
-export function createClient(config: { dashscopeApiKey: string, dashscopeBaseUrl?: string }) {
-  return new DashScopeClient({ apiKey: config.dashscopeApiKey, baseUrl: config.dashscopeBaseUrl })
-}
 
 export function notifyNode(accountId: string, projectId: string, nodeType: string, nodeId: string, status: 'running' | 'completed' | 'failed', data?: Record<string, unknown>, error?: string, runId?: string) {
   /**

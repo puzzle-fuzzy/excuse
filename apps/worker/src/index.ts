@@ -28,7 +28,6 @@ const logger = createLogger('worker')
 
 // ── 共享 context + provider observer/guard ──────────────
 const ctx = createWorkerContext(config)
-const processor = ctx // processor 通过 ctx 获取
 
 registerProviderCallObserver((model, durationMs, success) => {
   recordProviderCall(model, durationMs, success)
@@ -58,7 +57,7 @@ const stopSweep = startOrphanSweep(config, healthState)
  */
 const pollSources = [
   createTaskPollSource(ctx, healthState),
-  createVideoPollSource(ctx, processor, healthState, {
+  createVideoPollSource(ctx, healthState, {
     runningRef,
     currentTaskPromiseRef,
   }),
