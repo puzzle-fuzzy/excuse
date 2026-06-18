@@ -40,6 +40,8 @@ export function createWorkerContext(
     client: overrides?.client ?? new DashScopeClient({
       apiKey: config.dashscopeApiKey,
       baseUrl: config.dashscopeBaseUrl,
+      httpTimeoutMs: config.providerHttpTimeoutMs,
+      streamIdleTimeoutMs: config.providerStreamIdleTimeoutMs,
     }),
     storage: overrides?.storage ?? new AssetStorage({
       storageRoot: config.storageRoot,
@@ -48,6 +50,7 @@ export function createWorkerContext(
     asrClient: overrides?.asrClient ?? new ASRClient({
       apiKey: config.dashscopeApiKey,
       baseUrl: config.dashscopeBaseUrl,
+      httpTimeoutMs: config.providerHttpTimeoutMs,
     }),
   }
 }

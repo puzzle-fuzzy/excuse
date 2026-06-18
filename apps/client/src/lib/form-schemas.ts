@@ -72,6 +72,24 @@ export const registerSchema = z
 
 export type RegisterFormValues = z.infer<typeof registerSchema>
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('请输入有效的邮箱地址'),
+})
+
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>
+
+export const resetPasswordSchema = z
+  .object({
+    password: z.string().min(6, '密码至少 6 个字符'),
+    confirmPassword: z.string(),
+  })
+  .refine(data => data.password === data.confirmPassword, {
+    message: '两次输入的密码不一致',
+    path: ['confirmPassword'],
+  })
+
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+
 export const apiKeyCreateSchema = z.object({
   name: z.string().max(100, '名称最长 100 个字符'),
 })

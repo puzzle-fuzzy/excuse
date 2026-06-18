@@ -59,8 +59,13 @@ export async function submitCanvasShotVideo(
     input.referenceUrls.length > 0 ? input.referenceUrls : undefined,
   )
 
-  if (!submitResult.success || !submitResult.taskId)
-    throw new Error(submitResult.error ?? '视频提交失败')
+  if (!submitResult.success || !submitResult.taskId) {
+    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类（TODO §1.1）
+    const err = new Error(submitResult.error ?? '视频提交失败')
+    if (submitResult.code)
+      (err as Error & { cause?: { code?: string } }).cause = { code: submitResult.code }
+    throw err
+  }
 
   await bindCanvasAssetTaskId(input.assetId, submitResult.taskId)
   await updateCanvasShot(input.shotId, {

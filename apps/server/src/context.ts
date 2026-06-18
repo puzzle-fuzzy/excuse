@@ -42,6 +42,8 @@ export function createServerContext(
     client: overrides?.client ?? new DashScopeClientImpl({
       apiKey: config.dashscopeApiKey,
       baseUrl: config.dashscopeBaseUrl,
+      httpTimeoutMs: config.providerHttpTimeoutMs,
+      streamIdleTimeoutMs: config.providerStreamIdleTimeoutMs,
     }),
     storage: overrides?.storage ?? new AssetStorageImpl({
       storageRoot: config.storageRoot,
@@ -50,6 +52,7 @@ export function createServerContext(
     asrClient: overrides?.asrClient ?? new ASRClientImpl({
       apiKey: config.dashscopeApiKey,
       baseUrl: config.dashscopeBaseUrl,
+      httpTimeoutMs: config.providerHttpTimeoutMs,
     }),
   }
 }

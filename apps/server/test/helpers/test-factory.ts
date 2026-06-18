@@ -142,6 +142,9 @@ export function makeTestConfig(overrides: Partial<ServerConfig> = {}): ServerCon
     metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
     workerMetricsUrl: undefined,
     adminUserIds: [],
+    providerHttpTimeoutMs: 60_000,
+    providerStreamIdleTimeoutMs: 30_000,
+    processStartTime: 0,
     ...overrides,
   }
 }

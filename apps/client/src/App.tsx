@@ -16,8 +16,10 @@ const ModelLab = lazy(() => import('./pages/ModelLab'))
 const Canvas = lazy(() => import('./pages/Canvas'))
 const CanvasEditor = lazy(() => import('./pages/CanvasEditor'))
 const Layout = lazy(() => import('./pages/Layout'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const Subtitle = lazy(() => import('./pages/Subtitle'))
 const SubtitleEditor = lazy(() => import('./pages/SubtitleEditor'))
 const Workspace = lazy(() => import('./pages/Workspace'))
@@ -60,6 +62,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={<Layout />}>
               <Route element={<ProtectedRoute />}>
                 <Route path="/" element={<Workspace />} />

@@ -72,6 +72,8 @@ export async function startTestStack(): Promise<TestStack> {
     oss: undefined,
     metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
     adminUserIds: [],
+    providerHttpTimeoutMs: 60_000,
+    providerStreamIdleTimeoutMs: 30_000,
     processStartTime: Date.now(),
   }
   const workerConfig: WorkerConfig = {
@@ -86,6 +88,8 @@ export async function startTestStack(): Promise<TestStack> {
     oss: undefined,
     metricsAccessToken: undefined,
     metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
+    providerHttpTimeoutMs: 60_000,
+    providerStreamIdleTimeoutMs: 30_000,
   }
 
   // 3. fake provider 注入（client 注入；storage 由 context 按 storageRoot 默认构造本地存储）

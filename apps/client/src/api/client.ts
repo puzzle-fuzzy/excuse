@@ -1,4 +1,4 @@
-import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AssetTagCreateResponse, AssetTagDTO, AssetTagListResponse, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasProjectSummaryResponse, CanvasShotResponse, DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, OpenAIGatewayUsageResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
+import type { AcceptedResponse, AdminOverview, AdminOverviewResponse, AdminTaskItem, AdminTaskListQuery, AdminTaskListResponse, AdminTaskMutationResponse, AssetLibraryListResponse, AssetLibraryQuery, AssetTagCreateResponse, AssetTagDTO, AssetTagListResponse, AuthCurrentUserResponse, AuthResponse, BillingBalanceResponse, BillingStatisticsResponse, BillingTransactionsResponse, CanvasAssetsPoll, CanvasAssetsPollResponse, CanvasCharacterResponse, CanvasLocationResponse, CanvasMutationOkResponse, CanvasPipelineRunDTO, CanvasPipelineRunListResponse, CanvasProjectListResponse, CanvasProjectResponse, CanvasProjectSummaryResponse, CanvasShotResponse, DeleteGenerationRecordResponse, ForgotPasswordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse, ModelConfig, MutationOkResponse, OpenAIGatewayUsageResponse, ResetPasswordResponse, SubtitleMutationOkResponse, SubtitleProjectDTO, SubtitleProjectListResponse, SubtitleProjectResponse, SubtitleSentence, SubtitleStyleConfig, UploadResponse } from '@excuse/shared'
 import type { App } from '../../../server/src/index'
 import { treaty } from '@elysia/eden'
 import { sseClient } from './sse'
@@ -143,6 +143,18 @@ export async function fetchCurrentUser(): Promise<AuthCurrentUserResponse> {
 export async function logoutRequest(): Promise<MutationOkResponse> {
   return unwrapEden<MutationOkResponse>(
     await api.api.auth.logout.post(),
+  )
+}
+
+export async function forgotPasswordRequest(email: string): Promise<ForgotPasswordResponse> {
+  return unwrapEden<ForgotPasswordResponse>(
+    await api.api.auth['forgot-password'].post({ email }),
+  )
+}
+
+export async function resetPasswordRequest(token: string, password: string): Promise<ResetPasswordResponse> {
+  return unwrapEden<ResetPasswordResponse>(
+    await api.api.auth['reset-password'].post({ token, password }),
   )
 }
 

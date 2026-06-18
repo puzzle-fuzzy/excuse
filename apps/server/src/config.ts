@@ -43,6 +43,10 @@ export interface ServerConfig {
   workerMetricsUrl?: string
   /** 允许访问内部管理后台的用户 ID 列表；未配置时后台接口默认拒绝 */
   adminUserIds?: string[]
+  /** Provider 同步调用整体超时（ms），默认 60000。见 docs/TODO.md §1.1。 */
+  providerHttpTimeoutMs: number
+  /** Provider 流式调用空闲超时（ms），默认 30000。见 docs/TODO.md §1.1。 */
+  providerStreamIdleTimeoutMs: number
   /** 进程启动时间戳（ms），用于 uptime 计算 */
   processStartTime: number
 }
@@ -103,6 +107,8 @@ export function loadConfig(): ServerConfig {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
+    providerHttpTimeoutMs: Number(process.env.PROVIDER_HTTP_TIMEOUT_MS) || 60_000,
+    providerStreamIdleTimeoutMs: Number(process.env.PROVIDER_STREAM_IDLE_TIMEOUT_MS) || 30_000,
     processStartTime: Date.now(),
   }
 

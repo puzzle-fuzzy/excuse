@@ -61,7 +61,11 @@ export async function runBgmPhase(input: BgmPhaseInput): Promise<BgmPhaseResult>
 
   const result = await input.client.generateAudio(CANVAS_BGM_MODEL, validation.params)
   if (result.type === 'failed') {
-    throw new Error(`BGM 生成失败：${result.error}`)
+    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类（TODO §1.1）
+    const err = new Error(`BGM 生成失败：${result.error}`)
+    if (result.code)
+      (err as Error & { cause?: { code?: string } }).cause = { code: result.code }
+    throw err
   }
   if (!result.output.url) {
     throw new Error('BGM 生成未返回音频 URL')

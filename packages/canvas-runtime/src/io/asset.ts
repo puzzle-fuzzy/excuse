@@ -80,8 +80,13 @@ export async function generateCanvasImageAsset(
   }
 
   const result = await input.client.generateImage(input.imageModel, validation.params)
-  if (result.type === 'failed')
-    throw new Error(result.error || input.errorMessage)
+  if (result.type === 'failed') {
+    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类（TODO §1.1）
+    const err = new Error(result.error || input.errorMessage)
+    if (result.code)
+      (err as Error & { cause?: { code?: string } }).cause = { code: result.code }
+    throw err
+  }
 
   const urls = result.output.urls
   if (!Array.isArray(urls) || urls.length === 0)

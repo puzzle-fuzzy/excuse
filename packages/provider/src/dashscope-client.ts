@@ -9,6 +9,7 @@ import type {
   DashScopeVideoSubmitResponse,
   FunMusicResponse,
 } from './dashscope-types'
+import type { StreamTimeoutController } from './http-timeout'
 import type { ValidatedModelParameters } from './model-validator'
 import type {
   AudioProviderResult,
@@ -23,6 +24,13 @@ import type {
   VideoTaskProviderResult,
 } from './types'
 import { parseDashScopeError } from './dashscope-errors'
+import {
+  createStreamTimeoutController,
+  DEFAULT_HTTP_TIMEOUT_MS,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  isAbortError,
+  timeoutSignal,
+} from './http-timeout'
 import { getModelById } from './model-configs'
 
 /**
@@ -164,8 +172,36 @@ export class DashScopeClient {
     }
   }
 
-  private failed(model: string | undefined, error: string): FailedProviderResult {
-    return { type: 'failed', success: false, model, error }
+  /** 同步调用整体超时（ms），未配置时回落默认 60s。见 docs/TODO.md §1.1。 */
+  private get httpTimeoutMs(): number {
+    return this.config.httpTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
+  }
+
+  /** 流式调用空闲超时（ms），未配置时回落默认 30s。见 docs/TODO.md §1.1。 */
+  private get streamIdleTimeoutMs(): number {
+    return this.config.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS
+  }
+
+  private failed(model: string | undefined, error: string, code?: string): FailedProviderResult {
+    return { type: 'failed', success: false, model, error, ...(code && { code }) }
+  }
+
+  /**
+   * 把 catch 到的传输层异常归一为可重试 code（见 docs/TODO.md §1.1）。
+   * - 超时 / abort → `'TIMEOUT'`
+   * - 其它网络错误 → `'ECONNRESET'`
+   * 两者均被 `@excuse/task-engine` 判为可重试，避免一次性 provider 抽风让任务永久失败。
+   */
+  private transportErrorCode(error: unknown): string {
+    return isAbortError(error) ? 'TIMEOUT' : 'ECONNRESET'
+  }
+
+  /** 同步调用传输层失败时的统一消息（带 code 透传）。 */
+  private transportFailure(model: string | undefined, error: unknown, prefix: string): FailedProviderResult {
+    const code = this.transportErrorCode(error)
+    const msg = error instanceof Error ? error.message : String(error)
+    const detail = code === 'TIMEOUT' ? '请求超时' : `网络错误：${prefix}（${msg}）`
+    return this.failed(model, detail, code)
   }
 
   // ── 声明式请求体构建 ──────────────────────────────────
@@ -338,6 +374,7 @@ export class DashScopeClient {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(body),
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as DashScopeChatResponse | DashScopeOpenaiChatResponse
@@ -384,8 +421,7 @@ export class DashScopeClient {
     }
     catch (error) {
       notifyProviderCallObservers(model, Date.now() - startTime, false)
-      const msg = error instanceof Error ? error.message : String(error)
-      return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+      return this.transportFailure(model, error, '无法连接百炼 API')
     }
   }
 
@@ -407,6 +443,7 @@ export class DashScopeClient {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(body),
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as DashScopeImageResponse
@@ -444,8 +481,7 @@ export class DashScopeClient {
     }
     catch (error) {
       notifyProviderCallObservers(model, Date.now() - startTime, false)
-      const msg = error instanceof Error ? error.message : String(error)
-      return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+      return this.transportFailure(model, error, '无法连接百炼 API')
     }
   }
 
@@ -472,6 +508,7 @@ export class DashScopeClient {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(body),
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as FunMusicResponse
@@ -511,8 +548,7 @@ export class DashScopeClient {
     }
     catch (error) {
       notifyProviderCallObservers(model, Date.now() - startTime, false)
-      const msg = error instanceof Error ? error.message : String(error)
-      return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+      return this.transportFailure(model, error, '无法连接百炼 API')
     }
   }
 
@@ -539,6 +575,7 @@ export class DashScopeClient {
           'X-DashScope-Async': 'enable',
         },
         body: JSON.stringify(body),
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as DashScopeVideoSubmitResponse
@@ -573,8 +610,7 @@ export class DashScopeClient {
     }
     catch (error) {
       notifyProviderCallObservers(model, Date.now() - startTime, false)
-      const msg = error instanceof Error ? error.message : String(error)
-      return this.failed(model, `网络错误：无法连接百炼 API（${msg}）`)
+      return this.transportFailure(model, error, '无法连接百炼 API')
     }
   }
 
@@ -624,21 +660,40 @@ export class DashScopeClient {
     if (isChat)
       headers['X-DashScope-SSE'] = 'enable'
 
-    const response = await fetch(modelConfig.endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
+    // 流式空闲超时（docs/TODO.md §1.1）：controller.signal 同时覆盖「连接 + 首字节」
+    // 与「chunk 之间」两阶段。每 chunk 到达后 schedule() 重置；超时则 abort 使
+    // reader.read() reject、流中断并向上抛出可被 isAbortError 识别的错误。
+    const streamTimeout = createStreamTimeoutController(this.streamIdleTimeoutMs)
+
+    let response: Response
+    try {
+      response = await fetch(modelConfig.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: streamTimeout.signal,
+      })
+    }
+    catch (error) {
+      streamTimeout.clear()
+      throw error
+    }
 
     if (!response.ok || !response.body) {
+      streamTimeout.clear()
       const text = await response.text().catch(() => '')
       throw new Error(`DashScope stream 启动失败 (${response.status}): ${text}`)
     }
 
-    if (isOpenaiChat)
-      yield* this.parseOpenAIChatSSE(response.body, model)
-    else
-      yield* this.parseDashScopeChatSSE(response.body, model)
+    try {
+      if (isOpenaiChat)
+        yield* this.parseOpenAIChatSSE(response.body, model, streamTimeout)
+      else
+        yield* this.parseDashScopeChatSSE(response.body, model, streamTimeout)
+    }
+    finally {
+      streamTimeout.clear()
+    }
   }
 
   /**
@@ -650,6 +705,7 @@ export class DashScopeClient {
   private async* parseOpenAIChatSSE(
     body: ReadableStream<Uint8Array>,
     model: string,
+    streamTimeout: StreamTimeoutController,
   ): AsyncGenerator<TextStreamChunk> {
     const reader = body.getReader()
     const decoder = new TextDecoder()
@@ -659,6 +715,8 @@ export class DashScopeClient {
         const { value, done } = await reader.read()
         if (done)
           break
+        // 每个 chunk 到达后重置空闲计时（docs/TODO.md §1.1）
+        streamTimeout.schedule()
         buffer += decoder.decode(value, { stream: true })
 
         let sep = buffer.indexOf('\n\n')
@@ -722,6 +780,7 @@ export class DashScopeClient {
   private async* parseDashScopeChatSSE(
     body: ReadableStream<Uint8Array>,
     model: string,
+    streamTimeout: StreamTimeoutController,
   ): AsyncGenerator<TextStreamChunk> {
     const reader = body.getReader()
     const decoder = new TextDecoder()
@@ -731,6 +790,8 @@ export class DashScopeClient {
         const { value, done } = await reader.read()
         if (done)
           break
+        // 每个 chunk 到达后重置空闲计时（docs/TODO.md §1.1）
+        streamTimeout.schedule()
         buffer += decoder.decode(value, { stream: true })
 
         let sep = buffer.indexOf('\n\n')
@@ -789,7 +850,7 @@ export class DashScopeClient {
     model: string,
     params: ValidatedModelParameters,
     referenceUrls?: string[],
-  ): Promise<{ model: string, taskId: string | undefined, success: boolean, error?: string }> {
+  ): Promise<{ model: string, taskId: string | undefined, success: boolean, error?: string, code?: string }> {
     let result: VideoTaskProviderResult | FailedProviderResult
     try {
       result = await this.submitVideoTask(model, params, referenceUrls)
@@ -803,7 +864,7 @@ export class DashScopeClient {
           if (fallbackResult.type === 'video_task') {
             return { model: fallbackId, taskId: fallbackResult.taskId, success: true }
           }
-          return { model: fallbackId, taskId: undefined, success: false, error: fallbackResult.error || '视频提交失败' }
+          return { model: fallbackId, taskId: undefined, success: false, error: fallbackResult.error || '视频提交失败', code: fallbackResult.code }
         }
       }
       throw error
@@ -820,9 +881,10 @@ export class DashScopeClient {
       if (fallbackResult.type === 'video_task') {
         return { model: fallbackId, taskId: fallbackResult.taskId, success: true }
       }
+      return { model: fallbackId, taskId: undefined, success: false, error: fallbackResult.error || '视频提交失败', code: fallbackResult.code }
     }
 
-    return { model, taskId: undefined, success: false, error: result.error || '视频提交失败' }
+    return { model, taskId: undefined, success: false, error: result.error || '视频提交失败', code: result.code }
   }
 
   /**
@@ -835,6 +897,7 @@ export class DashScopeClient {
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers,
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as DashScopeTaskQueryResponse
@@ -870,11 +933,16 @@ export class DashScopeClient {
       }
     }
     catch (error) {
+      const code = this.transportErrorCode(error)
       const msg = error instanceof Error ? error.message : String(error)
+      const detail = code === 'TIMEOUT'
+        ? '查询任务状态超时'
+        : `网络错误：无法查询任务状态（${msg}）`
       return {
         taskId,
         status: 'UNKNOWN',
-        errorMessage: `网络错误：无法查询任务状态（${msg}）`,
+        errorCode: code,
+        errorMessage: detail,
       }
     }
   }
@@ -885,6 +953,7 @@ export class DashScopeClient {
       const response = await fetch(url, {
         method: 'DELETE',
         headers: this.headers,
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
       return response.ok
     }

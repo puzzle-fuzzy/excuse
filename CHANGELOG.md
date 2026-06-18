@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Admin/Billing/Developers refetchInterval 受页面可见性控制（TODO2 §4.2）**：7 处 `refetchInterval` 从固定数字改为函数形式 `() => document.hidden ? false : N`，后台 tab 时停止轮询避免浪费服务端资源。涉及 Admin index/Users/ApiKeys/Providers/Audit + Billing + Developers。验收：client build 通过。
+
+### Added
+
+- **忘记密码 / 重置密码页面（TODO2 §1.2）**：新增 `ForgotPassword.tsx`（输入邮箱发送重置链接）和 `ResetPassword.tsx`（从 URL 取 token + 输入新密码提交）两个公开页面。后端 `POST /forgot-password` / `POST /reset-password` 已就绪。client.ts 新增 `forgotPasswordRequest` / `resetPasswordRequest` API 函数。Login.tsx 密码字段旁添加“忘记密码？”链接。App.tsx 注册 `/forgot-password` 和 `/reset-password` 路由。form-schemas.ts 新增 `forgotPasswordSchema` 和 `resetPasswordSchema`。验收：build 通过。
+
+- **MediaPreviewDialog 支持视频/音频预览（TODO2 §1.1）**：根据 URL 后缀自动检测媒体类型，图片→`<img>`、视频→`<video controls autoPlay>`、音频→`<audio controls autoPlay>`。验收：client build 通过。
+
+- **安全响应头插件 + nginx 双重保障（TODO2 §5.1）**：新增 `apps/server/src/plugins/security-headers.ts`，为所有 HTTP 响应添加 `X-Frame-Options: DENY`（防 clickjacking）、`X-Content-Type-Options: nosniff`（防 MIME 嗅探）、`Referrer-Policy: strict-origin-when-cross-origin`、`X-XSS-Protection: 0`、`Permissions-Policy: camera/mic/geolocation 禁用`。Elysia 层 `.derive` 设置 + nginx 层 `add_header` 双重保障，覆盖开发和生产环境。验收：server typecheck / index.test.ts(5) / auth-plugin.test.ts(11) 通过。
+
+### Fixed
+
+- **ModelLab 未保存更改离开确认（TODO2 §2.2）**：表单修改后通过 `beforeunload` 事件阻止意外离开（关闭 tab/刷新/导航），保护用户精心调整的参数。使用 react-hook-form 的 `formState.isDirty` 检测变更。验收：client build 通过。
+
+- **Auth cookie 生产环境启用 __Host- 前缀（TODO2 §5.2）**：生产环境 cookie 名从 `auth_token` 改为 `__Host-auth_token`，防止子域覆盖或篡改。同步将 `path` 从 `/api` 改为 `/`（`__Host-` 要求）。开发环境保持不变。验收：server typecheck 通过，auth(24) 全绿。
+
+- **React Query 全局 retryDelay + mutations 不重试（TODO2 §4.4）**：`query-client.ts` 补充 `retryDelay` 指数退避（1s→2s→4s... max 10s）和 `mutations: { retry: false }`（写操作不应自动重试避免重复提交）。与 §4.1 unwrapEden 401/403 互补。验收：client build 通过。
+
+- **Canvas loadProject SSE 触发去重（TODO2 §4.5）**：`CanvasEditor.tsx` projectVersion 变化时之前调用 `loadProject` 两次（立即 + 800ms 延迟），立即调用可能拿到未提交旧数据。修复：仅保留 800ms 延迟加载，每个 SSE phase 事件只触发 1 次 API 请求。验收：client build 通过。
+
+- **服务端关键路径空 catch 块补 logger（TODO2 §4.3）**：4 处空 catch 补充日志——`plugins/auth.ts` resolveActiveUserId 失败 → `logger.warn`；`routes/auth.ts` 注册赠送初始额度失败 → `logger.error`（资损路径）；forgot-password token 写入失败 → `logger.warn`；`modules/generation/service.ts` provider 取消失败 → `logger.warn`。排除合理静默（health.ts 健康检查、reference-assets.ts URL 工具函数）。验收：server typecheck 通过，auth(24) + generate-retry-cancel(15) 全绿。
+
+- **unwrapEden 401/403 自动清理登录态并跳转登录页（TODO2 §4.1）**：`client.ts` 的 `unwrapEden` 注释声称处理 401/403 认证问题但实际代码未实现——cookie 过期后用户看到满屏错误但不会被引导到登录页。修复：检测 `edenErr.status === 401|403` 时调用 `setAuthToken(null)` 断开 SSE 连接，并派发 `auth:unauthorized` 自定义事件；`AuthProvider` 新增 `useEffect` 监听该事件，自动清理用户态并 `navigate('/login')`。验收：build 通过。
+
+### Changed
+
 - **workflows 死代码彻底清理 + Admin 拆分 + subjects/import 提取 + 死函数清理（TODO2 §八 补遗）**：删除 `packages/db` 的 workflows repo（8 fn、零调用方）与 schema（`workflows`/`workflow_steps` 两张表 + 2 个 pgEnum），附带迁移 `0041_good_machine_man`（DROP TABLE + DROP TYPE）；从 `packages/shared` 清理 `WorkflowPayload`/`WorkflowInput`/`WorkflowOutput`/`WorkflowStepInput`/`WorkflowStepOutput` 类型。拆分 `apps/client/src/pages/Admin/index.tsx`（1927→121 行）为 `Overview.tsx` / `Users.tsx` / `ApiKeys.tsx` 三个 sibling，`shared.tsx` 补 `generationRecordMatchLabel` / `recentRecordExecutionLabel`。`canvas/index.ts` 的 `/subjects/import` 内联 handler 提取到 `handlers-resources.ts`，修复两处 `as any` 为 `CharacterProfile | null | undefined` / `LocationProfile | null | undefined`。额外清理 5 个零调用 repo 函数（`findAssetFavorite`/`listCanvasAssetsByProject`/`getActiveCanvasAssetByTarget`/`markCanvasAssetCancelled`/`cleanupExpiredTokens`），`countCanvasShotsReferencingAsset` 取消公开导出。验收：typecheck / lint / build / test(549+376+108) / check:boundaries 全绿。
 
 - **provider storage/ffmpeg 门面迁完 + Elysia catalog 固定（TODO2 §3.1）**：采用 TODO2 §3.1 解法 A，`apps/server`、`apps/worker`、`packages/canvas-runtime` 中的 storage/ffmpeg 消费点改为直连 `@excuse/storage` / `@excuse/ffmpeg`，删除 `@excuse/provider` 下 4 个纯 re-export shim（`storage.ts` / `subtitle-burner.ts` / `audio-extractor.ts` / `compose.ts`）及迁移后的 provider storage 测试，相关测试 mock 按真实来源拆分；`@excuse/provider` 不再声明 `@excuse/storage` / `@excuse/ffmpeg` 依赖。顺带用 Bun catalog 将 server 的 `elysia` 从 `latest` 固定为 `catalog:`，root catalog 锁到 `1.4.28`，避免安装时 lockfile 漂移；清理本地 stale `node_modules/.bun/elysia@1.4.29...`。修复 `packages/storage` 的 Windows 路径测试断言，改用平台路径期望。验收：typecheck / lint / build / test / test:client / check:boundaries 全绿。

@@ -38,13 +38,17 @@ export interface PromptShot {
   hasDialogue?: boolean
 }
 
+/** 角色数据 — prompt builder 组装用 */
 export interface PromptCharacter {
   id: string
   name: string
+  /** 正向 prompt 描述（外貌、衣着等细节） */
   identityPrompt: string
+  /** 反向 prompt（排除项） */
   negativePrompt: string
 }
 
+/** 场景数据 — prompt builder 组装用 */
 export interface PromptLocation {
   id: string
   name: string
@@ -57,6 +61,7 @@ export interface PromptLocation {
   }
 }
 
+/** 镜头环境参数 — 背景运动 / 光影 / 情绪 / 风格 */
 export interface PromptEnvironment {
   backgroundMotion?: string
   lighting?: string

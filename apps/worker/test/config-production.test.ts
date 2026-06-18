@@ -14,6 +14,9 @@ function makeConfig(overrides: Partial<WorkerConfig> = {}): WorkerConfig {
     oss: undefined,
     metricsAccessToken: undefined,
     metricsAllowedCidrs: ['127.0.0.1/32', '::1/128'],
+    asrStaleTimeoutMs: 60 * 60 * 1000,
+    providerHttpTimeoutMs: 60_000,
+    providerStreamIdleTimeoutMs: 30_000,
     ...overrides,
   }
 }

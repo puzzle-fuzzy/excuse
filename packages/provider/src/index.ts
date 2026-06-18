@@ -4,6 +4,7 @@ export { __resetProviderCallGuards, __resetProviderCallObservers, DashScopeClien
 export type { ProviderCallGuard, ProviderCallObserver } from './dashscope-client'
 export { getDashScopeErrorMessage, parseDashScopeError } from './dashscope-errors'
 export type * from './dashscope-types'
+export { DEFAULT_HTTP_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, isAbortError } from './http-timeout'
 export { getModelById, getModelsByCategory, MODELS } from './model-configs'
 export { mergeWithDefaults, validateAndMerge, validateModelParameters } from './model-validator'
 export type { ParameterValidationError, ValidatedModelParameters, ValidationResult } from './model-validator'

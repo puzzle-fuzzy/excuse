@@ -24,6 +24,10 @@ export interface WorkerConfig {
   metricsAccessToken: string | undefined
   /** /metrics 端点允许的 CIDR / IP 列表（默认仅回环） */
   metricsAllowedCidrs: string[]
+  /** Provider 同步调用整体超时（ms），默认 60000。见 docs/TODO.md §1.1。 */
+  providerHttpTimeoutMs: number
+  /** Provider 流式调用空闲超时（ms），默认 30000。见 docs/TODO.md §1.1。 */
+  providerStreamIdleTimeoutMs: number
 }
 
 export function validateProductionConfig(config: WorkerConfig, env: NodeJS.ProcessEnv = process.env): void {
@@ -59,6 +63,8 @@ export function loadConfig(): WorkerConfig {
     oss: loadOSSConfig() as OSSConfig | undefined,
     metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
     metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128').split(',').map(s => s.trim()).filter(Boolean),
+    providerHttpTimeoutMs: Number(process.env.PROVIDER_HTTP_TIMEOUT_MS) || 60_000,
+    providerStreamIdleTimeoutMs: Number(process.env.PROVIDER_STREAM_IDLE_TIMEOUT_MS) || 30_000,
   }
 
   validateProductionConfig(config)

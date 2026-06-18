@@ -103,7 +103,9 @@ export async function handleSubtitleAsr(task: TaskRow, ctx: WorkerContext): Prom
 
     case 'FAILED': {
       const errMsg = taskStatus.errorMessage || 'ASR task failed'
-      throw new Error(errMsg)
+      // 透传 provider 错误码（FAILED 的业务 code 或超时/连接的 TIMEOUT/ECONNRESET），
+      // 供 task-engine 分类可重试性（与 generate-video-handler 一致，TODO §1.1）
+      throw Object.assign(new Error(errMsg), taskStatus.errorCode ? { cause: { code: taskStatus.errorCode } } : {})
     }
 
     case 'PENDING':

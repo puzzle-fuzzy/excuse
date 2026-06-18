@@ -2,6 +2,7 @@ import type { SubtitleSentence } from '@excuse/subtitle-engine'
 import { parseAsrTranscription } from '@excuse/subtitle-engine'
 import { notifyProviderCallObservers, runProviderCallGuards } from './dashscope-client'
 import { parseDashScopeError } from './dashscope-errors'
+import { DEFAULT_HTTP_TIMEOUT_MS, isAbortError, timeoutSignal } from './http-timeout'
 
 export type { SubtitleSentence } from '@excuse/subtitle-engine'
 
@@ -14,6 +15,8 @@ const ASR_MODEL = 'paraformer-v2'
 export interface ASRConfig {
   apiKey: string
   baseUrl?: string
+  /** 同步调用整体超时（ms），未配置时回落默认 60s。见 docs/TODO.md §1.1。 */
+  httpTimeoutMs?: number
 }
 
 /**
@@ -23,6 +26,8 @@ export interface ASRSubmitResult {
   success: boolean
   taskId: string
   error?: string
+  /** 传输层错误码（`'TIMEOUT'` / `'ECONNRESET'`），供消费方透传给 task-engine。见 docs/TODO.md §1.1。 */
+  code?: string
 }
 
 /**
@@ -38,6 +43,8 @@ export interface ASRTaskStatus {
   /** 音频时长（秒） */
   durationSeconds?: number
   errorMessage?: string
+  /** 传输层错误码（`'TIMEOUT'` / `'ECONNRESET'`），供消费方透传给 task-engine。见 docs/TODO.md §1.1。 */
+  errorCode?: string
 }
 
 /**
@@ -82,6 +89,16 @@ export class ASRClient {
     }
   }
 
+  /** 同步调用整体超时（ms），未配置时回落默认 60s。见 docs/TODO.md §1.1。 */
+  private get httpTimeoutMs(): number {
+    return this.config.httpTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS
+  }
+
+  /** 传输层错误码：超时/abort → `'TIMEOUT'`，其它网络错误 → `'ECONNRESET'`。见 docs/TODO.md §1.1。 */
+  private transportErrorCode(error: unknown): string {
+    return isAbortError(error) ? 'TIMEOUT' : 'ECONNRESET'
+  }
+
   /**
    * 提交异步转录任务（音频文件 URL）
    *
@@ -117,6 +134,7 @@ export class ASRClient {
           'X-DashScope-Async': 'enable',
         },
         body: JSON.stringify(body),
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as Record<string, unknown>
@@ -140,8 +158,10 @@ export class ASRClient {
     }
     catch (error) {
       notifyProviderCallObservers(ASR_MODEL, Date.now() - startTime, false)
+      const code = this.transportErrorCode(error)
       const msg = error instanceof Error ? error.message : String(error)
-      return { success: false, taskId: '', error: `网络错误：无法连接 ASR API（${msg}）` }
+      const detail = code === 'TIMEOUT' ? 'ASR 提交请求超时' : `网络错误：无法连接 ASR API（${msg}）`
+      return { success: false, taskId: '', error: detail, code }
     }
   }
 
@@ -158,6 +178,7 @@ export class ASRClient {
       const response = await fetch(url, {
         method: 'GET',
         headers: this.headers,
+        signal: timeoutSignal(this.httpTimeoutMs),
       })
 
       const data = await response.json() as Record<string, unknown>
@@ -196,11 +217,16 @@ export class ASRClient {
       }
     }
     catch (error) {
+      const code = this.transportErrorCode(error)
       const msg = error instanceof Error ? error.message : String(error)
+      const detail = code === 'TIMEOUT'
+        ? '查询 ASR 任务状态超时'
+        : `网络错误：无法查询 ASR 任务状态（${msg}）`
       return {
         taskId,
         status: 'UNKNOWN',
-        errorMessage: `网络错误：无法查询 ASR 任务状态（${msg}）`,
+        errorCode: code,
+        errorMessage: detail,
       }
     }
   }

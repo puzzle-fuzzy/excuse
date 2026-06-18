@@ -5,6 +5,16 @@ export interface DashScopeConfig {
   apiKey: string
   /** API 端点基地址，不指定时用 DashScope 默认端点 */
   baseUrl?: string
+  /**
+   * 同步 provider 调用（chat / image / audio / video submit / queryTask）的整体超时（ms）。
+   * 未设置时用 `DEFAULT_HTTP_TIMEOUT_MS`（60s）。见 docs/TODO.md §1.1。
+   */
+  httpTimeoutMs?: number
+  /**
+   * 流式调用（chatCompletionStream）每个 chunk 之间的空闲超时（ms）。
+   * 未设置时用 `DEFAULT_STREAM_IDLE_TIMEOUT_MS`（30s）。见 docs/TODO.md §1.1。
+   */
+  streamIdleTimeoutMs?: number
 }
 
 /** Provider 调用用量汇总 — 由 buildCostDetail 转为 CostDetail */
@@ -127,6 +137,13 @@ export interface FailedProviderResult {
   success: false
   model?: string
   error: string
+  /**
+   * 机器可读错误码（见 docs/TODO.md §1.1）。
+   * - 传输层失败：`'TIMEOUT'`（同步/流式超时）/ `'ECONNRESET'`（网络中断）等
+   *   —— 由消费方以 `cause.code` 透传给 `@excuse/task-engine`，进入可重试分类。
+   * - provider 返回的业务错误（如 400 参数非法）：不设 code —— 不应重试。
+   */
+  code?: string
 }
 
 /** Provider 调用结果联合 — 所有可能返回形状 */
