@@ -157,6 +157,18 @@ export default function ModelLab() {
   const { reset } = form
   const values = form.watch()
 
+  // 未保存更改时阻止意外离开
+  const isDirty = form.formState.isDirty
+  useEffect(() => {
+    if (!isDirty)
+      return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isDirty])
+
   useEffect(() => {
     if (didLoadModelsRef.current)
       return
