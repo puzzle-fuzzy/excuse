@@ -57,13 +57,6 @@
 - **解法**（二选一）：(a) 用单一事务/单一 adapter 原子更新 task 与 run；(b) 加 reconcile 任务定期 `WHERE task.status != run.status` 修复并告警。推荐 (b)（改动小、且能兜历史漂移）。
 - **验收**：构造两次写之间崩溃的 fixture，reconcile 能修复；正常流程不误改。
 
-### 1.6 🟠 重复提交 / retry 双扣费（dedupeKey TOCTOU）
-
-- **证据**：[generation_records](packages/db/src/schema/generation-records.repo.ts) 按 `dedupeKey` 去重，但「查询无命中 → INSERT」非原子（TOCTOU）。retry 路径（[generate.ts](apps/server/src/routes/generate.ts) `/records/:id/retry`）不经 dedupeKey。用户连点「生成」或网络重试可能并发穿透。
-- **影响**：同一请求被生成两次 → 双扣费、双产物、双 SSE。
-- **解法**：dedupeKey 加唯一索引 + 捕获唯一冲突直接返回既有记录（而非 INSERT）；retry 路径加客户端幂等键（`Idempotency-Key` header）或服务端去重。
-- **验收**：并发提交相同 text 请求只生成一次；retry 连点只执行一次。
-
 ### 1.7 🟠 task 锁 heartbeat 失败无防御性检查
 
 - **证据**：[lifecycle](apps/worker/src/) 的 `extendTaskLock` 抛错时仅记日志后继续（DB 临时中断时）；执行中途不复查 `lockedBy=workerId`。长任务（assemble 可达数分钟）期间锁若静默丢失，孤儿 sweep 可能把任务重新 claim 给另一 worker → 双跑。

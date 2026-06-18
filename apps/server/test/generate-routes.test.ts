@@ -52,7 +52,7 @@ const mockGenerate = mock<(model: string, params: Record<string, unknown>, refs?
 const mockNotifyStatus = mock<(payload: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetUploadedFilesByIdsForAccount = mock<(ids: string[], accountId: string) => Promise<unknown[]>>(() => Promise.resolve([]))
 const mockCancelRecord = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
-const mockResetToPending = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
+const mockResetToPending = mock<(id: string) => Promise<RecordOrNull>>(() => Promise.resolve(null))
 const mockFindGenerationByDedupeKeyForAccount = mock<(key: string, accountId: string) => Promise<RecordOrNull>>(() => Promise.resolve(null))
 const mockValidateModelParameters = mock<(modelConfig: unknown, params: Record<string, unknown>) => { valid: boolean, errors: Array<{ field: string, message: string }> }>(() => ({ valid: true, errors: [] }))
 const mockNotifyNotification = mock<(opts: Record<string, unknown>) => Promise<unknown>>(() => Promise.resolve(undefined))
@@ -188,6 +188,7 @@ describe('generate routes', () => {
     mockFindGenerationByDedupeKeyForAccount.mockClear()
     mockValidateModelParameters.mockClear()
     mockGetUploadedFilesByIdsForAccount.mockClear()
+    mockResetToPending.mockResolvedValue(makeRecord({ status: 'pending' }))
     mockNotifyNotification.mockClear()
 
     const ctx = createServerContext(testConfig)
@@ -344,6 +345,26 @@ describe('generate routes', () => {
       expect(firstDedupeKey).toStartWith('sha256:')
       expect(mockCreateRecord.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ dedupeKey: firstDedupeKey }))
       expect(mockCreateRecord.mock.calls[1]?.[0]).toEqual(expect.objectContaining({ dedupeKey: secondDedupeKey }))
+    })
+
+    it('并发提交命中 dedupe 唯一冲突时返回既有记录且不再次调用 provider', async () => {
+      const uniqueError = new Error('duplicate key value violates unique constraint') as Error & { cause?: { code?: string } }
+      uniqueError.cause = { code: '23505' }
+      mockFindGenerationByDedupeKeyForAccount
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(makeRecord({ status: 'pending' }))
+      mockCreateRecord.mockRejectedValueOnce(uniqueError)
+      mockGetRecordById.mockResolvedValue(makeRecord({ status: 'pending' }))
+
+      const { data } = await client.api.generate.post(
+        { model: 'qwen-max', parameters: { prompt: '你好' } },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
+      expect(data?.success).toBe(true)
+      expect(data?.duplicated).toBe(true)
+      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockReserveCredit).not.toHaveBeenCalled()
     })
 
     it('同步模型 API 失败时标记为 failed（HTTP 200 业务失败）', async () => {

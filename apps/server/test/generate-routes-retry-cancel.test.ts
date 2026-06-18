@@ -44,7 +44,7 @@ const mockCancelTask = mock(() => Promise.resolve(true))
 const mockNotifyStatus = mock<(payload: Record<string, unknown>) => Promise<void>>(() => Promise.resolve(undefined))
 const mockGetUploadedFilesByIdsForAccount = mock<(ids: string[], accountId: string) => Promise<unknown[]>>(() => Promise.resolve([]))
 const mockCancelRecord = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
-const mockResetToPending = mock<(id: string) => Promise<void>>(() => Promise.resolve(undefined))
+const mockResetToPending = mock<(id: string) => Promise<RecordOrNull>>(() => Promise.resolve(null))
 const mockFindGenerationByDedupeKeyForAccount = mock<(key: string, accountId: string) => Promise<RecordOrNull>>(() => Promise.resolve(null))
 
 mock.module('@excuse/db', () => ({
@@ -160,6 +160,7 @@ describe('generate 路由 — 重试与取消', () => {
     const app = createGenerateRoutes(testConfig, ctx)
     client = treaty(app)
     mockCancelTask.mockResolvedValue(true)
+    mockResetToPending.mockResolvedValue(makeFailedRecord({ status: 'pending' }))
   })
 
   // ═══════════════════════════════════════════════════
@@ -247,6 +248,23 @@ describe('generate 路由 — 重试与取消', () => {
       }))
       expect(mockMarkSucceeded).toHaveBeenCalled()
       expect(mockNotifyStatus).toHaveBeenCalled()
+    })
+
+    it('重试连点时只有抢到状态转换的请求会调用 provider', async () => {
+      mockGetRecordById
+        .mockResolvedValueOnce(makeFailedRecord())
+        .mockResolvedValueOnce(makeFailedRecord({ status: 'pending' }))
+      mockResetToPending.mockResolvedValueOnce(null)
+
+      const { data } = await client.api.records({ id: 'rec-failed-001' }).retry.post(
+        null,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+
+      expect(data?.success).toBe(true)
+      expect(data?.duplicated).toBe(true)
+      expect(mockGenerate).not.toHaveBeenCalled()
+      expect(mockReserveCredit).not.toHaveBeenCalled()
     })
 
     it('重试失败任务 — API 再次失败', async () => {

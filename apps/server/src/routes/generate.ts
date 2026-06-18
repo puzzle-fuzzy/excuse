@@ -151,7 +151,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       const inputParams: GenerationInputParams = { ...validatedParams, referenceFileIds }
 
       // 创建数据库记录 — 此时所有前置校验已完成，不会有脏记录风险
-      const record = await svc.createGenerationRequest({
+      const createResult = await svc.createGenerationRequest({
         accountId: userId,
         taskId,
         traceId,
@@ -161,6 +161,11 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         estimatedCost,
         dedupeKey,
       })
+      const record = createResult.record
+      if (!createResult.created) {
+        const updated = await getGenerationRecordById(record.id)
+        return { success: true, record: serializeRecord(updated ?? record), duplicated: true } satisfies GenerateResponse
+      }
 
       // 预留 credit + 构造执行上下文（POST /generate 与 retry 共享同一编排）
       const prep = await svc.prepareGeneration({
@@ -370,8 +375,15 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
 
       const newTaskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-      // 所有校验通过后才重置状态 — 防止校验失败产生脏状态
-      await resetGenerationToPending(record.id)
+      // 所有校验通过后才重置状态 — 防止校验失败产生脏状态。
+      // 条件更新 failed/cancelled -> pending 也是 retry 的并发门闩：连点时只有一个请求能赢。
+      const resetRecord = await resetGenerationToPending(record.id)
+      if (!resetRecord) {
+        const latest = await getGenerationRecordById(record.id)
+        if (!latest)
+          throw new NotFoundError('记录不存在')
+        return { success: true, record: serializeRecord(latest), duplicated: true } satisfies GenerateResponse
+      }
       audit('generation_retry', {
         accountId: userId,
         targetId: record.id,

@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **生成 submit/retry 幂等收口（TODO §1.6）**：`POST /generate` 在 `dedupe_key` 唯一冲突（23505）时不再抛错或继续执行，而是查回同用户同 dedupeKey 的既有记录并返回 `duplicated: true`，避免并发提交穿透到重复 credit reserve/provider 调用；`POST /records/:id/retry` 的 `resetGenerationToPending` 改为原子条件更新 `failed/cancelled -> pending` 并返回更新行，连点时只有抢到状态转换的请求会继续预留额度和调用 provider，其余请求返回当前记录 `duplicated: true`。验收：`generate-routes-retry-cancel.test.ts` 全绿；新增 submit 唯一冲突与 retry 连点测试通过；本次 touched files eslint 通过。
+
 - **regenerate 恢复参考图传递（TODO §4.1）**：`workspace store.regenerate` 此前只传 `model` + `parameters` 给 `generate()`，静默丢弃 `referenceFileIds`——用户用参考图生成失败后点重新生成会得到不同于原始输入的结果。修复：store 的 `regenerate` 增加 `referenceFileIds` 参数并透传给 `generate()`；Workspace.tsx 从 `record.inputParams.referenceFileIds` 提取并传入。验收：client typecheck / vitest 376 pass。
 
 - **credit reserve 信用对账 job（TODO §1.3）**：新增 `findStaleReservedCredits`（`credit.repo.ts`）扫描 `credit_transactions` 中 reserve 超过 1h 但无 debit/refund 收尾的孤立记录；worker 新增 `startCreditReconciliation` 周期任务（与孤儿清扫同频，默认 60s），自动 refund 冻结资金并审计。防止 server/worker 崩溃或流式中断导致用户余额永久 frozen。验收：worker typecheck 通过。

@@ -28,7 +28,7 @@ import {
   markGenerationSucceeded,
   notifyGenerationStatus,
 } from '@excuse/db'
-import { extractBillingParams, logger } from '@excuse/shared'
+import { extractBillingParams, getPgErrorCode, logger } from '@excuse/shared'
 import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from '../../services/billing-ledger'
 import { recordGenerationStatus } from '../../services/metrics'
 import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
@@ -65,6 +65,10 @@ export interface GenerationContext {
 export type DedupeResult
   = | { duplicated: true, record: GenerationRecordRow }
     | { duplicated: false }
+
+export type CreateGenerationRequestResult
+  = | { created: true, record: GenerationRecordRow }
+    | { created: false, record: GenerationRecordRow }
 
 /** 参考文件归属校验结果 */
 export type ReferenceResult
@@ -375,18 +379,29 @@ export async function createGenerationRequest(input: {
   inputParams: GenerationInputParams
   estimatedCost: CostDetail
   dedupeKey?: string
-}): Promise<GenerationRecordRow> {
-  return createGenerationRecord({
-    accountId: input.accountId,
-    taskId: input.taskId,
-    traceId: input.traceId,
-    model: input.model,
-    category: input.category,
-    status: 'pending',
-    inputParams: input.inputParams,
-    cost: { ...input.estimatedCost, estimated: true, billable: false, source: 'estimated' },
-    dedupeKey: input.dedupeKey,
-  })
+}): Promise<CreateGenerationRequestResult> {
+  try {
+    const record = await createGenerationRecord({
+      accountId: input.accountId,
+      taskId: input.taskId,
+      traceId: input.traceId,
+      model: input.model,
+      category: input.category,
+      status: 'pending',
+      inputParams: input.inputParams,
+      cost: { ...input.estimatedCost, estimated: true, billable: false, source: 'estimated' },
+      dedupeKey: input.dedupeKey,
+    })
+    return { created: true, record }
+  }
+  catch (err) {
+    if (input.dedupeKey && getPgErrorCode(err) === '23505') {
+      const existing = await findGenerationByDedupeKeyForAccount(input.dedupeKey, input.accountId)
+      if (existing)
+        return { created: false, record: existing }
+    }
+    throw err
+  }
 }
 
 /** prepareGeneration 的结果 — 成功返回执行上下文，余额不足返回 message（route 映射 402）。 */

@@ -184,10 +184,15 @@ export async function deleteGenerationRecord(id: string) {
 
 /** 重置生成记录为 pending 状态（重试时清除 errorMessage，递增 retryCount，清除 dedupeKey） */
 export async function resetGenerationToPending(id: string) {
-  await getDb()
+  const [updated] = await getDb()
     .update(generationRecords)
     .set({ status: 'pending', errorMessage: null, retryCount: sql`${generationRecords.retryCount} + 1`, dedupeKey: null, updatedAt: new Date() })
-    .where(eq(generationRecords.id, id))
+    .where(and(
+      eq(generationRecords.id, id),
+      inArray(generationRecords.status, ['failed', 'cancelled']),
+    ))
+    .returning()
+  return updated ?? null
 }
 
 export type ProviderCancelStatus = 'not_requested' | 'no_task' | 'requested' | 'succeeded' | 'failed'
