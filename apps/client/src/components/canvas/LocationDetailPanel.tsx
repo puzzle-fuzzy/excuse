@@ -79,7 +79,12 @@ export function LocationDetailPanel({ location, onUpdate, confirm }: LocationDet
 
       <Button
         size="sm"
-        onClick={() => { regenerateCanvasLocation(location.id).then(() => { toast.success('正在重新生成场景...'); onUpdate() }) }}
+        onClick={() => {
+          regenerateCanvasLocation(location.id).then(() => {
+            toast.success('正在重新生成场景...')
+            onUpdate()
+          })
+        }}
       >
         重新生成
       </Button>

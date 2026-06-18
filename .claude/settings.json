@@ -21,7 +21,8 @@
       "Bash(rg -rn \"applyTaskFailureWithAdapter\" /Users/yxswy/Documents/excuse --type ts)",
       "Bash(git rm *)",
       "Bash(bun vitest *)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(bun eslint *)"
     ]
   }
 }

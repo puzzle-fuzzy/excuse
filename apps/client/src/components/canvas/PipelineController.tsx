@@ -6,9 +6,9 @@
  * 本文件退化为纯渲染层（~180 行）。
  */
 import type { CanvasModelPreferences, ModelConfig, ProjectDTO } from '@excuse/shared'
-import { statusToneClass, statusTextClass } from '@/lib/status-tokens'
-import { usePipelineController } from './usePipelineController'
 import type { PhaseDoneEvent, RunningPhaseInfo } from './usePipelineController'
+import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
+import { usePipelineController } from './usePipelineController'
 
 // Re-export for backward compatibility (consumed by CanvasEditor, nodes, RunningOverlay)
 export type { PhaseDoneEvent, RunningPhaseInfo }

@@ -183,7 +183,15 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
         </Button>
       )}
 
-      <Button size="sm" onClick={() => { regenerateCanvasShot(shot.id).then(() => { toast.success('正在创建镜头变体...'); onUpdate() }) }}>
+      <Button
+        size="sm"
+        onClick={() => {
+          regenerateCanvasShot(shot.id).then(() => {
+            toast.success('正在创建镜头变体...')
+            onUpdate()
+          })
+        }}
+      >
         重新生成变体
       </Button>
 

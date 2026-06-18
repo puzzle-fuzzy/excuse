@@ -106,7 +106,12 @@ export function CharacterDetailPanel({ character, onUpdate, confirm }: Character
 
       <Button
         size="sm"
-        onClick={() => { regenerateCanvasCharacter(character.id).then(() => { toast.success('正在重新生成角色...'); onUpdate() }) }}
+        onClick={() => {
+          regenerateCanvasCharacter(character.id).then(() => {
+            toast.success('正在重新生成角色...')
+            onUpdate()
+          })
+        }}
       >
         重新生成
       </Button>
