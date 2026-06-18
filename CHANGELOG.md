@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **优雅关停 drain 统一任务队列（不只视频）**（TODO2 §1.3）：此前 `currentTaskPromiseRef` 只在视频轮询源赋值，统一队列最长的 `canvas.assemble`（FFmpeg 合成，数分钟）收到 SIGTERM 被 `process.exit(0)` 直接砍掉，task 卡 `running`、锁被带飞，只能等 5 分钟孤儿回收——「最长的活反而最不安全」。修复：`createTaskPollSource` 把 in-flight promise（提取为 `executeClaimedTask`）写入共享 `currentTaskPromiseRef`，`setupGracefulShutdown` 关停时 await 它，drain 所有 poll source。`currentTaskPromiseRef` 类型从 `Promise<TaskResult>` 放宽为 `Promise<unknown>`（两源 promise 形状不同），视频源改用本地 typed 变量保留 `TaskResult` 推断。新增 `poll-sources.test.ts`（drain 行为 + 无任务不触碰 ref）。顺带 worker `test` 脚本加 `--isolate`（与 root 调用 + server 一致，worker 套件含 `mock.module` 需隔离）。验收：worker typecheck/lint/test(108, +2) 全绿。§1.1/§1.2/§1.4 仍待 §一 A/B 决策。
+
 ### Changed
 
 - **CLAUDE.md 文档同步 + 边界检查器补强**（TODO2 §五 + §六）：代码已走在文档前面，逐项对齐。① CLAUDE.md「9 阶段」→ **12 阶段**（补 dialogue/bgm/assemble 的正确顺序）；② pause-before 门槛 → **3 个**（`storyboard`/`videos`/`assemble`），同步修 `packages/workflow-engine` 的 `isPauseBeforePhase` doc 注释；③ Worker「4 个 workload」→ **3 个 PollSource**（字幕导出已迁 `media.burn-subtitle` task）；④ 关键领域类型真身指向 `packages/shared/src/domain-types.ts`（db 下已是 re-export shim）；⑤ `generate.video` 幽灵 type → 改为「video 仍走 generation_records 旧轮询」说明并指向 §一决策；⑥ provider 门面说明改为「零消费者直连」并指向 §3.1。⑦ **边界检查器补强**：`error-recovery` 加入纯包规则；新增 domain 规则覆盖 `canvas-engine`/`prompt-engine`（禁 db/provider/storage/ffmpeg/apps）；补 3 条 `DEFAULT_BOUNDARY_RULES` 违规拦截测试；顺带修复脚本 `relative()` 在 Windows 输出反斜杠、与 CI/*nix 不一致的预存在缺陷（归一化为正斜杠，连带修好一条 Windows-only 失败的既有 boundary 测试）。⑧ e2e fixture 补 `asrStaleTimeoutMs`（§2.5 新增 config 字段的遗漏）。验收：typecheck（含 e2e）/ lint / check:boundaries / boundary test(5) 全绿。

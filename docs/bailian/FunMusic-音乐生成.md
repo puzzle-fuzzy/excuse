@@ -1,6 +1,6 @@
 本文介绍音乐生成 Fun-Music 模型的 API 参数详情。
 
-**用户指南**：关于模型介绍和选型建议请参见[音乐生成](https://help.aliyun.com/zh/model-studio/fun-music)。
+**用户指南**：关于模型介绍和选型建议请参见[音乐生成](./音乐生成.md)。
 
 **重要**
 

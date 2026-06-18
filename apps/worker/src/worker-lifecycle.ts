@@ -6,7 +6,6 @@
 
 import type { WorkerConfig } from './config'
 import type { WorkerHealthState } from './health'
-import type { TaskResult } from './task-processor'
 import { sweepOrphanTasks } from '@excuse/db'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
@@ -47,11 +46,12 @@ export function setupHealthServer(config: WorkerConfig) {
 
 /**
  * 注册 SIGINT / SIGTERM 优雅退出处理器。
- * currentTaskPromiseRef 是一个包含引用的对象，主循环在跑视频任务时设置其 value。
+ * currentTaskPromiseRef 是一个包含引用的对象，主循环在跑**任意**任务（统一队列 / 视频轮询）时设置其 value，
+ * 关停时 await 它以 drain 在途任务（如数分钟的 canvas.assemble），而非只 drain 视频（TODO2 §1.3）。
  */
 export function setupGracefulShutdown(
   runningRef: { value: boolean },
-  currentTaskPromiseRef: { value: Promise<TaskResult> | null },
+  currentTaskPromiseRef: { value: Promise<unknown> | null },
   server: { stop: () => void },
 ) {
   const GRACEFUL_TIMEOUT_MS = 30_000

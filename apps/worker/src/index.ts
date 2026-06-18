@@ -13,7 +13,6 @@
  *   - index.ts 仅做编排
  */
 
-import type { TaskResult } from './task-processor'
 import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { loadConfig } from './config'
@@ -42,7 +41,7 @@ const { healthState, server } = setupHealthServer(config)
 
 // ── 引用包装（供 graceful shutdown 读写主循环中的 currentTaskPromise）─
 const runningRef = { value: true }
-const currentTaskPromiseRef = { value: null as Promise<TaskResult> | null }
+const currentTaskPromiseRef = { value: null as Promise<unknown> | null }
 
 // ── 优雅退出 + 孤儿任务清扫 ────────────────────────────
 setupGracefulShutdown(runningRef, currentTaskPromiseRef, server)
@@ -56,7 +55,7 @@ const stopSweep = startOrphanSweep(config, healthState)
  *   3. asr    — ASR 字幕轮询
  */
 const pollSources = [
-  createTaskPollSource(ctx, healthState),
+  createTaskPollSource(ctx, healthState, { currentTaskPromiseRef }),
   createVideoPollSource(ctx, healthState, {
     runningRef,
     currentTaskPromiseRef,

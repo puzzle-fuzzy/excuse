@@ -35,12 +35,10 @@
   - 若走 **1.1-B 带外**：把 `claimNextTask` 的 `FOR UPDATE SKIP LOCKED` + `lockedBy` + orphan sweep 三件套回填到 `generation_records` 与 `subtitle_projects`（新增 `locked_by` / `locked_until` 列 + 迁移）。
 - **验收**：本地起两个 worker 进程，提交一个视频任务，确认只有一个副本真正调 DashScope；kill 一个副本中途，另一副本/孤儿回收能续跑。
 
-### 1.3 🔴 优雅关停只 drain 视频任务，不 drain 统一任务
+### 1.3 🔴 优雅关停只 drain 视频任务，不 drain 统一任务 — ✅ 已修复
 
-- **证据**：[currentTaskPromiseRef](apps/worker/src/worker-lifecycle.ts#L64) 只在 [poll-sources.ts:100](apps/worker/src/poll-sources.ts#L100) 的**视频轮询**里赋值（注释原话：「主循环在跑**视频任务**时设置其 value」）。统一队列最长的 `canvas.assemble`（FFmpeg 合成，动辄数分钟）收到 SIGTERM 直接被 `process.exit(0)` 砍掉，task 卡在 `running`、锁被带飞，只能等 5 分钟孤儿回收。
-- **影响**：**最长的活反而最不安全**。滚动发布 / 缩容时 assemble 任务频繁被打断重跑，浪费已合成的中间产物与计费。
-- **解法**：让 `createTaskPollSource`（[poll-sources.ts](apps/worker/src/poll-sources.ts)）也把 in-flight promise 写入 `currentTaskPromiseRef`（或重构为统一的 `inFlight: Promise[]` 列表，关停时全部 await）。让 `setupGracefulShutdown` drain 所有 poll source，不只视频。
-- **验收**：跑一个 `canvas.assemble` 任务，中途 `kill -TERM` worker，确认进程等到任务完成（或 30s 超时）才退出，task 不卡 `running`。
+> **已完成**（2026-06-18）：`createTaskPollSource` 现在也把 in-flight promise 写入共享 `currentTaskPromiseRef`（与视频轮询源共用），`setupGracefulShutdown` 关停时 await 它，drain **所有** poll source 的在途任务（含数分钟的 `canvas.assemble`），而非只 drain 视频。`currentTaskPromiseRef` 类型从 `Promise<TaskResult>` 放宽为 `Promise<unknown>`（统一队列与视频两源 promise 形状不同），视频源改用本地 typed 变量保留 `TaskResult` 推断。新增 `poll-sources.test.ts` 验证任务在途时 ref 被设置、完成后清空（+ 无任务时不触碰）。顺带把 `apps/worker` 的 `test` 脚本加 `--isolate`（与 root `bun run test` 的 worker 调用 + server 一致，worker 套件含 `mock.module` 需隔离）。验收：worker typecheck/lint/test(108, +2 drain 用例) 全绿。**§1.1/§1.2/§1.4 仍待 §一 A/B 决策。**
+
 
 ### 1.4 🟠 错误处理裂成三套方言
 
@@ -205,6 +203,8 @@
 | P1 短期 | ASR 超时 + 重试 | §2.5 | 小 |
 | P1 短期 | client 10 处 fetch → Eden | §3.4 | 小 |
 | P2 接触时 | provider 门面二选一 | §3.1 | 中 |
+
+
 | P2 接触时 | 双账本编排收敛 | §3.2 | 中 |
 | P2 接触时 | adapter 仪式清理 | §3.3 | 小 |
 | P2 接触时 | 三种错误协议统一 | §3.5 | 小 |

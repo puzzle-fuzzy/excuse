@@ -6,7 +6,7 @@
   "module": "src/index.ts",
   "scripts": {
     "dev": "bun --env-file ../../.env src/index.ts",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "tsc -p tsconfig.json --noEmit && echo '✅ worker typecheck passed'"
   },
