@@ -1,20 +1,12 @@
 import type { ModelConfig } from '@excuse/shared'
+import {
+  GATEWAY_MESSAGES_MAX_TOTAL_CHARS,
+  PROMPT_LENGTH_LIMITS,
+} from '@excuse/shared'
 import { ValidationError } from './app-errors'
 
-/**
- * 各生成类别的 prompt 字符长度上限（docs/TODO.md §1.2）。
- *
- * 防止超长 prompt 导致：token 计费爆量（10MB 文本 ≈ 数百万 token）、
- * `inputParams` JSONB 表膨胀、预估费用严重低估而 reserve 不足 → 穿负。
- *
- * 取值依据：text 100k 字符仍在主流模型上下文内且成本可控；
- * image/video 的 prompt 本就是短描述，8k 足够。subtitle 无 prompt（用音频 URL）。
- */
-export const PROMPT_LENGTH_LIMITS: Record<string, number> = {
-  text: 100_000,
-  image: 8_000,
-  video: 8_000,
-}
+// Re-export for convenience (backward compatible)
+export { GATEWAY_MESSAGES_MAX_TOTAL_CHARS, PROMPT_LENGTH_LIMITS }
 
 /**
  * 从 modelConfig.inputMapping 找到映射到 `target: 'prompt'` 的参数值。
@@ -47,11 +39,9 @@ export function assertPromptWithinLimit(modelConfig: ModelConfig, params: Record
 }
 
 /**
- * 校验 OpenAI 兼容网关的 messages 总字符数（docs/TODO.md §1.2）。
+ * 校验 OpenAI 兼容网关的 messages 总字符数。
  * 网关对外暴露（外部 API key），更需要限制防滥用。
  */
-export const GATEWAY_MESSAGES_MAX_TOTAL_CHARS = 100_000
-
 export function assertGatewayMessagesWithinLimit(messages: Array<{ content: string }>): void {
   let total = 0
   for (const msg of messages) {
