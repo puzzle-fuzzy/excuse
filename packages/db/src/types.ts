@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { accounts, canvasAssetCategoryEnum, canvasAssets, canvasAssetStatusEnum, canvasCharacters, canvasContinuityReports, canvasLocations, canvasPipelinePhaseEnum, canvasPipelineRuns, canvasPipelineRunStatusEnum, canvasProjects, canvasProjectStatusEnum, canvasShots, canvasShotStatusEnum, creditAccounts, creditTransactions, generationCategoryEnum, generationRecords, generationStatusEnum, notifications, subtitleProjects, subtitleProjectStatusEnum, taskDomainEnum, tasks, taskStatusEnum, uploadedFiles, usageEvents, workflows, workflowSteps } from './schema'
+import type { accounts, canvasAssetCategoryEnum, canvasAssets, canvasAssetStatusEnum, canvasCharacters, canvasContinuityReports, canvasLocations, canvasPipelinePhaseEnum, canvasPipelineRuns, canvasPipelineRunStatusEnum, canvasProjects, canvasProjectStatusEnum, canvasShots, canvasShotStatusEnum, creditAccounts, creditTransactions, generationCategoryEnum, generationRecords, generationStatusEnum, notifications, subtitleProjects, subtitleProjectStatusEnum, taskDomainEnum, tasks, taskStatusEnum, uploadedFiles, usageEvents } from './schema'
 
 // ===== Drizzle 行类型（从 schema 自动推导） =====
 
@@ -86,18 +86,6 @@ export type NotificationRow = InferSelectModel<typeof notifications>
 
 /** notifications 表 — 插入参数类型 */
 export type NotificationInsert = InferInsertModel<typeof notifications>
-
-/** workflows 表 — 查询结果行类型 */
-export type WorkflowRow = InferSelectModel<typeof workflows>
-
-/** workflows 表 — 插入参数类型 */
-export type WorkflowInsert = InferInsertModel<typeof workflows>
-
-/** workflow_steps 表 — 查询结果行类型 */
-export type WorkflowStepRow = InferSelectModel<typeof workflowSteps>
-
-/** workflow_steps 表 — 插入参数类型 */
-export type WorkflowStepInsert = InferInsertModel<typeof workflowSteps>
 
 /** tasks 表 — 查询结果行类型 */
 export type TaskRow = InferSelectModel<typeof tasks>
@@ -217,8 +205,11 @@ export type CanvasAssetSerialized = Serialize<CanvasAssetRow>
 
 /** 生成记录列表查询过滤条件 */
 export interface ListGenerationRecordsFilter {
+  /** 用户 ID 过滤 */
   accountId?: string
+  /** 分类过滤（text/image/video/subtitle） */
   category?: GenerationCategory
+  /** 单状态过滤 */
   status?: GenerationStatus
   /** 多状态过滤（inArray）；提供时优先于 status，用于资产中心跨状态聚合 */
   statuses?: GenerationStatus[]
@@ -234,6 +225,8 @@ export interface ListGenerationRecordsFilter {
   createdTo?: Date
   /** 排除已隐藏的记录（资产中心默认排除） */
   excludeHidden?: boolean
+  /** 每页条数 */
   limit?: number
+  /** 偏移量 */
   offset?: number
 }

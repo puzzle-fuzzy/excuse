@@ -77,24 +77,6 @@ export async function removeAssetFavorite(opts: {
     ))
 }
 
-/** 查询单条收藏状态（用于 route 注入 isFavorite） */
-export async function findAssetFavorite(opts: {
-  accountId: string
-  source: AssetFavoriteSource
-  assetId: string
-}): Promise<AssetFavoriteRow | null> {
-  const [row] = await getDb()
-    .select()
-    .from(assetFavorites)
-    .where(and(
-      eq(assetFavorites.accountId, opts.accountId),
-      eq(assetFavorites.source, opts.source),
-      eq(assetFavorites.assetId, opts.assetId),
-    ))
-    .limit(1)
-  return (row as AssetFavoriteRow | undefined) ?? null
-}
-
 /**
  * 列出当前用户全部收藏的 (source, assetId) 集合
  *

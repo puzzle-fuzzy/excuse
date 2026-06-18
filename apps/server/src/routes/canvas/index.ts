@@ -11,17 +11,8 @@
  */
 import type { ServerConfig } from '../../config'
 import type { ServerContext } from '../../context'
-import {
-  createCanvasCharacter,
-  createCanvasLocation,
-  getCanvasProjectByIdForAccount,
-  getSubjectById,
-  incrementSubjectUsage,
-  linkProjectSubject,
-} from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../../plugins/auth'
-import { NotFoundError } from '../../utils/app-errors'
 import {
   handleAnalyzePhase,
   handleAssemblePhase,
@@ -69,6 +60,7 @@ import {
   handleRegenerateShotVideo,
   handleRetryFailedShots,
   handleRetryShot,
+  handleSubjectsImport,
 } from './handlers-resources'
 
 export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
@@ -195,40 +187,7 @@ export function createCanvasRoutes(config: ServerConfig, ctx: ServerContext) {
     })
 
     // ── 从资产库导入到项目 ────────────────────────────
-    .post('/projects/:projectId/subjects/import', async ({ params: { projectId }, body, userId }) => {
-      const owned = await getCanvasProjectByIdForAccount(projectId, userId)
-      if (!owned)
-        throw new NotFoundError('项目不存在或无权访问')
-      const subject = await getSubjectById(body.subjectId)
-      if (!subject || subject.accountId !== userId)
-        throw new NotFoundError('资产不存在或无权访问')
-
-      if (subject.subjectType === 'character') {
-        await createCanvasCharacter({
-          projectId,
-          name: subject.name,
-          identityPrompt: subject.identityPrompt ?? undefined,
-          negativePrompt: subject.negativePrompt ?? undefined,
-          profileJson: subject.profileJson as any ?? undefined,
-          referenceImageUrl: subject.referenceImageUrl ?? undefined,
-          turnaroundSheetUrl: subject.turnaroundSheetUrl ?? undefined,
-        })
-      }
-      else {
-        await createCanvasLocation({
-          projectId,
-          name: subject.name,
-          scenePrompt: subject.scenePrompt ?? undefined,
-          negativePrompt: subject.negativePrompt ?? undefined,
-          profileJson: subject.profileJson as any ?? undefined,
-          referenceImageUrl: subject.referenceImageUrl ?? undefined,
-        })
-      }
-
-      await linkProjectSubject(projectId, body.subjectId)
-      await incrementSubjectUsage(body.subjectId)
-      return { success: true }
-    }, {
+    .post('/projects/:projectId/subjects/import', async ({ params: { projectId }, body, userId }) => handleSubjectsImport(projectId, body.subjectId, userId), {
       body: t.Object({ subjectId: t.String() }),
     })
 }

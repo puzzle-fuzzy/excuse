@@ -47,6 +47,22 @@
 
 > **§一 当前状态**：已选择并落实「显式带外」作为当前最小风险路线：§1.1 幽灵 type 清理完成，§1.2 claim/锁完成，§1.4 provider FAILED retry/backoff 完成，§1.3 drain 已完成。剩余的大项不是 bug 修补，而是是否把 video/ASR 完整迁入统一 `tasks` 队列；若后续迁移，可删除本轮 legacy claim/retry 逻辑。
 
+> **🏗️ video/ASR → 统一 `tasks` 队列迁移评估（2026-06-18）**
+>
+> **收益**：
+> - 消除最后 2 个 PollSource（`createVideoPollSource` + `createAsrPollSource`），worker 清理为单一 `createTaskPollSource`
+> - 自动获得统一队列的心跳续约 + orphan sweep（legacy 锁过期目前仅靠 TTL）
+> - `worker-lifecycle` 的 drain 逻辑统一，不再需要分别 await 3 个 ref
+> - 删除 legacy claim/retry 逻辑（`releaseVideoTaskClaims`/`releaseASRProjectClaims`/`pollPendingVideoTasks`/`pollPendingASRProjects` + 迁移 0039/0040 加的 `locked_by`/`locked_until`/`provider_failure_count`/`next_poll_at` 列）
+>
+> **代价**：
+> - 新增 2 个 task type（`generate.video` + `subtitle.asr`）在 schema + CLAUDE.md
+> - 路由侧：`/api/generate`（`category=video`）需额外写一条 `tasks` 行；字幕上传同理
+> - Worker 侧：新增 2 个 task handler（替代 `task-processor.ts` + `subtitle-processor.ts` 中被 `createVideoPollSource`/`createAsrPollSource` 调用的入口）
+> - 回滚路径：迁移后的 legacy 逻辑（0039/0040）已交付运行，回滚需保留兼容
+>
+> **推荐**：当前带外路线（已有 claim/锁 + retry/backoff）已消除竞态和重试安全缺口，迁移 ROI 有限。建议等待下一轮 worker 重构（如多 worker 规模化部署需统一心跳时）再一并迁入。
+
 ---
 
 ## §二、其它 CRITICAL / HIGH
@@ -167,33 +183,41 @@
 > **client 补遗（🟡 MEDIUM）**：
 > - **SSE 启动竞态**：✅ 已修复（2026-06-18）。问题真实存在：`initialize()` 与 `connect()` 跨组件无握手，早期 `pipeline_node_update` 可能在连接建立前丢失。采用低风险补刷方案而非重排 auth 生命周期：`realtime-sync` 的 `sseClient.onOpen` 现在除刷新 `generation_records` 外，还全局 invalidate `canvas-assets-poll` 与 `canvas-pipeline-runs-poll` 两组兜底查询；CanvasEditor 既有 polling delta 逻辑会据此补回项目状态/资产/运行记录变化。验收：client typecheck / client test 通过。
 > - **4 个 api 文件绕过 unwrapEden**：✅ 已修复（2026-06-18）。`api-keys.ts`、`notifications.ts`、`admin.ts` 已统一复用 `client.ts` 的 `unwrapEden<T>`，删除 admin 本地复制的 `unwrap` 与各处手搓 `.data/.error` 分支；`billing.ts` 保持对已解包业务响应的 `response.data` 访问，不属于 Eden 错误处理绕过。验收：client typecheck / client test 通过；`apps/client/src/api` 中直接处理 Eden `.error` 的位置只剩 `client.ts` 的 `unwrapEden`。
-> - **Admin/index.tsx 1927 行巨组件**：拆出 Overview/Tasks/Users 子页（作者已会拆，见 sibling 文件）。
+> - **Admin/index.tsx 1927 行巨组件**：✅ 已修复（2026-06-18）。拆出 `Overview.tsx` / `Users.tsx` / `ApiKeys.tsx` 三个 sibling 文件，`index.tsx` 从 1927 行降为 ~120 行仅保留 tab 路由壳；`Audit.tsx` / `Projects.tsx` / `Providers.tsx` 维持既有拆分。`shared.tsx` 补充 `generationRecordMatchLabel` / `recentRecordExecutionLabel` 等跨文件公用函数。验收：client typecheck / client test 通过。
 
 ---
 
-## §八、优先级总表（按 ROI 排序）
+## §八、优先级总表（按 ROI 排序 — 更新于 2026-06-18）
 
-| 优先级 | 待办 | 条目 | 预估 |
+| 优先级 | 待办 | 条目 | 状态 |
 |---|---|---|---|
-| P0 立刻 | 补迁移 journal 0034–0037 | §2.1 | 小（生成 + 核对） |
-| P2 接触时 | 评估 video/ASR 是否完整迁入统一 `tasks` 队列 | §一 后续架构迁移 | 中–大 |
-| P0 本周 | dialogue/bgm/assemble 走统一信封 | §2.2 | 小 |
-| P1 短期 | 52 处裸 Error → AppError（同步路径优先） | §2.3 | 中 |
-| P1 短期 | generate.ts 编排下沉 service | §2.4 | 中 |
-| P1 短期 | ASR 超时 + 重试 | §2.5 | 小 |
-| P1 短期 | client 10 处 fetch → Eden | §3.4 | 小 |
-| P2 已完成 | 双账本编排收敛 | §3.2 | 中 |
-| P2 接触时 | adapter 仪式清理 | §3.3 | 小 |
-| P2 已完成 | 三种错误协议统一 | §3.5 | 小 |
-| P3 清理 | 文档同步（§五）+ 边界检查器（§六）+ 死代码 | §五/§六 | 小 |
-| P3 清理 | auth 包 / priority 越界 / 手动 memo | §4.1/§4.2/§3.6 | 小 |
+| P0 立刻 | 补迁移 journal 0034–0037 | §2.1 | ✅ 已完成 |
+| P0 本周 | dialogue/bgm/assemble 走统一信封 | §2.2 | ✅ 已完成 |
+| P1 短期 | 52 处裸 Error → AppError | §2.3 | ✅ 已完成 |
+| P1 短期 | generate.ts 编排下沉 service | §2.4 | ✅ 已完成 |
+| P1 短期 | ASR 超时 + 重试 | §2.5 | ✅ 已完成 |
+| P1 短期 | client 10 处 fetch → Eden | §3.4 | ✅ 已完成 |
+| P2 已完成 | 双账本编排收敛 | §3.2 | ✅ 已完成 |
+| P2 已完成 | 三种错误协议统一 | §3.5 | ✅ 已完成 |
+| P2 已完成 | provider 门面迁完 | §3.1 | ✅ 已完成 |
+| P2 已完成 | adapter 仪式清理 | §3.3 | ✅ 已完成 |
+| P2 已完成 | legacy video/ASR claim/锁 | §1.2/§1.4 | ✅ 已完成 |
+| P2 已完成 | generate.video 幽灵 type 收敛 | §1.1 | ✅ 已完成 |
+| P2 已完成 | 优雅关停 drain | §1.3 | ✅ 已完成 |
+| P2 已完成 | workflows 死代码删除 + Admin 拆分 + subjects/import 提取 | §八 补遗 | ✅ 已完成 |
+| P2 已完成 | 额外死函数清理 | §八 补遗 | ✅ 已完成（5 个零调用 repo 函数） |
+| P2 接触时 | 评估 video/ASR 是否完整迁入统一 `tasks` 队列 | §一 后续架构迁移 | 🟡 待决策 |
+| P3 清理 | 文档同步（§五）+ 边界检查器（§六） | §五/§六 | ✅ 已完成 |
+| P3 清理 | auth 包 / priority 越界 / 手动 memo | §4.1/§4.2/§3.6 | 🟡 已处置/接触时 |
 
 ### 死代码清理清单（P3，可批量）
 
 - [x] `generate.video` 在 [task-engine](packages/task-engine/src/index.ts#L387) 的分支 + schema docstring（随 §1.1 决策）
-- [ ] `workflows` repo（8 fn）+ schema（CLAUDE.md 自承「尚未激活」）— 零非测试调用方
-- [ ] `subject-library` repo（5 fn）— 若近期不接 UI 则一并清
-- [ ] `canvas/index.ts` 的 `/subjects/import` 内联 handler（带 `as any`）→ 移入 handlers-resources 并正型（§2.4 顺带）
+- [x] `workflows` repo（8 fn）+ schema（CLAUDE.md 自承「尚未激活」）— 已彻底删除（repo + schema + 迁移 0041 DROP TABLE）
+- [ ] `subject-library` repo（5 fn）— **非死代码**，有 7 个真实调用方（server routes `subjects.ts`、canvas `subject-matching.ts`、client `SubjectLibrary.tsx` 等），保留
+- [x] `canvas/index.ts` 的 `/subjects/import` 内联 handler（带 `as any`）→ 已移入 `handlers-resources.ts` 并正型
+- [x] `findAssetFavorite` / `listCanvasAssetsByProject` / `getActiveCanvasAssetByTarget` / `markCanvasAssetCancelled` / `cleanupExpiredTokens` — 5 个零调用 repo 函数，已删除
+- [x] `countCanvasShotsReferencingAsset` — 文件内辅助函数（非公开），移除 export
 
 ### 验收命令
 

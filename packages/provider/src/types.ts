@@ -1,10 +1,13 @@
 import type { DashScopeUsage } from './dashscope-types'
 
+/** DashScope API 连接配置 */
 export interface DashScopeConfig {
   apiKey: string
+  /** API 端点基地址，不指定时用 DashScope 默认端点 */
   baseUrl?: string
 }
 
+/** Provider 调用用量汇总 — 由 buildCostDetail 转为 CostDetail */
 export interface ProviderUsage {
   inputTokens?: number
   outputTokens?: number
@@ -81,6 +84,7 @@ export interface DashScopeTaskOutput {
   [key: string]: unknown
 }
 
+/** Provider 调用成功结果 — 文本生成 */
 export interface TextProviderResult {
   type: 'text'
   success: true
@@ -89,6 +93,7 @@ export interface TextProviderResult {
   usage?: ProviderUsage
 }
 
+/** Provider 调用成功结果 — 图片生成 */
 export interface ImageProviderResult {
   type: 'image'
   success: true
@@ -97,6 +102,7 @@ export interface ImageProviderResult {
   usage?: ProviderUsage
 }
 
+/** Provider 调用成功结果 — 异步视频任务已提交 */
 export interface VideoTaskProviderResult {
   type: 'video_task'
   success: true
@@ -106,6 +112,7 @@ export interface VideoTaskProviderResult {
   usage?: ProviderUsage
 }
 
+/** Provider 调用成功结果 — 音频生成 */
 export interface AudioProviderResult {
   type: 'audio'
   success: true
@@ -114,6 +121,7 @@ export interface AudioProviderResult {
   usage?: ProviderUsage
 }
 
+/** Provider 调用失败结果 */
 export interface FailedProviderResult {
   type: 'failed'
   success: false
@@ -121,6 +129,7 @@ export interface FailedProviderResult {
   error: string
 }
 
+/** Provider 调用结果联合 — 所有可能返回形状 */
 export type ProviderResult
   = | TextProviderResult
     | ImageProviderResult
@@ -128,6 +137,7 @@ export type ProviderResult
     | AudioProviderResult
     | FailedProviderResult
 
+/** DashScope 异步任务当前状态（轮询结果） */
 export interface TaskStatus {
   taskId: string
   status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'

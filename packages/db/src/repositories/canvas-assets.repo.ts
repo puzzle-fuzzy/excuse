@@ -35,14 +35,6 @@ export async function getCanvasAssetByIdForAccount(id: string, accountId: string
   return asset ?? null
 }
 
-/** 查询项目下所有资产记录 */
-export async function listCanvasAssetsByProject(projectId: string) {
-  return getDb()
-    .select()
-    .from(canvasAssets)
-    .where(eq(canvasAssets.projectId, projectId))
-}
-
 /**
  * 资产中心 — 按 account 查询 Canvas 资产列表
  *
@@ -186,31 +178,7 @@ export async function findReusableCanvasAssetForPipelineTarget(opts: {
 }
 
 /**
- * 查询指定目标实体的当前活跃资产（isActive=true）
- * — 用于确定实体当前正在使用哪个资产版本
- */
-export async function getActiveCanvasAssetByTarget(
-  targetEntityType: string,
-  targetEntityId: string,
-  category?: CanvasAssetCategory,
-) {
-  const conditions = [
-    eq(canvasAssets.targetEntityType, targetEntityType),
-    eq(canvasAssets.targetEntityId, targetEntityId),
-    eq(canvasAssets.isActive, true),
-  ]
-  if (category) {
-    conditions.push(eq(canvasAssets.category, category))
-  }
-  const [asset] = await getDb()
-    .select()
-    .from(canvasAssets)
-    .where(and(...conditions))
-    .limit(1)
-  return asset ?? null
-}
-
-/** Mark asset as running — only succeeds if current status is 'queued' (append-only guard) */
+ * Mark asset as running — only succeeds if current status is 'queued' (append-only guard) */
 export async function markCanvasAssetRunning(id: string, model?: string, inputJson?: Record<string, unknown>) {
   const [updated] = await getDb()
     .update(canvasAssets)
@@ -260,19 +228,6 @@ export async function markCanvasAssetFailed(id: string, errorMessage: string) {
       updatedAt: new Date(),
     })
     .where(and(eq(canvasAssets.id, id), eq(canvasAssets.status, 'running')))
-    .returning()
-  return updated ?? null
-}
-
-/** Mark asset as cancelled — succeeds for queued or running status */
-export async function markCanvasAssetCancelled(id: string) {
-  const [updated] = await getDb()
-    .update(canvasAssets)
-    .set({
-      status: 'cancelled',
-      updatedAt: new Date(),
-    })
-    .where(and(eq(canvasAssets.id, id), inArray(canvasAssets.status, ['queued', 'running'])))
     .returning()
   return updated ?? null
 }

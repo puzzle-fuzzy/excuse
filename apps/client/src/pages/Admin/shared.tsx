@@ -1,7 +1,7 @@
 /**
  * Admin 共享组件与工具函数
  */
-import type { AdminOverview, AdminTaskItem } from '@excuse/shared'
+import type { AdminOverview, AdminTaskGenerationRecord, AdminTaskItem } from '@excuse/shared'
 import type { Activity } from 'lucide-react'
 import { Ban, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -119,6 +119,32 @@ export function StatCard({ title, value, hint, icon: Icon }: {
       </CardContent>
     </Card>
   )
+}
+
+export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecord['matchReason']) {
+  switch (matchReason) {
+    case 'direct':
+      return '直接关联'
+    case 'worker-task':
+      return '统一任务'
+    case 'pipeline-run':
+      return 'Pipeline'
+    case 'time-window':
+      return '候选·时间窗口'
+  }
+}
+
+export function recentRecordExecutionLabel(kind: string) {
+  switch (kind) {
+    case 'legacy-provider-task':
+      return 'Legacy provider task'
+    case 'canvas-worker':
+      return 'Canvas worker'
+    case 'gateway':
+      return 'Gateway'
+    case 'inline':
+      return '同步'
+  }
 }
 
 export function StatusList({ title, rows }: { title: string, rows: AdminOverview['generationStatus'] }) {

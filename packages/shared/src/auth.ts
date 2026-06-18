@@ -11,6 +11,8 @@ export interface AuthUser {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  /** 最后一次登录时间（null 表示从未登录） */
+  lastLoginAt: string | null
 }
 
 export interface AuthSession {

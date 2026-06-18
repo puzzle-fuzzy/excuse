@@ -18,8 +18,8 @@ import { getUploadedFileByIdForAccount, getUploadedFileUsage } from './uploaded-
 
 // ── 引用守卫 ───────────────────────────────────────────────
 
-/** 统计 canvas_shots.referenceAssetsJson 中引用指定 assetId 的镜头数（JSONB @>）。 */
-export async function countCanvasShotsReferencingAsset(assetId: string): Promise<number> {
+/** 统计 canvas_shots.referenceAssetsJson 中引用指定 assetId 的镜头数（JSONB @>）。 — 文件内辅助，不公开 */
+async function countCanvasShotsReferencingAsset(assetId: string): Promise<number> {
   const rows = await getDb().select({ count: sql<number>`count(*)::int` }).from(canvasShots).where(sql`${canvasShots.referenceAssetsJson} @> ${JSON.stringify([{ assetId }])}::jsonb`)
   return Number(rows[0]?.count ?? 0)
 }

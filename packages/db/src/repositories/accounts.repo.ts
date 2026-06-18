@@ -58,3 +58,13 @@ export async function updateAccountPassword(accountId: string, hashedPassword: s
     .returning()
   return record!
 }
+
+/**
+ * 记录用户最后一次登录时间
+ */
+export async function updateLastLoginAt(accountId: string) {
+  await getDb()
+    .update(accounts)
+    .set({ lastLoginAt: new Date() })
+    .where(eq(accounts.id, accountId))
+}

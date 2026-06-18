@@ -46,14 +46,3 @@ export async function consumePasswordResetToken(tokenHash: string): Promise<{ ac
   return record ?? null
 }
 
-/**
- * 清理已过期或已使用的令牌
- */
-export async function cleanupExpiredTokens(): Promise<number> {
-  const result = await getDb()
-    .delete(passwordResetTokens)
-    .where(
-      sql`${passwordResetTokens.expiresAt} < NOW() OR ${passwordResetTokens.used} = true`,
-    )
-  return result.length
-}

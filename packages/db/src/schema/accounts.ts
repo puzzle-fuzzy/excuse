@@ -30,4 +30,7 @@ export const accounts = pgTable('accounts', {
 
   /** 最后更新时间 */
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+
+  /** 最后一次登录时间 */
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 })

@@ -1,7 +1,7 @@
 import type { AccountRow } from '@excuse/db'
 import type { AuthCurrentUserResponse, AuthResponse, AuthUser, ForgotPasswordResponse, MutationOkResponse, ResetPasswordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
-import { consumePasswordResetToken, createAccount, createPasswordResetToken, creditBalance, getAccountByEmail, getAccountById, getAccountByUsername, getOrCreateCreditAccount } from '@excuse/db'
+import { consumePasswordResetToken, createAccount, createPasswordResetToken, creditBalance, getAccountByEmail, getAccountById, getAccountByUsername, getOrCreateCreditAccount, updateLastLoginAt } from '@excuse/db'
 import { Elysia, t } from 'elysia'
 import { AUTH_COOKIE_NAME, createAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
@@ -12,11 +12,12 @@ import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, Valida
  * 从账户行中剥离密码哈希并序列化 Date→string，返回 AuthUser DTO
  */
 function sanitizeUser(account: AccountRow): AuthUser {
-  const { password: _, createdAt, updatedAt, ...rest } = account
+  const { password: _, createdAt, updatedAt, lastLoginAt, ...rest } = account
   return {
     ...rest,
     createdAt: createdAt.toISOString(),
     updatedAt: updatedAt.toISOString(),
+    lastLoginAt: lastLoginAt?.toISOString() ?? null,
   }
 }
 
@@ -132,6 +133,9 @@ export function createAuthRoutes(config: ServerConfig) {
       const token = await jwt.sign({ sub: account.id })
 
       audit('login', { accountId: account.id, ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() })
+
+      // 更新最后登录时间（不阻塞登录响应）
+      updateLastLoginAt(account.id).catch(() => {})
 
       cookies[AUTH_COOKIE_NAME]?.set({ value: token, ...COOKIE_OPTS })
 

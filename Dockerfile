@@ -20,7 +20,10 @@ COPY tsconfig.json bunfig.toml ./
 # Copy only package.json from each workspace — sufficient for bun install
 COPY apps/*/package.json apps/
 COPY packages/*/package.json packages/
-RUN bun install --frozen-lockfile --production
+# 注意：不传 --frozen-lockfile，因为 --production 模式下依赖解析树与完整 lockfile
+# 不同（只装 dependencies，跳过 devDependencies），加该 flag 会误报变更。
+# CI 其他 job（typecheck / build / test）已验证 lockfile 有效性。
+RUN bun install --production --no-frozen-lockfile
 
 # ==========================================
 # Stage 3: Server runtime

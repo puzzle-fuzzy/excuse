@@ -96,24 +96,6 @@ export interface TaskErrorInfo {
   retryDelayMs?: number
 }
 
-// ===== Workflow Domain Types =====
-
-/**
- * Workflow 预研 payload。
- *
- * 当前 workflow 只提供 DB/repository 基础设施，尚未启用具体 runner。
- * JSONB 内容会随 workflow type 演进，因此先收敛到命名边界类型；
- * 真正启用某个 workflow type 时，应继续拆成可辨识联合或 Zod schema。
- */
-export interface WorkflowPayload {
-  [key: string]: unknown
-}
-
-export type WorkflowInput = WorkflowPayload
-export type WorkflowOutput = WorkflowPayload
-export type WorkflowStepInput = WorkflowPayload
-export type WorkflowStepOutput = WorkflowPayload
-
 /** 故事分析结果 */
 export interface NovelAnalysis {
   summary: string

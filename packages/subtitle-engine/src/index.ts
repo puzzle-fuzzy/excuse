@@ -1,11 +1,23 @@
+/**
+ * @excuse/subtitle-engine —— 纯规则包（无 IO 依赖）
+ *
+ * 字幕相关的纯逻辑：ASR 转写解析 → SubtitleSentence[] → ASS 字幕文件内容生成。
+ * 不含 DB、FFmpeg 或存储操作（分别由 @excuse/ffmpeg、storage 等处理）。
+ */
+
+/** 单条字幕语句：文本 + 时间区间 + 可选说话人。时间单位为毫秒。 */
 export interface SubtitleSentence {
   id: string
   text: string
+  /** 开始时间（毫秒） */
   beginTime: number
+  /** 结束时间（毫秒） */
   endTime: number
+  /** 说话人编号（ASR 多说话人识别时提供） */
   speakerId?: number
 }
 
+/** 字幕样式配置，与 ASS Style 行一一映射。 */
 export interface SubtitleStyleConfig {
   templateId: string
   fontSize: number
@@ -17,6 +29,7 @@ export interface SubtitleStyleConfig {
   bold: boolean
 }
 
+/** 字幕样式预设：包含元信息（name/description）与具体样式配置。 */
 export interface SubtitleStylePreset {
   id: string
   name: string
@@ -117,14 +130,20 @@ export const SUBTITLE_STYLE_PRESETS: SubtitleStylePreset[] = [
   },
 ]
 
+/** 返回预设列表中的首个样式（默认影视风格） */
 export function getDefaultStyleConfig(): SubtitleStyleConfig {
   return SUBTITLE_STYLE_PRESETS[0]!.config
 }
 
+/** 按 ID 查找样式预设，未命中返回 undefined */
 export function getPresetById(id: string): SubtitleStylePreset | undefined {
   return SUBTITLE_STYLE_PRESETS.find(preset => preset.id === id)
 }
 
+/**
+ * 将字幕句组 + 样式渲染为 ASS 字幕文件内容。
+ * @param videoWidth / videoHeight — 视频分辨率，用于 PlayRes 坐标系
+ */
 export function sentencesToAss(
   sentences: SubtitleSentence[],
   styleConfig: SubtitleStyleConfig,
@@ -160,6 +179,12 @@ ${lines.join('\n')}
 `
 }
 
+/**
+ * 解析 DashScope ASR 转写结果（JSON）为 SubtitleSentence[]。
+ * @param rawJson — ASR 接口返回的原始 JSON 对象
+ * @param createId — 句子 ID 生成器，默认 crypto.randomUUID
+ * 容错设计：字段缺失/类型错误时静默覆默认值（0 / ''），不抛错。
+ */
 export function parseAsrTranscription(rawJson: unknown, createId: () => string = () => crypto.randomUUID()): SubtitleSentence[] {
   if (!rawJson || typeof rawJson !== 'object')
     return []
@@ -190,6 +215,7 @@ export function parseAsrTranscription(rawJson: unknown, createId: () => string =
   return sentences
 }
 
+/** 把 Hex 颜色（#RRGGBB）转为 ASS 颜色格式（&H00BBGGRR） */
 function hexToAssColor(hex: string): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)
   const g = Number.parseInt(hex.slice(3, 5), 16)
@@ -197,6 +223,7 @@ function hexToAssColor(hex: string): string {
   return `&H00${b.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${r.toString(16).padStart(2, '0')}`
 }
 
+/** 把毫秒转为 ASS 时间格式（H:MM:SS.cc） */
 function msToAssTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
   const centiseconds = Math.floor((ms % 1000) / 10)

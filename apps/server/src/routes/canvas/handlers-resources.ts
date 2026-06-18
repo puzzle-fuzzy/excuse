@@ -2,13 +2,19 @@
  * Canvas 资源 handler — 角色/场景/镜头 PATCH/DELETE + retry + regenerate + 资产
  */
 import type { CanvasShotReferenceAsset } from '@excuse/shared'
+import type { CharacterProfile, LocationProfile } from '@excuse/shared/domain-types'
 import type { ServerContext } from '../../context'
 import {
+  createCanvasCharacter,
+  createCanvasLocation,
   getCanvasAssetById,
   getCanvasCharacterForAccount,
   getCanvasLocationForAccount,
   getCanvasProjectByIdForAccount,
   getCanvasShotForAccount,
+  getSubjectById,
+  incrementSubjectUsage,
+  linkProjectSubject,
   listCanvasAssetsByTarget,
   listCanvasShotsByProject,
   setCanvasAssetActive,
@@ -213,6 +219,42 @@ export function handleRegenerateShotVideo(shotId: string, userId: string, ctx: S
     })
   })
   return acceptedResponse()
+}
+
+// ── 从资产库导入到项目 ──────────────────────────────
+export async function handleSubjectsImport(projectId: string, subjectId: string, userId: string) {
+  const owned = await getCanvasProjectByIdForAccount(projectId, userId)
+  if (!owned)
+    throw new NotFoundError('项目不存在或无权访问')
+  const subject = await getSubjectById(subjectId)
+  if (!subject || subject.accountId !== userId)
+    throw new NotFoundError('资产不存在或无权访问')
+
+  if (subject.subjectType === 'character') {
+    await createCanvasCharacter({
+      projectId,
+      name: subject.name,
+      identityPrompt: subject.identityPrompt ?? undefined,
+      negativePrompt: subject.negativePrompt ?? undefined,
+      profileJson: subject.profileJson as CharacterProfile | null | undefined,
+      referenceImageUrl: subject.referenceImageUrl ?? undefined,
+      turnaroundSheetUrl: subject.turnaroundSheetUrl ?? undefined,
+    })
+  }
+  else {
+    await createCanvasLocation({
+      projectId,
+      name: subject.name,
+      scenePrompt: subject.scenePrompt ?? undefined,
+      negativePrompt: subject.negativePrompt ?? undefined,
+      profileJson: subject.profileJson as LocationProfile | null | undefined,
+      referenceImageUrl: subject.referenceImageUrl ?? undefined,
+    })
+  }
+
+  await linkProjectSubject(projectId, subjectId)
+  await incrementSubjectUsage(subjectId)
+  return { success: true }
 }
 
 // ── 资产 ──────────────────────────────────────────────
