@@ -20,7 +20,7 @@ const scopedReact = (await react()).map(config =>
 export default antfu({
   typescript: true,
   rules: {
-    'no-console': 'off',
+    'no-console': 'warn',
     'node/prefer-global/process': 'off',
     // Node.js 项目中 Buffer 是标准全局变量，无需显式 import
     'node/prefer-global/buffer': 'off',
@@ -38,6 +38,21 @@ export default antfu({
     'apps/client/src/components/ui/**',
   ],
 })
+  // Server/worker: console 必须走 logger，直接 console 为 error
+  .append({
+    files: ['apps/server/**/*.ts', 'apps/worker/**/*.ts', 'packages/**/*.ts'],
+    ignores: ['**/scripts/**', '**/migrate.ts', '**/test-db.ts'],
+    rules: {
+      'no-console': 'error',
+    },
+  })
+  // Client: 允许 console.warn/error（开发调试保留），禁止 console.log
+  .append({
+    files: ['apps/client/**/*.{ts,tsx}'],
+    rules: {
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  })
   // 1) 把收窄过范围的 React 规则集挂回去
   .append(...scopedReact)
   // 2) React 规则的开关也必须放在 client 文件范围内。

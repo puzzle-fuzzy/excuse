@@ -1,3 +1,4 @@
+/* eslint-disable no-console */ // CLI script
 /**
  * DB 测试环境检测脚本
  *
