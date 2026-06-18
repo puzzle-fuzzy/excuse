@@ -142,7 +142,10 @@ export function getPresetById(id: string): SubtitleStylePreset | undefined {
 
 /**
  * 将字幕句组 + 样式渲染为 ASS 字幕文件内容。
- * @param videoWidth / videoHeight — 视频分辨率，用于 PlayRes 坐标系
+ * @param sentences — 字幕语句列表
+ * @param styleConfig — 字幕样式
+ * @param videoWidth — 视频分辨率宽，用于 PlayRes 坐标系
+ * @param videoHeight — 视频分辨率高，用于 PlayRes 坐标系
  */
 export function sentencesToAss(
   sentences: SubtitleSentence[],

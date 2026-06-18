@@ -178,7 +178,8 @@ export async function findReusableCanvasAssetForPipelineTarget(opts: {
 }
 
 /**
- * Mark asset as running — only succeeds if current status is 'queued' (append-only guard) */
+ * Mark asset as running — only succeeds if current status is 'queued' (append-only guard)
+ */
 export async function markCanvasAssetRunning(id: string, model?: string, inputJson?: Record<string, unknown>) {
   const [updated] = await getDb()
     .update(canvasAssets)

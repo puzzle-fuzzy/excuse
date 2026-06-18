@@ -45,4 +45,3 @@ export async function consumePasswordResetToken(tokenHash: string): Promise<{ ac
 
   return record ?? null
 }
-
