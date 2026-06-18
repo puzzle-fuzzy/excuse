@@ -13,6 +13,7 @@ import type { WorkerContext } from './context'
 import { calculateCost } from '@excuse/billing'
 import {
   createGenerationRecord,
+  createTask,
   getUploadedFileById,
   markGenerationFailed,
   markGenerationSucceeded,
@@ -24,7 +25,7 @@ import {
 import { burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/ffmpeg'
 import { createLogger, parseMediaBurnSubtitleInput, parseMediaExtractAudioInput } from '@excuse/shared'
 import { getDefaultStyleConfig, sentencesToAss } from '@excuse/subtitle-engine'
-import { TaskInputError } from '@excuse/task-engine'
+import { getTaskPriority, TaskInputError } from '@excuse/task-engine'
 
 const logger = createLogger('media-handlers')
 
@@ -145,6 +146,22 @@ export async function handleMediaExtractAudio(task: TaskRow, ctx: WorkerContext)
       model: 'paraformer-v2',
       taskId: asrResult.taskId,
       traceId: asrRecord.traceId ?? undefined,
+    })
+
+    // 创建 subtitle.asr task（Worker 统一队列轮询 ASR 结果）
+    await createTask({
+      accountId,
+      type: 'subtitle.asr',
+      domain: 'subtitle',
+      priority: getTaskPriority({ type: 'subtitle.asr', domain: 'subtitle' }),
+      maxAttempts: 5000,
+      projectId,
+      generationRecordId: asrRecord.id,
+      input: {
+        projectId,
+        asrRecordId: asrRecord.id,
+        providerTaskId: asrResult.taskId,
+      } satisfies Record<string, unknown>,
     })
 
     logger.info({ projectId, asrTaskId: asrResult.taskId }, '✅ Audio extraction + ASR submission completed')

@@ -5,7 +5,6 @@ import type { DashScopeTaskOutput } from '@excuse/provider'
  * 包含：URL/时长提取、退款、镜头/项目状态更新、项目完成检查
  */
 import type { CostDetail } from '@excuse/shared'
-import type { TaskProcessorDeps } from './task-processor'
 import { listCanvasShotsByProject, updateCanvasProject, updateCanvasShot } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
 
@@ -41,7 +40,7 @@ export function extractVideoDuration(output: DashScopeTaskOutput | undefined): n
 /** 退款：仅在已有扣款时执行 */
 export async function refundReservedCredit(
   record: { id: string, accountId: string, cost: CostDetail | null },
-  refund: TaskProcessorDeps['refundCredit'],
+  refund: (opts: { accountId: string, generationRecordId: string, description?: string }) => Promise<unknown>,
   description: string,
 ) {
   if (!record.cost || record.cost.totalPriceCents <= 0)

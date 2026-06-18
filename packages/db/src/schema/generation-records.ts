@@ -108,18 +108,6 @@ export const generationRecords = pgTable('generation_records', {
   /** provider 侧取消状态：not_requested / no_task / requested / succeeded / failed */
   providerCancelStatus: varchar('provider_cancel_status', { length: 50 }).default('not_requested').notNull(),
 
-  /** 遗留视频轮询 claim 锁持有者（用于 generation_records 旧路径，防多 worker 重复处理） */
-  lockedBy: varchar('locked_by', { length: 100 }).default('').notNull(),
-
-  /** 遗留视频轮询 claim 锁过期时间 */
-  lockedUntil: timestamp('locked_until', { withTimezone: true }),
-
-  /** 遗留视频 provider FAILED 后的 worker 自动重试次数（不等同于用户手动 retryCount） */
-  providerFailureCount: integer('provider_failure_count').default(0).notNull(),
-
-  /** 遗留视频下一次可轮询 provider 的时间（用于 FAILED 后退避） */
-  nextPollAt: timestamp('next_poll_at', { withTimezone: true }),
-
   /** 创建时间 */
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 
@@ -141,8 +129,4 @@ export const generationRecords = pgTable('generation_records', {
   index('idx_gen_records_input_pipeline_run').on(sql`(input_params->>'pipelineRunId')`),
   /** uploaded_files / 资产生命周期 GC 的 referenceFileIds @> 包含查询 */
   index('idx_gen_records_input_gin').using('gin', table.inputParams),
-  /** 遗留视频轮询 claim 锁过期扫描 */
-  index('idx_gen_records_locked_until').on(table.lockedUntil),
-  /** 遗留视频 provider FAILED 后退避扫描 */
-  index('idx_gen_records_next_poll_at').on(table.nextPollAt),
 ])

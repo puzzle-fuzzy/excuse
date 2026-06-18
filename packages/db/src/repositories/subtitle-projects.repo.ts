@@ -1,5 +1,5 @@
 import type { SubtitleProjectInsert, SubtitleProjectRow } from '../types'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { getDb } from '../db'
 import { subtitleProjects } from '../schema'
 
@@ -101,66 +101,4 @@ export async function updateSubtitleExport(id: string, exportRecordId: string, e
 /** 删除字幕项目 */
 export async function deleteSubtitleProject(id: string) {
   await getDb().delete(subtitleProjects).where(eq(subtitleProjects.id, id))
-}
-
-/** 轮询所有需要处理的 ASR 字幕项目（Worker 专用） */
-export async function pollPendingASRProjects(workerId = 'test-worker', claimTtlMs = 30_000, limit = 50) {
-  const claimedIds = await claimPendingASRProjectIds(workerId, claimTtlMs, limit)
-  if (claimedIds.length === 0)
-    return []
-
-  return getDb()
-    .select()
-    .from(subtitleProjects)
-    .where(inArray(subtitleProjects.id, claimedIds))
-}
-
-async function claimPendingASRProjectIds(workerId: string, claimTtlMs: number, limit: number): Promise<string[]> {
-  const result = await getDb().execute(sql`
-    UPDATE subtitle_projects
-    SET locked_by = ${workerId},
-        locked_until = now() + (${claimTtlMs} || ' milliseconds')::interval
-    WHERE id IN (
-      SELECT id FROM subtitle_projects
-      WHERE status = 'asr_processing'
-        AND (locked_until IS NULL OR locked_until < now())
-        AND (next_poll_at IS NULL OR next_poll_at <= now())
-      ORDER BY updated_at ASC, created_at ASC
-      FOR UPDATE SKIP LOCKED
-      LIMIT ${limit}
-    )
-    RETURNING id
-  `)
-  const rows = result as unknown as Array<{ id: string }>
-  return rows.map(row => row.id)
-}
-
-/** 释放遗留 ASR 轮询 claim 锁；只释放当前 worker 自己持有的 active 行。 */
-export async function releaseASRProjectClaims(ids: string[], workerId: string) {
-  if (ids.length === 0)
-    return
-
-  await getDb()
-    .update(subtitleProjects)
-    .set({ lockedBy: '', lockedUntil: null })
-    .where(and(
-      inArray(subtitleProjects.id, ids),
-      eq(subtitleProjects.lockedBy, workerId),
-      eq(subtitleProjects.status, 'asr_processing'),
-    ))
-}
-
-/** 遗留 ASR provider FAILED 后重新排队轮询，不进入终态 failed。 */
-export async function scheduleASRProjectProviderRetry(id: string, errorMessage: string, nextPollAt: Date) {
-  await getDb()
-    .update(subtitleProjects)
-    .set({
-      status: 'asr_processing',
-      errorMessage,
-      providerFailureCount: sql`${subtitleProjects.providerFailureCount} + 1`,
-      nextPollAt,
-      lockedBy: '',
-      lockedUntil: null,
-    })
-    .where(eq(subtitleProjects.id, id))
 }

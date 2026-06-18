@@ -107,6 +107,22 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
     },
   },
 
+  // ── Polling tasks (video / ASR) ──────────────────────
+  {
+    type: 'generate.video',
+    handler: async (task, ctx) => {
+      const { handleGenerateVideo } = await import('./generate-video-handler')
+      return handleGenerateVideo(task, ctx)
+    },
+  },
+  {
+    type: 'subtitle.asr',
+    handler: async (task, ctx) => {
+      const { handleSubtitleAsr } = await import('./subtitle-asr-handler')
+      return handleSubtitleAsr(task, ctx)
+    },
+  },
+
   // ── Media tasks ──────────────────────────────────────
   {
     type: 'media.extract-audio',

@@ -9,7 +9,7 @@ import type { WorkerConfig } from '../../apps/worker/src/config'
  *   3. createFakeProvider() → 经 createServerContext / createWorkerContext 的 overrides 注入
  *   4. createElysiaApp(config, ctx) 装配真实应用 → listen(0) → 拿到 baseUrl
  *   5. startSSEListener() — 真实 PG LISTEN（worker 的 NOTIFY 经同一 DB 推到 server → SSE）
- *   6. 暴露 processVideoRecord()：驱动 worker 的 createTaskProcessor（fake queryTask + stub download），
+ *   6. 暴露 processVideoRecord()：驱动 worker 的 handleGenerateVideo（fake queryTask + stub download），
  *      用以在不触达真实 DashScope / 不引入下载 flaky 的前提下验证 worker 侧 provider 注入。
  *
  * 全部旅程默认不访问真实 DashScope：provider 调用全部命中 fake。
@@ -23,7 +23,7 @@ import { createElysiaApp } from '../../apps/server/src/app'
 import { createServerContext } from '../../apps/server/src/context'
 import { startSSEListener } from '../../apps/server/src/services/sse-manager'
 import { createWorkerContext } from '../../apps/worker/src/context'
-import { createTaskProcessor } from '../../apps/worker/src/task-processor'
+import { handleGenerateVideo } from '../../apps/worker/src/generate-video-handler'
 import { createFakeProvider } from './fake-provider'
 
 export interface TestStack {
@@ -38,8 +38,8 @@ export interface TestStack {
   /**
    * 驱动 worker 视频处理器处理一条 processing 状态的生成记录。
    *
-   * 真实走 createTaskProcessor（queryTask 经 workerCtx.client = fake；DB 写真实），
-   * 仅 downloadAndMap 桩化（下载路径由 storage 单测与 assemble 真实冒烟覆盖，避免 E2E flaky）。
+   * 真实走 handleGenerateVideo（queryTask 经 workerCtx.client = fake；DB 写真实），
+   * 需要构造一条 fake TaskRow 模拟统一队列 claim 后的上下文。
    */
   processVideoRecord: (recordId: string) => Promise<void>
   /** 停止 server + 关闭 PG 连接 + 清理临时目录 */
@@ -110,18 +110,45 @@ export async function startTestStack(): Promise<TestStack> {
 
   const api = (path: string, init?: RequestInit) => fetch(`${baseUrl}${path}`, init)
 
-  // 6. worker 视频处理器（fake queryTask + 桩 downloadAndMap）
-  const processor = createTaskProcessor(workerCtx, {
-    // 桩：直接回填本地公开 URL（不真下载），保证稳定可复现。
-    // 真实下载路径由 storage 单测与 assemble 真实冒烟覆盖，E2E 不重复其 flaky 风险。
-    downloadAndMap: async (urls: string[]) => urls.map((_url, i) => `/api/uploads/e2e/stub-${i}.mp4`),
-  })
-
+  // 6. worker 视频处理器（fake queryTask + 桩 download — 统一队列 handler 模式）
   const processVideoRecord = async (recordId: string) => {
     const record = await getGenerationRecordById(recordId)
     if (!record)
       throw new Error(`E2E: generation record ${recordId} not found`)
-    await processor.processTask(record)
+
+    // 构造模拟的 TaskRow（generate.video handler 需要 providerTaskId）
+    const providerTaskId = record.outputResult?.type === 'processing' ? record.outputResult.taskId : undefined
+    if (!providerTaskId)
+      throw new Error(`E2E: generation record ${recordId} has no provider taskId`)
+
+    const fakeTask = {
+      id: `e2e-${recordId}`,
+      accountId: record.accountId,
+      type: 'generate.video' as const,
+      domain: 'generate' as const,
+      input: { recordId, providerTaskId, model: record.model },
+      output: null,
+      errorJson: null,
+      errorMessage: null,
+      generationRecordId: record.id,
+      projectId: null,
+      targetType: null,
+      targetId: null,
+      priority: 5,
+      maxAttempts: 5000,
+      attempts: 0,
+      status: 'running' as const,
+      lockedBy: 'e2e',
+      lockedUntil: new Date(Date.now() + 30000),
+      nextRunAt: new Date(),
+      startedAt: null,
+      finishedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } satisfies import('@excuse/db').TaskRow
+
+    // 替代旧的 processor.processTask，通过统一 handler 执行
+    await handleGenerateVideo(fakeTask as import('@excuse/db').TaskRow, workerCtx)
   }
 
   const stop = async () => {

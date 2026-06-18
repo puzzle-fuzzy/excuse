@@ -5,7 +5,7 @@
  *   1. 加载配置、创建共享 context（provider / storage 单例）
  *   2. 注册 provider observer + guard（metrics / 断路器降级）
  *   3. 启动健康 HTTP 服务器 + 孤儿任务清扫 + 优雅退出处理器
- *   4. 主循环：迭代 3 个 PollSource（统一任务队列 / 遗留视频 / ASR 字幕）
+ *   4. 主循环：迭代统一 PollSource（generate.video + subtitle.asr 已迁入统一队列）
  *
  * 设计（见 docs/TODO.md §一、2）：
  *   - lifecycle 逻辑抽离到 worker-lifecycle.ts
@@ -17,7 +17,7 @@ import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { loadConfig } from './config'
 import { createWorkerContext } from './context'
-import { createAsrPollSource, createTaskPollSource, createVideoPollSource } from './poll-sources'
+import { createTaskPollSource } from './poll-sources'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startOrphanSweep } from './worker-lifecycle'
@@ -48,19 +48,8 @@ setupGracefulShutdown(runningRef, currentTaskPromiseRef, server)
 const stopSweep = startOrphanSweep(config, healthState)
 
 // ── 主循环 ──────────────────────────────────────────────
-/**
- * 三个轮询源，主循环依次遍历：
- *   1. tasks  — 统一任务队列（claim → handle → complete → auto-advance）
- *   2. video  — 遗留视频轮询（DashScope 异步 video 任务）
- *   3. asr    — ASR 字幕轮询
- */
 const pollSources = [
   createTaskPollSource(ctx, healthState, { currentTaskPromiseRef }),
-  createVideoPollSource(ctx, healthState, {
-    runningRef,
-    currentTaskPromiseRef,
-  }),
-  createAsrPollSource(ctx, healthState),
 ]
 
 async function main() {

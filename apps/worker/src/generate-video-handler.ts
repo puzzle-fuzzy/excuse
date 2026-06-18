@@ -1,14 +1,18 @@
+import type { TaskRow } from '@excuse/db'
 /**
  * generate.video task handler — 替代遗留 video 轮询（task-processor.ts）
  *
  * 由统一任务队列调度。task.input 承载：
  *   { recordId, providerTaskId, model }
  *
- * 生命周期：claim → handler → succeed/fail (via handleTaskError)
- * handler 内不处理重试决策，抛异常交给 task-engine 的 classifyTaskError → retry/fail。
+ * 生命周期：
+ *   claim → handler
+ *     SUCCEEDED → return output → completeTaskWithAdapter → succeeded
+ *     FAILED     → throw(Error)  → handleTaskError → retry/fail
+ *     PENDING/RUNNING → throw({ cause: { code: 'Throttling' } }) → markTaskRetrying → 5s 后重新 poll
+ *     超时       → 标记失败 + 退款 → 返回空 output
  */
-import type { CostDetail, GenerationStatus, OutputResult, VideoOutputResult } from '@excuse/shared'
-import type { TaskRow } from '@excuse/db'
+import type { GenerationStatus, VideoOutputResult } from '@excuse/shared'
 import type { WorkerContext } from './context'
 import { calculateCost } from '@excuse/billing'
 import {
@@ -37,12 +41,12 @@ export async function handleGenerateVideo(task: TaskRow, ctx: WorkerContext): Pr
   const providerTaskId = input.providerTaskId as string | undefined
 
   if (!recordId || !providerTaskId) {
-    throw new Error('generate.video: missing recordId or providerTaskId in task input')
+    throw Object.assign(new Error('generate.video: missing recordId or providerTaskId'), { cause: { code: 'InvalidInput' } })
   }
 
   const record = await getGenerationRecordById(recordId)
   if (!record) {
-    throw new Error(`generate.video: generation record ${recordId} not found`)
+    throw Object.assign(new Error(`generate.video: generation record ${recordId} not found`), { cause: { code: 'InvalidInput' } })
   }
 
   const inputParams = record.inputParams ?? {}
@@ -70,14 +74,23 @@ export async function handleGenerateVideo(task: TaskRow, ctx: WorkerContext): Pr
       ? await updateCanvasShotAndProject(canvasMeta.projectId, canvasMeta.shotId, { status: 'failed', errorMessage: 'Task timed out (>4h)' })
       : undefined
     await notifyGenerationStatus({
-      accountId: record.accountId, recordId: record.id, status: 'failed' as GenerationStatus, category: record.category, model: record.model, taskId: providerTaskId, traceId: record.traceId ?? undefined, errorMessage: 'Task timed out (>4h)',
+      accountId: record.accountId,
+      recordId: record.id,
+      status: 'failed' as GenerationStatus,
+      category: record.category,
+      model: record.model,
+      taskId: providerTaskId,
+      traceId: record.traceId ?? undefined,
+      errorMessage: 'Task timed out (>4h)',
       ...(canvasMeta && { canvasMeta: { ...canvasMeta, ...(projectStatus && { projectStatus }) } }),
     })
     await notifyNotification({
-      accountId: record.accountId, type: 'task_failed', title: '视频生成超时', body: '任务超过 4 小时未完成，已自动失败并退款',
+      accountId: record.accountId,
+      type: 'task_failed',
+      title: '视频生成超时',
+      body: '任务超过 4 小时未完成，已自动失败并退款',
       meta: { recordId: record.id, category: record.category, ...(canvasMeta && { projectId: canvasMeta.projectId, shotId: canvasMeta.shotId }) },
     }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to push timeout notification'))
-    // 超时是终态，返回空 output
     return {}
   }
 
@@ -102,10 +115,15 @@ export async function handleGenerateVideo(task: TaskRow, ctx: WorkerContext): Pr
       await markGenerationSucceeded(record.id, output, actualCost ?? undefined)
       if (actualCost?.totalPriceCents && actualCost.totalPriceCents > 0) {
         await debitCredit({
-          accountId: record.accountId, generationRecordId: record.id, actualCents: actualCost.totalPriceCents, description: `视频生成成功扣款：${record.model}`,
+          accountId: record.accountId,
+          generationRecordId: record.id,
+          actualCents: actualCost.totalPriceCents,
+          description: `视频生成成功扣款：${record.model}`,
         })
         await audit('credit_debit', {
-          accountId: record.accountId, targetId: record.id, detail: { accountId: record.accountId, generationRecordId: record.id, amountCents: actualCost.totalPriceCents, description: `视频生成成功扣款：${record.model}`, source: 'worker_video' },
+          accountId: record.accountId,
+          targetId: record.id,
+          detail: { accountId: record.accountId, generationRecordId: record.id, amountCents: actualCost.totalPriceCents, description: `视频生成成功扣款：${record.model}`, source: 'worker_video' },
         }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to audit credit_debit'))
       }
 
@@ -122,18 +140,33 @@ export async function handleGenerateVideo(task: TaskRow, ctx: WorkerContext): Pr
         : undefined
 
       await notifyGenerationStatus({
-        accountId: record.accountId, recordId: record.id, status: 'succeeded' as GenerationStatus, category: record.category, model: record.model, taskId: providerTaskId, traceId: record.traceId ?? undefined, outputResult: output, cost: actualCost ?? undefined,
+        accountId: record.accountId,
+        recordId: record.id,
+        status: 'succeeded' as GenerationStatus,
+        category: record.category,
+        model: record.model,
+        taskId: providerTaskId,
+        traceId: record.traceId ?? undefined,
+        outputResult: output,
+        cost: actualCost ?? undefined,
         ...(canvasMeta && { canvasMeta: { ...canvasMeta, ...(projectStatus && { projectStatus }) } }),
       })
 
       await notifyNotification({
-        accountId: record.accountId, type: 'task_completed', title: '视频生成完成', body: `${record.model} · 点击查看结果`,
+        accountId: record.accountId,
+        type: 'task_completed',
+        title: '视频生成完成',
+        body: `${record.model} · 点击查看结果`,
         meta: { recordId: record.id, category: record.category, ...(canvasMeta && { projectId: canvasMeta.projectId, shotId: canvasMeta.shotId }) },
       }).catch(err => logger.warn({ err, recordId: record.id }, 'Failed to push notification'))
 
       if (canvasMeta && projectStatus === 'completed') {
         await notifyNotification({
-          accountId: record.accountId, type: 'canvas_completed', title: '画布项目已全部完成', body: '所有镜头视频生成完毕，可在画布中查看', meta: { projectId: canvasMeta.projectId, category: 'video' },
+          accountId: record.accountId,
+          type: 'canvas_completed',
+          title: '画布项目已全部完成',
+          body: '所有镜头视频生成完毕，可在画布中查看',
+          meta: { projectId: canvasMeta.projectId, category: 'video' },
         }).catch(err => logger.warn({ err, projectId: canvasMeta.projectId }, 'Failed to push canvas_completed notification'))
       }
 
@@ -142,18 +175,17 @@ export async function handleGenerateVideo(task: TaskRow, ctx: WorkerContext): Pr
 
     case 'FAILED': {
       const errMsg = taskStatus.errorMessage || 'DashScope task failed'
-      // 让 task-engine 的 handleTaskError 处理重试决策
       throw Object.assign(new Error(errMsg), taskStatus.errorCode ? { cause: { code: taskStatus.errorCode } } : {})
     }
 
     case 'PENDING':
     case 'RUNNING': {
       if (record.status === 'pending') {
-        // 标记为 processing（首次轮询）
-        await import('@excuse/db').then(({ markGenerationProcessing }) => markGenerationProcessing(record.id))
+        const { markGenerationProcessing } = await import('@excuse/db')
+        await markGenerationProcessing(record.id)
       }
-      // 仍在处理中，让调度器稍后重试
-      throw Object.assign(new Error(`Task still ${taskStatus.status}`), { cause: { code: 'StillRunning' } })
+      // 抛 Throttling 让 task-engine 按 retriable 处理，5s 后重新 poll
+      throw Object.assign(new Error('Provider task still running'), { cause: { code: 'Throttling' } })
     }
 
     default:

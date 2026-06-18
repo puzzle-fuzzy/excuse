@@ -1,17 +1,15 @@
 import type { WorkerContext } from './context'
 import type { WorkerHealthState } from './health'
 /**
- * Worker 轮询源实现 — 三个 PollSource：统一任务队列 / 遗留视频轮询 / ASR 字幕
+ * Worker 轮询源实现 — 单个 PollSource：统一任务队列（video/ASR 已迁入）
  */
 import type { PollSource } from './poll-source'
-import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange, pollPendingASRProjects, pollPendingVideoTasks, releaseASRProjectClaims, releaseVideoTaskClaims } from '@excuse/db'
+import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
 import { claimNextTaskWithAdapter, completeTaskWithAdapter } from '@excuse/task-engine'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
-import { processASRTask } from './subtitle-processor'
 import { handleTask, handleTaskError } from './task-handler'
-import { createTaskProcessor } from './task-processor'
 
 const logger = createLogger('poll-sources')
 
@@ -87,98 +85,5 @@ export function createTaskPollSource(
         await notifyTaskStatusChange(updatedTask)
       }
     }
-  }
-}
-
-/**
- * 遗留视频任务轮询源 — pollPendingVideoTasks → processor.processTask
- */
-export function createVideoPollSource(
-  ctx: WorkerContext,
-  healthState: WorkerHealthState,
-  refs: {
-    runningRef: { value: boolean }
-    currentTaskPromiseRef: { value: Promise<unknown> | null }
-  },
-): PollSource {
-  const processor = createTaskProcessor(ctx)
-
-  return {
-    name: 'video',
-    poll: async () => {
-      const records = await pollPendingVideoTasks(workerId, ctx.config.claimTtlMs)
-      let count = 0
-
-      for (const record of records) {
-        if (!refs.runningRef.value)
-          break
-
-        try {
-          const taskLogger = logger.child({ taskId: record.taskId, traceId: record.traceId })
-          const taskPromise = processor.processTask(record)
-          refs.currentTaskPromiseRef.value = taskPromise
-          const result = await taskPromise
-
-          if (result.action === 'completed') {
-            healthState.totalTasksProcessed++
-          }
-
-          switch (result.action) {
-            case 'completed':
-              taskLogger.info('✅ Task completed')
-              break
-            case 'skipped':
-              if (result.reason === 'no taskId') {
-                taskLogger.info({ recordId: record.id, reason: result.reason }, '⏭️ Record skipped')
-              }
-              break
-            case 'ignored':
-              taskLogger.warn({ status: result.status }, '⚠️ Unknown task status')
-              break
-          }
-        }
-        finally {
-          refs.currentTaskPromiseRef.value = null
-          await releaseVideoTaskClaims([record.id], workerId)
-        }
-        count++
-      }
-
-      return count
-    },
-  }
-}
-
-/**
- * ASR 字幕任务轮询源 — pollPendingASRProjects → processASRTask
- */
-export function createAsrPollSource(
-  ctx: WorkerContext,
-  healthState: WorkerHealthState,
-): PollSource {
-  return {
-    name: 'asr',
-    poll: async () => {
-      const asrProjects = await pollPendingASRProjects(workerId, ctx.config.claimTtlMs)
-      let count = 0
-
-      for (const project of asrProjects) {
-        if (!healthState.isPolling)
-          break // running 信号已在主循环检查
-        try {
-          await processASRTask(project, ctx.asrClient, { staleTimeoutMs: ctx.config.asrStaleTimeoutMs })
-          healthState.totalTasksProcessed++
-          count++
-        }
-        catch (err) {
-          logger.error({ err, projectId: project.id }, 'ASR task processing error')
-        }
-        finally {
-          await releaseASRProjectClaims([project.id], workerId)
-        }
-      }
-
-      return count
-    },
   }
 }

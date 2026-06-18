@@ -177,6 +177,10 @@ export function createTaskHandlerRegistry<TTask extends { type: string }, TConte
  * 因此 priority 是用户可感知公平性的第一道调度边界。
  */
 export function getTaskPriority(input: TaskPriorityInput): number {
+  if (input.type === 'generate.video')
+    return 4
+  if (input.type === 'subtitle.asr')
+    return 4
   if (input.type === 'media.extract-audio')
     return 3
   if (input.type === 'media.burn-subtitle')
@@ -345,6 +349,10 @@ export function decideTaskFailureAction(task: TaskRetryCandidate, error: unknown
  * 故保留此策略表，新增「慢阶段」时在此一处登记即可（无需改机制）。
  */
 export function computeRetryDelay(taskType: string, attempts: number): number {
+  // 轮询型 task（generate.video / subtitle.asr）：固定 5s 间隔重新 poll
+  if (taskType === 'generate.video' || taskType === 'subtitle.asr') {
+    return 5_000
+  }
   if (taskType.includes('video') || taskType === 'canvas.videos') {
     return 60_000 * 2 ** Math.min(attempts - 1, 3)
   }

@@ -1,5 +1,5 @@
 import type { SubtitleSentence, SubtitleStyleConfig } from '../domain-types'
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core'
+import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { accounts } from './accounts'
 import { generationRecords } from './generation-records'
 import { uploadedFiles } from './uploaded-files'
@@ -83,18 +83,6 @@ export const subtitleProjects = pgTable('subtitle_projects', {
   /** 失败时的错误信息 */
   errorMessage: text('error_message'),
 
-  /** 遗留 ASR 轮询 claim 锁持有者（防多 worker 重复处理） */
-  lockedBy: varchar('locked_by', { length: 100 }).default('').notNull(),
-
-  /** 遗留 ASR 轮询 claim 锁过期时间 */
-  lockedUntil: timestamp('locked_until', { withTimezone: true }),
-
-  /** 遗留 ASR provider FAILED 后的 worker 自动重试次数 */
-  providerFailureCount: integer('provider_failure_count').default(0).notNull(),
-
-  /** 遗留 ASR 下一次可轮询 provider 的时间（用于 FAILED 后退避） */
-  nextPollAt: timestamp('next_poll_at', { withTimezone: true }),
-
   /** 创建时间 */
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 
@@ -103,6 +91,4 @@ export const subtitleProjects = pgTable('subtitle_projects', {
 }, table => [
   index('idx_subtitle_projects_account_created').on(table.accountId, table.createdAt),
   index('idx_subtitle_projects_status').on(table.status),
-  index('idx_subtitle_projects_locked_until').on(table.lockedUntil),
-  index('idx_subtitle_projects_next_poll_at').on(table.nextPollAt),
 ])

@@ -4,6 +4,7 @@ import type { ServerConfig } from '../config'
 import type { ServerContext } from '../context'
 import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
+  createTask,
   deleteGenerationRecord,
   getGenerationRecordById,
   listGenerationRecords,
@@ -12,6 +13,7 @@ import {
 } from '@excuse/db'
 import { classifyRecovery } from '@excuse/error-recovery'
 import { getModelById, validateAndMerge } from '@excuse/provider'
+import { getTaskPriority } from '@excuse/task-engine'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -177,6 +179,23 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
 
       // 调用 service 执行核心业务流程（provider 调用 + 三分枝处理 + DB + SSE）
       const result = await svc.executeGeneration(prep.context, deps)
+
+      // 视频异步任务：创建 generate.video task（Worker 轮询 DashScope 结果）
+      if (result.success && category === 'video' && result.record?.outputResult?.type === 'processing' && result.record.outputResult.taskId) {
+        await createTask({
+          accountId: userId,
+          type: 'generate.video',
+          domain: 'generate',
+          priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
+          maxAttempts: 5000,
+          generationRecordId: result.record.id,
+          input: {
+            recordId: result.record.id,
+            providerTaskId: result.record.outputResult.taskId,
+            model,
+          } satisfies Record<string, unknown>,
+        })
+      }
 
       audit('generate', { accountId: userId, targetId: result.record?.id })
 
@@ -375,6 +394,23 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
 
       // 调用 service 执行核心业务流程（与 POST /generate 共享同一逻辑）
       const result = await svc.executeGeneration(prep.context, deps)
+
+      // 视频异步任务：创建 generate.video task（Worker 轮询 DashScope 结果）
+      if (result.success && modelConfig.category === 'video' && result.record?.outputResult?.type === 'processing' && result.record.outputResult.taskId) {
+        await createTask({
+          accountId: userId,
+          type: 'generate.video',
+          domain: 'generate',
+          priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
+          maxAttempts: 5000,
+          generationRecordId: result.record.id,
+          input: {
+            recordId: result.record.id,
+            providerTaskId: result.record.outputResult.taskId,
+            model: record.model,
+          } satisfies Record<string, unknown>,
+        })
+      }
 
       if (result.success) {
         return { success: true, record: serializeRecord(result.record) } satisfies GenerateResponse
