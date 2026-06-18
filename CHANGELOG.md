@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P2-8: 测试覆盖升级 — 补齐关键模块测试（2026-06-19）
+
+- **commit `b52800f0`**: 新增 `packages/shared/test/env-helpers.test.ts`（132 tests，覆盖 parsePositiveIntEnv/parseProviderConfig/parseMetricsConfig/parseProviderTimeoutConfig/parseStorageConfig/validateProductionBase）和 `apps/server/test/bootstrap.test.ts`（3 tests，覆盖 start/stop/幂等）。验收: test 554/56/376 ✅。
+
 ### P1-5: 统一命名 — 避免泛化函数名和歧义缩写（2026-06-19）
 
 - **commit `7ad18c77`**: 关键页面泛化函数重命名：load→loadCanvasProjects/loadModelLabModels、handleCreate→createProjectFromStory、confirmDelete→confirmProjectDeletion/confirmRecordDeletion/confirmSubtitleDeletion。

@@ -20,23 +20,6 @@
 
 ## P2：测试覆盖和边界处理
 
-### 8. 让测试覆盖从“数量多”升级为“风险分层”
-
-- 现状：约 561 个 TS/TSX 文件中有 134 个测试文件，server route 测试较多，client 页面测试和 worker 生命周期测试相对更难维护。
-- 问题：部分大测试文件超过 700-1100 行，mock 很厚；失败时定位成本高。CodeGraph 也提示若干核心 mapper / config / bootstrap 符号没有直接覆盖。
-- 解决办法：
-  - 按层级建立测试准则：
-    - pure package：输入输出单测为主。
-    - db repository：数据库集成测试。
-    - server route：只测鉴权、参数、状态码和 orchestration。
-    - client page：用户行为 + 可见状态，不 mock 内部实现细节。
-    - worker：生命周期、claim/retry/heartbeat、长任务 drain、失败恢复。
-  - 拆分超长测试文件，抽出 fixture builder 和 fake adapter。
-  - 给 mapper 增加快照式或结构断言测试，尤其是 Date/null/JSONB 归一化。
-- 验收标准：
-  - 关键 mapper、config、bootstrap、Canvas phase adapter 都有直接测试。
-  - 单个测试文件建议不超过 500 行；超过需有明确分组原因。
-
 ## 建议执行顺序
 
 1. ~~P0-1/2/3 架构治理~~ ✅（`15df5506`, `71d1cdbe`, `12a2a0de`）
@@ -45,8 +28,8 @@
 4. ~~P3-11/12 规则+ADR~~ ✅（`f1846b11`, `2f65d8cd`）
 5. ~~P2-10 clientLogger~~ ✅（`9ec7e135`）
 6. ~~P1-5 统一命名~~ ✅（`7ad18c77`）
-7. 做 P1-4 拆分前端大页面 ModelLab.tsx
-8. 做 P2-8 测试覆盖升级
+7. ~~P2-8 测试覆盖升级~~ ✅（`b52800f0`）
+8. 做 P1-4 拆分前端大页面 ModelLab.tsx（进行中）
 
 ## 本次审计已运行的检查
 
