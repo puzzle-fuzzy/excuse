@@ -10,5 +10,9 @@
   "dependencies": {
     "@excuse/shared": "workspace:*",
     "@excuse/subtitle-engine": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

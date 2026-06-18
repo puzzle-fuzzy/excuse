@@ -47,7 +47,7 @@ describe('canvas 布局解析器', () => {
     ).toThrow('edges[0].target')
   })
 
-  it('校验失败抛 ValidationError（statusCode=422）— TODO2 §2.3', () => {
+  it('校验失败抛 ValidationError（statusCode=422）', () => {
     try {
       parseCanvasLayout({ edges: [] })
       expect.unreachable('应抛 ValidationError')

@@ -1,15 +1,7 @@
-import { Outlet } from 'react-router'
-import Navbar from '@/components/Navbar'
+import AppShell from '@/app/AppShell'
 
 function Layout() {
-  return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main>
-        <Outlet />
-      </main>
-    </div>
-  )
+  return <AppShell />
 }
 
 export default Layout

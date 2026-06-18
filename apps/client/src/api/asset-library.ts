@@ -52,7 +52,7 @@ export async function queryAssetLibrary({
 
 // ── 所有 fetch() 调用已替换为 Eden treaty ──────────────────────────────
 //
-// 参见 TODO2 §3.4：10 处手写 fetch 全部收敛为 Eden treaty + unwrapEden，
+// 历史：10 处手写 fetch 全部收敛为 Eden treaty + unwrapEden，
 // 保持原函数签名以兼容调用方（Assets.tsx、SubjectLibrary.tsx 等）。
 
 /** 隐藏资产（从资产中心移除，不删除 DB 记录或存储文件） */

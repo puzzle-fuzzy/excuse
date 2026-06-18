@@ -9,5 +9,9 @@
   "module": "src/index.ts",
   "dependencies": {
     "zod": "^4.4.3"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

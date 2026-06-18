@@ -16,6 +16,7 @@ const Developers = lazy(() => import('./pages/Developers'))
 const ModelLab = lazy(() => import('./pages/ModelLab'))
 const Canvas = lazy(() => import('./pages/Canvas'))
 const CanvasEditor = lazy(() => import('./pages/CanvasEditor'))
+const Home = lazy(() => import('./pages/Home'))
 const Layout = lazy(() => import('./pages/Layout'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const Login = lazy(() => import('./pages/Login'))
@@ -67,7 +68,8 @@ function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={<Layout />}>
               <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<Workspace />} />
+                <Route path="/" element={<Home />} />
+                <Route path="/create" element={<Workspace />} />
                 <Route path="/canvas" element={<Canvas />} />
                 <Route path="/canvas/:projectId" element={<CanvasEditor />} />
                 <Route path="/subtitle" element={<Subtitle />} />

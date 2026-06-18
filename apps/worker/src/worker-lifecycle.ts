@@ -126,7 +126,7 @@ export function setupHealthServer(config: WorkerConfig) {
 /**
  * 注册 SIGINT / SIGTERM 优雅退出处理器。
  * currentTaskPromiseRef 是一个包含引用的对象，主循环在跑**任意**任务（统一队列 / 视频轮询）时设置其 value，
- * 关停时 await 它以 drain 在途任务（如数分钟的 canvas.assemble），而非只 drain 视频（TODO2 §1.3）。
+ * 关停时 await 它以 drain 在途任务（如数分钟的 canvas.assemble），而非只 drain 视频（见 CHANGELOG.md "优雅关停 drain 统一任务队列"）。
  */
 export function setupGracefulShutdown(
   runningRef: { value: boolean },

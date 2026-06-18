@@ -16,5 +16,9 @@
     "@excuse/provider": "workspace:*",
     "@excuse/shared": "workspace:*",
     "@excuse/storage": "workspace:*"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

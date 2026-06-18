@@ -10,5 +10,9 @@
   "dependencies": {
     "@excuse/shared": "workspace:*",
     "currency.js": "^2.0.4"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

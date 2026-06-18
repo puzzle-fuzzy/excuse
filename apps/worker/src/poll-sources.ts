@@ -37,7 +37,7 @@ const LONG_TASK_CLAIM_TTL_MS = 300_000
  * 统一任务队列轮询源 — claim + handle + complete + auto-advance
  *
  * in-flight promise 写入 currentTaskPromiseRef，使优雅退出能 drain 最长的阶段
- * （如 canvas.assemble 数分钟的 FFmpeg 合成），而非只 drain 视频轮询（TODO2 §1.3）。
+ * （如 canvas.assemble 数分钟的 FFmpeg 合成），而非只 drain 视频轮询（见 CHANGELOG.md "优雅关停 drain 统一任务队列"）。
  */
 export function createTaskPollSource(
   ctx: WorkerContext,

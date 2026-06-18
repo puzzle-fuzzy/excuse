@@ -10,5 +10,9 @@
   "dependencies": {
     "@excuse/shared": "workspace:*",
     "ali-oss": "^6.23.0"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }
