@@ -2,10 +2,10 @@ import { index, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-or
 import { accounts } from './accounts'
 import { canvasProjects } from './canvas-projects'
 /**
- * 流水线阶段枚举 — 9 个阶段按固定顺序执行
+ * 流水线阶段枚举 — 12 个阶段按固定顺序执行
  *
  * 执行顺序：analyze → characters → locations → characterRefs → locationRefs
- *           → storyboard → continuity → rebuild → videos
+ *           → storyboard → continuity → rebuild → dialogue → videos → bgm → assemble
  * 每个阶段独立可重试，通过 pipeline_runs 表记录执行历史
  */
 export const canvasPipelinePhaseEnum = pgEnum('canvas_pipeline_phase', [
@@ -51,7 +51,7 @@ export const canvasPipelineRuns = pgTable('canvas_pipeline_runs', {
   id: uuid('id').defaultRandom().primaryKey(),
   /** 所属项目，外键 → canvas_projects.id */
   projectId: uuid('project_id').references(() => canvasProjects.id).notNull(),
-  /** 流水线阶段（9 阶段之一） */
+  /** 流水线阶段（12 阶段之一） */
   phase: canvasPipelinePhaseEnum('phase').notNull(),
   /** 运行状态 */
   status: canvasPipelineRunStatusEnum('status').notNull().default('pending'),

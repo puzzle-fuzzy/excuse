@@ -4,9 +4,9 @@
  * Worker 完成当前 phase task 后，如果项目的 autoProgress=true，
  * 自动创建下一个 phase 的 pipeline_run + task。
  *
- * 暂停阶段（storyboard、videos）不自动推进，需要用户确认。
+ * 暂停阶段（storyboard、videos、assemble）不自动推进，需要用户确认。
  *
- * PHASE_ORDER 定义了 9 个阶段的严格顺序。
+ * PHASE_ORDER 定义了 12 个阶段的严格顺序。
  * PAUSE_BEFORE 定义了需要用户确认才能继续的阶段。
  */
 
@@ -30,7 +30,7 @@ import {
 
 const logger = createLogger('pipeline-stepper')
 
-/** 9 个阶段的严格顺序 */
+/** 12 个阶段的严格顺序 */
 export const PHASE_ORDER: readonly CanvasPipelinePhase[] = CANVAS_PHASE_ORDER
 
 /** 需要用户确认才能继续的阶段 — 自动执行到此暂停 */

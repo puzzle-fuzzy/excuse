@@ -1,5 +1,5 @@
 /**
- * Canvas 流水线阶段 handler — 9 个阶段 + cancel-active
+ * Canvas 流水线阶段 handler — 12 个阶段 + cancel-active
  */
 import type { CanvasPipelinePhase } from '@excuse/db'
 import type { AcceptedResponse } from '@excuse/shared'

@@ -89,13 +89,6 @@
 - **解法**：阶段元数据收敛为**单一注册表**（推荐放纯包 `canvas-engine`）：每阶段一项 `{ phase, taskType, pauseBefore, costVisible, statusTransition }`，workflow-engine / db pgEnum / shared / 前端全部从该表派生（db enum 由代码生成迁移，前端从 `/api/canvas/phases` 拉取或 codegen）。先修已 drift 的 `CanvasCostPhase`。
 - **验收**：新增一个测试阶段只改 1-2 处（注册表 + 实现）；`CanvasCostPhase` 含全 12 阶段；前端 `pauseBefore` 与后端 `CANVAS_PAUSE_BEFORE` 同源。
 
-### 2.2 🔴 PipelineRunStatus 三份 union drift（幽灵 `paused`）
-
-- **证据**：[workflow-engine:209](packages/workflow-engine/src/index.ts#L209) `PipelineRunStatus` 含 `'paused'`，但 [shared/canvas.ts:155](packages/shared/src/canvas.ts#L155) 的 `CanvasPipelineRunStatus` 与 DB `canvasPipelineRunStatusEnum` **均不含 `paused`**。`WorkflowCommand = 'pause'|'resume'`、`canCancelPipelineRun` 等基于这个含 `paused` 的 union（本轮复核确认）。
-- **影响**：类型允许 `paused`，但 DB 无法持久化该值（写入会报 invalid enum）——「镜像不 import」反模式的直接代价。若 pause/resume 路径可达，是 live bug；若不可达，是误导性死代码。
-- **解法**：二选一——(a) 让 db 把 status enum 导出为派生类型（codegen 或 `$type<>()`），三处 union 强制同源；(b) 删除 `paused`，把「逻辑暂停」建模为 active run + `pauseRequested` flag。修 [canvas-pipeline-runs.ts](packages/db/src/schema/canvas-pipeline-runs.ts) 注释（写「9 阶段」实为 12）。
-- **验收**：三处 status union 同源；grep 确认 pause/resume 要么端到端可达、要么彻底删除，无半接线状态。
-
 ### 2.3 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
 
 - **证据**：`category === '...'` / `switch(category)` 命中遍布：[provider/dashscope-client.ts:905-916](packages/provider/src/dashscope-client.ts#L905-L916) switch、[generate.ts](apps/server/src/routes/generate.ts) 6+ 处、[generation/service.ts](apps/server/src/modules/generation/service.ts)、[notifications.ts:57,72](apps/server/src/services/notifications.ts#L57)（**二元 text/image 判断无 default，会静默漏新 category**）、[assets/service.ts:58-66](apps/server/src/modules/assets/service.ts#L58-L66)（`default: 'text'` 静默兜底）、client `CATEGORY_CONFIG`/`category-labels`/`ModelLab CATEGORY_ORDER`。`audio` 已是合法 `ModelCategory` 但**不在** `generationCategoryEnum` 中——DB 枚举与 provider 枚举已分裂。

@@ -206,7 +206,7 @@ function isCanvasPipelinePhase(value: string): value is CanvasPipelinePhase {
 // 纯状态判断，不依赖 DB/provider/server/worker runtime。
 // PipelineRunStatus 镜像 @excuse/db 的 canvasPipelineRunStatusEnum（不 import，避免反向依赖）。
 
-export type PipelineRunStatus = 'pending' | 'running' | 'paused' | 'succeeded' | 'failed' | 'cancelled'
+export type PipelineRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 /** 活跃状态 — 排队或执行中，可被取消、可阻止同阶段重复提交 */
 export const CANVAS_ACTIVE_RUN_STATUSES: readonly PipelineRunStatus[] = ['pending', 'running']
@@ -333,14 +333,14 @@ export function decideBatchOutcome(items: readonly BatchItemLike[]): BatchOutcom
 }
 
 // ===== Pipeline command 规则 =====
-// Canvas pipeline 的 command 决策（pause / resume / cancel / retry）纯规则。
+// Canvas pipeline 的 command 决策（cancel / retry）纯规则。
 // 只复用下层状态/阶段规则（isActivePipelineRun / isRetryablePipelineRun / isPauseBeforePhase），
 // 不依赖 DB/provider/server/worker runtime。真正执行 command 的更高层 adapter 仍在 app 层。
 
-/** Canvas pipeline 支持的 command 词汇（pause 待更高层 adapter 接入） */
-export type WorkflowCommand = 'pause' | 'resume' | 'cancel' | 'retry'
+/** Canvas pipeline 支持的 command 词汇 */
+export type WorkflowCommand = 'cancel' | 'retry'
 
-/** command 判定的最小 run 形状 — status 必填，phase 可选（resume 用） */
+/** command 判定的最小 run 形状 — status 必填，phase 可选 */
 export interface PipelineCommandRunLike {
   status: PipelineRunStatus
   phase?: CanvasPipelinePhase
