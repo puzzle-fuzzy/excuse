@@ -1,15 +1,17 @@
+/**
+ * Canvas 节点详情面板 — 按选中节点类型路由到对应子面板
+ *
+ * 原 565 行单文件揉合 shot/character/location/project 四面板，
+ * 现拆分为 ShotDetailPanel / CharacterDetailPanel / LocationDetailPanel / ProjectDetailPanel。
+ * 本文件退化为路由层：查找实体 + 渲染对应子面板 + 共享 confirm 对话框。
+ */
 import type { ProjectDTO } from '@excuse/shared'
 import { useCallback, useState } from 'react'
-import { toast } from 'sonner'
-import { statusTextClass } from '@/lib/status-tokens'
-import { deleteCanvasCharacter, deleteCanvasLocation, deleteCanvasShot, regenerateCanvasCharacter, regenerateCanvasLocation, regenerateCanvasShot, retryCanvasShot, updateCanvasCharacter, updateCanvasLocation, updateCanvasProject, updateCanvasShot, uploadFile } from '../../api/client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import AssetHistory from './AssetHistory'
-import { PromptEditor } from './PromptEditor'
-import { ReferenceUploadZone } from './ReferenceUploadZone'
-import { ShotReferenceAssets } from './ShotReferenceAssets'
+import { CharacterDetailPanel } from './CharacterDetailPanel'
+import { LocationDetailPanel } from './LocationDetailPanel'
+import { ProjectDetailPanel } from './ProjectDetailPanel'
+import { ShotDetailPanel } from './ShotDetailPanel'
 
 interface NodeDetailPanelProps {
   selectedNode: { id: string, type: string }
@@ -18,7 +20,6 @@ interface NodeDetailPanelProps {
 }
 
 export default function NodeDetailPanel({ selectedNode, project, onUpdate }: NodeDetailPanelProps) {
-  const [saving, setSaving] = useState(false)
   const [confirmState, setConfirmState] = useState<{
     open: boolean
     title: string
@@ -35,136 +36,7 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
   const shot = project.shots.find(s => s.id === entityId)
   const character = project.characters.find(c => c.id === entityId)
   const location = project.locations.find(l => l.id === entityId)
-
-  const handleShotPromptUpdate = useCallback(async (prompt: string) => {
-    if (!shot)
-      return
-    setSaving(true)
-    try {
-      await updateCanvasShot(shot.id, { videoPrompt: prompt })
-      onUpdate()
-    }
-    catch {
-      toast.error('更新镜头 Prompt 失败')
-    }
-    finally {
-      setSaving(false)
-    }
-  }, [shot, onUpdate])
-
-  const handleCharacterUpload = useCallback(async (file: File) => {
-    if (!character)
-      return ''
-    const res = await uploadFile(file)
-    await updateCanvasCharacter(character.id, { referenceImageUrl: res.data.publicUrl })
-    onUpdate()
-    return res.data.publicUrl
-  }, [character, onUpdate])
-
-  const handleCharacterTurnaroundUpload = useCallback(async (file: File) => {
-    if (!character)
-      return ''
-    const res = await uploadFile(file)
-    await updateCanvasCharacter(character.id, { turnaroundSheetUrl: res.data.publicUrl })
-    onUpdate()
-    return res.data.publicUrl
-  }, [character, onUpdate])
-
-  const handleLocationUpload = useCallback(async (file: File) => {
-    if (!location)
-      return ''
-    const res = await uploadFile(file)
-    await updateCanvasLocation(location.id, { referenceImageUrl: res.data.publicUrl })
-    onUpdate()
-    return res.data.publicUrl
-  }, [location, onUpdate])
-
-  // 角色编辑状态
-  const [editCharName, setEditCharName] = useState(character?.name ?? '')
-  const [editCharRole, setEditCharRole] = useState(character?.role ?? '')
-  const [editCharDesc, setEditCharDesc] = useState(character?.description ?? '')
-
-  const handleCharacterFieldUpdate = useCallback(async (patch: { name?: string, role?: string, description?: string }) => {
-    if (!character)
-      return
-    try {
-      await updateCanvasCharacter(character.id, patch)
-      onUpdate()
-    }
-    catch {
-      toast.error('更新角色失败')
-    }
-  }, [character, onUpdate])
-
-  // 场景编辑状态
-  const [editLocName, setEditLocName] = useState(location?.name ?? '')
-  const [editLocType, setEditLocType] = useState(location?.type ?? '')
-
-  const handleLocationFieldUpdate = useCallback(async (patch: { name?: string, type?: string }) => {
-    if (!location)
-      return
-    try {
-      await updateCanvasLocation(location.id, patch)
-      onUpdate()
-    }
-    catch {
-      toast.error('更新场景失败')
-    }
-  }, [location, onUpdate])
-
-  // 镜头编辑状态
-  const [editShotNarrative, setEditShotNarrative] = useState(shot?.narrative ?? '')
-  const [editShotDuration, setEditShotDuration] = useState(shot?.duration ?? 5)
-
-  const handleShotFieldUpdate = useCallback(async (patch: {
-    duration?: number
-    locationId?: string | undefined
-    characterIdsJson?: string[]
-    narrative?: string
-  }) => {
-    if (!shot)
-      return
-    try {
-      await updateCanvasShot(shot.id, patch)
-      onUpdate()
-    }
-    catch {
-      toast.error('更新镜头失败')
-    }
-  }, [shot, onUpdate])
-
   const isProjectNode = selectedNode.type === 'storyInput' || selectedNode.type === 'analysis'
-  const [editTitle, setEditTitle] = useState(project.title ?? '')
-  const [editStoryText, setEditStoryText] = useState(project.storyText)
-  const [editSaving, setEditSaving] = useState(false)
-
-  const handleProjectUpdate = useCallback(async () => {
-    // Only send fields that actually changed
-    const patch: { title?: string, storyText?: string } = {}
-    const titleChanged = editTitle !== (project.title ?? '')
-    const storyTextChanged = editStoryText !== project.storyText
-    if (titleChanged)
-      patch.title = editTitle
-    if (storyTextChanged)
-      patch.storyText = editStoryText
-    if (!titleChanged && !storyTextChanged)
-      return
-
-    setEditSaving(true)
-    try {
-      await updateCanvasProject(project.id, patch)
-      onUpdate()
-    }
-    catch {
-      toast.error('更新项目信息失败')
-    }
-    finally {
-      setEditSaving(false)
-    }
-  }, [project, editTitle, editStoryText, onUpdate])
-
-  const hasChanges = editTitle !== (project.title ?? '') || editStoryText !== project.storyText
-  const storyTextInvalid = editStoryText !== project.storyText && editStoryText.length < 10
 
   const nodeTitle = shot
     ? `镜头 ${shot.shotIndex}`
@@ -181,366 +53,35 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
       <h3 className="font-semibold text-base">{nodeTitle}</h3>
 
       {shot && (
-        <>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              视频 Prompt
-              {saving && <span className={statusTextClass('warning', 'ml-2')}>保存中...</span>}
-            </label>
-            <PromptEditor
-              value={shot.videoPrompt || ''}
-              onChange={handleShotPromptUpdate}
-              characters={project.characters}
-              locations={project.locations}
-              shots={project.shots}
-              placeholder="输入视频提示词，@ 插入角色/场景/镜头引用..."
-              rows={6}
-            />
-          </div>
-
-          {shot.negativePrompt && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Negative Prompt</label>
-              <p className="text-xs bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
-                {shot.negativePrompt}
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">叙事描述</label>
-            <textarea
-              value={editShotNarrative}
-              onChange={e => setEditShotNarrative(e.target.value)}
-              onBlur={() => handleShotFieldUpdate({ narrative: editShotNarrative })}
-              className="flex min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">时长（秒）</label>
-            <Input
-              type="number"
-              value={editShotDuration}
-              onChange={e => setEditShotDuration(Number(e.target.value))}
-              onBlur={() => editShotDuration > 0 && handleShotFieldUpdate({ duration: editShotDuration })}
-              min={1}
-              max={30}
-            />
-          </div>
-
-          {project.locations.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">场景</label>
-              <select
-                value={shot.locationId || ''}
-                onChange={e => handleShotFieldUpdate({ locationId: e.target.value || undefined })}
-                className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">无场景</option>
-                {project.locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {project.characters.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">出场角色</label>
-              <div className="flex flex-wrap gap-1.5">
-                {project.characters.map(ch => (
-                  <label key={ch.id} className="flex items-center gap-1 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={shot.characterIds.includes(ch.id)}
-                      onChange={(e) => {
-                        const ids = e.target.checked
-                          ? [...shot.characterIds, ch.id]
-                          : shot.characterIds.filter((id: string) => id !== ch.id)
-                        handleShotFieldUpdate({ characterIdsJson: ids })
-                      }}
-                      className="rounded border-input"
-                    />
-                    {ch.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="text-xs">
-            <span className="text-muted-foreground">状态:</span>
-            {' '}
-            {shot.status}
-          </div>
-
-          {shot.videoUrl && (
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">视频预览</label>
-              <video
-                src={shot.videoUrl}
-                controls
-                className="w-full rounded-lg"
-              />
-            </div>
-          )}
-
-          {/* 镜头额外参考资产 */}
-          <ShotReferenceAssets
-            shot={shot}
-            projectId={project.id}
-            allShots={project.shots}
-            onSave={async (assets) => {
-              await updateCanvasShot(shot.id, { referenceAssetsJson: assets })
-              onUpdate()
-            }}
-            onUpdate={onUpdate}
-          />
-
-          {/* 镜头资产历史 — 视频 */}
-          <AssetHistory
-            targetEntityType="shot"
-            targetEntityId={shot.id}
-            category="shotVideo"
-            onUpdate={onUpdate}
-          />
-
-          {shot.status === 'failed' && (
-            <Button
-              size="sm"
-              onClick={() => {
-                retryCanvasShot(shot.id).then(onUpdate)
-              }}
-            >
-              重试镜头
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            onClick={() => {
-              regenerateCanvasShot(shot.id).then(() => {
-                toast.success('正在创建镜头变体...')
-                onUpdate()
-              })
-            }}
-          >
-            重新生成变体
-          </Button>
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              confirm(`确认删除镜头 ${shot.shotIndex}？`, '此操作不可恢复。', () => deleteCanvasShot(shot.id).then(onUpdate))
-            }}
-          >
-            删除镜头
-          </Button>
-        </>
+        <ShotDetailPanel
+          shot={shot}
+          project={project}
+          onUpdate={onUpdate}
+          confirm={confirm}
+        />
       )}
 
       {character && (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">名称</label>
-              <Input
-                value={editCharName}
-                onChange={e => setEditCharName(e.target.value)}
-                onBlur={() => handleCharacterFieldUpdate({ name: editCharName })}
-                placeholder="角色名称"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">角色定位</label>
-              <Input
-                value={editCharRole}
-                onChange={e => setEditCharRole(e.target.value)}
-                onBlur={() => handleCharacterFieldUpdate({ role: editCharRole })}
-                placeholder="如：主角、配角"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">描述</label>
-            <textarea
-              value={editCharDesc}
-              onChange={e => setEditCharDesc(e.target.value)}
-              onBlur={() => handleCharacterFieldUpdate({ description: editCharDesc })}
-              className="flex min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="角色描述"
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">身份 Prompt</label>
-            <p className="text-xs bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
-              {character.identityPrompt || '未生成'}
-            </p>
-          </div>
-
-          <ReferenceUploadZone
-            currentUrl={character.referenceImageUrl}
-            onUpload={handleCharacterUpload}
-            label="角色参考图"
-            confirmRemove="确认删除角色参考图？"
-          />
-
-          <ReferenceUploadZone
-            currentUrl={character.turnaroundSheetUrl}
-            onUpload={handleCharacterTurnaroundUpload}
-            label="转面图 / 三视图"
-            confirmRemove="确认删除转面图？"
-          />
-
-          <Button
-            size="sm"
-            onClick={() => {
-              regenerateCanvasCharacter(character.id).then(() => {
-                toast.success('正在重新生成角色...')
-                onUpdate()
-              })
-            }}
-          >
-            重新生成
-          </Button>
-
-          {/* 角色资产历史 — 肖像 + 转面图 */}
-          <AssetHistory
-            targetEntityType="character"
-            targetEntityId={character.id}
-            category="characterPortrait"
-            onUpdate={onUpdate}
-          />
-          <AssetHistory
-            targetEntityType="character"
-            targetEntityId={character.id}
-            category="characterTurnaround"
-            onUpdate={onUpdate}
-          />
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              confirm(`确认删除角色「${character.name}」？`, '关联的镜头将移除该角色引用。', () => deleteCanvasCharacter(character.id).then(onUpdate))
-            }}
-          >
-            删除角色
-          </Button>
-        </>
+        <CharacterDetailPanel
+          character={character}
+          onUpdate={onUpdate}
+          confirm={confirm}
+        />
       )}
 
       {location && (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">名称</label>
-              <Input
-                value={editLocName}
-                onChange={e => setEditLocName(e.target.value)}
-                onBlur={() => handleLocationFieldUpdate({ name: editLocName })}
-                placeholder="场景名称"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">类型</label>
-              <Input
-                value={editLocType}
-                onChange={e => setEditLocType(e.target.value)}
-                onBlur={() => handleLocationFieldUpdate({ type: editLocType })}
-                placeholder="如：室内、室外"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">场景 Prompt</label>
-            <p className="text-xs bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
-              {location.scenePrompt || '未生成'}
-            </p>
-          </div>
-
-          <ReferenceUploadZone
-            currentUrl={location.referenceImageUrl}
-            onUpload={handleLocationUpload}
-            label="场景参考图"
-            confirmRemove="确认删除场景参考图？"
-          />
-
-          <Button
-            size="sm"
-            onClick={() => {
-              regenerateCanvasLocation(location.id).then(() => {
-                toast.success('正在重新生成场景...')
-                onUpdate()
-              })
-            }}
-          >
-            重新生成
-          </Button>
-
-          {/* 场景资产历史 — 参考图 */}
-          <AssetHistory
-            targetEntityType="location"
-            targetEntityId={location.id}
-            category="locationRef"
-            onUpdate={onUpdate}
-          />
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => {
-              confirm(`确认删除场景「${location.name}」？`, '关联的镜头将移除该场景引用。', () => deleteCanvasLocation(location.id).then(onUpdate))
-            }}
-          >
-            删除场景
-          </Button>
-        </>
+        <LocationDetailPanel
+          location={location}
+          onUpdate={onUpdate}
+          confirm={confirm}
+        />
       )}
 
       {!shot && !character && !location && isProjectNode && (
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">项目标题</label>
-            <Input
-              value={editTitle}
-              onChange={e => setEditTitle(e.target.value)}
-              placeholder="输入项目标题"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              故事文本
-              <span className="ml-1 text-muted-foreground/60">
-                (
-                {editStoryText.length}
-                {' '}
-                字符)
-              </span>
-            </label>
-            <textarea
-              value={editStoryText}
-              onChange={e => setEditStoryText(e.target.value)}
-              className="flex min-h-30 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="在此粘贴故事文本..."
-              rows={6}
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={handleProjectUpdate}
-            disabled={editSaving || !hasChanges || storyTextInvalid}
-          >
-            {editSaving ? '保存中...' : '保存修改'}
-          </Button>
-        </div>
+        <ProjectDetailPanel
+          project={project}
+          onUpdate={onUpdate}
+        />
       )}
 
       {!shot && !character && !location && !isProjectNode && (
