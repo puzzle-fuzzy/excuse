@@ -22,6 +22,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **TODO 优先级调整：前端 UI/UX 提到最前**：按当前迭代重心重排 `docs/TODO.md`，将「前端设计 / 美观度」与「用户体验 / 可访问性」提升为第一、第二章节，运行时可靠性与架构治理后移；同步重编号条目和内部引用，便于后续 Claude/Codex 优先处理 UI 调整。
+
 - **Admin/Billing/Developers refetchInterval 受页面可见性控制（TODO2 §4.2）**：7 处 `refetchInterval` 从固定数字改为函数形式 `() => document.hidden ? false : N`，后台 tab 时停止轮询避免浪费服务端资源。涉及 Admin index/Users/ApiKeys/Providers/Audit + Billing + Developers。验收：client build 通过。
 
 ### Added
