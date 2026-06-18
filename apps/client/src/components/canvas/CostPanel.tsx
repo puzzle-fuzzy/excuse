@@ -17,7 +17,10 @@ const PHASE_LABELS: Record<CanvasCostPhase, string> = {
   storyboard: '分镜',
   continuity: '连续性检查',
   rebuild: 'Prompt 重建',
+  dialogue: '对话层',
   videos: '镜头视频',
+  bgm: '背景音乐',
+  assemble: '最终合成',
 }
 
 /** 展示顺序（镜像 CanvasPipelinePhase 顺序） */
@@ -30,7 +33,10 @@ const PHASE_ORDER: CanvasCostPhase[] = [
   'storyboard',
   'continuity',
   'rebuild',
+  'dialogue',
   'videos',
+  'bgm',
+  'assemble',
 ]
 
 /** cents → 元展示（保留两位） */

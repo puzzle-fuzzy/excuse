@@ -82,12 +82,12 @@
 
 ## 二、架构设计与拓展性
 
-### 2.1 🔴 Canvas 阶段列表 4 份手抄 + 已 drift
+### 2.1 🔴 Canvas 阶段列表多份手抄 + 前端仍缺 3 阶段
 
-- **证据**：阶段序列目前存在 **4 份手抄副本**：[workflow-engine](packages/workflow-engine/src/index.ts) `CANVAS_PHASE_ORDER`、[shared/canvas.ts:141-153](packages/shared/src/canvas.ts#L141-L153) `CanvasPipelinePhase`、[shared/canvas.ts:492-501](packages/shared/src/canvas.ts#L492-L501) `CanvasCostPhase`、[db schema](packages/db/src/schema/canvas-pipeline-runs.ts) `canvasPipelinePhaseEnum`。**已实证 drift**：`CanvasCostPhase` 只有 9 阶段，缺 `dialogue`/`bgm`/`assemble`（本轮复核确认）。
-- **影响**：新增一个 Canvas 阶段需散弹式改 11-15 个文件（含前端 [PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) 独立维护的 `PHASES` 数组与 `pauseBefore` 标志，不读后端 `CANVAS_PAUSE_BEFORE`）；drift 已实际发生（成本展示会漏掉后 3 阶段）。
-- **解法**：阶段元数据收敛为**单一注册表**（推荐放纯包 `canvas-engine`）：每阶段一项 `{ phase, taskType, pauseBefore, costVisible, statusTransition }`，workflow-engine / db pgEnum / shared / 前端全部从该表派生（db enum 由代码生成迁移，前端从 `/api/canvas/phases` 拉取或 codegen）。先修已 drift 的 `CanvasCostPhase`。
-- **验收**：新增一个测试阶段只改 1-2 处（注册表 + 实现）；`CanvasCostPhase` 含全 12 阶段；前端 `pauseBefore` 与后端 `CANVAS_PAUSE_BEFORE` 同源。
+- **证据**：阶段序列目前仍存在多份手抄副本：[workflow-engine](packages/workflow-engine/src/index.ts) `CANVAS_PHASE_ORDER`、[shared/canvas.ts:141-153](packages/shared/src/canvas.ts#L141-L153) `CanvasPipelinePhase`、[db schema](packages/db/src/schema/canvas-pipeline-runs.ts) `canvasPipelinePhaseEnum`，且前端 [PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) 独立维护的 `PHASES` 数组只有 9 项，不读后端 `CANVAS_PAUSE_BEFORE`。`CanvasCostPhase` 漏 `dialogue`/`bgm`/`assemble` 已修，不能再作为剩余 drift 证据。
+- **影响**：新增一个 Canvas 阶段仍需散弹式改 10+ 处；前端流水线在 videos 之后仍看不到 dialogue/bgm/assemble，也无法同源体现 `assemble` 的 pause-before 行为。
+- **解法**：阶段元数据收敛为**单一注册表**（推荐放纯包 `canvas-engine`）：每阶段一项 `{ phase, taskType, pauseBefore, costVisible, statusTransition }`，workflow-engine / db pgEnum / shared / 前端全部从该表派生（db enum 由代码生成迁移，前端从 `/api/canvas/phases` 拉取或 codegen）。
+- **验收**：新增一个测试阶段只改 1-2 处（注册表 + 实现）；前端显示全 12 阶段；前端 `pauseBefore` 与后端 `CANVAS_PAUSE_BEFORE` 同源。
 
 ### 2.3 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
 

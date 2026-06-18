@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Canvas 成本阶段补齐 12 阶段（TODO §2.1 局部）**：`CanvasCostPhase` 从 9 阶段补齐为完整 12 阶段，新增 `dialogue` / `bgm` / `assemble`；`CostPanel` 同步补中文标签和展示顺序，避免后续成本 rollup 出现这些阶段时被类型或 UI 漏展示。`TODO §2.1` 已收窄为剩余的阶段注册表/前端 PipelineController 同源问题。验收：client typecheck 通过；相关文件 eslint 通过。
+
 - **Canvas pipeline run 状态 union 去除幽灵 paused（TODO §2.2）**：`@excuse/workflow-engine` 的 `PipelineRunStatus` 删除 DB/shared 均不支持的 `'paused'`，`WorkflowCommand` 收敛为当前实际接线的 `cancel | retry`，避免类型层允许写入一个 PostgreSQL enum 无法持久化的状态。同步修正 `canvas-pipeline-runs` schema、worker stepper、canvas phase route 中残留的「9 阶段」注释为 12 阶段，并确认目标范围 grep 无 `paused`/`resume` 残留。验收：workflow-engine test 全绿；pipeline-stepper test 全绿；相关文件 eslint 通过。
 
 - **生成 submit/retry 幂等收口（TODO §1.6）**：`POST /generate` 在 `dedupe_key` 唯一冲突（23505）时不再抛错或继续执行，而是查回同用户同 dedupeKey 的既有记录并返回 `duplicated: true`，避免并发提交穿透到重复 credit reserve/provider 调用；`POST /records/:id/retry` 的 `resetGenerationToPending` 改为原子条件更新 `failed/cancelled -> pending` 并返回更新行，连点时只有抢到状态转换的请求会继续预留额度和调用 provider，其余请求返回当前记录 `duplicated: true`。验收：`generate-routes-retry-cancel.test.ts` 全绿；新增 submit 唯一冲突与 retry 连点测试通过；本次 touched files eslint 通过。

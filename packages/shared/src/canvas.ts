@@ -498,7 +498,10 @@ export type CanvasCostPhase
     | 'storyboard'
     | 'continuity'
     | 'rebuild'
+    | 'dialogue'
     | 'videos'
+    | 'bgm'
+    | 'assemble'
 
 /** 单个阶段的成本聚合条目（cents） */
 export interface CanvasCostPhaseEntry {
