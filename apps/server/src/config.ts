@@ -1,5 +1,10 @@
-import type { OSSConfig } from '@excuse/storage'
-import { isPublicMetricsCidrs, loadOSSConfig } from '@excuse/shared'
+import {
+  parseMetricsConfig,
+  parseProviderConfig,
+  parseProviderTimeoutConfig,
+  parseStorageConfig,
+  validateProductionBase,
+} from '@excuse/shared'
 
 /**
  * SMTP 邮件发送配置
@@ -28,7 +33,7 @@ export interface ServerConfig {
   workerPollIntervalMs: number
   jwtSecret: string
   jwtExpiresIn: string
-  oss: OSSConfig | undefined
+  oss: import('@excuse/storage').OSSConfig | undefined
   smtp?: SmtpConfig
   /** Prometheus `/metrics` 端点访问 token；未设置时仅允许回环地址访问 */
   metricsAccessToken?: string
@@ -43,9 +48,9 @@ export interface ServerConfig {
   workerMetricsUrl?: string
   /** 允许访问内部管理后台的用户 ID 列表；未配置时后台接口默认拒绝 */
   adminUserIds?: string[]
-  /** Provider 同步调用整体超时（ms），默认 60000。见 docs/TODO.md §1.1。 */
+  /** Provider 同步调用整体超时（ms），默认 60000 */
   providerHttpTimeoutMs: number
-  /** Provider 流式调用空闲超时（ms），默认 30000。见 docs/TODO.md §1.1。 */
+  /** Provider 流式调用空闲超时（ms），默认 30000 */
   providerStreamIdleTimeoutMs: number
   /** 进程启动时间戳（ms），用于 uptime 计算 */
   processStartTime: number
@@ -54,14 +59,13 @@ export interface ServerConfig {
 const DEFAULT_JWT_SECRET = 'dev-secret-change-in-production'
 
 export function validateProductionConfig(config: ServerConfig, env: NodeJS.ProcessEnv = process.env): void {
+  // 基础校验（DATABASE_URL / DASHSCOPE_API_KEY / 公网 metrics 保护）
+  validateProductionBase(config, env)
+
   if (env.NODE_ENV !== 'production')
     return
 
   const errors: string[] = []
-  if (!env.DATABASE_URL)
-    errors.push('DATABASE_URL is required')
-  if (!config.dashscopeApiKey)
-    errors.push('DASHSCOPE_API_KEY is required')
   if (!env.FRONTEND_URL)
     errors.push('FRONTEND_URL is required')
   if (!env.JWT_SECRET)
@@ -70,8 +74,6 @@ export function validateProductionConfig(config: ServerConfig, env: NodeJS.Proce
     errors.push('JWT_SECRET must not use the development default')
   else if (config.jwtSecret.length < 32)
     errors.push('JWT_SECRET must be at least 32 characters')
-  if (isPublicMetricsCidrs(config.metricsAllowedCidrs) && !config.metricsAccessToken)
-    errors.push('METRICS_ACCESS_TOKEN is required when METRICS_ALLOWED_CIDRS exposes public networks')
 
   if (errors.length > 0)
     throw new Error(`Invalid production configuration: ${errors.join(', ')}`)
@@ -85,30 +87,32 @@ export function validateProductionConfig(config: ServerConfig, env: NodeJS.Proce
  * - OSS 配置可选，缺省时使用本地文件存储
  */
 export function loadConfig(): ServerConfig {
+  const provider = parseProviderConfig()
+  const metrics = parseMetricsConfig()
+  const timeout = parseProviderTimeoutConfig()
+  const storage = parseStorageConfig()
+
   const config = {
     port: Number(process.env.PORT) || 5007,
     databaseUrl: process.env.DATABASE_URL || 'postgres://excuse:excuse_dev@localhost:5433/excuse',
-    dashscopeApiKey: process.env.DASHSCOPE_API_KEY || '',
-    dashscopeBaseUrl: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1',
-    storageRoot: process.env.STORAGE_ROOT || './uploads',
+    dashscopeApiKey: provider.dashscopeApiKey,
+    dashscopeBaseUrl: provider.dashscopeBaseUrl,
+    storageRoot: storage.storageRoot,
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:8007',
     workerPollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS) || 5000,
     jwtSecret: process.env.JWT_SECRET || DEFAULT_JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    oss: loadOSSConfig() as OSSConfig | undefined,
+    oss: storage.oss as import('@excuse/storage').OSSConfig | undefined,
     smtp: loadSmtpConfig(),
-    metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
-    metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean),
+    metricsAccessToken: metrics.accessToken,
+    metricsAllowedCidrs: metrics.allowedCidrs,
     workerMetricsUrl: process.env.WORKER_METRICS_URL || undefined,
     adminUserIds: (process.env.ADMIN_USER_IDS || '')
       .split(',')
       .map(s => s.trim())
       .filter(Boolean),
-    providerHttpTimeoutMs: Number(process.env.PROVIDER_HTTP_TIMEOUT_MS) || 60_000,
-    providerStreamIdleTimeoutMs: Number(process.env.PROVIDER_STREAM_IDLE_TIMEOUT_MS) || 30_000,
+    providerHttpTimeoutMs: timeout.providerHttpTimeoutMs,
+    providerStreamIdleTimeoutMs: timeout.providerStreamIdleTimeoutMs,
     processStartTime: Date.now(),
   }
 

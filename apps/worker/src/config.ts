@@ -1,5 +1,11 @@
-import type { OSSConfig } from '@excuse/storage'
-import { isPublicMetricsCidrs, loadOSSConfig } from '@excuse/shared'
+import {
+  parseMetricsConfig,
+  parsePositiveIntEnv,
+  parseProviderConfig,
+  parseProviderTimeoutConfig,
+  parseStorageConfig,
+  validateProductionBase,
+} from '@excuse/shared'
 
 export interface WorkerConfig {
   /** DashScope API Key */
@@ -19,52 +25,44 @@ export interface WorkerConfig {
   /** Orphan sweep 间隔（毫秒） — 后台扫描过期 lock 的频率 */
   sweepIntervalMs: number
   /** OSS 配置（可选） */
-  oss: OSSConfig | undefined
+  oss: import('@excuse/storage').OSSConfig | undefined
   /** /metrics 端点访问 token（可选）；配置后所有访问必须带 Bearer（与 server 一致） */
   metricsAccessToken: string | undefined
   /** /metrics 端点允许的 CIDR / IP 列表（默认仅回环） */
   metricsAllowedCidrs: string[]
-  /** Provider 同步调用整体超时（ms），默认 60000。见 docs/TODO.md §1.1。 */
+  /** Provider 同步调用整体超时（ms），默认 60000 */
   providerHttpTimeoutMs: number
-  /** Provider 流式调用空闲超时（ms），默认 30000。见 docs/TODO.md §1.1。 */
+  /** Provider 流式调用空闲超时（ms），默认 30000 */
   providerStreamIdleTimeoutMs: number
 }
 
 export function validateProductionConfig(config: WorkerConfig, env: NodeJS.ProcessEnv = process.env): void {
-  if (env.NODE_ENV !== 'production')
-    return
-
-  const errors: string[] = []
-  if (!env.DATABASE_URL)
-    errors.push('DATABASE_URL is required')
-  if (!config.dashscopeApiKey)
-    errors.push('DASHSCOPE_API_KEY is required')
-  if (isPublicMetricsCidrs(config.metricsAllowedCidrs) && !config.metricsAccessToken)
-    errors.push('METRICS_ACCESS_TOKEN is required when METRICS_ALLOWED_CIDRS exposes public networks')
-
-  if (errors.length > 0)
-    throw new Error(`Invalid production configuration: ${errors.join(', ')}`)
+  validateProductionBase(config, env)
 }
 
 /**
  * 从环境变量读取并构建 Worker 配置
  */
 export function loadConfig(): WorkerConfig {
-  const claimTtlMs = Number(process.env.WORKER_CLAIM_TTL_MS) || 30_000
+  const provider = parseProviderConfig()
+  const metrics = parseMetricsConfig()
+  const timeout = parseProviderTimeoutConfig()
+  const storage = parseStorageConfig()
+
   const config = {
-    dashscopeApiKey: process.env.DASHSCOPE_API_KEY || '',
-    dashscopeBaseUrl: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/api/v1',
-    storageRoot: process.env.STORAGE_ROOT || './uploads',
-    pollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS) || 5000,
-    staleTimeoutMs: Number(process.env.WORKER_STALE_TIMEOUT_MS) || 4 * 60 * 60 * 1000, // 4h
-    asrStaleTimeoutMs: Number(process.env.WORKER_ASR_STALE_TIMEOUT_MS) || 60 * 60 * 1000, // 1h
-    claimTtlMs,
-    sweepIntervalMs: Number(process.env.WORKER_SWEEP_INTERVAL_MS) || 60_000,
-    oss: loadOSSConfig() as OSSConfig | undefined,
-    metricsAccessToken: process.env.METRICS_ACCESS_TOKEN || undefined,
-    metricsAllowedCidrs: (process.env.METRICS_ALLOWED_CIDRS || '127.0.0.1/32,::1/128').split(',').map(s => s.trim()).filter(Boolean),
-    providerHttpTimeoutMs: Number(process.env.PROVIDER_HTTP_TIMEOUT_MS) || 60_000,
-    providerStreamIdleTimeoutMs: Number(process.env.PROVIDER_STREAM_IDLE_TIMEOUT_MS) || 30_000,
+    dashscopeApiKey: provider.dashscopeApiKey,
+    dashscopeBaseUrl: provider.dashscopeBaseUrl,
+    storageRoot: storage.storageRoot,
+    pollIntervalMs: parsePositiveIntEnv('WORKER_POLL_INTERVAL_MS', 5000).value,
+    staleTimeoutMs: parsePositiveIntEnv('WORKER_STALE_TIMEOUT_MS', 4 * 60 * 60 * 1000).value,
+    asrStaleTimeoutMs: parsePositiveIntEnv('WORKER_ASR_STALE_TIMEOUT_MS', 60 * 60 * 1000).value,
+    claimTtlMs: parsePositiveIntEnv('WORKER_CLAIM_TTL_MS', 30_000).value,
+    sweepIntervalMs: parsePositiveIntEnv('WORKER_SWEEP_INTERVAL_MS', 60_000).value,
+    oss: storage.oss as import('@excuse/storage').OSSConfig | undefined,
+    metricsAccessToken: metrics.accessToken,
+    metricsAllowedCidrs: metrics.allowedCidrs,
+    providerHttpTimeoutMs: timeout.providerHttpTimeoutMs,
+    providerStreamIdleTimeoutMs: timeout.providerStreamIdleTimeoutMs,
   }
 
   validateProductionConfig(config)
