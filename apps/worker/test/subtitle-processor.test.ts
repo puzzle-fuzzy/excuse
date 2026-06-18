@@ -292,4 +292,44 @@ describe('processASRTask', () => {
     expect(dbState.succeededRecords).toHaveLength(0)
     expect(dbState.failedRecords).toHaveLength(0)
   })
+
+  it('ASR 超时（updatedAt 早于 staleTimeoutMs）→ 项目和 record 标记失败 + 通知，且不调用 queryTask', async () => {
+    resetState()
+    // updatedAt 设为 2 小时前，staleTimeoutMs = 1 小时 → 超时
+    const project = makeProject({ updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) })
+    dbState.records.push(makeRecord())
+
+    // queryTask 即便返回 PENDING 也不该被调用到（超时在前短路）
+    const queryTask = mock(() => Promise.resolve({ taskId: 'task-asr-001', status: 'PENDING' as const }))
+    const asrClient = { queryTask } as unknown as ASRClient
+
+    await processASRTask(project, asrClient, { staleTimeoutMs: 60 * 60 * 1000 })
+
+    expect(queryTask).toHaveBeenCalledTimes(0)
+
+    const failedUpdate = dbState.updatedProjects.find(u => u.status === 'failed')
+    expect(failedUpdate).toBeDefined()
+    expect(failedUpdate!.extra?.errorMessage).toContain('超时')
+
+    expect(dbState.failedRecords).toHaveLength(1)
+    expect(dbState.failedRecords[0]!.msg).toContain('超时')
+
+    // SSE 失败通知 + 用户通知
+    expect(dbState.notifications.some(n => n.status === 'failed')).toBe(true)
+    expect(dbState.notifications.some(n => n.type === 'task_failed')).toBe(true)
+  })
+
+  it('ASR 未超时（updatedAt 在窗口内）→ 正常轮询，PENDING 不标记失败', async () => {
+    resetState()
+    // updatedAt 设为 5 分钟前，staleTimeoutMs = 1 小时 → 未超时
+    const project = makeProject({ updatedAt: new Date(Date.now() - 5 * 60 * 1000) })
+    dbState.records.push(makeRecord())
+
+    const asrClient = makeMockASRClient({ taskId: 'task-asr-001', status: 'PENDING' })
+
+    await processASRTask(project, asrClient, { staleTimeoutMs: 60 * 60 * 1000 })
+
+    expect(dbState.updatedProjects).toHaveLength(0)
+    expect(dbState.failedRecords).toHaveLength(0)
+  })
 })

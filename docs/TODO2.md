@@ -83,12 +83,10 @@
 - **解法**：把 record-create + cost-estimate + credit-reserve 编排块（L142–173 及 retry 等价块 L353–377）下沉到 [modules/generation/service.ts](apps/server/src/modules/generation/service.ts) 的 `prepareGeneration` / `executeGeneration`；retry 复用同一 module 函数。路由只留参数校验 + 委托。
 - **验收**：`generate.ts` 不再直接调 `createGenerationRecord`/`calculateCost`/`reserveCredit`；retry 与 submit 走同一 service 函数；既有测试全绿。
 
-### 2.5 🟠 ASR 轮询无超时 + 静默吞错
+### 2.5 🟠 ASR 轮询无超时 + 静默吞错 — ✅ 已修复
 
-- **证据**：[subtitle-processor.ts:128-137](apps/worker/src/subtitle-processor.ts#L128) 的 PENDING/RUNNING 只 log 后返回，**无 `staleTimeoutMs`**（视频有 4h 上限，ASR 无）；[poll-sources.ts:149](apps/worker/src/poll-sources.ts#L149) 的 catch 只 log，瞬时 fetch 失败让 project 永久滞留无重试。
-- **影响**：DashScope ASR 卡 PENDING 或漏掉 SUCCEEDED 通知时，`subtitle_project` 行每 5s 被重查到天荒地老。
-- **解法**：在 `processASRTask` 加 `staleTimeoutMs` 守卫（镜像视频路径 [task-processor.ts:99-152](apps/worker/src/task-processor.ts#L99)）；瞬时错误重试到阈值后标记 failed + notify。
-- **验收**：mock 一个永不 SUCCEEDED 的 ASR 任务，确认超时后 project 进入 failed 并通知前端。
+> **已完成**（2026-06-18）：`processASRTask` 新增超时守卫（镜像视频路径），锚点 `subtitle_projects.updatedAt`（= 进入 `asr_processing`/提交 ASR 的时刻，PENDING/RUNNING 轮询期间不更新），超 `asrStaleTimeoutMs`（新 config，默认 1h，env `WORKER_ASR_STALE_TIMEOUT_MS`）即标记 project failed + record failed + SSE + 用户通知。FAILED 与超时两路收敛为共享 `failAsrTask` 收尾序列。瞬时错误（queryTask/fetch 抛错）本就被 poll-sources catch 后留 project 在 `asr_processing` 下一轮重试，持续失败时由本超时守卫收口，不再「每 5s 被重查到天荒地老」。验收：worker typecheck/lint/test(106, +2 超时用例) 全绿。
+
 
 ---
 

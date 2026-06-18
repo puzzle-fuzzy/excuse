@@ -12,6 +12,8 @@ export interface WorkerConfig {
   pollIntervalMs: number
   /** 任务超时时间（毫秒） */
   staleTimeoutMs: number
+  /** ASR 字幕任务超时时间（毫秒） — 超时后标记 failed 并通知（默认 1h，ASR 远快于视频） */
+  asrStaleTimeoutMs: number
   /** Claim 锁定时长（毫秒） — Worker claim task 后的锁过期时间 */
   claimTtlMs: number
   /** Orphan sweep 间隔（毫秒） — 后台扫描过期 lock 的频率 */
@@ -51,6 +53,7 @@ export function loadConfig(): WorkerConfig {
     storageRoot: process.env.STORAGE_ROOT || './uploads',
     pollIntervalMs: Number(process.env.WORKER_POLL_INTERVAL_MS) || 5000,
     staleTimeoutMs: Number(process.env.WORKER_STALE_TIMEOUT_MS) || 4 * 60 * 60 * 1000, // 4h
+    asrStaleTimeoutMs: Number(process.env.WORKER_ASR_STALE_TIMEOUT_MS) || 60 * 60 * 1000, // 1h
     claimTtlMs,
     sweepIntervalMs: Number(process.env.WORKER_SWEEP_INTERVAL_MS) || 60_000,
     oss: loadOSSConfig() as OSSConfig | undefined,

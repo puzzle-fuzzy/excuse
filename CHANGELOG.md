@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **ASR 字幕轮询超时守卫 + 失败收尾收敛**（TODO2 §2.5）：此前 `processASRTask` 的 PENDING/RUNNING 分支只 log 后返回，无超时上限（视频路径有 4h，ASR 无），且 poll-sources 的 catch 只 log，瞬时 fetch/queryTask 失败让 `subtitle_project` 行每 5s 被重查到天荒地老。修复：① `processASRTask` 新增超时守卫（镜像视频路径 `task-processor.ts`），锚点 `subtitle_projects.updatedAt`（= 进入 `asr_processing`/提交 ASR 的时刻，PENDING/RUNNING 轮询期间不更新），超 `asrStaleTimeoutMs` 即标记 project failed + record failed + SSE + 用户通知；② 新增 config `asrStaleTimeoutMs`（默认 1h，ASR 远快于视频；env `WORKER_ASR_STALE_TIMEOUT_MS`）；③ 抽出 `failAsrTask` 收尾序列，FAILED 与超时两路共享，消除重复；④ poll-sources 传入 `ctx.config.asrStaleTimeoutMs`。瞬时错误仍由 catch 留 project 在 `asr_processing` 下一轮重试，持续失败时由超时守卫收口为 failed。验收：worker typecheck/lint/test(106, +2 超时用例) 全绿。
+
 - **死代码清理：pollExportingProjects / createClient / createVideoPollSource `_processor` 形参**（TODO2 §八 死代码清单）：删除三处零调用方的死代码。① `packages/db/src/repositories/subtitle-projects.repo.ts` 删除 `pollExportingProjects`（字幕导出早已迁到 `media.burn-subtitle` task，该轮询函数零调用方；`processExportTask` 此前已删）；② `apps/server/src/modules/canvas/service-helpers.ts` 删除 `createClient`（被 `ServerContext`/`WorkerContext` 构造期注入取代，全仓库零引用）及其唯一消费者 `DashScopeClient` import；③ `apps/worker/src/poll-sources.ts` 的 `createVideoPollSource` 删除未使用的 `_processor: unknown` 形参（函数内部自行 `createTaskProcessor(ctx)`，外部传入的 processor 从未使用），同步移除 `apps/worker/src/index.ts` 的 `const processor = ctx` 与对应实参。验收：typecheck/lint/worker 104 test 全绿。
 
 

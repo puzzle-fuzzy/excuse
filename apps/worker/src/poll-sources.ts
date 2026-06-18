@@ -144,7 +144,7 @@ export function createAsrPollSource(
         if (!healthState.isPolling)
           break // running 信号已在主循环检查
         try {
-          await processASRTask(project, ctx.asrClient)
+          await processASRTask(project, ctx.asrClient, { staleTimeoutMs: ctx.config.asrStaleTimeoutMs })
           healthState.totalTasksProcessed++
           count++
         }
