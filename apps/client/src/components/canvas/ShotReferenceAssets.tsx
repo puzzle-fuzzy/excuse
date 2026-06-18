@@ -3,6 +3,7 @@ import { recommendCanvasVideoVariant } from '@excuse/shared'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
+import { statusTextClass } from '@/lib/status-tokens'
 import { applyShotReferenceAssets, fetchAssetLibrary } from '../../api/client'
 import {
   assetToShotReferenceAsset,
@@ -346,7 +347,7 @@ export function ShotReferenceAssets({
             {MAX_SHOT_REFERENCE_ASSETS}
             )
           </span>
-          {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
+          {saving && <span className={statusTextClass('warning', 'ml-2')}>保存中...</span>}
         </label>
         {shot.referenceAssets.length > 0 && (
           <Button
@@ -648,7 +649,7 @@ export function ShotReferenceAssets({
                 个镜头
               </p>
               {applyPreview.some(p => p.truncatedCount > 0) && (
-                <p className="text-yellow-600">
+                <p className={statusTextClass('warning')}>
                   部分镜头因 8 个参考资产上限被截断
                 </p>
               )}

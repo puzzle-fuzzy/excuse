@@ -18,6 +18,7 @@ import {
   updateCanvasModelPreferences,
 } from '../../api/client'
 import { useCanvasPipelineRunsPolling } from '../../hooks/use-canvas-pipeline-runs-polling'
+import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
 
 // ── RunningPhaseInfo: 管线阶段运行时的丰富信息 ──────────
 
@@ -538,17 +539,17 @@ export default function PipelineController({
             {' '}
             {shotStats.total}
           </span>
-          <span className="text-green-600">
+          <span className={statusTextClass('success')}>
             已完成:
             {' '}
             {shotStats.completed}
           </span>
-          <span className="text-red-600">
+          <span className={statusTextClass('danger')}>
             失败:
             {' '}
             {shotStats.failed}
           </span>
-          <span className="text-yellow-600">
+          <span className={statusTextClass('warning')}>
             生成中:
             {' '}
             {shotStats.generating}
@@ -557,7 +558,7 @@ export default function PipelineController({
             <button
               onClick={handleRetryAllFailed}
               disabled={running}
-              className="px-2 py-0.5 rounded border border-orange-300 text-orange-700 hover:bg-orange-50"
+              className={statusToneClass('warning', 'rounded border px-2 py-0.5 hover:opacity-90')}
             >
               重试全部失败镜头
             </button>
@@ -596,10 +597,10 @@ export default function PipelineController({
               key={phase.key}
               className={`
                 flex-1 h-2 rounded-full transition-colors
-                ${isCompleted ? 'bg-green-400' : ''}
-                ${isCurrent ? 'bg-blue-400 animate-pulse' : ''}
-                ${isFailed ? 'bg-red-400 animate-pulse' : ''}
-                ${isPending ? 'bg-gray-200' : ''}
+                ${isCompleted ? 'bg-[color:var(--status-success-fg)]' : ''}
+                ${isCurrent ? 'bg-[color:var(--status-info-fg)] animate-pulse' : ''}
+                ${isFailed ? 'bg-[color:var(--status-danger-fg)] animate-pulse' : ''}
+                ${isPending ? 'bg-muted' : ''}
               `}
               title={phase.label}
             />
@@ -623,11 +624,11 @@ export default function PipelineController({
                 disabled={running || (!canRun && !isCompleted)}
                 className={`
                   text-xs px-2 py-1 rounded border transition-colors
-                  ${isCompleted ? 'bg-green-50 border-green-300 text-green-700' : ''}
-                  ${isCurrent ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium' : ''}
-                  ${isFailed ? 'bg-red-50 border-red-300 text-red-700 font-medium' : ''}
-                  ${!isCompleted && !isCurrent && !isFailed ? 'bg-gray-50 border-gray-200 text-gray-400' : ''}
-                  ${canRun && !running ? 'hover:bg-blue-100 cursor-pointer' : ''}
+                  ${isCompleted ? statusToneClass('success') : ''}
+                  ${isCurrent ? statusToneClass('info', 'font-medium') : ''}
+                  ${isFailed ? statusToneClass('danger', 'font-medium') : ''}
+                  ${!isCompleted && !isCurrent && !isFailed ? 'bg-muted/50 border-border text-muted-foreground' : ''}
+                  ${canRun && !running ? 'hover:bg-accent cursor-pointer' : ''}
                 `}
               >
                 {phase.label}
@@ -640,14 +641,14 @@ export default function PipelineController({
         <div className="flex items-center gap-2">
           {pendingConfirmIdx >= 0 && !running && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-yellow-700 font-medium">
+              <span className={statusTextClass('warning', 'font-medium')}>
                 ⏸ 准备执行
                 {PHASES[pendingConfirmIdx]?.label}
                 ，请确认继续
               </span>
               <button
                 onClick={handleConfirmPausePhase}
-                className="text-xs px-3 py-1.5 rounded bg-yellow-500 text-white hover:bg-yellow-600 font-medium"
+                className="text-xs px-3 py-1.5 rounded bg-[color:var(--status-warning-fg)] text-primary-foreground hover:opacity-90 font-medium"
               >
                 确认继续 →
                 {PHASES[pendingConfirmIdx]?.label}
@@ -662,7 +663,7 @@ export default function PipelineController({
           )}
 
           {running && currentPhaseInfo && (
-            <span className="text-xs text-blue-600 font-medium animate-pulse">
+            <span className={statusTextClass('info', 'text-xs font-medium animate-pulse')}>
               正在
               {currentPhaseInfo.label}
               {currentPhaseInfo.modelName && ` · ${currentPhaseInfo.modelName}`}
@@ -685,7 +686,7 @@ export default function PipelineController({
           {running && (
             <button
               onClick={handleCancelActive}
-              className="text-xs px-2 py-1 rounded border border-red-300 text-red-700 hover:bg-red-50"
+              className={statusToneClass('danger', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
             >
               终止当前阶段
             </button>
@@ -693,19 +694,19 @@ export default function PipelineController({
 
           {error && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600 max-w-50 truncate" title={error}>
+              <span className={statusTextClass('danger', 'text-xs max-w-50 truncate')} title={error}>
                 {error}
               </span>
               <button
                 onClick={() => handleRunFrom(failedPhaseIdx >= 0 ? failedPhaseIdx : startIdx)}
-                className="text-xs px-2 py-1 rounded border border-orange-300 text-orange-700 hover:bg-orange-50"
+                className={statusToneClass('warning', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
               >
                 重试
               </button>
               {startIdx + 1 < PHASES.length && (
                 <button
                   onClick={handleSkipAndContinue}
-                  className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-700 hover:bg-blue-50"
+                  className={statusToneClass('info', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
                 >
                   跳过继续
                 </button>

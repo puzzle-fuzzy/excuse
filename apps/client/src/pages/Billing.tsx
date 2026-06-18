@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BILLING_CATEGORY_LABELS } from '@/lib/category-labels'
 import { formatCents } from '@/lib/generation-utils'
+import { CATEGORY_TOKENS, statusTextClass } from '@/lib/status-tokens'
 
 const CATEGORY_LABELS = BILLING_CATEGORY_LABELS
 
@@ -27,13 +28,6 @@ function formatDate(value: string | null) {
   }
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  text: 'bg-blue-500',
-  image: 'bg-purple-500',
-  video: 'bg-pink-500',
-  audio: 'bg-green-500',
-}
-
 const TX_TYPE_LABELS: Record<string, string> = {
   reserve: '冻结',
   debit: '扣款',
@@ -42,20 +36,21 @@ const TX_TYPE_LABELS: Record<string, string> = {
   admin_adjust: '管理员调整',
 }
 
-const TX_TYPE_COLORS: Record<string, string> = {
-  reserve: 'text-amber-500',
-  debit: 'text-red-500',
-  refund: 'text-green-500',
-  credit: 'text-emerald-500',
-  admin_adjust: 'text-gray-500',
+const TX_TYPE_TONES: Record<string, 'neutral' | 'success' | 'warning' | 'danger'> = {
+  reserve: 'warning',
+  debit: 'danger',
+  refund: 'success',
+  credit: 'success',
+  admin_adjust: 'neutral',
 }
 
 function TxTypeIcon({ type }: { type: string }) {
+  const iconClass = statusTextClass(TX_TYPE_TONES[type] ?? 'neutral')
   if (type === 'credit' || type === 'admin_adjust')
-    return <ArrowDownLeft className="size-4 text-emerald-500" />
+    return <ArrowDownLeft className={`size-4 ${iconClass}`} />
   if (type === 'refund')
-    return <ArrowDownLeft className="size-4 text-green-500" />
-  return <ArrowUpRight className="size-4 text-red-500" />
+    return <ArrowDownLeft className={`size-4 ${iconClass}`} />
+  return <ArrowUpRight className={`size-4 ${iconClass}`} />
 }
 
 export default function Billing() {
@@ -217,7 +212,7 @@ export default function Billing() {
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted">
                         <div
-                          className={`h-full rounded-full ${CATEGORY_COLORS[item.category] || 'bg-gray-500'}`}
+                          className={`h-full rounded-full ${CATEGORY_TOKENS[item.category]?.bar ?? 'bg-muted-foreground'}`}
                           style={{ width: `${item.percentage}%` }}
                         />
                       </div>
@@ -328,7 +323,7 @@ export default function Billing() {
                         <div className="flex items-center gap-3">
                           <TxTypeIcon type={tx.type} />
                           <div>
-                            <p className={`font-medium ${TX_TYPE_COLORS[tx.type] || ''}`}>
+                            <p className={`font-medium ${statusTextClass(TX_TYPE_TONES[tx.type] ?? 'neutral')}`}>
                               {TX_TYPE_LABELS[tx.type] || tx.type}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -339,7 +334,7 @@ export default function Billing() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className={`font-mono font-medium ${tx.type === 'credit' || tx.type === 'admin_adjust' || tx.type === 'refund' ? 'text-green-600' : ''}`}>
+                          <p className={`font-mono font-medium ${tx.type === 'credit' || tx.type === 'admin_adjust' || tx.type === 'refund' ? statusTextClass('success') : ''}`}>
                             {tx.type === 'credit' || tx.type === 'admin_adjust' || tx.type === 'refund' ? '+' : '-'}
                             ¥
                             {formatCents(tx.amountCents)}

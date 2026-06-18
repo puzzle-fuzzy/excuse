@@ -1,6 +1,7 @@
 import type { ProjectDTO } from '@excuse/shared'
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
+import { statusTextClass } from '@/lib/status-tokens'
 import { deleteCanvasCharacter, deleteCanvasLocation, deleteCanvasShot, regenerateCanvasCharacter, regenerateCanvasLocation, regenerateCanvasShot, retryCanvasShot, updateCanvasCharacter, updateCanvasLocation, updateCanvasProject, updateCanvasShot, uploadFile } from '../../api/client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
@@ -184,7 +185,7 @@ export default function NodeDetailPanel({ selectedNode, project, onUpdate }: Nod
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
               视频 Prompt
-              {saving && <span className="ml-2 text-yellow-600">保存中...</span>}
+              {saving && <span className={statusTextClass('warning', 'ml-2')}>保存中...</span>}
             </label>
             <PromptEditor
               value={shot.videoPrompt || ''}

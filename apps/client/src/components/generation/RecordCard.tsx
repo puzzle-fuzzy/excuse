@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CATEGORY_CONFIG, formatDuration, formatTime, getAssetUrls, HIDDEN_PARAMS, STATUS_CONFIG } from '@/lib/generation-utils'
+import { statusBadgeClass, statusToneClass } from '@/lib/status-tokens'
 import CostDetailPanel from './CostDetailPanel'
 import OutputPreview from './OutputPreview'
 import ReferenceMedia from './ReferenceMedia'
@@ -77,9 +78,9 @@ export default function RecordCard({
         {/* 头部：模型名 + 状态 + 时间 */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <CatIcon className={`size-4 shrink-0 ${catCfg?.color?.replace('bg-', 'text-')}`} />
+            <CatIcon className={`size-4 shrink-0 ${catCfg?.color ?? 'text-muted-foreground'}`} />
             <span className="text-sm font-medium truncate">{modelDisplayName}</span>
-            <Badge variant="secondary" className={`text-[10px] shrink-0 ${statusCfg.color}`}>
+            <Badge variant="secondary" className={`shrink-0 ${statusCfg.color}`}>
               <StatusIcon className={`mr-1 size-3 ${['submitting', 'processing', 'saving_output'].includes(record.status) ? 'animate-spin' : ''}`} />
               {statusCfg.label}
             </Badge>
@@ -126,7 +127,7 @@ export default function RecordCard({
               </div>
             </div>
             {copied && (
-              <p className="text-[10px] text-green-600">已复制</p>
+              <p className="text-[10px] text-[color:var(--status-success-fg)]">已复制</p>
             )}
           </div>
         )}
@@ -165,11 +166,11 @@ export default function RecordCard({
         {record.status === 'failed' && record.recovery && (
           <div className="mt-2 space-y-1.5">
             {/* 失败领域徽章 */}
-            <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-700">
+            <Badge variant="secondary" className={statusBadgeClass('danger', 'text-[10px]')}>
               {record.recovery.label}
             </Badge>
             {/* 下一步建议 */}
-            <div className="flex items-start gap-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+            <div className={statusToneClass('info', 'flex items-start gap-1 rounded border px-2 py-1 text-xs')}>
               <Lightbulb className="size-3 shrink-0 mt-0.5" />
               <span>{record.recovery.suggestion}</span>
             </div>

@@ -13,24 +13,25 @@ import {
   Video,
   XCircle,
 } from 'lucide-react'
+import { CATEGORY_TOKENS, GENERATION_STATUS_TONES, statusBadgeClass } from './status-tokens'
 
 export const CATEGORY_CONFIG = {
-  text: { label: '文本生成', color: 'bg-blue-500', icon: FileText, activeColor: 'bg-blue-500 text-white' },
-  image: { label: '图像生成', color: 'bg-purple-500', icon: ImageIcon, activeColor: 'bg-purple-500 text-white' },
-  video: { label: '视频生成', color: 'bg-pink-500', icon: Video, activeColor: 'bg-pink-500 text-white' },
-  subtitle: { label: '视频加字幕', color: 'bg-teal-500', icon: AudioLines, activeColor: 'bg-teal-500 text-white' },
+  text: { label: '文本生成', color: CATEGORY_TOKENS.text.icon, icon: FileText, activeColor: CATEGORY_TOKENS.text.active },
+  image: { label: '图像生成', color: CATEGORY_TOKENS.image.icon, icon: ImageIcon, activeColor: CATEGORY_TOKENS.image.active },
+  video: { label: '视频生成', color: CATEGORY_TOKENS.video.icon, icon: Video, activeColor: CATEGORY_TOKENS.video.active },
+  subtitle: { label: '视频加字幕', color: CATEGORY_TOKENS.subtitle.icon, icon: AudioLines, activeColor: CATEGORY_TOKENS.subtitle.active },
 } as const
 
 export type Category = keyof typeof CATEGORY_CONFIG
 
 export const STATUS_CONFIG: Record<string, { label: string, color: string, icon: typeof Clock }> = {
-  pending: { label: '等待中', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
-  submitting: { label: '提交中', color: 'bg-orange-100 text-orange-700', icon: Send },
-  processing: { label: '处理中', color: 'bg-blue-100 text-blue-700', icon: Loader2 },
-  saving_output: { label: '保存中', color: 'bg-indigo-100 text-indigo-700', icon: Save },
-  succeeded: { label: '已完成', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
-  failed: { label: '失败', color: 'bg-red-100 text-red-700', icon: XCircle },
-  cancelled: { label: '已取消', color: 'bg-gray-100 text-gray-700', icon: AlertCircle },
+  pending: { label: '等待中', color: statusBadgeClass(GENERATION_STATUS_TONES.pending), icon: Clock },
+  submitting: { label: '提交中', color: statusBadgeClass(GENERATION_STATUS_TONES.submitting), icon: Send },
+  processing: { label: '处理中', color: statusBadgeClass(GENERATION_STATUS_TONES.processing, 'animate-pulse'), icon: Loader2 },
+  saving_output: { label: '保存中', color: statusBadgeClass(GENERATION_STATUS_TONES.saving_output, 'animate-pulse'), icon: Save },
+  succeeded: { label: '已完成', color: statusBadgeClass(GENERATION_STATUS_TONES.succeeded), icon: CheckCircle2 },
+  failed: { label: '失败', color: statusBadgeClass(GENERATION_STATUS_TONES.failed), icon: XCircle },
+  cancelled: { label: '已取消', color: statusBadgeClass(GENERATION_STATUS_TONES.cancelled), icon: AlertCircle },
 }
 
 /** 格式化时间为相对时间 + 完整日期 */

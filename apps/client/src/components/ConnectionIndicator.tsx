@@ -1,9 +1,10 @@
+import { statusDotClass } from '@/lib/status-tokens'
 import { useRealtimeSync } from '@/stores/realtime-sync'
 
 const MODE_CONFIG = {
-  sse: { color: 'bg-green-500', label: '实时连接' },
-  polling: { color: 'bg-yellow-500', label: '轮询降级' },
-  disconnected: { color: 'bg-red-500', label: '连接断开' },
+  sse: { tone: 'success', label: '实时连接' },
+  polling: { tone: 'warning', label: '轮询降级' },
+  disconnected: { tone: 'danger', label: '连接断开' },
 } as const
 
 /**
@@ -21,7 +22,7 @@ export default function ConnectionIndicator() {
       className="group relative flex items-center"
       title={cfg.label}
     >
-      <span className={`size-2 rounded-full ${cfg.color} shadow-sm`} />
+      <span className={statusDotClass(cfg.tone, 'size-2 rounded-full shadow-sm')} />
       <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover px-2 py-1 text-[10px] text-popover-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
         {cfg.label}
       </span>

@@ -53,7 +53,7 @@ export default function SubtitleEditor() {
           返回列表
         </Button>
         <div className="flex items-center gap-2">
-          <span className={`text-sm ${canEditStyle ? 'text-green-600' : currentProject.status === 'failed' ? 'text-destructive' : 'text-blue-500'}`}>
+          <span className={`text-sm ${canEditStyle ? 'text-[color:var(--status-success-fg)]' : currentProject.status === 'failed' ? 'text-destructive' : 'text-[color:var(--status-info-fg)]'}`}>
             {SUBTITLE_STATUS_LABELS[currentProject.status] || currentProject.status}
           </span>
           {currentProject.status === 'failed' && (

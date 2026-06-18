@@ -1,6 +1,7 @@
 import type { CanvasAssetDTO } from '../../api/client'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { statusBadgeClass, statusToneClass } from '@/lib/status-tokens'
 import { activateCanvasAsset, listCanvasAssetsByTarget, lockCanvasAsset } from '../../api/client'
 
 interface AssetHistoryProps {
@@ -100,7 +101,7 @@ export default function AssetHistory({
             <div
               key={asset.id}
               className={`border rounded p-2 space-y-1 ${
-                asset.isActive ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'
+                asset.isActive ? statusToneClass('success') : 'border-border bg-muted/50'
               }`}
             >
               {/* 缩略图 */}
@@ -123,14 +124,14 @@ export default function AssetHistory({
               {/* 状态标签 */}
               <div className="flex items-center gap-1 text-xs">
                 {asset.isActive && (
-                  <span className="px-1.5 py-0.5 rounded bg-green-200 text-green-700 font-medium">
+                  <span className={statusBadgeClass('success', 'px-1.5 font-medium')}>
                     当前版本
                   </span>
                 )}
                 {!asset.isActive && (
                   <button
                     onClick={() => handleActivate(asset.id)}
-                    className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    className={statusToneClass('info', 'rounded border px-1.5 py-0.5 hover:opacity-90')}
                   >
                     切换为当前
                   </button>

@@ -173,7 +173,7 @@ export default function Subtitle() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-xs text-muted-foreground hover:text-green-600"
+                      className="text-xs text-muted-foreground hover:text-[color:var(--status-success-fg)]"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRetry(project.id)

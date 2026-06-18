@@ -664,7 +664,7 @@ function AssetCard({
           aria-pressed={item.isFavorite}
           className="absolute bottom-1.5 right-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:bg-background hover:text-foreground"
         >
-          <Star className={`size-3.5 ${item.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+          <Star className={`size-3.5 ${item.isFavorite ? 'fill-[color:var(--status-warning-fg)] text-[color:var(--status-warning-fg)]' : ''}`} />
         </button>
         <Popover open={tagPopoverOpen} onOpenChange={onTagPopoverOpenChange}>
           <PopoverTrigger asChild>

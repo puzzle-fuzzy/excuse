@@ -32,7 +32,7 @@ const TYPE_LABEL = { character: '角色', location: '场景', shot: '镜头' } a
 const TYPE_COLORS = {
   character: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
   location: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  shot: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  shot: 'border border-[color:var(--status-info-border)] bg-[color:var(--status-info-bg)] text-[color:var(--status-info-fg)]',
 } as const
 
 export function PromptEditor({

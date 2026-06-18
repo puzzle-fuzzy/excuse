@@ -3,15 +3,8 @@ import type { NodeProps } from '@xyflow/react'
 import type { RunningPhaseInfo } from '../PipelineController'
 import { hasDialogueAudio } from '@excuse/shared'
 import { Handle, Position } from '@xyflow/react'
+import { SHOT_STATUS_TONES, statusBadgeClass, statusToneClass } from '@/lib/status-tokens'
 import { RunningBadge, runningBorder, RunningOverlay } from '../RunningOverlay'
-
-const SHOT_STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-200 text-gray-700',
-  ready: 'bg-blue-100 text-blue-700',
-  generating: 'bg-yellow-100 text-yellow-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
-}
 
 const SHOT_STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -52,7 +45,7 @@ export default function ShotNode({ data }: NodeProps) {
               <RunningBadge label={runningPhaseInfo?.label} />
             )
           : (
-              <span className={`text-[10px] rounded-full px-2 py-0.5 ${SHOT_STATUS_COLORS[shot.status] || ''}`}>
+              <span className={statusBadgeClass(SHOT_STATUS_TONES[shot.status] ?? 'neutral', 'text-[10px]')}>
                 {SHOT_STATUS_LABELS[shot.status] || shot.status}
               </span>
             )}
@@ -68,7 +61,7 @@ export default function ShotNode({ data }: NodeProps) {
               s
             </span>
             <span
-              className={`text-[10px] rounded-full px-1.5 py-0.5 ${hasDialogue ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+              className={statusBadgeClass(hasDialogue ? 'success' : 'neutral', 'text-[10px] px-1.5')}
               title={hasDialogue ? '本镜头含角色对白，生成的视频带对话音频' : '本镜头无角色对白，仅环境音'}
             >
               {hasDialogue ? '🔊 对话音频' : '🔇 无对白'}
@@ -193,7 +186,7 @@ export default function ShotNode({ data }: NodeProps) {
         {shot.negativePrompt && (
           <div>
             <span className="text-muted-foreground text-xs">Negative Prompt：</span>
-            <p className="text-xs bg-white rounded p-2 mt-0.5 max-h-15 overflow-auto text-red-600">
+            <p className="text-xs bg-white rounded p-2 mt-0.5 max-h-15 overflow-auto text-[color:var(--status-danger-fg)]">
               {shot.negativePrompt}
             </p>
           </div>
@@ -213,7 +206,7 @@ export default function ShotNode({ data }: NodeProps) {
 
         {/* 错误 */}
         {shot.errorMessage && (
-          <div className="text-xs text-red-600 bg-red-50 rounded p-2">
+          <div className={statusToneClass('danger', 'rounded border p-2 text-xs')}>
             {shot.errorMessage}
           </div>
         )}

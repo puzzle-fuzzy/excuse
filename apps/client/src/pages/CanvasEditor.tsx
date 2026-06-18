@@ -124,7 +124,7 @@ export default function CanvasEditor() {
 
   if (error || !project) {
     return (
-      <div className="flex items-center justify-center h-screen text-red-600">
+      <div className="flex items-center justify-center h-screen text-[color:var(--status-danger-fg)]">
         {error || '项目不存在'}
       </div>
     )

@@ -1,5 +1,6 @@
 import type { CanvasAssetsPoll, CanvasFailureKind, ProjectDTO } from '@excuse/shared'
 import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
+import { FAILURE_KIND_TONES, statusBadgeClass, statusTextClass, statusToneClass, TASK_STATUS_TONES } from '@/lib/status-tokens'
 
 /**
  * 任务队列面板 — 展示活跃任务 + 最近失败（含失败原因分类与下一步建议）
@@ -10,25 +11,13 @@ import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 
 const CATEGORY_LABELS = TASK_CATEGORY_LABELS
 
-/** 任务状态 → 中文 + 样式 */
-const STATUS_META: Record<string, { label: string, className: string }> = {
-  queued: { label: '排队中', className: 'bg-gray-100 text-gray-600' },
-  running: { label: '执行中', className: 'bg-blue-100 text-blue-700 animate-pulse' },
-  pending: { label: '等待中', className: 'bg-gray-100 text-gray-600' },
-  submitting: { label: '提交中', className: 'bg-yellow-100 text-yellow-700' },
-  processing: { label: '生成中', className: 'bg-blue-100 text-blue-700 animate-pulse' },
-  saving_output: { label: '保存中', className: 'bg-blue-100 text-blue-700 animate-pulse' },
-}
-
-/** 失败类型 → 徽章样式 */
-const FAILURE_BADGE_CLASS: Record<CanvasFailureKind, string> = {
-  balance: 'bg-red-100 text-red-700',
-  content: 'bg-orange-100 text-orange-700',
-  network: 'bg-yellow-100 text-yellow-700',
-  storage: 'bg-purple-100 text-purple-700',
-  cancel: 'bg-gray-100 text-gray-500',
-  provider: 'bg-blue-100 text-blue-700',
-  system: 'bg-gray-200 text-gray-600',
+const STATUS_LABELS: Record<string, string> = {
+  queued: '排队中',
+  running: '执行中',
+  pending: '等待中',
+  submitting: '提交中',
+  processing: '生成中',
+  saving_output: '保存中',
 }
 
 interface TaskQueuePanelProps {
@@ -91,7 +80,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
         <section className="space-y-2">
           <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
             进行中的任务
-            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">{activeTasks.length}</span>
+            <span className={statusBadgeClass('info', 'px-1.5')}>{activeTasks.length}</span>
           </h4>
 
           {activeTasks.length === 0
@@ -101,22 +90,22 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
             : (
                 <div className="space-y-1.5">
                   {activeTasks.map((task) => {
-                    const status = STATUS_META[task.status] ?? { label: task.status, className: 'bg-gray-100 text-gray-600' }
+                    const statusTone = TASK_STATUS_TONES[task.status] ?? 'neutral'
                     return (
                       <div key={`${task.category}-${task.id}`} className="border rounded p-2 space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-medium">
                             {CATEGORY_LABELS[task.category] ?? task.category}
                           </span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded ${status.className}`}>
-                            {status.label}
+                          <span className={statusBadgeClass(statusTone, task.status === 'running' || task.status === 'processing' || task.status === 'saving_output' ? 'px-1.5 animate-pulse' : 'px-1.5')}>
+                            {STATUS_LABELS[task.status] ?? task.status}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {resolveTargetName(project, task.targetType, task.targetId)}
                         </div>
                         {(task.retryCount && task.retryCount > 0) && (
-                          <div className="text-xs text-yellow-700">
+                          <div className={statusTextClass('warning', 'text-xs')}>
                             已重试
                             {' '}
                             {task.retryCount}
@@ -125,7 +114,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
                           </div>
                         )}
                         {task.errorMessage && (
-                          <div className="text-xs text-red-600 bg-red-50 rounded px-1.5 py-0.5">
+                          <div className={statusToneClass('danger', 'rounded border px-1.5 py-0.5 text-xs')}>
                             {task.errorMessage}
                           </div>
                         )}
@@ -140,7 +129,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
         <section className="space-y-2">
           <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
             最近失败
-            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700">{recentFailures.length}</span>
+            <span className={statusBadgeClass('danger', 'px-1.5')}>{recentFailures.length}</span>
           </h4>
 
           {recentFailures.length === 0
@@ -150,12 +139,12 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
             : (
                 <div className="space-y-2">
                   {recentFailures.map(f => (
-                    <div key={`${f.category}-${f.id}`} className="border border-red-200 rounded p-2 space-y-1.5">
+                    <div key={`${f.category}-${f.id}`} className="border border-[color:var(--status-danger-border)] rounded p-2 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-medium">
                           {CATEGORY_LABELS[f.category] ?? f.category}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${FAILURE_BADGE_CLASS[f.failureKind]}`}>
+                        <span className={statusBadgeClass(FAILURE_KIND_TONES[f.failureKind as CanvasFailureKind] ?? 'neutral', 'px-1.5')}>
                           {f.failureKind === 'cancel' ? '已取消' : f.failureKind}
                         </span>
                       </div>
@@ -165,13 +154,13 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
 
                       {/* 错误摘要 */}
                       {f.errorMessage && (
-                        <div className="text-xs text-red-600 bg-red-50 rounded px-1.5 py-1 break-words">
+                        <div className={statusToneClass('danger', 'rounded border px-1.5 py-1 text-xs break-words')}>
                           {f.errorMessage}
                         </div>
                       )}
 
                       {/* 下一步建议 */}
-                      <div className="text-xs text-blue-700 bg-blue-50 rounded px-1.5 py-1">
+                      <div className={statusToneClass('info', 'rounded border px-1.5 py-1 text-xs')}>
                         💡
                         {' '}
                         {f.suggestion}

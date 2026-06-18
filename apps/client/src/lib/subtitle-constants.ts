@@ -1,3 +1,5 @@
+import { statusTextClass } from './status-tokens'
+
 /** 字幕项目状态中文标签 */
 export const SUBTITLE_STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -12,10 +14,10 @@ export const SUBTITLE_STATUS_LABELS: Record<string, string> = {
 /** 字幕项目状态颜色 */
 export const SUBTITLE_STATUS_COLORS: Record<string, string> = {
   draft: 'text-muted-foreground',
-  extracting_audio: 'text-blue-500',
-  asr_processing: 'text-blue-500',
-  subtitle_editing: 'text-green-600',
-  exporting: 'text-yellow-600',
-  completed: 'text-green-600',
+  extracting_audio: statusTextClass('info'),
+  asr_processing: statusTextClass('info'),
+  subtitle_editing: statusTextClass('success'),
+  exporting: statusTextClass('warning'),
+  completed: statusTextClass('success'),
   failed: 'text-destructive',
 }

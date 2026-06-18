@@ -2,6 +2,7 @@ import type { LocationDTO } from '@excuse/shared'
 import type { NodeProps } from '@xyflow/react'
 import type { RunningPhaseInfo } from '../PipelineController'
 import { Handle, Position } from '@xyflow/react'
+import { statusBadgeClass, statusTextClass } from '@/lib/status-tokens'
 import { RunningBadge, runningBorder, RunningOverlay } from '../RunningOverlay'
 
 export default function LocationNode({ data }: NodeProps) {
@@ -21,7 +22,7 @@ export default function LocationNode({ data }: NodeProps) {
           {location.locked && <span className="text-[10px] bg-white/20 rounded px-1">锁定</span>}
           <span className="text-[10px] bg-white/20 rounded px-1">{location.type}</span>
           {isRunning && <RunningBadge label={runningPhaseInfo?.label} />}
-          {isGeneratingImage && !isRunning && <span className="text-[10px] bg-yellow-200/30 rounded px-1 animate-pulse">生成中...</span>}
+          {isGeneratingImage && !isRunning && <span className={statusBadgeClass('warning', 'text-[10px] px-1 animate-pulse')}>生成中...</span>}
         </div>
       </div>
       {isRunning && <RunningOverlay runningPhaseInfo={runningPhaseInfo} />}
@@ -40,7 +41,7 @@ export default function LocationNode({ data }: NodeProps) {
               className="w-full h-35 object-cover rounded border"
             />
             {isGeneratingImage && (
-              <div className="absolute top-1 right-1 bg-yellow-400 text-white text-[10px] px-1 rounded animate-pulse">
+              <div className="absolute top-1 right-1 bg-[color:var(--status-warning-fg)] text-white text-[10px] px-1 rounded animate-pulse">
                 生成中
               </div>
             )}
@@ -92,7 +93,7 @@ export default function LocationNode({ data }: NodeProps) {
                 {profile.cameraRules.allowedAngles.join('、')}
               </div>
               {profile.cameraRules.forbiddenAngles.length > 0 && (
-                <div className="text-red-600">
+                <div className={statusTextClass('danger')}>
                   禁止：
                   {profile.cameraRules.forbiddenAngles.join('、')}
                 </div>
@@ -115,7 +116,7 @@ export default function LocationNode({ data }: NodeProps) {
         {location.negativePrompt && (
           <div>
             <span className="text-muted-foreground text-xs">Negative Prompt：</span>
-            <p className="text-xs bg-white rounded p-2 mt-0.5 max-h-15 overflow-auto text-red-600">
+            <p className={statusTextClass('danger', 'text-xs bg-white rounded p-2 mt-0.5 max-h-15 overflow-auto')}>
               {location.negativePrompt}
             </p>
           </div>

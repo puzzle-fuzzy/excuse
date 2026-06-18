@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
+import { CANVAS_PROJECT_STATUS_TONES, statusBadgeClass } from '../lib/status-tokens'
 import { handleApiError } from '../lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -23,22 +24,6 @@ const STATUS_LABELS: Record<string, string> = {
   partial_failed: '部分失败',
   completed: '已完成',
   failed: '失败',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-200 text-gray-700',
-  analyzed: 'bg-blue-100 text-blue-700',
-  characters_ready: 'bg-blue-100 text-blue-700',
-  locations_ready: 'bg-blue-100 text-blue-700',
-  refs_ready: 'bg-indigo-100 text-indigo-700',
-  refs_all_ready: 'bg-indigo-100 text-indigo-700',
-  storyboard_ready: 'bg-purple-100 text-purple-700',
-  continuity_checked: 'bg-purple-100 text-purple-700',
-  prompts_ready: 'bg-teal-100 text-teal-700',
-  generating: 'bg-yellow-100 text-yellow-700',
-  partial_failed: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-100 text-green-700',
-  failed: 'bg-red-100 text-red-700',
 }
 
 export default function Canvas() {
@@ -180,7 +165,7 @@ export default function Canvas() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{project.title || '未命名项目'}</span>
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[project.status] || 'bg-gray-200 text-gray-700'}`}>
+                          <span className={statusBadgeClass(CANVAS_PROJECT_STATUS_TONES[project.status] ?? 'neutral')}>
                             {STATUS_LABELS[project.status] || project.status}
                           </span>
                         </div>

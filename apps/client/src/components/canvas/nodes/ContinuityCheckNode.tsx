@@ -2,6 +2,7 @@ import type { ContinuityIssue, ProjectDTO } from '@excuse/shared'
 import type { NodeProps } from '@xyflow/react'
 import type { RunningPhaseInfo } from '../PipelineController'
 import { Handle, Position } from '@xyflow/react'
+import { statusBadgeClass, statusTextClass, statusToneClass } from '@/lib/status-tokens'
 import { RunningBadge, runningBorder, RunningOverlay } from '../RunningOverlay'
 
 export default function ContinuityCheckNode({ data }: NodeProps) {
@@ -22,12 +23,12 @@ export default function ContinuityCheckNode({ data }: NodeProps) {
       <div className="p-3 space-y-2 text-sm">
         {/* 统计 */}
         <div className="flex gap-2 text-xs">
-          <span className="bg-red-100 text-red-700 rounded-full px-2 py-0.5">
+          <span className={statusBadgeClass('danger')}>
             {errors.length}
             {' '}
             错误
           </span>
-          <span className="bg-yellow-100 text-yellow-700 rounded-full px-2 py-0.5">
+          <span className={statusBadgeClass('warning')}>
             {warnings.length}
             {' '}
             警告
@@ -37,23 +38,18 @@ export default function ContinuityCheckNode({ data }: NodeProps) {
         {/* 问题列表 */}
         {issues.length === 0
           ? (
-              <p className="text-xs text-green-600">无连续性问题</p>
+              <p className={statusTextClass('success', 'text-xs')}>无连续性问题</p>
             )
           : (
               <div className="space-y-2 max-h-75 overflow-auto">
                 {issues.map((issue: ContinuityIssue) => (
                   <div
                     key={`${issue.severity}-${issue.message}`}
-                    className={`rounded border p-2 text-xs ${
-                      issue.severity === 'error'
-                        ? 'border-red-300 bg-red-50'
-                        : 'border-yellow-300 bg-yellow-50'
-                    }`}
+                    className={statusToneClass(issue.severity === 'error' ? 'danger' : 'warning', 'rounded border p-2 text-xs')}
                   >
                     <div className="flex items-center gap-2 font-medium">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] ${
-                        issue.severity === 'error' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
-                      }`}
+                      <span
+                        className={statusBadgeClass(issue.severity === 'error' ? 'danger' : 'warning', 'rounded px-1.5 py-0.5 text-[10px]')}
                       >
                         {issue.code}
                       </span>

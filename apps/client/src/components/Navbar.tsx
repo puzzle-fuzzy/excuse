@@ -35,6 +35,7 @@ import { notificationQueryKeys } from '@/api/query-client'
 import ConnectionIndicator from '@/components/ConnectionIndicator'
 import { formatRelativeTime } from '@/lib/format-time'
 import { resolveNotificationTarget } from '@/lib/notification-target'
+import { statusDotClass, statusTextClass } from '@/lib/status-tokens'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from './ui/button'
 
@@ -53,13 +54,13 @@ const NAV_ITEMS = [
 
 /** 通知类型 → 图标 + 主色 */
 const TYPE_META: Record<string, { icon: typeof Bell, color: string }> = {
-  task_completed: { icon: CheckCheck, color: 'text-green-600' },
-  task_failed: { icon: XCircle, color: 'text-red-600' },
-  canvas_completed: { icon: Film, color: 'text-blue-600' },
+  task_completed: { icon: CheckCheck, color: statusTextClass('success') },
+  task_failed: { icon: XCircle, color: statusTextClass('danger') },
+  canvas_completed: { icon: Film, color: statusTextClass('info') },
   balance_warning: { icon: Wallet, color: 'text-orange-600' },
   api_key_expired: { icon: Clapperboard, color: 'text-purple-600' },
   api_key_quota: { icon: Gauge, color: 'text-orange-600' },
-  provider_anomaly: { icon: AlertTriangle, color: 'text-red-600' },
+  provider_anomaly: { icon: AlertTriangle, color: statusTextClass('danger') },
   system: { icon: Bell, color: 'text-muted-foreground' },
 }
 
@@ -216,7 +217,7 @@ export default function Navbar() {
                                 <Icon className={`mt-0.5 size-4 shrink-0 ${TYPE_META[n.type]?.color ?? ''}`} />
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-1.5">
-                                    {!n.read && <span className="size-1.5 shrink-0 rounded-full bg-blue-500" />}
+                                    {!n.read && <span className={statusDotClass('info', 'size-1.5 shrink-0 rounded-full')} />}
                                     <span className="truncate text-xs font-medium">{n.title}</span>
                                   </div>
                                   {n.body && (

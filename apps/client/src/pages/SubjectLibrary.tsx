@@ -101,7 +101,7 @@ export default function SubjectLibrary() {
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="size-7" onClick={() => favMutation.mutate(subject.id)}>
-                  <Heart className={`size-3.5 ${subject.isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                  <Heart className={`size-3.5 ${subject.isFavorite ? 'fill-[color:var(--status-danger-fg)] text-[color:var(--status-danger-fg)]' : ''}`} />
                 </Button>
                 <Button
                   variant="ghost"

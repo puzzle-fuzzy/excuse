@@ -1,4 +1,5 @@
 import type { CanvasAssetsPoll, CanvasCostPhase } from '@excuse/shared'
+import { statusTextClass } from '@/lib/status-tokens'
 
 /**
  * 成本面板 — 展示项目级成本 rollup 与按阶段拆分（P2-1 成本可见）
@@ -75,19 +76,19 @@ export default function CostPanel({ pollData, onClose }: CostPanelProps) {
         <section className="grid grid-cols-3 gap-2">
           <div className="border rounded p-2 text-center">
             <div className="text-xs text-muted-foreground">预估（进行中）</div>
-            <div className="text-sm font-semibold text-blue-700">
+            <div className={statusTextClass('info', 'text-sm font-semibold')}>
               {formatCents(summary?.totalEstimatedCents ?? 0)}
             </div>
           </div>
           <div className="border rounded p-2 text-center">
             <div className="text-xs text-muted-foreground">已结算</div>
-            <div className="text-sm font-semibold text-green-700">
+            <div className={statusTextClass('success', 'text-sm font-semibold')}>
               {formatCents(summary?.totalFinalCents ?? 0)}
             </div>
           </div>
           <div className="border rounded p-2 text-center">
             <div className="text-xs text-muted-foreground">失败/取消</div>
-            <div className="text-sm font-semibold text-red-700">
+            <div className={statusTextClass('danger', 'text-sm font-semibold')}>
               {formatCents(summary?.totalFailedCents ?? 0)}
             </div>
           </div>
@@ -117,19 +118,19 @@ export default function CostPanel({ pollData, onClose }: CostPanelProps) {
                         </div>
                         <div className="flex items-center gap-3 text-xs">
                           {entry.estimatedCents > 0 && (
-                            <span className="text-blue-700">
+                            <span className={statusTextClass('info')}>
                               预估
                               {formatCents(entry.estimatedCents)}
                             </span>
                           )}
                           {entry.finalCents > 0 && (
-                            <span className="text-green-700">
+                            <span className={statusTextClass('success')}>
                               已结算
                               {formatCents(entry.finalCents)}
                             </span>
                           )}
                           {entry.failedCents > 0 && (
-                            <span className="text-red-700">
+                            <span className={statusTextClass('danger')}>
                               失败
                               {formatCents(entry.failedCents)}
                             </span>

@@ -2,6 +2,7 @@ import type { CanvasAssetsPoll, ProjectDTO } from '@excuse/shared'
 import type { RunningPhaseInfo } from './PipelineController'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
+import { CANVAS_PROJECT_STATUS_TONES, statusBadgeClass, statusDotClass, statusTextClass, statusToneClass } from '@/lib/status-tokens'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '草稿',
@@ -17,22 +18,6 @@ const STATUS_LABELS: Record<string, string> = {
   partial_failed: '部分失败',
   completed: '已完成',
   failed: '失败',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  analyzed: 'bg-blue-100 text-blue-700',
-  characters_ready: 'bg-blue-100 text-blue-700',
-  locations_ready: 'bg-blue-100 text-blue-700',
-  refs_ready: 'bg-yellow-100 text-yellow-700',
-  refs_all_ready: 'bg-green-100 text-green-700',
-  storyboard_ready: 'bg-green-100 text-green-700',
-  continuity_checked: 'bg-green-100 text-green-700',
-  prompts_ready: 'bg-green-100 text-green-700',
-  generating: 'bg-blue-100 text-blue-700 animate-pulse',
-  partial_failed: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-200 text-green-800',
-  failed: 'bg-red-100 text-red-700',
 }
 
 interface CanvasStatusBarProps {
@@ -97,7 +82,7 @@ export default function CanvasStatusBar({
   const isPauseBefore = !runningPhase && (project.status === 'refs_all_ready' || project.status === 'prompts_ready')
 
   const statusLabel = STATUS_LABELS[project.status] || project.status
-  const statusColor = STATUS_COLORS[project.status] || 'bg-gray-100 text-gray-700'
+  const statusTone = CANVAS_PROJECT_STATUS_TONES[project.status] ?? 'neutral'
 
   return (
     <div className="flex items-center gap-3 px-4 py-2 border-b bg-background/80 backdrop-blur-sm flex-wrap">
@@ -107,13 +92,13 @@ export default function CanvasStatusBar({
       </h1>
 
       {/* 项目状态 */}
-      <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor}`}>
+      <span className={statusBadgeClass(statusTone)}>
         {statusLabel}
       </span>
 
       {/* 正在运行阶段 */}
       {runningPhase && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse">
+        <span className={statusBadgeClass('info', 'animate-pulse')}>
           正在
           {runningPhase.label}
           {runningPhase.modelName && ` · ${runningPhase.modelName}`}
@@ -122,7 +107,7 @@ export default function CanvasStatusBar({
 
       {/* PAUSE_BEFORE 待确认 */}
       {isPauseBefore && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+        <span className={statusBadgeClass('warning')}>
           ⏸ 待确认：
           {project.status === 'refs_all_ready' ? '分镜' : '生成视频'}
         </span>
@@ -141,12 +126,12 @@ export default function CanvasStatusBar({
         onClick={onToggleTaskQueue}
         className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${
           taskQueueOpen
-            ? 'bg-blue-100 text-blue-700'
+            ? statusToneClass('info')
             : failureCount > 0
-              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+              ? statusToneClass('danger', 'hover:opacity-90')
               : taskStats.total > 0
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                : 'text-muted-foreground hover:bg-gray-100'
+                ? statusToneClass('neutral', 'hover:opacity-90')
+                : 'text-muted-foreground hover:bg-muted'
         }`}
         title="查看任务队列与失败原因"
       >
@@ -155,7 +140,7 @@ export default function CanvasStatusBar({
           <span className="font-semibold">{taskStats.total}</span>
         )}
         {failureCount > 0 && (
-          <span className="px-1 rounded bg-red-500 text-white font-semibold">{failureCount}</span>
+          <span className={statusToneClass('danger', 'rounded px-1 font-semibold')}>{failureCount}</span>
         )}
       </button>
 
@@ -164,10 +149,10 @@ export default function CanvasStatusBar({
         onClick={onToggleCost}
         className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors ${
           costOpen
-            ? 'bg-green-100 text-green-700'
+            ? statusToneClass('success')
             : hasCost
-              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              : 'text-muted-foreground hover:bg-gray-100'
+              ? statusToneClass('neutral', 'hover:opacity-90')
+              : 'text-muted-foreground hover:bg-muted'
         }`}
         title="查看成本明细（beta 期间暂未计费）"
       >
@@ -180,7 +165,7 @@ export default function CanvasStatusBar({
       {/* 从资产库导入 */}
       <Link
         to="/subjects"
-        className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 text-muted-foreground hover:bg-gray-100 transition-colors"
+        className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 text-muted-foreground hover:bg-muted transition-colors"
         title="从资产库导入角色/场景到本项目"
       >
         资产库
@@ -188,18 +173,18 @@ export default function CanvasStatusBar({
 
       {/* 连接状态 */}
       {connectionMode === 'sse' && (
-        <span className="text-xs text-green-600 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+        <span className={statusTextClass('success', 'text-xs flex items-center gap-1')}>
+          <span className={statusDotClass('success', 'w-1.5 h-1.5 rounded-full')} />
           实时同步
         </span>
       )}
       {connectionMode === 'polling' && isPolling && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 animate-pulse">
+        <span className={statusBadgeClass('warning', 'animate-pulse')}>
           轮询同步中...
         </span>
       )}
       {connectionMode === 'disconnected' && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+        <span className={statusBadgeClass('danger')}>
           连接断开
         </span>
       )}

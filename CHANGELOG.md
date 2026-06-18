@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **前端状态色 token 单一来源（TODO §1.1）**：新增 `apps/client/src/lib/status-tokens.ts` 与 `--status-info/success/warning/danger/neutral/accent-*` CSS 变量，把 generation record、Canvas 项目/状态栏、ShotNode、TaskQueuePanel、PipelineController、Billing、字幕状态、连接指示器、资产历史等业务状态颜色从散落的 Tailwind palette 类收敛到语义 token；`CATEGORY_CONFIG` 与 Billing 类别条也改用品牌/category token，删除多份 `STATUS_COLORS`/`CATEGORY_COLORS`/`TX_TYPE_COLORS` 手抄映射。验收：`rg "bg-(red|green|yellow|blue)-[0-9]|text-(red|green|yellow|blue)-[0-9]|border-(red|green|yellow|blue)-[0-9]" apps/client/src` 无命中；client typecheck 通过；相关文件 eslint 通过。
+
 - **前端深色模式端到端接线（TODO §1.1）**：复用已安装的 `next-themes`，新增 `ThemeProvider` 并在 client 入口以 `attribute="class"` 接管根节点 `.dark`，让现有 dark token 与 `dark:` 变体真正生效；Navbar 新增浅/深色切换按钮（带 `aria-label` / `title`），Sonner Toast 不再硬编码 light，而是跟随当前 resolved theme。验收：client typecheck 通过；相关文件 eslint 通过。
 
 - **前端品牌 token 与主 CTA 渐变（TODO §1.1）**：补充 `PRODUCT.md` 记录产品型设计上下文；将 client 全局 shadcn 默认灰度 token 改为带品牌倾向的 OKLCH 色系，`--primary` / `--accent` / `chart-*` 不再是纯灰，并新增 `--gradient-brand`、`--brand-text` / `--brand-image` / `--brand-video` 等品牌 token。新增 `.brand-cta` 与 `.brand-auth-shell`，工作台「开始生成」和登录/注册/忘记密码/重置密码主按钮统一使用品牌渐变，认证页背景加入克制的品牌氛围层。验收：client typecheck 通过；相关文件 eslint 通过。
