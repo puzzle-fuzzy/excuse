@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P0-1: canvas-runtime adapter 化 — 拆出 IO Adapter（2026-06-19）
+
+- **commit `15df5506`**: 定义 `CanvasRuntimeAdapters` 接口（`adapter-types.ts`），含 `llm` / `provider` / `repo` / `storage` / `ffmpeg` 五个适配器。所有 12 个 phase 函数 + `io/` 层不再直接 import `@excuse/db` / `@excuse/provider` / `@excuse/storage` / `@excuse/ffmpeg`，改为通过适配器参数注入 IO 依赖。
+  - **canvas-runtime**: 新增 `adapter-types.ts`（翻译层，临时允许 import IO 包），改造 19 个 src 文件（全部 phase + io/ + llm-helpers + normalize + pure/model + index）
+  - **worker**: 新增 `canvas-adapter-factory.ts`，改造 12 个 `canvas-*.ts` handler + `canvas-videos.test.ts`
+  - **server**: 新增 `modules/canvas/adapter-factory.ts`，改造 11 个 `modules/canvas/*.ts`
+  - **scripts**: `check-package-boundaries` 新增 canvas-runtime 规则（`adapter-types.ts` 临时豁免）+ `exclude` 字段支持
+  - 验收: typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 606/606 ✅ · test:client 376/376 ✅ · boundaries ✅
+
 ### §4.4 大文件拆分轮次 + §1.5 Navbar 折叠（2026-06-19）
 
 继续拆分 §4.4 中剩余大文件：

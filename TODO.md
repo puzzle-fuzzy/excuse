@@ -6,21 +6,7 @@
 
 ## P0：先处理会影响生产稳定性或架构边界的事项
 
-### 1. 明确 `canvas-runtime` 的定位，拆出 IO Adapter
-
-- 现状：README 把 `packages/canvas-runtime` 描述为 Canvas 阶段执行包，但该包的 phase 代码直接 import `@excuse/db`、`@excuse/provider`，例如 `packages/canvas-runtime/src/phases/characters.ts`、`locations.ts` 中直接创建 DB 记录并调用 Provider 类型。
-- 问题：它既像领域运行时，又承担 DB/provider IO。这样会让 server、worker 和测试更难隔离，也削弱 `task-engine` / `workflow-engine` 那种 Adapter 注入风格的一致性。
-- 解决办法：
-  - 定义 `CanvasRuntimeAdapters`，包括 `provider`, `repositories`, `storage`, `notifier`, `logger` 等接口。
-  - phase 函数只依赖 adapter 和 DTO，不直接 import `@excuse/db` / `@excuse/provider`。
-  - server/worker 分别在 app 层组装真实 adapter；测试使用 fake adapter。
-  - 将 `scripts/check-package-boundaries.ts` 增加对 `canvas-runtime` 的目标规则，先允许临时白名单，再逐步收紧。
-- 验收标准：
-  - `canvas-runtime/src` 不再直接 import `@excuse/db`、`@excuse/provider`、`@excuse/storage`、`@excuse/ffmpeg`。
-  - `bun run check:boundaries` 能拦截回归。
-  - Canvas phase 单测可以无数据库、无真实 Provider 运行。
-
-### 2. 抽出 server/worker 共享运行时配置解析
+### 1. 抽出 server/worker 共享运行时配置解析
 
 - 现状：`apps/server/src/config.ts` 和 `apps/worker/src/config.ts` 重复解析 DashScope、OSS、metrics、provider timeout 等环境变量。
 - 问题：默认值、校验规则和生产安全策略容易漂移。例如 metrics CIDR、provider timeout、OSS 配置已经在两个进程重复维护。
@@ -32,7 +18,7 @@
   - server/worker 配置测试覆盖非法数字、空字符串、生产缺失变量、公网 metrics CIDR 无 token。
   - 配置错误消息包含变量名，启动失败可定位。
 
-### 3. 把 provider observer/guard 注册从入口副作用中隔离
+### 2. 把 provider observer/guard 注册从入口副作用中隔离
 
 - 现状：`apps/server/src/index.ts` 和 `apps/worker/src/index.ts` 都在模块顶层注册 provider observer/guard、warm health cache，并启动监听/健康服务。
 - 问题：入口已经比以前可测试，但仍存在 module-level 副作用；测试 import 入口时可能启动真实监听或污染全局 observer registry。
@@ -166,10 +152,11 @@
 
 ## 建议执行顺序
 
-1. 先做 P0-1 `canvas-runtime` adapter 化和边界规则，收益最大，也能防止后续继续耦合。
-2. 并行做 P0-2 配置解析抽取，减少 server/worker 漂移。
-3. 再拆 P1-4 前端大页面，把 ModelLab 和 Assets 的状态逻辑从 UI 中拿出来。
-4. 最后补 P2/P3：测试分层、输入限制常量、日志口径、脚本和文档治理。
+1. ~~先做 P0-1 `canvas-runtime` adapter 化和边界规则~~ ✅ 已完成（commit `15df5506`）
+2. 做 P0-1 配置解析抽取，减少 server/worker 漂移。
+3. 再做 P0-2 provider observer/guard 副作用隔离。
+4. 再拆 P1-4 前端大页面，把 ModelLab 的状态逻辑从 UI 中拿出来。
+5. 最后补 P2/P3：测试分层、输入限制常量、日志口径、脚本和文档治理。
 
 ## 本次审计已运行的检查
 
