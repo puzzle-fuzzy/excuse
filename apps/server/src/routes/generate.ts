@@ -2,9 +2,8 @@ import type { GenerationCategory, GenerationInputParams, GenerationRecordRow, Ge
 import type { DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import type { ServerContext } from '../context'
-import { assertCreditLedgerPolicy, calculateCost, getBillingPolicy } from '@excuse/billing'
+import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
-  createGenerationRecord,
   deleteGenerationRecord,
   getGenerationRecordById,
   listGenerationRecords,
@@ -13,7 +12,6 @@ import {
 } from '@excuse/db'
 import { classifyRecovery } from '@excuse/error-recovery'
 import { getModelById, validateAndMerge } from '@excuse/provider'
-import { extractBillingParams } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
@@ -138,8 +136,8 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         return { success: true, record: serializeRecord(updated ?? dedupeResult.record), duplicated: true } satisfies GenerateResponse
       }
 
-      // 预估费用 — workspace.generate 明确走 reserve -> debit/refund 的 credit ledger 策略
-      const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
+      // 预估费用（封装 calculateCost + extractBillingParams，下沉到 service）
+      const estimatedCost = svc.estimateGenerationCost(modelConfig, validatedParams)
       const taskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const traceId = crypto.randomUUID()
 
@@ -147,36 +145,23 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       const inputParams: GenerationInputParams = { ...validatedParams, referenceFileIds }
 
       // 创建数据库记录 — 此时所有前置校验已完成，不会有脏记录风险
-      const record = await createGenerationRecord({
+      const record = await svc.createGenerationRequest({
         accountId: userId,
         taskId,
         traceId,
         model,
         category,
-        status: 'pending',
         inputParams,
-        cost: { ...estimatedCost, estimated: true, billable: false, source: 'estimated' },
+        estimatedCost,
         dedupeKey,
       })
 
-      if (estimatedCost.totalPriceCents > 0) {
-        const reservation = await svc.reserveGenerationCredit({
-          accountId: userId,
-          recordId: record.id,
-          estimatedCost,
-          source: 'generate',
-          description: `生成任务预留：${modelConfig.id}`,
-        })
-        if (!reservation.ok) {
-          throw new PaymentRequiredError(reservation.message)
-        }
-      }
-
-      // 调用 service 执行核心业务流程（provider 调用 + 三分枝处理 + DB + SSE）
-      const result = await svc.executeGeneration({
+      // 预留 credit + 构造执行上下文（POST /generate 与 retry 共享同一编排）
+      const prep = await svc.prepareGeneration({
         recordId: record.id,
         accountId: userId,
         taskId,
+        traceId,
         modelConfig,
         category,
         parameters: validatedParams,
@@ -184,7 +169,14 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         inputParams,
         dedupeKey,
         estimatedCost,
-      }, deps)
+        creditSource: 'generate',
+      })
+      if (!prep.ok) {
+        throw new PaymentRequiredError(prep.message)
+      }
+
+      // 调用 service 执行核心业务流程（provider 调用 + 三分枝处理 + DB + SSE）
+      const result = await svc.executeGeneration(prep.context, deps)
 
       audit('generate', { accountId: userId, targetId: result.record?.id })
 
@@ -360,24 +352,11 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         detail: { recordId: record.id, model: record.model, previousStatus: record.status },
       })
 
-      // 预估费用 — 使用 extractBillingParams 从 ValidatedModelParameters 提取计费字段
-      const estimatedCost = calculateCost(modelConfig, extractBillingParams(validatedParams))
+      // 预估费用（封装 calculateCost + extractBillingParams，下沉到 service）
+      const estimatedCost = svc.estimateGenerationCost(modelConfig, validatedParams)
 
-      if (estimatedCost.totalPriceCents > 0) {
-        const reservation = await svc.reserveGenerationCredit({
-          accountId: userId,
-          recordId: record.id,
-          estimatedCost,
-          source: 'retry',
-          description: `重试生成任务预留：${modelConfig.id}`,
-        })
-        if (!reservation.ok) {
-          throw new PaymentRequiredError(reservation.message)
-        }
-      }
-
-      // 调用 service 执行核心业务流程（与 POST /generate 共享同一逻辑）
-      const result = await svc.executeGeneration({
+      // 预留 credit + 构造执行上下文（POST /generate 与 retry 共享同一编排）
+      const prep = await svc.prepareGeneration({
         recordId: record.id,
         accountId: userId,
         taskId: newTaskId,
@@ -388,7 +367,14 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         referenceUrls,
         inputParams,
         estimatedCost,
-      }, deps)
+        creditSource: 'retry',
+      })
+      if (!prep.ok) {
+        throw new PaymentRequiredError(prep.message)
+      }
+
+      // 调用 service 执行核心业务流程（与 POST /generate 共享同一逻辑）
+      const result = await svc.executeGeneration(prep.context, deps)
 
       if (result.success) {
         return { success: true, record: serializeRecord(result.record) } satisfies GenerateResponse

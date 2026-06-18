@@ -18,6 +18,7 @@ import type { CostDetail, ModelConfig } from '@excuse/shared'
 import { calculateCost } from '@excuse/billing'
 import {
   cancelGenerationRecord,
+  createGenerationRecord,
   CreditError,
   debitCredit,
   findGenerationByDedupeKeyForAccount,
@@ -333,6 +334,99 @@ export async function reserveGenerationCredit(opts: {
     }
     await markGenerationFailed(opts.recordId, message)
     return { ok: false, reason: 'insufficient_balance', message }
+  }
+}
+
+/**
+ * 预估生成费用 — submit/retry 共享（封装 calculateCost + extractBillingParams，移出 route 层）。
+ *
+ * 此前 POST /generate 与 POST /records/:id/retry 各自手写 `calculateCost(modelConfig, extractBillingParams(params))`，
+ * 下沉后 route 不再直接接触计费原语。
+ */
+export function estimateGenerationCost(modelConfig: ModelConfig, parameters: ValidatedModelParameters): CostDetail {
+  return calculateCost(modelConfig, extractBillingParams(parameters))
+}
+
+/**
+ * 创建生成记录（pending）— 封装 createGenerationRecord + 标准 estimated cost 信封。
+ *
+ * 仅 submit 调用（retry 复用既有记录，走 resetGenerationToPending）。
+ * `category` 由 route 经 audio 守卫收窄后传入（GenerationCategory 不含 audio）。
+ */
+export async function createGenerationRequest(input: {
+  accountId: string
+  taskId: string
+  traceId: string
+  model: string
+  category: GenerationCategory
+  inputParams: GenerationInputParams
+  estimatedCost: CostDetail
+  dedupeKey?: string
+}): Promise<GenerationRecordRow> {
+  return createGenerationRecord({
+    accountId: input.accountId,
+    taskId: input.taskId,
+    traceId: input.traceId,
+    model: input.model,
+    category: input.category,
+    status: 'pending',
+    inputParams: input.inputParams,
+    cost: { ...input.estimatedCost, estimated: true, billable: false, source: 'estimated' },
+    dedupeKey: input.dedupeKey,
+  })
+}
+
+/** prepareGeneration 的结果 — 成功返回执行上下文，余额不足返回 message（route 映射 402）。 */
+export type GenerationPreparation
+  = | { ok: true, context: GenerationContext }
+    | { ok: false, reason: 'insufficient_balance', message: string }
+
+/**
+ * 预留 credit + 构造执行上下文 — submit/retry 共享的核心编排。
+ *
+ * record 需已就位（submit 经 createGenerationRequest 创建，retry 经 resetGenerationToPending 重置）。
+ * 消除此前两处 route handler 重复的 cost+reserve 块。result-style（不抛 AppError）保持 service
+ * 无 HTTP 语义契约：余额不足由 route 抛 PaymentRequiredError(402)。
+ */
+export async function prepareGeneration(input: {
+  recordId: string
+  accountId: string
+  taskId: string
+  traceId?: string
+  modelConfig: ModelConfig
+  category: GenerationCategory
+  parameters: ValidatedModelParameters
+  referenceUrls?: string[]
+  inputParams: GenerationInputParams
+  dedupeKey?: string
+  estimatedCost: CostDetail
+  creditSource: 'generate' | 'retry'
+}): Promise<GenerationPreparation> {
+  const reservation = await reserveGenerationCredit({
+    accountId: input.accountId,
+    recordId: input.recordId,
+    estimatedCost: input.estimatedCost,
+    source: input.creditSource,
+    description: `${input.creditSource === 'retry' ? '重试' : ''}生成任务预留：${input.modelConfig.id}`,
+  })
+  if (!reservation.ok) {
+    return { ok: false, reason: 'insufficient_balance', message: reservation.message }
+  }
+  return {
+    ok: true,
+    context: {
+      recordId: input.recordId,
+      accountId: input.accountId,
+      taskId: input.taskId,
+      traceId: input.traceId,
+      modelConfig: input.modelConfig,
+      category: input.category,
+      parameters: input.parameters,
+      referenceUrls: input.referenceUrls,
+      inputParams: input.inputParams,
+      dedupeKey: input.dedupeKey,
+      estimatedCost: input.estimatedCost,
+    },
   }
 }
 

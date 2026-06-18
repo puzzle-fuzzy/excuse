@@ -74,12 +74,10 @@
 > **已完成**（2026-06-18）：52 处中转换 **51 处**为 `app-errors.ts` 子类（`NotFoundError`/`ConflictError`/`ValidationError`/`BadRequestError`/`InternalError`），映射：不存在类→404、未分析/正在生成/状态前置→409 Conflict、布局与参数校验→422、未知模型/不支持音频→400、DB 更新意外失败→500 InternalError。「项目不存在或未分析」这类二义条件拆为 NotFoundError + ConflictError 两段，语义更精确。唯一保留的是 [openai-gateway.ts:229](apps/server/src/routes/openai-gateway.ts#L229) 的 `throw new Error(res.error)` —— 它被 `handleGatewayChatCompletion` 的 catch 捕获并经 `generationFailedError` 整形为 OpenAI 形态错误（非裸 500），属 §3.5（gateway 错误协议统一）范畴，故不在本项转 AppError。验收：新增 ConflictError(409)/ValidationError(422) 的 statusCode 单测；canvas-service-helpers(19)/subtitle-service(9)/canvas-layout(13) 等直接相关测试全绿；保留的消息（「项目正在生成中…」「视频文件不存在…」）断言不变。
 
 
-### 2.4 🟠 `generate.ts` 是个厚路由（441 LOC）
+### 2.4 🟠 `generate.ts` 是个厚路由（441 LOC） — ✅ 已修复
 
-- **证据**：[generate.ts](apps/server/src/routes/generate.ts) 的 POST `/generate` 在 handler 里**直接** `createGenerationRecord` + `calculateCost` + credit reserve + provider validate（`@excuse/db` 被 19 个路由文件 import，但只有 generate 把这套编排留在路由层）。对比 Canvas：`routes/canvas/handlers-*.ts` 纯接线、逻辑全在 module。retry 路径（L295–407）还把校验重写了一遍。
-- **影响**：全 server 最大的分层泄漏；违反 CLAUDE.md「route→service→repo」；retry 与 submit 校验重复，漂移风险高。
-- **解法**：把 record-create + cost-estimate + credit-reserve 编排块（L142–173 及 retry 等价块 L353–377）下沉到 [modules/generation/service.ts](apps/server/src/modules/generation/service.ts) 的 `prepareGeneration` / `executeGeneration`；retry 复用同一 module 函数。路由只留参数校验 + 委托。
-- **验收**：`generate.ts` 不再直接调 `createGenerationRecord`/`calculateCost`/`reserveCredit`；retry 与 submit 走同一 service 函数；既有测试全绿。
+> **已完成**（2026-06-18）：把 POST `/generate` 与 POST `/records/:id/retry` 重复的「预估费用 + 创建/重置记录 + credit 预留 + 构造执行上下文」编排下沉到 [modules/generation/service.ts](apps/server/src/modules/generation/service.ts)。新增三个 service 函数：`estimateGenerationCost`（封装 calculateCost + extractBillingParams）、`createGenerationRequest`（封装 createGenerationRecord + estimated cost 信封）、`prepareGeneration`（预留 credit + 构造 GenerationContext，result-style 保持 service 无 HTTP 语义）。submit 与 retry 共享 `prepareGeneration`（`creditSource: 'generate'|'retry'` 区分审计描述），余额不足仍由 route 抛 PaymentRequiredError(402)。route 不再直接调 `createGenerationRecord`/`calculateCost`/`reserveCredit`（仅注释提及）；generate.ts 440→426 行。验收：typecheck/lint 通过；generate-routes-retry-cancel(15) 全绿，mockReserveCredit/mockResetToPending/mockDebitCredit/mockRefundCredit 调用参数断言不变（行为保持）。
+
 
 ### 2.5 🟠 ASR 轮询无超时 + 静默吞错 — ✅ 已修复
 
