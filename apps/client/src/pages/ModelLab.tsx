@@ -14,10 +14,10 @@ import {
   Play,
   Video,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { fetchModels, generate, uploadFile } from '@/api/client'
+import { generate, uploadFile } from '@/api/client'
 import OutputPreview from '@/components/generation/OutputPreview'
 import ParameterInput from '@/components/generation/ParameterInput'
 import ReferenceImageUploader from '@/components/generation/ReferenceImageUploader'
@@ -29,6 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { useConfirmNavigation } from '@/hooks/use-confirm-navigation'
+import { useModelLabModels } from '@/hooks/useModelLabModels'
 import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
 import {
@@ -119,11 +120,19 @@ function outputSummary(record: GenerationRecord | null): string {
 }
 
 export default function ModelLab() {
-  const [models, setModels] = useState<ModelConfig[]>([])
-  const [loadingModels, setLoadingModels] = useState(true)
-  const [modelsError, setModelsError] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<Category>('text')
-  const [selectedModelId, setSelectedModelId] = useState('')
+  // ── 模型加载（提取至 useModelLabModels hook）──
+  const {
+    models,
+    loadingModels,
+    modelsError,
+    selectedCategory,
+    selectedModelId,
+    selectedModel,
+    categoryModels,
+    chooseCategory: chooseModelCategory,
+    chooseModel: chooseModelById,
+  } = useModelLabModels()
+
   const [referenceFiles, setReferenceFiles] = useState<LabReferenceFile[]>([])
   const [uploadingParam, setUploadingParam] = useState<string | null>(null)
   const [uploadingRefs, setUploadingRefs] = useState(false)
@@ -134,16 +143,6 @@ export default function ModelLab() {
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [canvasDefaults, setCanvasDefaults] = useState(() => loadCanvasModelDefaults())
-  const didLoadModelsRef = useRef(false)
-
-  const selectedModel = useMemo(
-    () => models.find(model => model.id === selectedModelId),
-    [models, selectedModelId],
-  )
-  const categoryModels = useMemo(
-    () => models.filter(model => model.category === selectedCategory),
-    [models, selectedCategory],
-  )
 
   const resolverSchema = useMemo(
     () => buildModelLabSchema(selectedModel?.parameters ?? []),
@@ -161,67 +160,39 @@ export default function ModelLab() {
   const isDirty = form.formState.isDirty
   useConfirmNavigation(isDirty, '有未保存的更改，确定要离开吗？')
 
+  // 模型首次加载后初始化 form + compareModelIds
+  const [didInitForm, setDidInitForm] = useState(false)
   useEffect(() => {
-    if (didLoadModelsRef.current)
-      return
-    didLoadModelsRef.current = true
-    let cancelled = false
-    async function loadModelLabModels() {
-      setLoadingModels(true)
-      setModelsError(null)
-      try {
-        const data = await fetchModels()
-        if (cancelled)
-          return
-        setModels(data.models)
-        const firstText = data.models.find(model => model.category === 'text') ?? data.models[0]
-        if (firstText) {
-          setSelectedCategory(firstText.category as Category)
-          setSelectedModelId(firstText.id)
-          setCompareModelIds([firstText.id])
-          reset(initialValuesFor(firstText))
-        }
-      }
-      catch (error) {
-        if (!cancelled)
-          setModelsError(error instanceof Error ? error.message : '模型列表加载失败')
-      }
-      finally {
-        if (!cancelled)
-          setLoadingModels(false)
-      }
+    if (!didInitForm && selectedModel && !loadingModels) {
+      setDidInitForm(true)
+      setCompareModelIds([selectedModel.id])
+      reset(initialValuesFor(selectedModel))
     }
-    loadModelLabModels()
-    return () => {
-      cancelled = true
-    }
-  }, [reset])
+  }, [selectedModel, loadingModels, reset, didInitForm])
 
   function chooseCategory(category: Category) {
-    setSelectedCategory(category)
-    const nextModel = models.find(model => model.category === category)
-    if (!nextModel)
-      return
-    setSelectedModelId(nextModel.id)
-    setCompareModelIds([nextModel.id])
+    chooseModelCategory(category)
     setCompareResults([])
     setReferenceFiles([])
     setResult(null)
-    form.reset(initialValuesFor(nextModel))
+    // 切换分类后 form 由 chooseModelById 内部触发的 selectedModel 变化重置
   }
 
   function chooseModel(id: string) {
-    const nextModel = models.find(model => model.id === id)
-    if (!nextModel)
-      return
-    setSelectedModelId(id)
-    setSelectedCategory(nextModel.category as Category)
+    chooseModelById(id)
     setCompareModelIds([id])
     setCompareResults([])
     setReferenceFiles([])
     setResult(null)
-    form.reset(initialValuesFor(nextModel))
   }
+
+  // 模型切换时重置 form + compareModelIds
+  useEffect(() => {
+    if (selectedModel) {
+      setCompareModelIds(prev => prev.length === 0 || prev[0] !== selectedModel.id ? [selectedModel.id] : prev)
+      reset(initialValuesFor(selectedModel))
+    }
+  }, [selectedModel?.id, reset])
 
   async function uploadParamFile(param: ModelParameter) {
     const input = document.createElement('input')
