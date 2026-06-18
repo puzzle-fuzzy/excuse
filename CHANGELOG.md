@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### TODO 核查与对账（2026-06-19）
+
+- **TODO.md 复核**：逐项验证审计 12 项待办（P0-1/2/3、P1-4/5/6/7、P2-8/9/10、P3-11/12）的提交与产物，确认全部真实完成。修复 TODO.md 内部矛盾——原「建议执行顺序」末尾遗留一行 `做 P1-4 ...（进行中）` 与已标记 ✅ 的 P1-4 自相矛盾（P1-4 实测已完成：`ModelLab.tsx` 810→588 行，`useModelLabModels.ts` + `ModelComparisonSection.tsx` 均在）。
+- 按项目约定（不在 TODO 保留 commit 历史）把「建议执行顺序」改为「执行状态」完成说明，并新增「核查结论」节记录逐项核对结果 + 完整验收套件状态。
+- 完整验收全绿：`check:boundaries` ✅ · `typecheck` ✅ · `lint` ✅（0 error）· `build` ✅ · `test` ✅（server 554/0）· `test:client` ✅（376/0）。
+- **附记**：复核中发现 `apps/client` 的 `tsc -b` 增量 buildinfo 曾损坏，逐文件抛虚假 `TS6133/TS6192 unused` 报错（误报 `Workspace.tsx` ScrollArea、`Canvas.tsx` Video）；删除 buildinfo 全量重建后恢复。本地缓存故障，非代码缺陷。
+
 ### P1-4: 拆分前端大页面 ModelLab.tsx（2026-06-19）
 
 - **commit `25ed1061` + `45c06943`**: 提取 `useModelLabModels` hook（100 行）+ `ModelComparisonSection` 组件（275 行），ModelLab.tsx 从 810 降至 588 行（↓27%）。hook 可独立单测。
