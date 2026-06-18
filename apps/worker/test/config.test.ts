@@ -67,13 +67,18 @@ describe('loadConfig', () => {
     expect(config.metricsAllowedCidrs).toEqual(['10.0.0.5/32', '8.8.8.8'])
   })
 
-  it('无效数字环境变量时优雅回退', () => {
+  it('无效数字环境变量时抛出明确错误（含变量名）', () => {
     process.env.WORKER_POLL_INTERVAL_MS = 'not-a-number'
+
+    expect(() => loadConfig()).toThrow('WORKER_POLL_INTERVAL_MS must be a positive integer, got: "not-a-number"')
+  })
+
+  it('空字符串环境变量使用默认值', () => {
+    process.env.WORKER_POLL_INTERVAL_MS = ''
     process.env.WORKER_STALE_TIMEOUT_MS = ''
 
     const config = loadConfig()
 
-    // Number('not-a-number') = NaN, NaN || 5000 = 5000
     expect(config.pollIntervalMs).toBe(5000)
     expect(config.staleTimeoutMs).toBe(4 * 60 * 60 * 1000)
   })

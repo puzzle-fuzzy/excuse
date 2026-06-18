@@ -7,12 +7,91 @@
 import type { WorkerConfig } from './config'
 import type { WorkerHealthState } from './health'
 import { findStaleReservedCredits, refundCredit, sweepOrphanTasks } from '@excuse/db'
+import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { createHealthServer } from './health'
-import { getProviderCallsSnapshot } from './services/metrics'
+import { getProviderCallsSnapshot, recordProviderCall } from './services/metrics'
+import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 
 const logger = createLogger('worker-lifecycle')
+
+/**
+ * Worker 生命周期管理器 — 收敛所有模块级副作用。
+ *
+ * 返回 healthState / server 引用 + provider observer/guard 清理函数 +
+ * 优雅退出 / 孤儿清扫 / 信用对账的启动函数。
+ */
+export interface WorkerLifecycle {
+  healthState: WorkerHealthState
+  server: ReturnType<typeof createHealthServer>
+  /** 注册 SIGINT/SIGTERM 处理器 */
+  setupGracefulShutdown: (
+    runningRef: { value: boolean },
+    currentTaskPromiseRef: { value: Promise<unknown> | null },
+  ) => void
+  startOrphanSweep: typeof startOrphanSweep
+  startCreditReconciliation: typeof startCreditReconciliation
+}
+
+export function setupLifecycle(config: WorkerConfig): WorkerLifecycle {
+  // 1. Provider observer + guard（注册 → 返回清理函数）
+  const unregisterObserver = registerProviderCallObserver((model, durationMs, success) => {
+    recordProviderCall(model, durationMs, success)
+    void recordProviderCallOutcome(model, success)
+  })
+  const unregisterGuard = registerProviderCallGuard(providerCallGuard)
+  warmProviderHealthCache()
+
+  // 2. 健康服务器
+  const { healthState, server } = setupHealthServer(config)
+
+  // 3. 优雅退出（增强：清理 provider observer/guard）
+  function setupGracefulShutdown(
+    runningRef: { value: boolean },
+    currentTaskPromiseRef: { value: Promise<unknown> | null },
+  ) {
+    const GRACEFUL_TIMEOUT_MS = 30_000
+
+    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+      process.on(signal, async () => {
+        logger.info({ signal }, '🛑 Received signal, shutting down gracefully...')
+        runningRef.value = false
+        server.stop()
+
+        // 清理 provider observer/guard
+        unregisterObserver()
+        unregisterGuard()
+
+        if (currentTaskPromiseRef.value) {
+          const timeout = setTimeout(() => {
+            logger.warn('⏰ Graceful timeout exceeded, forcing exit')
+            process.exit(1)
+          }, GRACEFUL_TIMEOUT_MS)
+
+          try {
+            await currentTaskPromiseRef.value
+            logger.info('✅ Current task completed before exit')
+          }
+          catch {
+            logger.warn('⚠️ Current task failed during graceful shutdown')
+          }
+          clearTimeout(timeout)
+        }
+
+        process.exit(0)
+      })
+    }
+  }
+
+  return {
+    healthState,
+    server,
+    setupGracefulShutdown,
+    startOrphanSweep,
+    startCreditReconciliation,
+  }
+}
 
 /**
  * 创建健康 HTTP 服务器，返回 healthState 引用 + stop 函数。
