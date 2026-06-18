@@ -463,7 +463,7 @@ export function AdminGatewayClientsTab() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: adminGatewayClientsQueryKeys.list(queryParams),
     queryFn: () => fetchAdminGatewayClients(queryParams),
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const items: AdminGatewayClientItem[] = data?.items ?? []

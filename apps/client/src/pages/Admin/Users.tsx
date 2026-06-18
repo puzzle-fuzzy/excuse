@@ -351,7 +351,7 @@ export function AdminUsersTab() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin', 'users', 'list', queryParams],
     queryFn: () => fetchAdminUsers(queryParams),
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const items = data?.items ?? []

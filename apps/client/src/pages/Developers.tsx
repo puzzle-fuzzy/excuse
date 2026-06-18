@@ -131,7 +131,7 @@ function UsageSection() {
     queryFn: async () => {
       return fetchGatewayUsage()
     },
-    refetchInterval: 60_000,
+    refetchInterval: () => document.hidden ? false : 60_000,
   })
 
   const usage = data

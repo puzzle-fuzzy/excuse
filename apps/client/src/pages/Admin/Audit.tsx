@@ -63,7 +63,7 @@ export function AdminAuditLogsTab() {
   const { data, isLoading } = useQuery({
     queryKey: adminAuditLogQueryKeys.list(queryParams),
     queryFn: () => fetchAdminAuditLogs(queryParams),
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const items: AdminAuditLogItem[] = data?.items ?? []

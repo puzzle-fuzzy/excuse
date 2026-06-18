@@ -18,7 +18,7 @@ export function AdminProvidersTab() {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin', 'providers', windowHours],
     queryFn: () => fetchAdminProviderStats({ windowHours }),
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const items: AdminProviderStatsItem[] = data?.items ?? []

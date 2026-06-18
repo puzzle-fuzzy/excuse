@@ -67,7 +67,7 @@ export default function Billing() {
   const { data: balance, isLoading: balanceLoading } = useQuery({
     queryKey: ['billing', 'balance'],
     queryFn: fetchBillingBalance,
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const { data: txData, isLoading: txLoading } = useQuery({

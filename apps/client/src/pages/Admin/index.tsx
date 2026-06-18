@@ -45,7 +45,7 @@ export default function Admin() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: adminQueryKeys.overview,
     queryFn: fetchAdminOverview,
-    refetchInterval: 30_000,
+    refetchInterval: () => document.hidden ? false : 30_000,
   })
 
   const {
@@ -56,7 +56,7 @@ export default function Admin() {
   } = useQuery({
     queryKey: adminQueryKeys.tasks(taskParams),
     queryFn: () => fetchAdminTasks(taskParams),
-    refetchInterval: 15_000,
+    refetchInterval: () => document.hidden ? false : 15_000,
     enabled: !!data,
   })
 
