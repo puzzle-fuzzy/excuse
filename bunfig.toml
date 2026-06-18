@@ -1,8 +1,8 @@
 [test]
 coverage = true
 pathIgnorePatterns = [
-  "apps/client/**",
-  "apps/client/**/*.test.tsx",
+  "apps/web-business/**",
+  "apps/web-business/**/*.test.tsx",
   "packages/db/test/**",
 ]
 coverageReporter = [

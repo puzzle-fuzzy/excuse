@@ -16,7 +16,7 @@ bun run dev
 
 # 单独的 dev server
 bun run dev:server    # apps/server — Elysia API
-bun run dev:client    # apps/client — Vite React SPA
+bun run dev:client    # apps/web-business — Vite React SPA
 bun run dev:worker    # apps/worker — 统一任务轮询 + Canvas 流水线驱动
 
 # 构建
@@ -46,8 +46,8 @@ bun test packages/billing/test/calculate.test.ts
 # 同时跑多个调用 mock.module 的 server 文件需 --isolate：
 #   bun test --isolate apps/server/test/a.test.ts apps/server/test/b.test.ts
 
-# 跑单个 vitest 测试（在 apps/client 下）
-cd apps/client && bun vitest src/__tests__/some.test.tsx
+# 跑单个 vitest 测试（在 apps/web-business 下）
+cd apps/web-business && bun vitest src/__tests__/some.test.tsx
 
 # Lint
 bun run lint
@@ -60,7 +60,7 @@ bun run check:assets       # 资产一致性检查（scripts/check-assets-consis
 # 单独构建
 bun run build:server       # 仅构建 apps/server
 bun run build:worker       # 仅构建 apps/worker
-bun run build:client       # 仅构建 apps/client
+bun run build:client       # 仅构建 apps/web-business
 
 # E2E
 bun run test:e2e           # E2E 测试（Bun）
@@ -129,7 +129,7 @@ packages/
 
 **类型推导链** — Drizzle schema → `InferSelectModel` → `Serialize`（Date→string）→ API 类型。类型从 DB schema 单向流向 API，无重复。关键领域类型（`CostDetail`、`OutputResult`、`GenerationInputParams`、`CharacterProfile`、`ShotCamera`、`TaskInput`、`TaskOutput`、`TaskErrorInfo` 等）的真身在 `packages/shared/src/domain-types.ts`（无运行时依赖的纯接口，属 BASE 层）；`packages/db/src/domain-types.ts` 已退化为 re-export shim 仅作向后兼容。Schema 文件用 `$type<T>()` 把领域类型附着到 JSONB 列。**运行时序列化** `serialize<T>()`（`packages/db/src/types.ts`）递归把 `Date` 转 ISO，取代路由层各自手写的 `serializeXxx`。
 
-**Eden treaty** — Client 经 `@elysia/eden` import server 的 `App` type，获得端到端类型安全的 API 调用。`apps/client/src/api/client.ts` 的 `unwrapEden<T>()` 从 Eden 的 `{ data, error }` 响应提取 `data` 并抛出结构化错误（401/403 自动清理）。无独立 API client 定义 —— 不要手写 fetch。
+**Eden treaty** — Client 经 `@elysia/eden` import server 的 `App` type，获得端到端类型安全的 API 调用。`apps/web-business/src/api/client.ts` 的 `unwrapEden<T>()` 从 Eden 的 `{ data, error }` 响应提取 `data` 并抛出结构化错误（401/403 自动清理）。无独立 API client 定义 —— 不要手写 fetch。
 
 **Repository 模式** — DB 访问经 `packages/db/src/repositories/*.repo.ts` 导出的 async 函数（非类）。每个函数调 `getDb()` → Drizzle query builder → 返回可空单记录或数组。`getDb()`/`setDb()` 单例用于测试注入。
 
@@ -143,7 +143,7 @@ packages/
 
 **Provider façade（待治理）** — `@excuse/provider` 仍 re-export `storage` 与 `ffmpeg`（薄 shim 文件：`provider/src/storage.ts`、`subtitle-burner.ts`、`audio-extractor.ts`、`compose.ts`）以向后兼容。**但当前 `@excuse/storage` / `@excuse/ffmpeg` 在各自包之外、provider 之外零消费者** —— 拆了两个包却没人直连。迁移 vs 合回的决策见 `TODO.md` §3.1（待决策）。
 
-**SSE 经 PostgreSQL LISTEN/NOTIFY** — Worker 更新 DB → `pgClient.notify()` → Server 的 `startSSEListener()` 接收 → 来自 `@excuse/events` 的 dispatcher 把 NOTIFY 载荷（`generation_status`、`notification` 频道）映射为 SSE 事件 → `UserEventHub.dispatchToUser()` 推送到内存 SSE 连接 → client 收到。30 秒心跳。Client 的 `SSEClient` 类（`apps/client/src/api/sse.ts`）用 `@microsoft/fetch-event-source`（非原生 EventSource，以支持自定义 header 如 Bearer token）。经 `on<K extends keyof SSEEventMap>()` 的类型化事件 handler。错误层级：`RetriableError`（5xx，重连）、`FatalError`（4xx 非 auth）、`UnauthorizedError`（401/403，停重连 + 清 auth）。
+**SSE 经 PostgreSQL LISTEN/NOTIFY** — Worker 更新 DB → `pgClient.notify()` → Server 的 `startSSEListener()` 接收 → 来自 `@excuse/events` 的 dispatcher 把 NOTIFY 载荷（`generation_status`、`notification` 频道）映射为 SSE 事件 → `UserEventHub.dispatchToUser()` 推送到内存 SSE 连接 → client 收到。30 秒心跳。Client 的 `SSEClient` 类（`apps/web-business/src/api/sse.ts`）用 `@microsoft/fetch-event-source`（非原生 EventSource，以支持自定义 header 如 Bearer token）。经 `on<K extends keyof SSEEventMap>()` 的类型化事件 handler。错误层级：`RetriableError`（5xx，重连）、`FatalError`（4xx 非 auth）、`UnauthorizedError`（401/403，停重连 + 清 auth）。
 
 ### Server Route Structure
 

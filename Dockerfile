@@ -23,7 +23,7 @@ COPY tsconfig.json bunfig.toml ./
 # 平铺到 apps/ 目录下，导致 bun 找不到 workspace 子包目录。
 # 此处显式列出所有 workspace 的 package.json。
 COPY apps/server/package.json apps/server/
-COPY apps/client/package.json apps/client/
+COPY apps/web-business/package.json apps/web-business/
 COPY apps/worker/package.json apps/worker/
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/
@@ -90,5 +90,5 @@ CMD ["bun", "apps/worker/src/index.ts"]
 # ==========================================
 FROM nginx:1.27-alpine AS client
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/apps/client/dist /usr/share/nginx/html
+COPY --from=build /app/apps/web-business/dist /usr/share/nginx/html
 EXPOSE 80
