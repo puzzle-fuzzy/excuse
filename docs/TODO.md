@@ -57,9 +57,9 @@
 
 ### 1.4 🟠 上传失败静默吞 + 无草稿/未保存警告
 
-- **证据**：[workspace.ts:286-328](apps/client/src/stores/workspace.ts#L286-L328) `uploadReferenceFiles`/`uploadMediaParam` 失败只翻 `uploadingRefs` 无 toast；Canvas 创建故事 textarea（[Canvas.tsx:150-156](apps/client/src/pages/Canvas.tsx#L150-L156)）与 Workspace prompt 无持久化、无 `beforeunload`。
+- **证据**：[workspace.ts](apps/client/src/stores/workspace.ts) `uploadReferenceFiles`/`uploadMediaParam` 失败只翻 `uploadingRefs` 无 toast；Canvas 创建故事 textarea（[Canvas.tsx:150-156](apps/client/src/pages/Canvas.tsx#L150-L156)）与 Workspace prompt 无持久化、无 `beforeunload`。
 - **影响**：参考图上传静默失败 → 下次生成在降级输入上跑；用户粘 2000 字故事误点导航 → 全丢。
-- **解法**：(a) 两处上传路径加 `toast.error`；(b) Canvas 创建故事 + Workspace prompt 持久化到 sessionStorage（按路由 key）；未保存的长输入加 `beforeunload`。
+- **解法**：(a) ✅ 两处上传路径已加 `toast.error`（commit 82e9360）；(b) Canvas 创建故事 + Workspace prompt 持久化到 sessionStorage（按路由 key）；未保存的长输入加 `beforeunload`。
 - **验收**：上传失败有提示；长输入跨刷新/导航不丢。
 
 ### 1.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（一组打磨项）
@@ -79,26 +79,17 @@
 
 > 这些是真实运行中会炸、会资损、会静默错乱的隐患。多数改动小、收益大，应优先处理。
 
-### 2.1 🟠 FFmpeg 操作无超时 / 无强制 kill
+### 2.1 ✅ FFmpeg 操作无超时 / 无强制 kill（已修复）
 
-- **证据**：[ffmpeg](packages/ffmpeg/src/) 的 concat/烧字幕/抽音频可能跑很久甚至卡死（坏文件、超大文件、编码死循环）。当前依赖 Bun 子进程默认行为，无显式 `timeout` + kill 兜底。
-- **影响**：单条坏媒体可让 worker 卡在某 phase 直到 4h 视频超时（且只覆盖 video），临时目录泄漏，assemble 阶段尤其危险（多镜头拼接）。
-- **解法**：FFmpeg 调用统一加超时（env 可配，默认如 10min）+ 超时 kill 子进程 + 失败抛可重试错误；临时目录 `finally` 清理已有，补「进程强杀时也清」。
-- **验收**：构造一个会卡死的 ffmpeg 调用，确认超时后被 kill、临时目录被清、task 进入失败/重试。
+- **修复**：新增 `ffmpeg-spawn.ts` 封装 `spawnFfmpeg()`，超时默认 10min（env `FFMPEG_TIMEOUT_MS`），`FfmpegTimeoutError` 被 task-engine 分类为 retriable/timeout。compose/audio-extractor/subtitle-burner 全部迁移。（commit 0d6862b0）
 
-### 2.2 🟠 三套状态机写入无原子性 → crash drift
+### 2.2 ✅ 三套状态机写入无原子性 → crash drift（已修复）
 
-- **证据**：`tasks.status`（[schema/tasks.ts](packages/db/src/schema/tasks.ts)）、`canvas_pipeline_runs.status`、`generation_records.status` 三套独立 enum。一个 canvas 阶段的「完成」由**两次分别写入**：task 经 `completeTaskWithAdapter`，run 经 `markPipelineRunSucceeded`（[canvas-handlers.ts](apps/worker/src/canvas-handlers.ts)）；失败路径 [task-handler.ts:177-196](apps/worker/src/task-handler.ts#L177-L196) 同时更新两者。**两次写之间无事务**。
-- **影响**：worker 在两次写之间崩溃 → task=succeeded 但 run=running（或反之），永久漂移、不可自愈；排查需 join 多表。
-- **解法**（二选一）：(a) 用单一事务/单一 adapter 原子更新 task 与 run；(b) 加 reconcile 任务定期 `WHERE task.status != run.status` 修复并告警。推荐 (b)（改动小、且能兜历史漂移）。
-- **验收**：构造两次写之间崩溃的 fixture，reconcile 能修复；正常流程不误改。
+- **修复**：新增 `reconcile.ts`（worker），每轮 poll 后查询 `tasks JOIN canvas_pipeline_runs WHERE task IN (succeeded,failed,cancelled) AND run=running`，将漂移的 run 补标为对应终态。append-only guard 确保幂等。（commit 80b423a6）
 
-### 2.4 🟠 SSE 死连接回收
+### 2.4 ✅ SSE 死连接回收（已修复）
 
-- **证据**：[events](packages/events/src/) 的 `UserEventHub` 已有全局 10000 + 单用户 3 上限（设计扎实），但**慢客户端/半开连接**未在心跳超时后被 server 主动移除——`pgClient.notify()` 仍向死连接 dispatch。
-- **影响**：长期运行 server 内存里累积死连接，NOTIFY 往死连接推造成延迟堆积，极端 OOM。
-- **解法**：SSE 连接加空闲超时（如 60s 心跳无响应即 close 并移除）；定期清理超时连接。
-- **验收**：构造一个不读流的客户端连接，确认 N 秒后被 server 回收且从 hub 移除。
+- **修复**：`UserEventHub` 加 `lastActivity` 跟踪 + `sweepStaleConnections(maxIdleMs=60s)` 方法。SSE route 在 30s heartbeat interval 中调用 sweep，清除空闲 >60s 的死连接。（commit 82e9360）
 
 ### 2.5 🟡 rate-limit key 可被伪造 + 限流 Map 无 GC
 
@@ -188,12 +179,9 @@
 
 ## 五、可观测性
 
-### 5.1 🟠 traceId 不贯穿统一队列 / Canvas 流水线
+### 5.1 ✅ traceId 不贯穿统一队列 / Canvas 流水线（已修复）
 
-- **证据**：`tasks` 表与 `canvas_pipeline_runs` 表**均无 `traceId` 列**；worker 日志（task-handler/pipeline-stepper/poll-sources/canvas-handlers）只带 taskId/projectId/部分 runId，**无 traceId**。仅 generation_records 链路（generate-video-handler/media-handlers）透传 traceId。CLAUDE.md 称「traceId 跨服务关联」——对 records 成立，对统一队列/Canvas 不成立。
-- **影响**：排查 Canvas 流水线问题无法用单一 traceId 串起 server 提交 → task 排队 → worker 执行 → run 状态 → SSE，必须手工 join 多表。
-- **解法**：`tasks` 表加 `traceId`（task 创建时从 server 透传）；worker logger 在 task scope bind `{taskId, runId, projectId, traceId}`；SSE 事件载荷带 task 的 traceId。
-- **验收**：一次 Canvas 流水线全过程可用单一 traceId 在 server/worker/DB/SSE 日志中检索到。
+- **修复**：`tasks` 表加 `traceId` 列（migration 0044）；server（generate.ts/canvas/helpers.ts）创建 task 时透传 traceId；worker（task-handler/pipeline-stepper）日志 + pipeline auto-advance 传播 traceId；`notifyTaskStatusChange` NOTIFY 载荷含 traceId。（commit 7fc1364）
 
 ### 5.2 🟡 错误日志 / SSE 可能含 prompt 全文
 
@@ -269,8 +257,8 @@ bun run check:boundaries
 
 本轮六维度审计新发现约 40 项，按 ROI 建议推进顺序：
 
-1. **P0（立刻，生产风险）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
-2. **P1（短期，drift / 体验）**：§5.1 traceId 贯穿 · §1.4 上传/草稿 · §4.1 generate 去重 · §2.4 SSE 死连接 · §2.5 rate-limit 加固
+1. **P0（已全部完成 ✅）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
+2. **P1（部分完成）**：§5.1 traceId 贯穿 ✅ · §1.4 上传提示 ✅（草稿待补）· §4.1 generate 去重 · §2.4 SSE 死连接 ✅ · §2.5 rate-limit 加固
 3. **P2（治理 / 打磨）**：§3.2 category 注册表 · §3.4 配置表式化 · §1.1 骨架屏 · §1.2 空状态 · §4.2 dashscope 拆分 · §4.3 admin 拆分
 4. **接触时顺手**：§1.5 Toast/nav/form/a11y · §4.4-4.5 大文件/去重 · §5.2 错误脱敏
 5. **暂缓**：§六 多租户 / i18n / Redis 限流（待路线图）

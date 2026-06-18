@@ -4,14 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### TODO 核查清理（2026-06-18）
+### TODO 核查清理 + P0/P1 修复轮次（2026-06-18）
 
-对 `docs/TODO.md` 全项做了源码验证，清理了 2 项已在上轮迭代中修复但未从 TODO 删除的条目。
+对 `docs/TODO.md` 全 ~40 项做了逐项源码验证，清理 2 项已修复条目，完成 7 项修复。
 
-#### 清理
+#### 清理（已修复、未记录）
+- **§1.3 流水线 UI 12 阶段** — `PHASE_UI` 已是 `Record<CanvasPipelinePhase, ...>` 覆盖全部 12 阶段。从 TODO 删除。
+- **§2.3 task 锁 heartbeat** — `heartbeat.ts` 已有 3 次重试 + `task-ownership.ts` 中途检查。从 TODO 删除。
 
-- **§1.3 流水线 UI 12 阶段** — `PipelineController.tsx` 的 `PHASE_UI` 已是 `Record<CanvasPipelinePhase, ...>` 覆盖全部 12 阶段（analyze…assemble），与后端 `CANVAS_PHASE_ORDER` 一致。从 TODO 删除。
-- **§2.3 task 锁 heartbeat** — `heartbeat.ts` 已有 3 次重试（退避 1s/2s/3s）+ `lostOwnership` 信号；`task-ownership.ts` 提供 `checkTaskOwnership()` 供长任务子操作间检查所有权；`canvas-assemble.ts` 已调用。从 TODO 删除。
+#### P0 修复（生产风险）
+- **§2.1 FFmpeg 超时** — 新增 `ffmpeg-spawn.ts`：`spawnFfmpeg()` 统一超时保护（默认 10min，env `FFMPEG_TIMEOUT_MS`），`FfmpegTimeoutError` 被 task-engine 分类为 retriable/timeout。compose/audio-extractor/subtitle-burner 全部迁移。
+- **§2.2 状态机漂移 reconcile** — 新增 `reconcile.ts`（worker）：每轮 poll 后 JOIN 查询 task↔run 状态不一致的对，自动修复漂移（run 补标终态）。append-only guard 确保幂等。
+
+#### P1 修复（drift / 体验 / 可靠性）
+- **§5.1 traceId 贯穿** — `tasks` 表加 `traceId` 列（migration 0044）；server→worker→NOTIFY→SSE 全链路透传；pipeline auto-advance 传播 traceId。
+- **§2.4 SSE 死连接回收** — `UserEventHub` 加 lastActivity 跟踪 + `sweepStaleConnections(60s)`；SSE route 在 30s heartbeat 中调用 sweep。
+- **§1.4 上传错误提示** — `workspace.ts` 的 `uploadReferenceFiles`/`uploadMediaParam` 现在 toast.error 上传失败（草稿持久化仍待后续）。
 
 ### TODO2 核查修正轮次（2026-06-18）
 
