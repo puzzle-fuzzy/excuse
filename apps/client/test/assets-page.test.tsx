@@ -282,8 +282,8 @@ describe('assets 收藏功能', () => {
     const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="取消收藏"]')!
     expect(favBtn).toBeTruthy()
     const svg = favBtn.querySelector('svg')!
-    // fill-yellow-400 → fill class present
-    expect(svg.className.baseVal ?? svg.className).toMatch(/fill-yellow-400/)
+    // 收藏状态显示 status-warning-fg 颜色
+    expect(svg.className.baseVal ?? svg.className).toMatch(/status-warning-fg/)
   })
 
   it('卡片星标按钮在 isFavorite=false 时无黄色填充', async () => {
@@ -293,8 +293,8 @@ describe('assets 收藏功能', () => {
     const favBtn = card.parentElement!.parentElement!.querySelector('button[aria-label="收藏"]')!
     expect(favBtn).toBeTruthy()
     const svg = favBtn.querySelector('svg')!
-    // 没有 fill-yellow-400
-    expect(svg.className.baseVal ?? svg.className).not.toMatch(/fill-yellow-400/)
+    // 没有 status-warning-fg 颜色
+    expect(svg.className.baseVal ?? svg.className).not.toMatch(/status-warning-fg/)
   })
 
   it('点击星标按钮（未收藏 → 收藏）调用 toggleAssetFavorite(source, id, true)', async () => {

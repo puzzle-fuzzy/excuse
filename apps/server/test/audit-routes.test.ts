@@ -263,6 +263,7 @@ describe('审计钩子路由', () => {
   describe('generate 重试审计', () => {
     it('重试失败任务时记录 generation_retry + credit_reserve(retry)', async () => {
       mockGetRecordById.mockResolvedValue(makeFailedRecord())
+      mockResetToPending.mockResolvedValue(makeFailedRecord())
       mockGenerate.mockResolvedValue({ success: true, output: { text: '重试结果' }, usage: { inputTokens: 10, outputTokens: 20 } })
 
       const headers = await getAuthHeaders()
