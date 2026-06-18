@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P3-11: 收紧 ESLint 规则（2026-06-19）
+
+- **commit `f1846b11`**: `no-console` 规则从 `off` 改为分层管控：server/worker/packages 禁止直接 console（error），client 允许 warn/error，scripts/migration 豁免。
+
 ### P3-12: 建立架构决策记录 ADR（2026-06-19）
 
 - **commit `2f65d8cd`**: 新增 `docs/adr/0001-monorepo-layering.md`（两层架构规则）和 `0002-canvas-runtime-adapters.md`（Canvas adapter 注入模式）。

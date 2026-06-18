@@ -63,17 +63,6 @@
 
 ## P3：质量门禁和文档治理
 
-### 11. 收紧 TypeScript 与 ESLint 规则
-
-- 现状：根 `tsconfig.json` 已开启 `strict`、`noUncheckedIndexedAccess`，但 `noUnusedLocals` / `noUnusedParameters` 关闭；ESLint 允许 console。
-- 问题：项目规模变大后，未使用代码和临时日志会沉积。
-- 解决办法：
-  - 先对 packages 开启 `noUnusedLocals` / `noUnusedParameters`，再扩到 apps。
-  - console 规则改为：server/worker 只允许 logger；client 只允许 `clientLogger` 或测试。
-  - 增加 lint rule 或脚本检查大文件阈值、失效 TODO 引用、边界导入。
-- 验收标准：
-  - CI 阻止新增未使用导出、散落 console、失效 TODO 锚点。
-
 ## 建议执行顺序
 
 1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅（`15df5506`）
