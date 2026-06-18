@@ -70,7 +70,7 @@ export default function Subtitle() {
     }
   }
 
-  async function confirmDelete() {
+  async function confirmSubtitleDeletion() {
     await deleteProject(deleteConfirm.id)
     setDeleteConfirm({ open: false, id: '' })
   }
@@ -208,7 +208,7 @@ export default function Subtitle() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+            <AlertDialogAction onClick={confirmSubtitleDeletion}>确认</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

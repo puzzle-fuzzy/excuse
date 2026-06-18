@@ -50,7 +50,7 @@ export default function Canvas() {
   }, [])
 
   useEffect(() => {
-    async function load() {
+    async function loadCanvasProjects() {
       try {
         const res = await listCanvasProjects()
         setProjects(res.items)
@@ -62,10 +62,10 @@ export default function Canvas() {
         setLoading(false)
       }
     }
-    load()
+    loadCanvasProjects()
   }, [])
 
-  async function handleCreate() {
+  async function createProjectFromStory() {
     if (!storyText.trim())
       return
     setCreating(true)
@@ -115,7 +115,7 @@ export default function Canvas() {
     setDeleteConfirm({ open: true, id })
   }
 
-  async function confirmDelete() {
+  async function confirmProjectDeletion() {
     try {
       await deleteCanvasProject(deleteConfirm.id)
       setProjects(prev => prev.filter(p => p.id !== deleteConfirm.id))
@@ -165,7 +165,7 @@ export default function Canvas() {
             rows={6}
             className="w-full rounded-lg border px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <Button onClick={handleCreate} disabled={creating || !storyText.trim()}>
+          <Button onClick={createProjectFromStory} disabled={creating || !storyText.trim()}>
             {creating ? '创建中...' : '创建并开始分析'}
           </Button>
         </CardContent>
@@ -226,7 +226,7 @@ export default function Canvas() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+            <AlertDialogAction onClick={confirmProjectDeletion}>确认</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

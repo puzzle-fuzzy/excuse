@@ -182,7 +182,7 @@ export default function Workspace() {
     setTimeout(setCopiedId, 1500, null)
   }
 
-  async function confirmDelete() {
+  async function confirmRecordDeletion() {
     await handleRemoveRecord(deleteConfirm.id)
     setDeleteConfirm({ open: false, id: '' })
   }
@@ -337,7 +337,7 @@ export default function Workspace() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>确认</AlertDialogAction>
+            <AlertDialogAction onClick={confirmRecordDeletion}>确认</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

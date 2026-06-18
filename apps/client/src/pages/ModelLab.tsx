@@ -166,7 +166,7 @@ export default function ModelLab() {
       return
     didLoadModelsRef.current = true
     let cancelled = false
-    async function load() {
+    async function loadModelLabModels() {
       setLoadingModels(true)
       setModelsError(null)
       try {
@@ -191,7 +191,7 @@ export default function ModelLab() {
           setLoadingModels(false)
       }
     }
-    load()
+    loadModelLabModels()
     return () => {
       cancelled = true
     }
