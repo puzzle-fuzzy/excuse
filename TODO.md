@@ -4,20 +4,6 @@
 > 审计范围：`apps/client`、`apps/server`、`apps/worker`、`packages/*`、根配置、脚本与现有测试。  
 > 当前总体判断：项目已经具备清晰的 Bun + Elysia + React monorepo 形态，领域包、任务队列、SSE、计费、Provider、Canvas 流水线和测试体系都有基础。但随着功能增长，部分包边界、前端页面职责、运行时配置和测试结构开始出现“可维护性债务”。下面 TODO 按风险和收益排序。
 
-## P0：先处理会影响生产稳定性或架构边界的事项
-
-### 1. 把 provider observer/guard 注册从入口副作用中隔离
-
-- 现状：`apps/server/src/index.ts` 和 `apps/worker/src/index.ts` 都在模块顶层注册 provider observer/guard、warm health cache，并启动监听/健康服务。
-- 问题：入口已经比以前可测试，但仍存在 module-level 副作用；测试 import 入口时可能启动真实监听或污染全局 observer registry。
-- 解决办法：
-  - 新增 `bootstrapServer(config, ctx)` / `bootstrapWorker(config, ctx)`，返回 `start()` / `stop()`。
-  - provider observer/guard 注册提供幂等 unregister 或 scoped registry，测试可清理。
-  - `index.ts` 只做 `loadConfig()` + `bootstrap.start()`。
-- 验收标准：
-  - import app factory 不启动 HTTP/SSE/health server。
-  - server/worker bootstrap 有覆盖正常启动、DB 缺失、优雅退出、重复启动的测试。
-
 ## P1：降低维护成本和认知负担
 
 ### 4. 拆分前端大页面，提取页面级 hooks 和子组件
@@ -142,9 +128,9 @@
 
 1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅ 已完成（commit `15df5506`）
 2. ~~P0-2 配置解析抽取~~ ✅ 已完成（commit `71d1cdbe`）
-3. 做 P0-3 provider observer/guard 副作用隔离。
-4. 再拆 P1-4 前端大页面，把 ModelLab 的状态逻辑从 UI 中拿出来。
-5. 最后补 P2/P3：测试分层、输入限制常量、日志口径、脚本和文档治理。
+3. ~~P0-3 provider observer/guard 副作用隔离~~ ✅ 已完成（commit `12a2a0de`）
+4. 做 P1-4 拆分前端大页面，把 ModelLab 的状态逻辑从 UI 中拿出来。
+5. 继续 P1-5/6/7、P2、P3 等项目。
 
 ## 本次审计已运行的检查
 

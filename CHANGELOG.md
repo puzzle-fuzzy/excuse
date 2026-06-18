@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P0-3: provider observer/guard 注册从入口副作用中隔离（2026-06-19）
+
+- **commit `12a2a0de`**: Server 新增 `bootstrap.ts`，把 provider observer/guard 注册、HTTP listen、SSE 监听、环境检查、优雅退出信号处理全部收敛到 `bootstrapServer()` 内，返回 `start()`/`stop()` 生命周期控制。Worker 新增 `worker-lifecycle.setupLifecycle()`，收敛 observer/guard 注册（含清理函数），增强 graceful shutdown 自动 unregister。`index.ts` 只做 `loadConfig()` + `createContext()` + `createApp()` + `bootstrap.start()`。import 非 index 文件不触发 HTTP/SSE/health server 启动。Worker 配置测试同步更新（`parsePositiveIntEnv` 非法值 throw 含变量名消息）。
+  - 验收: typecheck ✅ · lint ✅（4 预存 warnings）· build ✅ · test 551/56/376 ✅ · boundaries ✅
+
 ### P0-2: 抽出 server/worker 共享运行时配置解析（2026-06-19）
 
 - **commit `71d1cdbe`**: 新增 `@excuse/shared` env-helpers.ts，提供 `parseProviderConfig()` / `parseMetricsConfig()` / `parseProviderTimeoutConfig()` / `parseStorageConfig()` / `parsePositiveIntEnv()` / `validateProductionBase()` 六个共享 helper。server/worker 的 `loadConfig()` 改用共享 helper，消除 DashScope/OSS/metrics/timeout 配置的重复解析逻辑。`parsePositiveIntEnv()` 可区分缺省/非法值/零负数，错误消息包含变量名。
