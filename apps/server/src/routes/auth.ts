@@ -2,6 +2,7 @@ import type { AccountRow } from '@excuse/db'
 import type { AuthCurrentUserResponse, AuthResponse, AuthUser, ForgotPasswordResponse, MutationOkResponse, ResetPasswordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { consumePasswordResetToken, createAccount, createPasswordResetToken, creditBalance, getAccountByEmail, getAccountById, getAccountByUsername, getOrCreateCreditAccount, updateLastLoginAt } from '@excuse/db'
+import { logger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { AUTH_COOKIE_NAME, createAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
@@ -84,8 +85,9 @@ export function createAuthRoutes(config: ServerConfig) {
         await getOrCreateCreditAccount(account.id)
         await creditBalance({ accountId: account.id, amountCents: 1000, description: '注册赠送' })
       }
-      catch {
-        // 初始额度赠送失败不阻塞注册流程
+      catch (err) {
+        // 初始额度赠送失败不阻塞注册流程，但必须记录
+        logger.error({ err, accountId: account.id }, '注册赠送初始额度失败')
       }
 
       audit('register', { accountId: account.id })
@@ -219,8 +221,9 @@ export function createAuthRoutes(config: ServerConfig) {
           expiresAt,
         })
       }
-      catch {
-        // 写入失败不阻塞
+      catch (err) {
+        // 写入失败不阻塞（安全：不泄露邮箱是否存在）
+        logger.warn({ err, email }, 'forgot-password token 写入失败')
         return { success: true } satisfies ForgotPasswordResponse
       }
 

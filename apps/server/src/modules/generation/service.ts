@@ -29,6 +29,7 @@ import {
   notifyGenerationStatus,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
+import { logger } from '@excuse/shared'
 import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from '../../services/billing-ledger'
 import { recordGenerationStatus } from '../../services/metrics'
 import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
@@ -249,8 +250,9 @@ export async function cancelGeneration(
     try {
       providerCancelStatus = await client.cancelTask(record.taskId) ? 'succeeded' : 'failed'
     }
-    catch {
+    catch (err) {
       providerCancelStatus = 'failed'
+      logger.warn({ err, taskId: record.taskId }, 'provider 侧取消任务失败')
     }
   }
 

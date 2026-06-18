@@ -6,6 +6,7 @@ import { cookie } from '@elysiajs/cookie'
 import { hashApiKey, isApiKeySecret } from '@excuse/auth'
 import { findApiKeyByHash, touchApiKeyLastUsed } from '@excuse/db'
 import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
+import { logger } from '@excuse/shared'
 import { t } from 'elysia'
 import { notifyApiKeyRevoked } from '../services/notifications'
 import { UnauthorizedError } from '../utils/app-errors'
@@ -41,9 +42,10 @@ async function resolveActiveUserId(userId: string): Promise<string | null> {
       return null
     return userId
   }
-  catch {
+  catch (err) {
     if (process.env.NODE_ENV === 'test')
       return userId
+    logger.warn({ err }, 'resolveActiveUserId failed')
     return null
   }
 }
