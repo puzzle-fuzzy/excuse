@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P2-10: 统一错误处理与可观测性口径（2026-06-19）
+
+- **commit `9ec7e135`**: 新增 `apps/client/src/lib/client-logger.ts`，warn/error/info 统一附带 route/action/recordId/taskId/projectId 上下文。更新 sse.ts (12 处)、query-client.ts、workspace.ts、Canvas.tsx。
+
 ### P3-11: 收紧 ESLint 规则（2026-06-19）
 
 - **commit `f1846b11`**: `no-console` 规则从 `off` 改为分层管控：server/worker/packages 禁止直接 console（error），client 允许 warn/error，scripts/migration 豁免。

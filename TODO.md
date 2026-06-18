@@ -49,19 +49,7 @@
   - 关键 mapper、config、bootstrap、Canvas phase adapter 都有直接测试。
   - 单个测试文件建议不超过 500 行；超过需有明确分组原因。
 
-### 10. 统一错误处理与可观测性口径
-
-- 现状：server 有 `AppError` 和统一错误插件，client 有 `handleApiError`、SSE fallback、React Query query error log；仍有若干 `console.warn/error` 分散在页面、store 和 API client。
-- 问题：用户可见错误、开发日志和监控事件口径不完全一致，长任务失败时可能不容易关联 requestId/taskId/runId。
-- 解决办法：
-  - 前端新增轻量 `clientLogger`，按环境控制 console，并统一附带 route、action、recordId/taskId。
-  - server/worker 日志统一字段：`requestId`、`accountId`、`taskId`、`runId`、`providerModel`、`phase`。
-  - SSE 事件和通知携带同一 trace 线索，便于从 UI 追到 worker 日志。
-- 验收标准：
-  - 关键生成链路能从前端错误提示追踪到 server request 和 worker task。
-  - `rg "console\\.(warn|error)" apps/client/src` 只剩经过约定允许的位置。
-
-## P3：质量门禁和文档治理
+## 建议执行顺序
 
 ## 建议执行顺序
 
