@@ -1,13 +1,14 @@
 /**
  * FFmpeg 音频提取 — 从视频文件中提取音频轨道
  *
- * 用 Bun.spawn 调用 ffmpeg 命令行工具，
+ * 用 spawnFfmpeg 统一超时保护调用 ffmpeg 命令行工具，
  * 提取音频为 WAV 格式（Paraformer 要求的输入格式）。
  *
  * 注意：所有本地路径必须为绝对路径，避免 FFmpeg 解析相对路径出错。
  */
 
 import { resolve } from 'node:path'
+import { spawnFfmpeg } from './ffmpeg-spawn'
 
 export interface AudioExtractionResult {
   /** 提取的音频文件路径 */
@@ -92,8 +93,7 @@ export async function extractAudioFromVideo(
   const audioPath = resolve(`${dir}/audio_${Date.now()}.wav`)
 
   // 提取音频：-vn（去除视频）, -acodec pcm_s16le（WAV格式）, -ar 16000（16kHz）, -ac 1（单声道）
-  const proc = Bun.spawn([
-    'ffmpeg',
+  const result = await spawnFfmpeg('ffmpeg', [
     '-i',
     videoPath,
     '-vn',
@@ -105,15 +105,10 @@ export async function extractAudioFromVideo(
     '1',
     '-y', // 覆盖已存在的输出文件
     audioPath,
-  ], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  ], { outputDir: dir })
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`FFmpeg 音频提取失败 (exit=${exitCode}): ${stderr.slice(0, 500)}`)
+  if (result.exitCode !== 0) {
+    throw new Error(`FFmpeg 音频提取失败 (exit=${result.exitCode}): ${result.stderr.slice(0, 500)}`)
   }
 
   // 获取音频时长 — ffprobe
@@ -126,8 +121,7 @@ export async function extractAudioFromVideo(
  * 用 ffprobe 获取媒体文件时长（毫秒）
  */
 export async function getMediaDurationMs(filePath: string): Promise<number> {
-  const proc = Bun.spawn([
-    'ffprobe',
+  const result = await spawnFfmpeg('ffprobe', [
     '-v',
     'error',
     '-show_entries',
@@ -135,19 +129,14 @@ export async function getMediaDurationMs(filePath: string): Promise<number> {
     '-of',
     'default=noprint_wrappers=1:nokey=1',
     filePath,
-  ], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  ])
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
+  if (result.exitCode !== 0) {
     // ffprobe 失败时返回 0（时长未知），不阻止后续流程
     return 0
   }
 
-  const stdout = await new Response(proc.stdout).text()
-  const seconds = Number.parseFloat(stdout.trim())
+  const seconds = Number.parseFloat(result.stdout.trim())
   return Number.isFinite(seconds) ? Math.round(seconds * 1000) : 0
 }
 
@@ -155,8 +144,7 @@ export async function getMediaDurationMs(filePath: string): Promise<number> {
  * 用 ffprobe 获取视频分辨率
  */
 export async function getVideoResolution(filePath: string): Promise<{ width: number, height: number } | null> {
-  const proc = Bun.spawn([
-    'ffprobe',
+  const result = await spawnFfmpeg('ffprobe', [
     '-v',
     'error',
     '-select_streams',
@@ -166,17 +154,12 @@ export async function getVideoResolution(filePath: string): Promise<{ width: num
     '-of',
     'csv=s=x:p=0',
     filePath,
-  ], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  ])
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0)
+  if (result.exitCode !== 0)
     return null
 
-  const stdout = await new Response(proc.stdout).text()
-  const parts = stdout.trim().split('x')
+  const parts = result.stdout.trim().split('x')
   if (parts.length !== 2)
     return null
 

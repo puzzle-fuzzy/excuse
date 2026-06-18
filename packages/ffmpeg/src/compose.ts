@@ -1,11 +1,12 @@
 /**
  * FFmpeg 视频合成 — Phase 11 assemble
  *
- * 拼接多个镜头视频 + BGM 叠加。用 Bun.spawn 调用 ffmpeg，与 audio-extractor/subtitle-burner 同风格。
+ * 拼接多个镜头视频 + BGM 叠加。用 spawnFfmpeg 统一超时保护（避免坏文件卡死 worker）。
  * 所有路径转为绝对路径，临时文件由调用方清理。
  */
 
 import { resolve } from 'node:path'
+import { spawnFfmpeg } from './ffmpeg-spawn'
 
 export interface ConcatResult {
   outputPath: string
@@ -24,8 +25,7 @@ export interface MixBgmResult {
  * 无声轨则把 BGM 作为唯一音轨 mux 进视频。
  */
 export async function hasAudioStream(filePath: string): Promise<boolean> {
-  const proc = Bun.spawn([
-    'ffprobe',
+  const result = await spawnFfmpeg('ffprobe', [
     '-v',
     'error',
     '-select_streams',
@@ -35,13 +35,11 @@ export async function hasAudioStream(filePath: string): Promise<boolean> {
     '-of',
     'csv=p=0',
     filePath,
-  ], { stdout: 'pipe', stderr: 'pipe' })
+  ])
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0)
+  if (result.exitCode !== 0)
     return false
-  const stdout = await new Response(proc.stdout).text()
-  return stdout.trim().length > 0
+  return result.stdout.trim().length > 0
 }
 
 /**
@@ -68,8 +66,7 @@ export async function concatVideos(videoPaths: string[], outputDir: string): Pro
   await Bun.write(listPath, listContent)
 
   const outputPath = resolve(`${dir}/concat_${Date.now()}.mp4`)
-  const proc = Bun.spawn([
-    'ffmpeg',
+  const result = await spawnFfmpeg('ffmpeg', [
     '-f',
     'concat',
     '-safe',
@@ -82,16 +79,14 @@ export async function concatVideos(videoPaths: string[], outputDir: string): Pro
     'aac',
     '-y',
     outputPath,
-  ], { stdout: 'pipe', stderr: 'pipe' })
+  ], { outputDir: dir })
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
+  if (result.exitCode !== 0) {
     try {
       await Bun.file(listPath).delete()
     }
     catch {}
-    throw new Error(`FFmpeg 视频拼接失败 (exit=${exitCode}): ${stderr.slice(-2000)}`)
+    throw new Error(`FFmpeg 视频拼接失败 (exit=${result.exitCode}): ${result.stderr.slice(-2000)}`)
   }
 
   try {
@@ -105,8 +100,7 @@ export async function concatVideos(videoPaths: string[], outputDir: string): Pro
 /** 单视频「拼接」：重封装为标准 mp4 容器（统一后续 BGM 叠加的输入） */
 async function concatSingle(videoPath: string, outputDir: string): Promise<ConcatResult> {
   const outputPath = resolve(resolve(outputDir), `concat_${Date.now()}.mp4`)
-  const proc = Bun.spawn([
-    'ffmpeg',
+  const result = await spawnFfmpeg('ffmpeg', [
     '-i',
     videoPath,
     '-c:v',
@@ -115,11 +109,9 @@ async function concatSingle(videoPath: string, outputDir: string): Promise<Conca
     'aac',
     '-y',
     outputPath,
-  ], { stdout: 'pipe', stderr: 'pipe' })
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`FFmpeg 视频重封装失败 (exit=${exitCode}): ${stderr.slice(-2000)}`)
+  ], { outputDir })
+  if (result.exitCode !== 0) {
+    throw new Error(`FFmpeg 视频重封装失败 (exit=${result.exitCode}): ${result.stderr.slice(-2000)}`)
   }
   return { outputPath, fileSize: Bun.file(outputPath).size }
 }
@@ -190,11 +182,9 @@ export async function mixBgmTrack(videoPath: string, bgmPath: string, outputDir:
     ]
   }
 
-  const proc = Bun.spawn(args, { stdout: 'pipe', stderr: 'pipe' })
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`FFmpeg BGM 叠加失败 (exit=${exitCode}): ${stderr.slice(-2000)}`)
+  const result = await spawnFfmpeg('ffmpeg', args.slice(1), { outputDir })
+  if (result.exitCode !== 0) {
+    throw new Error(`FFmpeg BGM 叠加失败 (exit=${result.exitCode}): ${result.stderr.slice(-2000)}`)
   }
   return { outputPath, fileSize: Bun.file(outputPath).size }
 }

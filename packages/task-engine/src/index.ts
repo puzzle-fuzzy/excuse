@@ -164,6 +164,22 @@ export class TaskInputError extends Error {
   }
 }
 
+/**
+ * 任务锁丢失 — worker 在执行过程中丢失了对任务的锁所有权。
+ *
+ * 原因：heartbeat 续锁失败（DB 瞬断 / 临时中断），或孤儿 sweep 已将任务重置为 queued。
+ * 此错误是系统级瞬态问题 → retriable=true，任务应重新排队而非永久失败。
+ */
+export class TaskLockLostError extends Error {
+  constructor(taskId: string, workerId: string) {
+    super(`Lock ownership lost for task ${taskId} (worker ${workerId})`)
+    this.name = 'TaskLockLostError'
+    this.code = 'LOCK_LOST'
+  }
+
+  code: string
+}
+
 export function createTaskHandlerRegistry<TTask extends { type: string }, TContext, TOutput = Record<string, unknown> | undefined>(
   definitions: Array<TaskDefinition<TTask, TContext, TOutput>> = [],
 ): TaskHandlerRegistry<TTask, TContext, TOutput> {
@@ -287,11 +303,31 @@ export function classifyTaskError(error: unknown): TaskErrorDecision {
     }
   }
 
-  // 任务输入非法（JSONB 解析失败）→ validation / 永久失败，重试不会自愈
+  // 任务输入非法 → validation / 永久失败，重试不会自愈
   if (error instanceof TaskInputError) {
     return {
       category: 'validation',
       retriable: false,
+      message,
+    }
+  }
+
+  // 任务锁丢失 → system / 可重试，任务应重新排队
+  if (error instanceof TaskLockLostError) {
+    return {
+      category: 'system',
+      retriable: true,
+      code: 'LOCK_LOST',
+      message,
+    }
+  }
+
+  // FFmpeg 操作超时 → timeout / 可重试（由 @excuse/ffmpeg 的 spawnFfmpeg 抛出）
+  if (error instanceof Error && error.name === 'FfmpegTimeoutError') {
+    return {
+      category: 'timeout',
+      retriable: true,
+      code: 'FFMPEG_TIMEOUT',
       message,
     }
   }
@@ -379,6 +415,7 @@ function isRetriableTaskErrorCode(code: string | undefined): boolean {
     || code === 'InternalError'
     || code === 'TIMEOUT'
     || code === 'MODEL_DEGRADED'
+    || code === 'LOCK_LOST'
 }
 
 function categorizeTaskErrorCode(code: string | undefined): TaskErrorCategory {
@@ -386,6 +423,8 @@ function categorizeTaskErrorCode(code: string | undefined): TaskErrorCategory {
     return 'timeout'
   if (code === 'Throttling' || code === 'InternalError' || code === 'ECONNRESET' || code === 'MODEL_DEGRADED')
     return 'provider_error'
+  if (code === 'LOCK_LOST')
+    return 'system'
   return 'system'
 }
 

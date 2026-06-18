@@ -1,7 +1,7 @@
 /**
  * FFmpeg 字幕烧录 — 将 ASS 格式字幕嵌入视频
  *
- * 用 Bun.spawn 调用 ffmpeg 命令行工具，
+ * 用 spawnFfmpeg 统一超时保护调用 ffmpeg 命令行工具，
  * 将 ASS 字幕文件烧录（hardsub）到视频中。
  *
  * 前置条件：ffmpeg 必须编译时包含 libass（提供 ass 滤镜）。
@@ -12,6 +12,7 @@
  */
 
 import { resolve } from 'node:path'
+import { spawnFfmpeg } from './ffmpeg-spawn'
 
 export interface BurnResult {
   /** 输出视频文件路径 */
@@ -43,8 +44,7 @@ export async function burnSubtitlesToVideo(
   // 2. FFmpeg 烧录字幕
   const outputPath = resolve(`${dir}/output_${Date.now()}.mp4`)
 
-  const proc = Bun.spawn([
-    'ffmpeg',
+  const result = await spawnFfmpeg('ffmpeg', [
     '-i',
     videoPath,
     '-vf',
@@ -53,19 +53,14 @@ export async function burnSubtitlesToVideo(
     'copy',
     '-y',
     outputPath,
-  ], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
+  ], { outputDir: dir })
 
-  const exitCode = await proc.exited
-  if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
+  if (result.exitCode !== 0) {
     try {
       await Bun.file(assPath).delete()
     }
     catch {}
-    throw new Error(`FFmpeg 字幕烧录失败 (exit=${exitCode}): ${stderr.slice(-2000)}`)
+    throw new Error(`FFmpeg 字幕烧录失败 (exit=${result.exitCode}): ${result.stderr.slice(-2000)}`)
   }
 
   // 3. 获取输出文件大小
