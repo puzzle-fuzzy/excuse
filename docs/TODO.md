@@ -55,13 +55,6 @@
 - **解法**：抽共享 `EmptyState`（图标 + 标题 + 可选 CTA slot）；Workspace 空状态指向左侧表单（「← 输入 Prompt 开始生成」）。
 - **验收**：核心空状态有明确下一步动作。
 
-### 1.3 🟠 流水线 UI 只显示 9/12 阶段 + 无耗时提示
-
-- **证据**：[PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) `PHASES` 数组只有 9 项，后端 `CANVAS_PHASE_ORDER` 已是 12 阶段（含 dialogue/bgm/assemble）；仅有「已耗秒数」计时（`已耗时 Ns`，每秒刷新），无每阶段典型耗时范围 / 预估剩余；auto 模式失败时仅 toast，后台标签页用户不知流水线已停。
-- **影响**：videos 之后用户看不到在发生什么；不知道一个阶段还要等多久；静默中断。
-- **解法**：(a) 前端 `PHASES` 与后端 12 阶段同源（见 3.1 注册表）；(b) 补每阶段历史平均耗时 / 预估剩余提示；(c) auto 失败在状态栏留持久红色徽章而非仅 toast。
-- **验收**：流水线 UI 显示全 12 阶段；各阶段有耗时范围提示；失败有持久视觉中断。
-
 ### 1.4 🟠 上传失败静默吞 + 无草稿/未保存警告
 
 - **证据**：[workspace.ts:286-328](apps/client/src/stores/workspace.ts#L286-L328) `uploadReferenceFiles`/`uploadMediaParam` 失败只翻 `uploadingRefs` 无 toast；Canvas 创建故事 textarea（[Canvas.tsx:150-156](apps/client/src/pages/Canvas.tsx#L150-L156)）与 Workspace prompt 无持久化、无 `beforeunload`。
@@ -99,13 +92,6 @@
 - **影响**：worker 在两次写之间崩溃 → task=succeeded 但 run=running（或反之），永久漂移、不可自愈；排查需 join 多表。
 - **解法**（二选一）：(a) 用单一事务/单一 adapter 原子更新 task 与 run；(b) 加 reconcile 任务定期 `WHERE task.status != run.status` 修复并告警。推荐 (b)（改动小、且能兜历史漂移）。
 - **验收**：构造两次写之间崩溃的 fixture，reconcile 能修复；正常流程不误改。
-
-### 2.3 🟠 task 锁 heartbeat 失败无防御性检查
-
-- **证据**：[lifecycle](apps/worker/src/) 的 `extendTaskLock` 抛错时仅记日志后继续（DB 临时中断时）；执行中途不复查 `lockedBy=workerId`。长任务（assemble 可达数分钟）期间锁若静默丢失，孤儿 sweep 可能把任务重新 claim 给另一 worker → 双跑。
-- **影响**：DB 抖动叠加长任务 → 两个 worker 同时执行同一 task → 双扣费、双写产物。
-- **解法**：(a) 长任务（assemble/burn-subtitle/video）适当加大 `claimTtl`；(b) 在耗时的子操作之间（如 assemble 的 concat 与 mixBgmTrack 之间）复查 `SELECT ... WHERE lockedBy=workerId AND lockedUntil>now()`，不再持锁即中止；(c) heartbeat 失败重试 2-3 次（退避）而非直接吞。
-- **验收**：模拟 DB 中断使锁过期，确认原 worker 在下一个 checkpoint 主动中止而非继续跑。
 
 ### 2.4 🟠 SSE 死连接回收
 
@@ -281,9 +267,12 @@ bun run check:boundaries
 
 ## 本轮总览（截至 2026-06-18）
 
-本轮六维度审计新发现 **运行时 🔴×1 / 架构 🔴×2 / 前端 🔴×2** 等共约 40 项，按 ROI 建议推进顺序：
+本轮六维度审计新发现约 40 项，按 ROI 建议推进顺序：
 
-1. **P0（立刻，生产风险）**：§1.1 fetch 超时。
-2. **P1（短期，drift / 体验）**：§2.1 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §5.1 generate 去重 · §6.1 traceId 贯穿。（§2.1 阶段注册表 ✅ 已完成，§4.4 流水线 12 阶段 ✅ 已随注册表完成）
-3. **P2（治理 / 打磨）**：§2.3-2.5 拓展性注册表化 · §3.3 状态色收敛 · §4.3/4.5/4.6 空状态/上传/Toast/导航/a11y · §5.2-5.5 文件拆分与去重。
-4. **暂缓**：§7 多租户 / i18n / Redis 限流（待路线图）。
+1. **P0（立刻，生产风险）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
+2. **P1（短期，drift / 体验）**：§5.1 traceId 贯穿 · §1.4 上传/草稿 · §4.1 generate 去重 · §2.4 SSE 死连接 · §2.5 rate-limit 加固
+3. **P2（治理 / 打磨）**：§3.2 category 注册表 · §3.4 配置表式化 · §1.1 骨架屏 · §1.2 空状态 · §4.2 dashscope 拆分 · §4.3 admin 拆分
+4. **接触时顺手**：§1.5 Toast/nav/form/a11y · §4.4-4.5 大文件/去重 · §5.2 错误脱敏
+5. **暂缓**：§六 多租户 / i18n / Redis 限流（待路线图）
+
+已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）

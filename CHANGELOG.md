@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### TODO 核查清理（2026-06-18）
+
+对 `docs/TODO.md` 全项做了源码验证，清理了 2 项已在上轮迭代中修复但未从 TODO 删除的条目。
+
+#### 清理
+
+- **§1.3 流水线 UI 12 阶段** — `PipelineController.tsx` 的 `PHASE_UI` 已是 `Record<CanvasPipelinePhase, ...>` 覆盖全部 12 阶段（analyze…assemble），与后端 `CANVAS_PHASE_ORDER` 一致。从 TODO 删除。
+- **§2.3 task 锁 heartbeat** — `heartbeat.ts` 已有 3 次重试（退避 1s/2s/3s）+ `lostOwnership` 信号；`task-ownership.ts` 提供 `checkTaskOwnership()` 供长任务子操作间检查所有权；`canvas-assemble.ts` 已调用。从 TODO 删除。
+
+### TODO2 核查修正轮次（2026-06-18）
+
+对 `docs/TODO2.md` 原声称「全部 27 项已完成验收」的标记做了独立代码核查，发现多项标记不实，对真实缺口完成修复。
+
+#### 安全性
+
+- **§5.1 CSP 安全头（P0）** — 补 `Content-Security-Policy-Report-Report-Only`（nginx+Elysia 双层）+ `/api/csp-report` 违规上报端点（`csp-report.ts`）；切 enforce 待验证零违规后
+- **§5.5 登录账号锁定** — per-account 失败计数锁定（5 次失败→15 分钟锁定，成功清零）+ per-IP 限流互补
+- **§4.3 空 catch 全仓清零** — 25 处 `.catch(()=>{})` / `.catch(()=>[])` 全部补 `logger.warn`；`sendPasswordResetEmail` 补 `logger.error`
+
+#### 运行时健壮性
+
+- **§4.4 全局 React Query 错误处理** — `QueryCache` + `MutationCache` onError：mutation 无本地 handler 时兜底 toast，query 仅上报+console；`handleApiError` 加 401/403 跳过 + 3s 去重窗口；`reportClientError` 共享 helper 提取至 `lib/error-report.ts`
+- **§4.5 Canvas loadProject 去重** — debounce `scheduleReload` + `versionAtMountRef` 防 mount 双触发；`onPhaseComplete` 统一走 debounce 入口
+
+#### 用户体验
+
+- **§2.2 ModelLab SPA 路由守卫** — `useConfirmNavigation` hook（beforeunload + `<Link>` click 拦截）；声明式 `<Routes>` 下 `useBlocker` 不可用，注记需 data router 迁移后才可
+
+#### 架构
+
+- **§3.1 client.ts 桶重构** — `client.ts` 28 行 barrel + `api-core.ts`(112行) + `billing-api.ts` + `gateway-api.ts`；消除循环依赖（领域文件导入 `api`/`unwrapEden` 从 api-core）；canvas-api/admin 深拆延迟
+
+#### 核查结论
+
+- 22 项经代码核查确认为真修复
+- §4.6 Canvas useEffect — 原问题被夸大（内联 async pattern 不触发 exhaustive-deps 警告），标记为无需改动
+- §3.1 canvas-api (347行) / admin (231行) 深拆 — 延迟
+- §3.2 workspace.ts 表单/业务拆分 — 延迟（循环引用已消除，但表单未拆出）
+
+#### 验收
+
+- typecheck: ✅ (server/client/worker/e2e)
+- lint: ✅ (0 新增错误)
+- build: ✅
+- server tests: 550 pass, 1 fail (pre-existing)
+- client tests: 375 pass, 1 fail (pre-existing)
+
 ### Fixed
 
 - **Canvas 阶段注册表统一 + 前端全 12 阶段可见（TODO §3.1 🔴）**：阶段元数据收敛为 `@excuse/shared/canvas-phases.ts` 单一权威注册表（`CANVAS_PHASE_ORDER` + `CanvasPipelinePhase` 类型 + `CANVAS_PAUSE_BEFORE` + helper 函数），所有消费者从此派生——workflow-engine re-export（保持公开 API）、db pgEnum 经编译期双向断言 `AssertCanvasPhaseSync` 强制同源（新增/遗漏阶段 → 编译失败并提示「补 pgEnum + db:generate」）、前端 `PipelineController` 用 `Record<CanvasPipelinePhase, ...>` 强制覆盖全部阶段（漏一个即编译失败）。前端 PHASES 从 9 项补齐为 12 项（新增 dialogue/bgm/assemble），`pauseBefore` 从共享注册表 `CANVAS_PAUSE_BEFORE` 派生而非手抄；`CostPanel` 的 `PHASE_ORDER` 同样由注册表派生。`CanvasCostPhase` 改为 `CanvasPipelinePhase` 的类型别名。新增 3 个客户端 API 函数（`generateCanvasDialogue` / `generateCanvasBgm` / `assembleCanvas`）。验收：typecheck + lint + build + worker/workflow-engine/shared 测试全绿；漂移断言经注入虚假阶段证实有效（编译失败并显示精确错误信息）。
