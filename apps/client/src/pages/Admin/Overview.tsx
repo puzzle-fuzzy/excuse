@@ -1,7 +1,9 @@
 /**
  * Admin 概览 Tab — 系统概览指标 + 任务诊断
+ *
+ * 内部管理 useTaskFilters hook 和任务查询，不再从父组件接收 17 个 props。
  */
-import type { AdminOverview, AdminPipelineRun, AdminTaskDetail, AdminTaskGenerationRecord, AdminTaskItem } from '@excuse/shared'
+import type { AdminOverview, AdminPipelineRun, AdminTaskDetail, AdminTaskGenerationRecord } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
@@ -13,7 +15,9 @@ import {
   Search,
   Users,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { adminQueryKeys } from '@/api/query-client'
+import { fetchAdminTasks } from '@/api/client'
 import { adminTasksQueryKeys, fetchAdminTaskDetail } from '@/api/admin'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +39,50 @@ import {
   TASK_STATUS_OPTIONS,
   TaskTable,
 } from './shared'
+
+const TASK_LIMIT = 40
+
+/**
+ * 任务筛选与查询 hook — 将筛选状态、数据获取、刷新操作收敛于此，
+ * 组件消费时只需 hooks 返回的值，不再从外部接收一长串 props。
+ */
+function useTaskFilters(enabled: boolean) {
+  const [taskStatus, setTaskStatus] = useState('all')
+  const [taskDomain, setTaskDomain] = useState('all')
+  const [taskSearch, setTaskSearch] = useState('')
+
+  const taskParams = useMemo(() => ({
+    status: taskStatus === 'all' ? undefined : taskStatus,
+    domain: taskDomain === 'all' ? undefined : taskDomain,
+    search: taskSearch.trim() || undefined,
+    limit: TASK_LIMIT,
+    offset: 0,
+  }), [taskDomain, taskSearch, taskStatus])
+
+  const {
+    data: taskData,
+    isLoading,
+    isFetching,
+    refetch: refetchTasks,
+  } = useQuery({
+    queryKey: adminQueryKeys.tasks(taskParams),
+    queryFn: () => fetchAdminTasks(taskParams),
+    enabled,
+  })
+
+  return {
+    taskData,
+    isTasksLoading: isLoading,
+    isTasksFetching: isFetching,
+    taskStatus,
+    taskDomain,
+    taskSearch,
+    setTaskStatus,
+    setTaskDomain,
+    setTaskSearch,
+    refetchTasks,
+  }
+}
 
 function AdminTaskDetailDialog({
   taskId,
@@ -60,6 +108,7 @@ function AdminTaskDetailDialog({
   const runs: AdminPipelineRun[] = detail?.pipelineRuns ?? []
   const genRecords: AdminTaskGenerationRecord[] = detail?.generationRecords ?? []
 
+  // ... (rest stays the same)
   return (
     <Dialog open={!!taskId} onOpenChange={open => !open && onClose()}>
       {taskId && (
@@ -274,43 +323,37 @@ function AdminTaskDetailDialog({
   )
 }
 
-export function AdminOverviewTab({
-  data,
-  taskData,
-  isTasksLoading,
-  isTasksFetching,
-  isFetching,
-  isMutating,
-  taskStatus,
-  taskDomain,
-  taskSearch,
-  refetch,
-  refetchTasks,
-  setTaskStatus,
-  setTaskDomain,
-  setTaskSearch,
-  requeue,
-  cancel,
-}: {
+interface AdminOverviewTabProps {
   data: AdminOverview
-  taskData: { items: AdminTaskItem[], total: number } | undefined
-  isTasksLoading: boolean
-  isTasksFetching: boolean
   isFetching: boolean
-  isMutating: boolean
-  taskStatus: string
-  taskDomain: string
-  taskSearch: string
   refetch: () => void
-  refetchTasks: () => void
-  setTaskStatus: (value: string) => void
-  setTaskDomain: (value: string) => void
-  setTaskSearch: (value: string) => void
   requeue: (id: string) => void
   cancel: (id: string) => void
-}) {
+  isMutating: boolean
+}
+
+export function AdminOverviewTab({
+  data,
+  isFetching,
+  refetch,
+  requeue,
+  cancel,
+  isMutating,
+}: AdminOverviewTabProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const { summary } = data
+  const {
+    taskData,
+    isTasksLoading,
+    isTasksFetching,
+    taskStatus,
+    taskDomain,
+    taskSearch,
+    setTaskStatus,
+    setTaskDomain,
+    setTaskSearch,
+    refetchTasks,
+  } = useTaskFilters(!!data)
 
   return (
     <div className="space-y-4">

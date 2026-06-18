@@ -7,7 +7,8 @@ import { Elysia, t } from 'elysia'
 import { AUTH_COOKIE_NAME, createAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { sendPasswordResetEmail } from '../services/email'
-import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../utils/app-errors'
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitError, UnauthorizedError, ValidationError } from '../utils/app-errors'
+import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 
 /**
  * 从账户行中剥离密码哈希并序列化 Date→string，返回 AuthUser DTO
@@ -37,6 +38,22 @@ const RESET_TOKEN_EXPIRY_MS = 30 * 60 * 1000
 
 /** 密码重置前端页面 URL */
 const RESET_PASSWORD_URL = '/reset-password'
+
+// ── 专项 rate limit  ────────────────────────────────────────────────────
+// per-email 5 次/小时（密码重置邮件轰炸防护）
+const passwordResetEmailLimiter = new SlidingWindowRateLimiter()
+const PASSWORD_RESET_EMAIL_MAX = 5
+const PASSWORD_RESET_EMAIL_WINDOW_MS = 60 * 60 * 1000
+
+// per-IP 10 次/小时（密码重置 DoS 防护）
+const passwordResetIPLimiter = new SlidingWindowRateLimiter()
+const PASSWORD_RESET_IP_MAX = 10
+const PASSWORD_RESET_IP_WINDOW_MS = 60 * 60 * 1000
+
+// per-IP 5 次/15 分钟（登录暴力破解防护）
+const loginIPLimiter = new SlidingWindowRateLimiter()
+const LOGIN_IP_MAX = 5
+const LOGIN_IP_WINDOW_MS = 15 * 60 * 1000
 
 /**
  * 生成密码重置 token（一个 crypto.randomUUID + 随机 hex 后缀）
@@ -118,14 +135,28 @@ export function createAuthRoutes(config: ServerConfig) {
     // 登录
     .post('/login', async ({ body, jwt, request, cookie: cookies }) => {
       const { email, password } = body
+      const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+
+      // per-IP 暴力破解防护（5 次失败/15 分钟）
+      const ipDecision = loginIPLimiter.check({
+        userId: `ip:${clientIP}`,
+        category: 'login',
+        maxRequests: LOGIN_IP_MAX,
+        windowMs: LOGIN_IP_WINDOW_MS,
+      })
+      if (!ipDecision.allowed) {
+        throw new RateLimitError(`登录尝试过于频繁，请 ${ipDecision.retryAfterSec} 秒后重试`, ipDecision.retryAfterSec)
+      }
 
       const account = await getAccountByEmail(email)
       if (!account) {
+        audit('login', { detail: { state: 'failed', reason: 'account_not_found', email, ip: clientIP } })
         throw new UnauthorizedError('邮箱或密码错误')
       }
 
       const valid = await Bun.password.verify(password, account.password, 'bcrypt')
       if (!valid) {
+        audit('login', { accountId: account.id, detail: { state: 'failed', reason: 'wrong_password', ip: clientIP } })
         throw new UnauthorizedError('邮箱或密码错误')
       }
 
@@ -198,8 +229,31 @@ export function createAuthRoutes(config: ServerConfig) {
     })
 
     // ── 忘记密码 ────────────────────────────────────────────────────────────
-    .post('/forgot-password', async ({ body }) => {
+    .post('/forgot-password', async ({ body, request }) => {
       const { email } = body
+      const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+
+      // per-email 限流（5 次/小时）
+      const emailDecision = passwordResetEmailLimiter.check({
+        userId: `email:${email}`,
+        category: 'forgot-password',
+        maxRequests: PASSWORD_RESET_EMAIL_MAX,
+        windowMs: PASSWORD_RESET_EMAIL_WINDOW_MS,
+      })
+      if (!emailDecision.allowed) {
+        throw new RateLimitError(`密码重置请求过于频繁，请 ${emailDecision.retryAfterSec} 秒后重试`, emailDecision.retryAfterSec)
+      }
+
+      // per-IP 限流（10 次/小时）
+      const ipDecision = passwordResetIPLimiter.check({
+        userId: `ip:${clientIP}`,
+        category: 'forgot-password',
+        maxRequests: PASSWORD_RESET_IP_MAX,
+        windowMs: PASSWORD_RESET_IP_WINDOW_MS,
+      })
+      if (!ipDecision.allowed) {
+        throw new RateLimitError(`密码重置请求过于频繁，请 ${ipDecision.retryAfterSec} 秒后重试`, ipDecision.retryAfterSec)
+      }
 
       // 不暴露「该邮箱是否存在」：无论是否存在都返回成功
       const account = await getAccountByEmail(email)

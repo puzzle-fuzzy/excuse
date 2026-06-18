@@ -29,6 +29,7 @@ import {
   markNotificationRead,
 } from '@/api/notifications'
 import { notificationQueryKeys } from '@/api/query-client'
+import ConnectionIndicator from '@/components/ConnectionIndicator'
 import { formatRelativeTime } from '@/lib/format-time'
 import { resolveNotificationTarget } from '@/lib/notification-target'
 import { useAuth } from '../auth/AuthContext'
@@ -152,6 +153,8 @@ export default function Navbar() {
         {/* 右侧用户区域 */}
         {user && (
           <div className="ml-auto flex items-center gap-3">
+            {/* SSE/轮询连接状态指示器 */}
+            <ConnectionIndicator />
             <div ref={dropdownRef} className="relative">
               <Button variant="ghost" size="icon" title="通知" onClick={() => setOpen(v => !v)}>
                 <Bell className="size-4" />

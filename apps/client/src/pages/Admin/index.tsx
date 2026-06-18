@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
-import { cancelAdminTask, fetchAdminOverview, fetchAdminTasks, requeueAdminTask } from '@/api/client'
+import { cancelAdminTask, fetchAdminOverview, requeueAdminTask } from '@/api/client'
 import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,6 @@ import { AdminUsersTab } from './Users'
 
 type AdminTab = 'overview' | 'users' | 'providers' | 'projects' | 'gateway' | 'audit'
 
-const TASK_LIMIT = 40
-
 const TABS: { id: AdminTab, label: string }[] = [
   { id: 'overview', label: '概览' },
   { id: 'users', label: '用户' },
@@ -30,34 +28,11 @@ const TABS: { id: AdminTab, label: string }[] = [
 export default function Admin() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
-  const [taskStatus, setTaskStatus] = useState('all')
-  const [taskDomain, setTaskDomain] = useState('all')
-  const [taskSearch, setTaskSearch] = useState('')
-
-  const taskParams = useMemo(() => ({
-    status: taskStatus === 'all' ? undefined : taskStatus,
-    domain: taskDomain === 'all' ? undefined : taskDomain,
-    search: taskSearch.trim() || undefined,
-    limit: TASK_LIMIT,
-    offset: 0,
-  }), [taskDomain, taskSearch, taskStatus])
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: adminQueryKeys.overview,
     queryFn: fetchAdminOverview,
     refetchInterval: () => document.hidden ? false : 30_000,
-  })
-
-  const {
-    data: taskData,
-    isLoading: isTasksLoading,
-    isFetching: isTasksFetching,
-    refetch: refetchTasks,
-  } = useQuery({
-    queryKey: adminQueryKeys.tasks(taskParams),
-    queryFn: () => fetchAdminTasks(taskParams),
-    refetchInterval: () => document.hidden ? false : 15_000,
-    enabled: !!data,
   })
 
   const refreshAdminData = async () => {
@@ -158,21 +133,11 @@ export default function Admin() {
       {activeTab === 'overview' && (
         <AdminOverviewTab
           data={data}
-          taskData={taskData}
-          isTasksLoading={isTasksLoading}
-          isTasksFetching={isTasksFetching}
           isFetching={isFetching}
-          isMutating={isMutating}
-          taskStatus={taskStatus}
-          taskDomain={taskDomain}
-          taskSearch={taskSearch}
           refetch={refetch}
-          refetchTasks={refetchTasks}
-          setTaskStatus={setTaskStatus}
-          setTaskDomain={setTaskDomain}
-          setTaskSearch={setTaskSearch}
           requeue={id => requeueMutation.mutate(id)}
           cancel={id => cancelMutation.mutate(id)}
+          isMutating={isMutating}
         />
       )}
 

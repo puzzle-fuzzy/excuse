@@ -11,19 +11,46 @@ RUN bun install --frozen-lockfile
 RUN bun run build:client
 
 # ==========================================
-# Stage 2: Production dependencies only (no source code)
+# Stage 2: Production dependencies (cache-friendly copy)
 # ==========================================
 FROM oven/bun:1.3 AS runtime-deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY tsconfig.json bunfig.toml ./
-# Copy package.json for EACH workspace preserving directory structure.
-# 不能写 COPY apps/*/package.json apps/ —— Docker 会把通配符匹配的文件
-# 平铺到目标目录（apps/server/package.json → apps/package.json），
-# 导致 bun 找不到 workspace 子包（@excuse/shared 等）的 package.json。
+
+# 只复制 package.json 文件 → 源码不变时命中 Docker layer cache
+# 通配符 COPY apps/*/package.json apps/ 在 Docker 中会把匹配的文件
+# 平铺到 apps/ 目录下，导致 bun 找不到 workspace 子包目录。
+# 此处显式列出所有 workspace 的 package.json。
+COPY apps/server/package.json apps/server/
+COPY apps/client/package.json apps/client/
+COPY apps/worker/package.json apps/worker/
+COPY packages/shared/package.json packages/shared/
+COPY packages/db/package.json packages/db/
+COPY packages/provider/package.json packages/provider/
+COPY packages/storage/package.json packages/storage/
+COPY packages/ffmpeg/package.json packages/ffmpeg/
+COPY packages/billing/package.json packages/billing/
+COPY packages/canvas-engine/package.json packages/canvas-engine/
+COPY packages/canvas-runtime/package.json packages/canvas-runtime/
+COPY packages/prompt-engine/package.json packages/prompt-engine/
+COPY packages/task-engine/package.json packages/task-engine/
+COPY packages/workflow-engine/package.json packages/workflow-engine/
+COPY packages/events/package.json packages/events/
+COPY packages/gateway/package.json packages/gateway/
+COPY packages/metrics/package.json packages/metrics/
+COPY packages/rate-limit/package.json packages/rate-limit/
+COPY packages/subtitle-engine/package.json packages/subtitle-engine/
+COPY packages/auth/package.json packages/auth/
+COPY packages/error-recovery/package.json packages/error-recovery/
+COPY packages/provider-health/package.json packages/provider-health/
+
+# 安装生产依赖（只 package.json 变更才重跑这一层）
+RUN bun install --frozen-lockfile && rm -rf node_modules && rm bun.lock && bun install --production
+
+# 复制源码（源码变更才会重跑，不会触发 bun install）
 COPY apps apps/
 COPY packages packages/
-RUN bun install --frozen-lockfile && rm -rf node_modules && rm bun.lock && bun install --production
 
 # ==========================================
 # Stage 3: Server runtime
