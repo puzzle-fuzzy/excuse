@@ -110,7 +110,9 @@
 - **解法**：抽 `services/billing-ledger.ts`（或下沉到 `@excuse/billing`）的 `reserveAndTrack` / `settleOrRefund`，两处共用。
 - **验收**：generation 与 gateway 的账本编排走同一函数；新增 audit 事件只改一处。
 
-### 3.3 🟡 adapter 仪式——8 个接口里 2 个全死、3 个零逻辑透传
+### 3.3 🟢 adapter 仪式——8 个接口里 2 个全死、3 个零逻辑透传 — ✅ 已修复
+
+> **已完成**（2026-06-18）：删除 `task-engine` 的 `TaskPauseAdapter`/`PauseTaskWithAdapterInput`、`pauseTaskWithAdapter`/`resumeTaskWithAdapter`、`canPauseTask`/`canResumeTask`/`canRequeueTask`/`canCancelTask`；删除 `workflow-engine` 的 `canRetryPipelineRun`/`canPausePipelineRun`/`canResumePipelineRun`/`canResumeFromPhase`。保留 `canCancelPipelineRun`（唯一有生产调用方的 command 守卫）与 `isRetryablePipelineRun`（工具函数）。验收：typecheck/lint/build/boundaries/task-engine 25/workflow-engine 32/server 547 test 全绿。
 
 - **证据**：[task-engine](packages/task-engine/src/index.ts) 有 8 个 `*Adapter` 接口。`TaskPauseAdapter` / `pauseTaskWithAdapter` / `resumeTaskWithAdapter` 及 workflow-engine 的 `canPause*`/`canResume*`/`canResumeFromPhase` **零调用方**；`cancelTaskWithAdapter`/`sweepOrphanTasksWithAdapter`/`extendTaskLockWithAdapter` 是一行 `return adapter.x(...)` 透传。真正挣到钱的是 `applyTaskFailureWithAdapter`（失败分类真逻辑）与 `completeTaskWithAdapter`（成功后通知序列）。
 - **影响**：无逻辑的透传是「为模式而模式」；`pause/resume` 是从未接线的 speculative 脚手架。**2.2 的 dialogue/bgm/assemble bug 正是这种仪式的下游**——信封活在 worker 胶水里而非纯包，所以新阶段能绕过。

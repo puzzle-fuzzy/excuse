@@ -93,17 +93,6 @@ export interface CancelTaskWithAdapterInput<TTask> {
   adapter: TaskCancelAdapter<TTask>
 }
 
-/** 暂停 / 恢复 adapter — 将任务置为暂停状态或从暂停恢复（不改变队列数据，只锁状态） */
-export interface TaskPauseAdapter<TTask> {
-  pauseTask: (id: string) => Promise<TTask | null> | TTask | null
-  resumeTask: (id: string) => Promise<TTask | null> | TTask | null
-}
-
-export interface PauseTaskWithAdapterInput<TTask> {
-  taskId: string
-  adapter: TaskPauseAdapter<TTask>
-}
-
 export interface TaskFailureAdapter {
   markTaskRetrying: (id: string, nextRunAt: Date) => Promise<unknown> | unknown
   markTaskFailed: (id: string, errorInfo?: TaskErrorInfo, errorMessage?: string) => Promise<unknown> | unknown
@@ -255,44 +244,6 @@ export async function cancelTaskWithAdapter<TTask>(
   input: CancelTaskWithAdapterInput<TTask>,
 ): Promise<TTask | null> {
   return input.adapter.cancelTask(input.taskId)
-}
-
-/**
- * 通过 adapter 暂停任务 — 暂停状态注入，task-engine 不依赖 DB
- *
- * @returns 被暂停的 task；null 表示任务已不在可暂停状态
- */
-export async function pauseTaskWithAdapter<TTask>(
-  input: PauseTaskWithAdapterInput<TTask>,
-): Promise<TTask | null> {
-  return input.adapter.pauseTask(input.taskId)
-}
-
-/**
- * 通过 adapter 恢复任务 — 从暂停恢复，task-engine 不依赖 DB
- *
- * @returns 恢复后的 task；null 表示任务已不在暂停状态
- */
-export async function resumeTaskWithAdapter<TTask>(
-  input: PauseTaskWithAdapterInput<TTask>,
-): Promise<TTask | null> {
-  return input.adapter.resumeTask(input.taskId)
-}
-
-export function canRequeueTask(task: TaskStatusCandidate): boolean {
-  return task.status === 'failed' || task.status === 'retrying' || task.status === 'queued'
-}
-
-export function canCancelTask(task: TaskStatusCandidate): boolean {
-  return task.status === 'queued' || task.status === 'running' || task.status === 'retrying'
-}
-
-export function canPauseTask(task: TaskStatusCandidate): boolean {
-  return task.status === 'queued' || task.status === 'running' || task.status === 'retrying'
-}
-
-export function canResumeTask(task: TaskStatusCandidate): boolean {
-  return task.status === 'paused'
 }
 
 export async function applyTaskFailureWithAdapter<TTask extends TaskRetryCandidate & { id: string }>(

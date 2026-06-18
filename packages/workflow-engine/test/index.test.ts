@@ -2,8 +2,6 @@ import { describe, expect, it } from 'bun:test'
 import {
   canAdvanceToPhase,
   canCancelPipelineRun,
-  canResumeFromPhase,
-  canRetryPipelineRun,
   CANVAS_PAUSE_BEFORE,
   CANVAS_PHASE_ORDER,
   createNextCanvasPipelineTask,
@@ -361,27 +359,5 @@ describe('pipeline 命令规则', () => {
     expect(canCancelPipelineRun({ status: 'succeeded' })).toBe(false)
     expect(canCancelPipelineRun({ status: 'failed' })).toBe(false)
     expect(canCancelPipelineRun({ status: 'cancelled' })).toBe(false)
-  })
-
-  it('允许重试 failed 和 cancelled 运行', () => {
-    expect(canRetryPipelineRun({ status: 'failed' })).toBe(true)
-    expect(canRetryPipelineRun({ status: 'cancelled' })).toBe(true)
-  })
-
-  it('禁止重试 pending、running、succeeded 运行', () => {
-    expect(canRetryPipelineRun({ status: 'pending' })).toBe(false)
-    expect(canRetryPipelineRun({ status: 'running' })).toBe(false)
-    expect(canRetryPipelineRun({ status: 'succeeded' })).toBe(false)
-  })
-
-  it('仅允许从暂停前阶段恢复（storyboard / videos）', () => {
-    expect(canResumeFromPhase('storyboard')).toBe(true)
-    expect(canResumeFromPhase('videos')).toBe(true)
-  })
-
-  it('禁止从普通阶段恢复', () => {
-    expect(canResumeFromPhase('analyze')).toBe(false)
-    expect(canResumeFromPhase('characters')).toBe(false)
-    expect(canResumeFromPhase('rebuild')).toBe(false)
   })
 })

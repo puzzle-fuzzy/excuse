@@ -353,36 +353,3 @@ export interface PipelineCommandRunLike {
 export function canCancelPipelineRun(run: PipelineCommandRunLike): boolean {
   return isActivePipelineRun(run)
 }
-
-/**
- * run 是否可重试。
- * 规则：只有失败/取消（failed / cancelled）的 run 可重试；成功或活跃 run 不可重试。
- */
-export function canRetryPipelineRun(run: PipelineCommandRunLike): boolean {
-  return isRetryablePipelineRun(run)
-}
-
-/**
- * run 是否可暂停。
- * 规则：只有活跃 run（pending / running）可暂停；终态或已暂停 run 不重复暂停。
- */
-export function canPausePipelineRun(run: PipelineCommandRunLike): boolean {
-  return isActivePipelineRun(run)
-}
-
-/**
- * run 是否可恢复。
- * 规则：已暂停的 run 可恢复；活跃或终态 run 不需要恢复。
- */
-export function canResumePipelineRun(run: PipelineCommandRunLike): boolean {
-  return run.status === 'paused'
-}
-
-/**
- * 是否允许从某阶段 resume。
- * 规则：只有 pause-before 阶段（storyboard / videos）是合法 resume 点 ——
- * 普通阶段由自动推进处理，不存在"暂停后继续"的语义。
- */
-export function canResumeFromPhase(phase: CanvasPipelinePhase): boolean {
-  return isPauseBeforePhase(phase)
-}
