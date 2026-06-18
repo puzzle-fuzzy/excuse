@@ -109,7 +109,7 @@ export function createAuthPlugin(config: ServerConfig) {
               return { userId: null, authMethod: null, apiKeyMeta: null }
 
             // 非阻塞更新 lastUsedAt
-            touchApiKeyLastUsed(apiKey.id).catch(() => {})
+            touchApiKeyLastUsed(apiKey.id).catch(err => logger.warn({ err, apiKeyId: apiKey.id }, 'touchApiKeyLastUsed failed'))
 
             // Per-key rate limit 检查
             const rateLimit = apiKey.rateLimitPerMinute ?? 60
@@ -140,7 +140,7 @@ export function createAuthPlugin(config: ServerConfig) {
           const { findRevokedApiKeyByHash } = await import('@excuse/db')
           const revokedKey = await findRevokedApiKeyByHash(keyHash)
           if (revokedKey) {
-            notifyApiKeyRevoked(revokedKey.accountId, revokedKey.id).catch(() => {})
+            notifyApiKeyRevoked(revokedKey.accountId, revokedKey.id).catch(err => logger.warn({ err, accountId: revokedKey.accountId }, 'notifyApiKeyRevoked failed'))
           }
           return { userId: null, authMethod: null, apiKeyMeta: null }
         }

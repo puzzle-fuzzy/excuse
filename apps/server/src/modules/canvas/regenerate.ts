@@ -28,6 +28,7 @@ import {
   parseLLMJsonWithSchema,
 } from '@excuse/prompt-engine'
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
+import { logger } from '@excuse/shared'
 import { BadRequestError, ConflictError, InternalError, NotFoundError, ValidationError } from '../../utils/app-errors'
 import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 
@@ -250,7 +251,7 @@ export async function regenerateShotVideo(shotId: string, client: DashScopeClien
   catch (error) {
     const errorMessage = (error as Error).message
     // ── 标记视频资产失败 ──────────────────────────
-    await markCanvasAssetFailed(shotVideoAsset.id, errorMessage).catch(() => {})
+    await markCanvasAssetFailed(shotVideoAsset.id, errorMessage).catch(err => logger.warn({ err, assetId: shotVideoAsset.id }, 'markCanvasAssetFailed failed in error path'))
     notifyNode(accountId, shot.projectId, 'shot', newShot.id, 'failed', undefined, errorMessage)
     throw error
   }

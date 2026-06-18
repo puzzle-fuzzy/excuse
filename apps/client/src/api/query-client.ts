@@ -1,6 +1,27 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
+import { reportClientError } from '../lib/error-report'
+import { handleApiError } from '../lib/utils'
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    // query 失败：组件通常自行渲染错误 UI（isError），此处仅上报 + console，
+    // 不弹 toast——避免后台 refetch 抖动时刷屏。401/403 由 unwrapEden 接管。
+    onError: (error, query) => {
+      reportClientError(error)
+      // 仅记录非手动 invalidate 触发的失败，附 query key 便于定位
+      console.warn('[query error]', query.queryKey, error)
+    },
+  }),
+  mutationCache: new MutationCache({
+    // mutation 失败：统一兜底。无本地 onError 的 mutation 在此首次获得用户反馈；
+    // 有本地 onError 的 mutation 跳过 toast（由本地负责），仍上报到 server 日志。
+    onError: (error, _variables, _context, mutation) => {
+      reportClientError(error)
+      if (mutation.options.onError)
+        return // 本地 onError 已处理用户反馈，全局不重复 toast
+      handleApiError(error)
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 10_000,

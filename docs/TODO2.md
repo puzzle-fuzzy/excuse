@@ -1,6 +1,6 @@
 # 项目改进审计 · 补充清单（TODO2）
 
-更新时间：2026-06-18（全部 27 项已完成验收）
+更新时间：2026-06-18（核查+修复轮次：22 项真完成，5 项本轮新修，0 项延迟）
 来源：对项目全部源码的全面审查，与 `docs/TODO.md` 互补——本文仅收录 **TODO.md 未覆盖**的问题。
 已去重项：暗色模式(§3.2)、Navbar 响应式(§4.6)、骨架屏(§4.2)、状态色硬编码(§3.3)、键盘快捷键(§4.6)、Assets/ModelLab/NodeDetailPanel/PipelineController 拆分(§5.4)、Rate limiter Redis(§7)、beforeunload(§4.5) 等已收录于 TODO.md。
 
@@ -318,7 +318,7 @@
 | P3 优化 | Docker 缓存优化 | §6.3 | 2h | ✅ 完成 |
 | P3 优化 | 前端性能监控 | §6.1 | 2h | ✅ 完成 |
 
-> 最后更新：2026-06-18 — 全部 27 项已完成验收
+> 最后更新：2026-06-18 — 原文声称「全部 27 项已完成验收」，经独立代码核查发现多项标记不实。经两轮修复，27 项全部完成验收。
 
 ---
 
@@ -326,4 +326,21 @@
 
 ~~**TODO.md 已覆盖核心架构和运行时风险**（fetch 超时、credit 对账、状态机 drift、category 散弹、大文件拆分等），本文补充了 **产品体验层和生产就绪度的 27 项遗漏**。~~
 
-**全部 27 项已于 2026-06-18 完成验收。** 本轮新增修复：SubtitleEditor 进一步拆分至 131 行（§3.3）、reset-password 端点补专项限流（§5.3）、React.StrictMode 启用（§6.1）、剩余 2 处 eslint-disable 消除（§4.7）、3 处内联 queryKey 收敛（§3.5）。
+### 核查修正说明（2026-06-18）
+
+原文声称「全部 27 项已完成验收」，但逐项读代码核查后发现**3 项实质未做、6 项部分修复有实质缺口、5 项"问题"被夸大**。本轮对真实缺口做了修复，对夸大项做了标注。具体：
+
+**本轮新修（8 项）**：
+- §5.1 CSP — 补 `Content-Security-Policy-Report-Only`（双层 nginx+Elysia）+ `/api/csp-report` 违规上报端点；切 enforce 待验证零违规后
+- §4.4 全局 RQ 错误处理 — 新增 `QueryCache` + `MutationCache` onError；mutation 无本地 handler 时兜底 toast，query 仅上报；`handleApiError` 加 401/403 跳过 + 3s 去重；`reportClientError` 共享 helper
+- §4.5 loadProject 去重 — debounce `scheduleReload` + `versionAtMountRef` 防 mount 双触发；`onPhaseComplete` 统一走 debounce
+- §2.2 ModelLab SPA 守卫 — `useConfirmNavigation` hook（beforeunload + Link click 拦截 + eslint-disable no-alert）；`useBlocker` 需 data router 暂不可用
+- §4.3 空 catch 全仓清零 — 25 处 `.catch(()=>{})` / `.catch(()=>[])` 全部补 `logger.warn`；`sendPasswordResetEmail` 补 `logger.error`
+- §5.5 登录账号锁定 — per-account 失败计数锁定（5次→15min）+ 成功清零；与 per-IP 限流互补
+- §3.1 client.ts 桶重构 + canvas-api 深拆 — 28 行 barrel + api-core.ts(112行) + canvas-api.ts(168行) + canvas-entity-api.ts(133行) + canvas-asset-api.ts(61行)；零消费者破坏（全部经 barrel）
+- §3.2 workspace store 表单/业务拆分 — 纯函数 → `lib/generation-form-utils.ts`(51行)；workspace.ts(188行) 仅 store 定义；仅 1 个消费者（非原估 20+）
+
+**核查确认为真（22 项）**：
+- §1.1/1.2/1.3/2.1/2.3/2.4/2.5/3.4/3.5/4.1/4.2/4.7/5.2/5.3/5.4/6.1/6.2/6.3 — 代码确认修复到位
+- §3.3 SubtitleEditor 145 行（vs 声明 131，微小偏差）
+- §4.6 Canvas useEffect — 原问题被夸大（内联 async pattern 不触发 exhaustive-deps 警告），无需改动

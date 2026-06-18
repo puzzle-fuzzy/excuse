@@ -8,9 +8,9 @@ interface MediaPreviewDialogProps {
 /** 根据 URL 后缀推断媒体类型 */
 function detectMediaType(url: string): 'image' | 'video' | 'audio' {
   const lower = url.toLowerCase().split('?')[0]
-  if (/\.(mp4|webm|mov|avi|mkv|m4v)$/.test(lower))
+  if (/\.(?:mp4|webm|mov|avi|mkv|m4v)$/.test(lower))
     return 'video'
-  if (/\.(mp3|wav|ogg|aac|flac|m4a)$/.test(lower))
+  if (/\.(?:mp3|wav|ogg|aac|flac|m4a)$/.test(lower))
     return 'audio'
   return 'image'
 }

@@ -29,6 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
+import { useConfirmNavigation } from '@/hooks/use-confirm-navigation'
 import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
 import {
@@ -157,17 +158,9 @@ export default function ModelLab() {
   const { reset } = form
   const values = form.watch()
 
-  // 未保存更改时阻止意外离开
+  // 未保存更改时阻止意外离开（beforeunload + 应用内导航链接拦截）
   const isDirty = form.formState.isDirty
-  useEffect(() => {
-    if (!isDirty)
-      return
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault()
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [isDirty])
+  useConfirmNavigation(isDirty, '有未保存的更改，确定要离开吗？')
 
   useEffect(() => {
     if (didLoadModelsRef.current)

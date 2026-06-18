@@ -159,7 +159,7 @@ export async function executeGeneration(
     })
     // 同步任务（文本/图片）provider 失败时推送通知（视频异步失败由 Worker 处理）
     if (category === 'text' || category === 'image') {
-      await notifySyncTaskFailed(accountId, recordId, category, model, result.error).catch(() => {})
+      await notifySyncTaskFailed(accountId, recordId, category, model, result.error).catch(err => logger.warn({ err, accountId, recordId }, 'notifySyncTaskFailed failed'))
     }
     const updated = await getGenerationRecordById(recordId)
     return { success: false, record: updated! }
@@ -254,7 +254,7 @@ export async function executeGeneration(
 
   // 同步任务（文本/图片）成功时推送通知
   if (category === 'text' || category === 'image') {
-    await notifySyncTaskCompleted(accountId, recordId, category, model).catch(() => {})
+    await notifySyncTaskCompleted(accountId, recordId, category, model).catch(err => logger.warn({ err, accountId, recordId }, 'notifySyncTaskCompleted failed'))
   }
 
   return { success: true, record: updated! }

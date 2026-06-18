@@ -21,6 +21,7 @@ import {
   notifyGenerationStatus,
   updateSubtitleProjectStatus,
 } from '@excuse/db'
+import { logger } from '@excuse/shared'
 import { getDefaultStyleConfig } from '@excuse/subtitle-engine'
 import { getTaskPriority } from '@excuse/task-engine'
 import { pushNotification } from '../../services/notifications'
@@ -121,7 +122,7 @@ export async function retryProject(
         title: '字幕重试失败',
         body: asrResult.error,
         meta: { recordId: project.id, category: 'subtitle' },
-      }).catch(() => {})
+      }).catch(err => logger.warn({ err, recordId: project.id }, 'notify ASR failure failed'))
       const failedProject = await getSubtitleProjectForAccount(project.id, accountId)
       return failedProject!
     }

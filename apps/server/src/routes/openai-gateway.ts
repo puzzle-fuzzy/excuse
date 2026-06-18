@@ -26,6 +26,7 @@ import {
   serializeOpenAIStreamChunk,
 } from '@excuse/gateway'
 import { getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
+import { logger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import {
@@ -170,7 +171,7 @@ export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerConte
             keyId: apiKeyMeta.id,
             totalSpendCents: apiKeyMeta.totalSpendCents,
             quotaMaxCents: apiKeyMeta.quotaMaxCents,
-          }).catch(() => {})
+          }).catch(err => logger.warn({ err }, 'quota warning notification failed'))
           throwOpenAIGatewayError(quotaErr)
         }
       }

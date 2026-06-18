@@ -1,5 +1,6 @@
 import type { CreditFlowDetail } from '@excuse/shared'
 import { CreditError, debitCredit, refundCredit, reserveCredit } from '@excuse/db'
+import { logger } from '@excuse/shared'
 import { audit } from './audit'
 import { notifyInsufficientBalance } from './notifications'
 
@@ -34,7 +35,7 @@ export async function reserveAndTrack(opts: BillingLedgerInput): Promise<Billing
   catch (error) {
     const message = error instanceof Error ? error.message : '余额不足，无法发起生成'
     if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-      await notifyInsufficientBalance(opts.accountId).catch(() => {})
+      await notifyInsufficientBalance(opts.accountId).catch(err => logger.warn({ err, accountId: opts.accountId }, 'notifyInsufficientBalance failed'))
     }
     return { ok: false, reason: 'insufficient_balance', message }
   }

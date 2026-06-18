@@ -6,10 +6,11 @@ import type { WorkerHealthState } from './health'
 import type { PollSource } from './poll-source'
 import { claimNextTask, extendTaskLock, getTaskById, markTaskSucceeded, notifyTaskStatusChange } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
-import { claimNextTaskWithAdapter, completeTaskWithAdapter } from '@excuse/task-engine'
+import { claimNextTaskWithAdapter, completeTaskWithAdapter, extendTaskLockWithAdapter } from '@excuse/task-engine'
 import { startTaskHeartbeat } from './heartbeat'
 import { advancePipelineAfterTaskSuccess } from './pipeline-stepper'
 import { handleTask, handleTaskError } from './task-handler'
+import { checkTaskOwnership, createOwnershipCheck, setTaskOwnershipCheck } from './task-ownership'
 
 const logger = createLogger('poll-sources')
 
@@ -17,6 +18,20 @@ const workerId = `worker-${process.env.HOSTNAME ?? 'local'}-${process.pid}`
 
 /** claimNextTaskWithAdapter 认领到的任务（已 null-check）— 与 handleTask 入参同型 */
 type ClaimedTask = Parameters<typeof handleTask>[0]
+
+/**
+ * 长任务类型 — 执行时间可达数分钟（FFmpeg concat/mix、字幕烧录、视频提交循环），
+ * 需更长的 claim TTL（默认 30s 对这些任务太短，一次 DB 瞬断就丢锁）。
+ */
+const LONG_TASK_TYPES: readonly string[] = [
+  'canvas.assemble',
+  'canvas.videos',
+  'canvas.bgm',
+  'media.burn-subtitle',
+]
+
+/** 长任务 claim TTL — 5 分钟（足够覆盖 DB 瞬断 + orphan sweep 5min 宽限） */
+const LONG_TASK_CLAIM_TTL_MS = 300_000
 
 /**
  * 统一任务队列轮询源 — claim + handle + complete + auto-advance
@@ -42,7 +57,24 @@ export function createTaskPollSource(
 
       healthState.tasksClaimed++
       healthState.currentTaskId = claimedTask.id
-      const stopHeartbeat = startTaskHeartbeat(claimedTask.id, workerId, ctx.config.claimTtlMs, { extendTaskLock })
+
+      // 长任务用更长的 TTL — 立即续锁扩大 claim 窗口
+      const isLongTask = LONG_TASK_TYPES.includes(claimedTask.type)
+      const effectiveTtlMs = isLongTask ? LONG_TASK_CLAIM_TTL_MS : ctx.config.claimTtlMs
+      if (isLongTask && effectiveTtlMs > ctx.config.claimTtlMs) {
+        await extendTaskLockWithAdapter({
+          taskId: claimedTask.id,
+          workerId,
+          claimTtlMs: effectiveTtlMs,
+          adapter: { extendTaskLock },
+        })
+        logger.info({ taskId: claimedTask.id, type: claimedTask.type, claimTtlMs: effectiveTtlMs }, 'Long task: extended claim TTL')
+      }
+
+      const { stop: stopHeartbeat, lostOwnership } = startTaskHeartbeat(claimedTask.id, workerId, effectiveTtlMs, { extendTaskLock })
+
+      // 设置 per-task ownership check — 长 handler 在子操作间调用 checkTaskOwnership()
+      setTaskOwnershipCheck(createOwnershipCheck(claimedTask.id, workerId, lostOwnership))
 
       const execution = executeClaimedTask(claimedTask)
       refs.currentTaskPromiseRef.value = execution
@@ -52,6 +84,7 @@ export function createTaskPollSource(
       finally {
         refs.currentTaskPromiseRef.value = null
         stopHeartbeat()
+        setTaskOwnershipCheck(null) // 清除 per-task 检查
         healthState.currentTaskId = null
       }
 
@@ -63,6 +96,8 @@ export function createTaskPollSource(
   async function executeClaimedTask(claimedTask: ClaimedTask): Promise<void> {
     try {
       const output = await handleTask(claimedTask, ctx)
+      // 任务完成前检查锁所有权 — 如果丢失，不应 complete（另一 worker 可能已在跑）
+      checkTaskOwnership()
       const succeeded = await completeTaskWithAdapter({
         task: claimedTask,
         output,

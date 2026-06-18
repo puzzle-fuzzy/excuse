@@ -1,6 +1,6 @@
 import type { GenerationRecord, ModelParameter } from '@/api/client'
+import type { WorkspaceParameters } from '@/lib/generation-form-utils'
 import type { Category } from '@/lib/generation-utils'
-import type { WorkspaceParameters } from '@/stores/workspace'
 import {
   FileText,
   Loader2,
@@ -20,10 +20,11 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { buildInitialParameters, checkCanGenerate } from '@/lib/generation-form-utils'
 import { CATEGORY_CONFIG } from '@/lib/generation-utils'
 import { useGenerationStore } from '@/stores/generation'
 import { useModelsStore } from '@/stores/models-store'
-import { buildInitialParameters, checkCanGenerate, useWorkspaceStore } from '@/stores/workspace'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 export default function Workspace() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)

@@ -13,7 +13,7 @@ import {
   generationFailedError,
   insufficientBalanceError,
 } from '@excuse/gateway'
-import { extractBillingParams } from '@excuse/shared'
+import { extractBillingParams, logger } from '@excuse/shared'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { audit } from './audit'
 import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from './billing-ledger'
@@ -182,7 +182,7 @@ export async function settleGatewaySuccess(opts: GatewaySuccessInput): Promise<v
 
   // API Key 额度追踪（非阻塞）
   if (apiKeyMeta && actualCost.totalPriceCents > 0) {
-    incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(() => {})
+    incrementApiKeySpend(apiKeyMeta.id, actualCost.totalPriceCents).catch(err => logger.warn({ err, apiKeyId: apiKeyMeta.id }, 'incrementApiKeySpend failed'))
   }
   // API Key 额度即将用尽（80%）预警（非阻塞）
   if (apiKeyMeta) {
@@ -190,7 +190,7 @@ export async function settleGatewaySuccess(opts: GatewaySuccessInput): Promise<v
       keyId: apiKeyMeta.id,
       totalSpendCents: apiKeyMeta.totalSpendCents + actualCost.totalPriceCents,
       quotaMaxCents: apiKeyMeta.quotaMaxCents,
-    }).catch(() => {})
+    }).catch(err => logger.warn({ err }, 'quota-80% warning notification failed'))
   }
 }
 
@@ -206,7 +206,7 @@ export async function settleGatewayFailure(opts: GatewayFailureInput): Promise<v
   await markGenerationFailed(recordId, message)
   recordGenerationStatus('failed')
 
-  notifyProviderFailure(userId, modelConfig.id).catch(() => {})
+  notifyProviderFailure(userId, modelConfig.id).catch(err => logger.warn({ err, userId, modelId: modelConfig.id }, 'notifyProviderFailure failed'))
 
   if (estimatedCost.totalPriceCents > 0) {
     await refundReservedAndTrack({

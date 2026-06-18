@@ -55,6 +55,38 @@ const loginIPLimiter = new SlidingWindowRateLimiter()
 const LOGIN_IP_MAX = 5
 const LOGIN_IP_WINDOW_MS = 15 * 60 * 1000
 
+// ── per-account 登录失败计数 + 临时锁定 ─────────────────────────────────
+// 与 per-IP 限流互补：IP 限流防同一 IP 暴破多账号，account 锁定防分布式 IP 暴破单账号。
+// 连续 5 次密码失败后锁定账号 15 分钟；成功登录清零。进程内状态，重启清空。
+const MAX_ACCOUNT_FAILURES = 5
+const ACCOUNT_LOCK_DURATION_MS = 15 * 60 * 1000
+const loginAccountLockout = new Map<string, { failures: number, lockedUntil: number | null }>()
+
+function checkAccountLockout(accountId: string): { locked: boolean, retryAfterSec: number } {
+  const entry = loginAccountLockout.get(accountId)
+  if (!entry)
+    return { locked: false, retryAfterSec: 0 }
+  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
+    return { locked: true, retryAfterSec: Math.ceil((entry.lockedUntil - Date.now()) / 1000) }
+  }
+  // 锁定已过期，清空计数
+  loginAccountLockout.delete(accountId)
+  return { locked: false, retryAfterSec: 0 }
+}
+
+function recordAccountLoginFailure(accountId: string) {
+  const entry = loginAccountLockout.get(accountId) ?? { failures: 0, lockedUntil: null }
+  entry.failures++
+  if (entry.failures >= MAX_ACCOUNT_FAILURES) {
+    entry.lockedUntil = Date.now() + ACCOUNT_LOCK_DURATION_MS
+  }
+  loginAccountLockout.set(accountId, entry)
+}
+
+function clearAccountLockout(accountId: string) {
+  loginAccountLockout.delete(accountId)
+}
+
 /**
  * 生成密码重置 token（一个 crypto.randomUUID + 随机 hex 后缀）
  * 返回 { rawToken, tokenHash }
@@ -154,11 +186,21 @@ export function createAuthRoutes(config: ServerConfig) {
         throw new UnauthorizedError('邮箱或密码错误')
       }
 
+      // per-account 锁定检查 — 连续 5 次密码失败后临时锁定 15 分钟
+      const lockout = checkAccountLockout(account.id)
+      if (lockout.locked) {
+        throw new RateLimitError(`该账号已被临时锁定，请 ${lockout.retryAfterSec} 秒后重试`, lockout.retryAfterSec)
+      }
+
       const valid = await Bun.password.verify(password, account.password, 'bcrypt')
       if (!valid) {
+        recordAccountLoginFailure(account.id)
         audit('login', { accountId: account.id, detail: { state: 'failed', reason: 'wrong_password', ip: clientIP } })
         throw new UnauthorizedError('邮箱或密码错误')
       }
+
+      // 登录成功 → 清除 per-account 失败计数
+      clearAccountLockout(account.id)
 
       if (!account.isActive) {
         throw new ForbiddenError('账户已被禁用')
@@ -169,7 +211,7 @@ export function createAuthRoutes(config: ServerConfig) {
       audit('login', { accountId: account.id, ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() })
 
       // 更新最后登录时间（不阻塞登录响应）
-      updateLastLoginAt(account.id).catch(() => {})
+      updateLastLoginAt(account.id).catch(err => logger.warn({ err, accountId: account.id }, 'updateLastLoginAt failed'))
 
       cookies[AUTH_COOKIE_NAME]?.set({ value: token, ...COOKIE_OPTS })
 
@@ -285,7 +327,7 @@ export function createAuthRoutes(config: ServerConfig) {
       // 发送重置邮件（有 SMTP 配置时通过邮件发送，否则打印到控制台）
       const frontendUrl = config.frontendUrl || 'http://localhost:8007'
       const resetLink = `${frontendUrl}${RESET_PASSWORD_URL}?token=${rawToken}`
-      sendPasswordResetEmail(email, resetLink, config.smtp).catch(() => {})
+      sendPasswordResetEmail(email, resetLink, config.smtp).catch(err => logger.error({ err, email }, 'sendPasswordResetEmail failed'))
 
       return { success: true } satisfies ForgotPasswordResponse
     }, {

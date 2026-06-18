@@ -5,6 +5,7 @@ import type { ServerConfig } from '../config'
 import { cancelAdminTask, countAuditLogs, creditBalance, getAdminGatewayClientDetail, getAdminOverview, getAdminProviderStats, getAdminTaskDetail, getAdminUserDetail, getOrCreateCreditAccount, getProviderModelHealthMap, listAdminApiKeysByAccount, listAdminGatewayClients, listAdminProjects, listAdminTasks, listAdminUsers, listProviderModelHealth, queryAuditLogs, requeueAdminTask, resetApiKeySpend, restoreProviderModelHealth, revokeApiKeyAdmin, serialize, updateApiKeyConfig } from '@excuse/db'
 import { mergeProviderCalls } from '@excuse/metrics'
 import { degradedRemainingMs, isDegraded } from '@excuse/provider-health'
+import { logger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { runAssetRetentionCleanup } from '../services/asset-retention'
@@ -645,7 +646,7 @@ export function createAdminRoutes(config: ServerConfig) {
       })
 
       // 主动通知 Key 所属用户其凭证已被管理员撤销（非阻塞，24h 冷却）
-      notifyApiKeyRevoked(revoked.accountId, revoked.id).catch(() => {})
+      notifyApiKeyRevoked(revoked.accountId, revoked.id).catch(err => logger.warn({ err, accountId: revoked.accountId }, 'notifyApiKeyRevoked failed'))
 
       return { success: true }
     }, {

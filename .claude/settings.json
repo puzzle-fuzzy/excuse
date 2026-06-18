@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push *)",
+      "Bash(grep -rn \"canvas.dialogue\\\\|canvas.bgm\\\\|canvas.assemble\\\\|canvas\\\\.\\\\${\\\\|CanvasPipelinePhase\" /Users/yxswy/Documents/excuse/apps/worker/src/task-handler.ts /Users/yxswy/Documents/excuse/apps/worker/src/index.ts)",
+      "Bash(grep -cv \"^[[:space:]]*$\\\\|^[[:space:]]*//\" /Users/yxswy/Documents/excuse/apps/client/src/api/client.ts)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(echo \"=== scoped lint exit: $? ===\")",
+      "Bash(sed -i.bak \"s/  'assemble',\\\\n] as const/  'assemble',\\\\n  'zzz_test',\\\\n] as const/\" packages/shared/src/canvas-phases.ts)",
+      "Bash(python3 -)",
+      "Bash(echo \"--- lint scoped exit: $? ---\")",
+      "Bash(bun run *)",
+      "Bash(bun --env-file ../../.env -e ' *)"
+    ]
+  }
+}

@@ -26,6 +26,7 @@ import { burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from 
 import { createLogger, parseMediaBurnSubtitleInput, parseMediaExtractAudioInput } from '@excuse/shared'
 import { getDefaultStyleConfig, sentencesToAss } from '@excuse/subtitle-engine'
 import { getTaskPriority, TaskInputError } from '@excuse/task-engine'
+import { checkTaskOwnership } from './task-ownership'
 
 const logger = createLogger('media-handlers')
 
@@ -245,7 +246,8 @@ export async function handleMediaBurnSubtitle(task: TaskRow, ctx: WorkerContext)
       ? `${config.storageRoot}/${file.storagePath}`
       : file.publicUrl
 
-    // FFmpeg 烧录字幕
+    // FFmpeg 烧录字幕 — 长操作（数分钟重编码），先检查锁所有权
+    checkTaskOwnership()
     const { outputPath } = await burnSubtitlesToVideo(videoPath, assContent, config.storageRoot)
 
     // 上传导出视频到存储

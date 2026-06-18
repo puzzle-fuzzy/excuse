@@ -1,6 +1,7 @@
 import type { AssetStorage } from '@excuse/storage'
 import { runAssemblePhase } from '@excuse/canvas-runtime'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
+import { checkTaskOwnership } from './task-ownership'
 
 export interface CanvasAssembleResult extends Record<string, unknown> {
   phase: 'assemble'
@@ -15,6 +16,9 @@ export interface CanvasAssembleResult extends Record<string, unknown> {
  *
  * 拼接所有已完成镜头视频 + 叠加 BGM，产出最终合成视频，写回 canvas_projects.final_video_url。
  * run 状态流转与 PG NOTIFY 由 handler 信封（canvas-handlers.ts）负责。
+ *
+ * 子操作间调用 `checkTaskOwnership()` — 如果 heartbeat 续锁失败，
+ * 立即中止而非继续数分钟 FFmpeg 到最后才发现锁丢失。
  */
 export async function executeCanvasAssemble(
   projectId: string,
@@ -30,6 +34,7 @@ export async function executeCanvasAssemble(
     detail,
     storage,
     storageRoot,
+    onCheckpoint: checkTaskOwnership,
   })
   await updateCanvasProject(projectId, { finalVideoUrl: result.finalVideoUrl })
 

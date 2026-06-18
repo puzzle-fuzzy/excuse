@@ -12,6 +12,7 @@ import {
   listPipelineRunsByProject,
   markPipelineRunCancelled,
 } from '@excuse/db'
+import { logger } from '@excuse/shared'
 import { cancelTaskWithAdapter } from '@excuse/task-engine'
 import { canCancelPipelineRun } from '@excuse/workflow-engine'
 import * as svc from '../../modules/canvas/service'
@@ -104,7 +105,7 @@ export async function handleCancelActive(projectId: string, userId: string) {
       cancelledCount++
       cancelledPhases.push(cancelled.phase)
       if (cancelled.taskId)
-        await cancelTaskWithAdapter({ taskId: cancelled.taskId, adapter: { cancelTask } }).catch(() => {})
+        await cancelTaskWithAdapter({ taskId: cancelled.taskId, adapter: { cancelTask } }).catch(err => logger.warn({ err, taskId: cancelled.taskId }, 'cancelTask in pipeline cancel failed'))
       dispatchToUser(userId, 'pipeline_node_update', {
         projectId,
         nodeType: 'phase',
@@ -114,7 +115,7 @@ export async function handleCancelActive(projectId: string, userId: string) {
       })
     }
   }
-  await cancelActiveCanvasAssetsByProject(projectId).catch(() => {})
+  await cancelActiveCanvasAssetsByProject(projectId).catch(err => logger.warn({ err, projectId }, 'cancelActiveCanvasAssets in pipeline cancel failed'))
   audit('canvas_cancel', { accountId: userId, targetId: projectId, detail: { projectId, cancelledRuns: cancelledCount, phases: cancelledPhases } })
   return { cancelled: cancelledCount, message: `已取消 ${cancelledCount} 个活跃阶段` }
 }

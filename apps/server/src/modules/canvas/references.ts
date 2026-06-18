@@ -17,6 +17,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
+import { logger } from '@excuse/shared'
 import { BadRequestError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getImageModel, notifyNode } from './service-helpers'
@@ -88,8 +89,8 @@ export async function generateCharacterRefs(projectId: string, client: DashScope
       // ── 标记资产失败 ──────────────────────────────────
       const errorMessage = (error as Error).message
       // 尝试标记两个资产为失败（如果它们仍在运行状态）
-      await markCanvasAssetFailed(portraitAsset.id, errorMessage).catch(() => {})
-      await markCanvasAssetFailed(turnaroundAsset.id, errorMessage).catch(() => {})
+      await markCanvasAssetFailed(portraitAsset.id, errorMessage).catch(err => logger.warn({ err, assetId: portraitAsset.id }, 'markCanvasAssetFailed failed in error path'))
+      await markCanvasAssetFailed(turnaroundAsset.id, errorMessage).catch(err => logger.warn({ err, assetId: turnaroundAsset.id }, 'markCanvasAssetFailed failed in error path'))
       notifyNode(accountId, projectId, 'character', char.id, 'failed', undefined, errorMessage, runId)
     }
   }
@@ -152,7 +153,7 @@ export async function generateLocationRefs(projectId: string, client: DashScopeC
     catch (error) {
       // ── 标记资产失败 ──────────────────────────────────
       const errorMessage = (error as Error).message
-      await markCanvasAssetFailed(refAsset.id, errorMessage).catch(() => {})
+      await markCanvasAssetFailed(refAsset.id, errorMessage).catch(err => logger.warn({ err, assetId: refAsset.id }, 'markCanvasAssetFailed failed in error path'))
       notifyNode(accountId, projectId, 'location', loc.id, 'failed', undefined, errorMessage, runId)
     }
   }

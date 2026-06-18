@@ -19,6 +19,8 @@ export interface AssemblePhaseInput {
   storage: AssetStorage
   /** 存储根目录，用于建立临时工作目录（绝对路径） */
   storageRoot: string
+  /** 中途所有权检查点 — 由 worker 注入，长任务在子操作间调用；null 则跳过 */
+  onCheckpoint?: () => void
 }
 
 export interface AssemblePhaseResult {
@@ -56,11 +58,13 @@ export async function runAssemblePhase(input: AssemblePhaseInput): Promise<Assem
     }
 
     // 3. 拼接（重编码兜底，保留各镜头对话音频）
+    input.onCheckpoint?.() // ← checkpoint: 物化完成，准备 FFmpeg concat
     const concat: ConcatResult = await concatVideos(localPaths, tempDir)
     let finalPath = concat.outputPath
     let bgmOverlaid = false
 
     // 4. 可选 BGM 叠加（在对话原声之下混入降音量 BGM）
+    input.onCheckpoint?.() // ← checkpoint: concat 完成，准备 FFmpeg BGM overlay
     const bgmUrl = input.detail.project.bgmUrl
     if (bgmUrl) {
       const bgmLocal = input.storage.localCopyPath(bgmUrl)

@@ -32,6 +32,7 @@ import { createAuthRoutes } from './routes/auth'
 import { createBillingRoutes } from './routes/billing'
 import { createCanvasRoutes } from './routes/canvas'
 import { createClientErrorRoutes } from './routes/client-errors'
+import { createCspReportRoutes } from './routes/csp-report'
 import { createGenerateRoutes } from './routes/generate'
 import { createHealthRoutes } from './routes/health'
 import { createMetricsRoutes } from './routes/metrics'
@@ -147,4 +148,5 @@ export function createElysiaApp(config: ServerConfig, ctx: ServerContext) {
     .use(createOpenAIGatewayRoutes(config, ctx))
     .use(createMetricsRoutes(config))
     .use(createClientErrorRoutes(config))
+    .use(createCspReportRoutes(config))
 }

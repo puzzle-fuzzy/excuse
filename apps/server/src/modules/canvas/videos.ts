@@ -14,6 +14,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import { logger } from '@excuse/shared'
 import { decideBatchOutcome } from '@excuse/workflow-engine'
 import { ConflictError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
@@ -77,7 +78,7 @@ export async function generateVideos(projectId: string, client: DashScopeClient,
       const message = getErrorMessage(error)
       await updateCanvasShot(shot.id, { status: 'failed', errorMessage: message })
       // ── 标记视频资产失败 ──────────────────────────
-      await markCanvasAssetFailed(shotVideoAsset.id, message).catch(() => {})
+      await markCanvasAssetFailed(shotVideoAsset.id, message).catch(err => logger.warn({ err, assetId: shotVideoAsset.id }, 'markCanvasAssetFailed failed in error path'))
       notifyNode(accountId, projectId, 'shot', shot.id, 'failed', undefined, message, runId)
       submissionResults.push({ status: 'failed' })
     }
@@ -146,7 +147,7 @@ export async function retryShotVideo(shotId: string, client: DashScopeClient) {
   catch (error) {
     const message = getErrorMessage(error)
     await updateCanvasShot(shot.id, { status: 'failed', errorMessage: message })
-    await markCanvasAssetFailed(shotVideoAsset.id, message).catch(() => {})
+    await markCanvasAssetFailed(shotVideoAsset.id, message).catch(err => logger.warn({ err, assetId: shotVideoAsset.id }, 'markCanvasAssetFailed failed in error path'))
     notifyNode(detail.project.accountId, shot.projectId, 'shot', shot.id, 'failed', undefined, message)
     throw error
   }
@@ -194,7 +195,7 @@ export async function retryFailedShots(projectId: string, accountId: string, cli
     catch (error) {
       const message = getErrorMessage(error)
       await updateCanvasShot(shot.id, { status: 'failed', errorMessage: message })
-      await markCanvasAssetFailed(shotVideoAsset.id, message).catch(() => {})
+      await markCanvasAssetFailed(shotVideoAsset.id, message).catch(err => logger.warn({ err, assetId: shotVideoAsset.id }, 'markCanvasAssetFailed failed in error path'))
       notifyNode(accountId, projectId, 'shot', shot.id, 'failed', undefined, message)
     }
   }

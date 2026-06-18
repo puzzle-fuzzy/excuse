@@ -1,6 +1,7 @@
 import type { ModelConfig } from '../src/api/client'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { buildInitialParameters, checkCanGenerate, useWorkspaceStore } from '../src/stores/workspace'
+import { buildInitialParameters, checkCanGenerate } from '../src/lib/generation-form-utils'
+import { useWorkspaceStore } from '../src/stores/workspace'
 
 function makeModel(overrides: Partial<ModelConfig> = {}): ModelConfig {
   return {
