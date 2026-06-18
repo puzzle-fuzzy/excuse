@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - **commit `ff570d18`**: §1.5 Navbar 主导航（6 项）+「更多 ▾」折叠菜单（4 项），10 项拥挤导航栏收拢
 - **commit `165c49a9`**: 拆分 `NodeDetailPanel.tsx`（565 行）→ `ShotDetailPanel`（178 行）+ `CharacterDetailPanel`（120 行）+ `LocationDetailPanel`（94 行）+ `ProjectDetailPanel`（89 行），NodeDetailPanel 退化为路由层（~105 行）
 - **commit `398347fb`**: 抽取 `usePipelineController` hook（~350 行），`PipelineController.tsx` 从 753 行收缩至 ~180 行纯渲染层
+- **commit `1fd231bb`**: 拆分 `Assets.tsx`（1136→~740 行），提取 `AssetDetailDialog`（~260 行，原 PreviewModal）+ `AssetTagManager`（~120 行，原 TagManagementModal）至 `components/assets/`
 
 验收：typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 551/551 ✅ · test:client 376/376 ✅
 
