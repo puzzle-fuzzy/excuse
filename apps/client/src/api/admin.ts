@@ -5,10 +5,16 @@ import type {
   AdminGatewayClientDetailResponse,
   AdminGatewayClientListQuery,
   AdminGatewayClientListResponse,
+  AdminOverview,
+  AdminOverviewResponse,
   AdminProjectListQuery,
   AdminProjectListResponse,
   AdminProviderStatsResponse,
   AdminTaskDetailResponse,
+  AdminTaskItem,
+  AdminTaskListQuery,
+  AdminTaskListResponse,
+  AdminTaskMutationResponse,
   AdminUserDetailResponse,
   AdminUserListQuery,
   AdminUserListResponse,
@@ -185,4 +191,41 @@ export async function adminCreditAdd(params: { accountId: string, amountCents: n
 export const adminGatewayClientsQueryKeys = {
   list: (params: AdminGatewayClientListQuery) => ['admin', 'gateway-clients', 'list', params] as const,
   detail: (accountId: string) => ['admin', 'gateway-clients', 'detail', accountId] as const,
+}
+
+// ===== Admin Overview & Tasks（概览面板 + 任务列表） =====
+
+export async function fetchAdminOverview(): Promise<AdminOverview> {
+  const response = unwrapEden<AdminOverviewResponse>(
+    await api.api.admin.overview.get(),
+  )
+  return response.data
+}
+
+export async function fetchAdminTasks(params?: AdminTaskListQuery): Promise<AdminTaskListResponse> {
+  return unwrapEden<AdminTaskListResponse>(
+    await api.api.admin.tasks.get({
+      query: {
+        status: params?.status || undefined,
+        domain: params?.domain || undefined,
+        search: params?.search || undefined,
+        limit: params?.limit ?? 40,
+        offset: params?.offset ?? 0,
+      },
+    }),
+  )
+}
+
+export async function requeueAdminTask(id: string): Promise<AdminTaskItem> {
+  const response = unwrapEden<AdminTaskMutationResponse>(
+    await api.api.admin.tasks({ id }).requeue.post(),
+  )
+  return response.data
+}
+
+export async function cancelAdminTask(id: string): Promise<AdminTaskItem> {
+  const response = unwrapEden<AdminTaskMutationResponse>(
+    await api.api.admin.tasks({ id }).cancel.post(),
+  )
+  return response.data
 }

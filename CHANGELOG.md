@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **client.ts 776 行拆分为领域模块（TODO2 §3.1）**：`client.ts` 缩减至 ~180 行（核心 Eden 实例 + unwrapEden + token 管理 + billing/gateway）。领域 API 拆分到 `auth-api.ts`（6 函数）、`generation-api.ts`（10 函数）、`canvas-api.ts`（35+ 函数）、`subtitle-api.ts`（8 函数）、`asset-api.ts`（11 函数）。admin overview/tasks 移入 `admin.ts`。client.ts 通过 `export *` re-export 保持向后兼容。验收：build 通过。
+
 - **忘记密码 / 重置密码页面（TODO2 §1.2）**：新增 `ForgotPassword.tsx`（输入邮箱发送重置链接）和 `ResetPassword.tsx`（从 URL 取 token + 输入新密码提交）两个公开页面。后端 `POST /forgot-password` / `POST /reset-password` 已就绪。client.ts 新增 `forgotPasswordRequest` / `resetPasswordRequest` API 函数。Login.tsx 密码字段旁添加“忘记密码？”链接。App.tsx 注册 `/forgot-password` 和 `/reset-password` 路由。form-schemas.ts 新增 `forgotPasswordSchema` 和 `resetPasswordSchema`。验收：build 通过。
 
 - **MediaPreviewDialog 支持视频/音频预览（TODO2 §1.1）**：根据 URL 后缀自动检测媒体类型，图片→`<img>`、视频→`<video controls autoPlay>`、音频→`<audio controls autoPlay>`。验收：client build 通过。
