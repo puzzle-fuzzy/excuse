@@ -28,8 +28,7 @@ import {
   markGenerationSucceeded,
   notifyGenerationStatus,
 } from '@excuse/db'
-import { extractBillingParams } from '@excuse/shared'
-import { logger } from '@excuse/shared'
+import { extractBillingParams, logger } from '@excuse/shared'
 import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from '../../services/billing-ledger'
 import { recordGenerationStatus } from '../../services/metrics'
 import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
@@ -198,6 +197,33 @@ export async function executeGeneration(
 
   // 计算实际费用（基于 provider 返回的 usage）— 标记为 billable
   const actualCost = { ...calculateCost(modelConfig, extractBillingParams(parameters), result.usage), billable: true, source: 'actual' as const }
+
+  // 超额保护：实际费用超过预估 1.5 倍时拒绝扣款并退款（防穿负，TODO §1.2）
+  const exceededThreshold = ctx.estimatedCost.totalPriceCents > 0
+    && actualCost.totalPriceCents > ctx.estimatedCost.totalPriceCents * 1.5
+  if (exceededThreshold) {
+    await markGenerationFailed(recordId, `实际费用 ${actualCost.totalPriceCents} 分超过预估 ${ctx.estimatedCost.totalPriceCents} 分的 1.5 倍，已自动取消`)
+    recordGenerationStatus('failed')
+    await refundReservedCredit({
+      accountId,
+      recordId,
+      estimatedCost: ctx.estimatedCost,
+      description: `生成费用超阈值退款：${model}`,
+      source: ctx.creditSource,
+    })
+    await notifyGenerationStatus({
+      accountId,
+      recordId,
+      status: 'failed',
+      category,
+      model,
+      taskId,
+      traceId,
+      errorMessage: `实际费用超过预估 1.5 倍（${actualCost.totalPriceCents} > ${ctx.estimatedCost.totalPriceCents * 1.5}），已取消`,
+    })
+    const errUpdated = await getGenerationRecordById(recordId)
+    return { success: false, record: errUpdated! }
+  }
 
   await markGenerationSucceeded(recordId, outputResult, actualCost)
   recordGenerationStatus('succeeded')

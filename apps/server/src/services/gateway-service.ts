@@ -135,13 +135,24 @@ export async function setupGatewayCall(opts: {
  * stream 和非 stream 路径共用。
  */
 export async function settleGatewaySuccess(opts: GatewaySuccessInput): Promise<void> {
-  const { userId, modelConfig, validatedParams, recordId, text, usage, apiKeyMeta } = opts
+  const { userId, modelConfig, validatedParams, recordId, text, usage, apiKeyMeta, estimatedCost } = opts
 
   const actualCost = {
     ...calculateCost(modelConfig, extractBillingParams(validatedParams), usage),
     billable: true,
     source: 'actual' as const,
   }
+
+  // 超额保护：实际费用超过预估 1.5 倍时拒绝扣款并退款（防穿负，TODO §1.2）
+  // 抛出错误由调用方的 catch 块统一走 settleGatewayFailure 收尾
+  const exceededThreshold = estimatedCost.totalPriceCents > 0
+    && actualCost.totalPriceCents > estimatedCost.totalPriceCents * 1.5
+  if (exceededThreshold) {
+    throw new Error(
+      `实际费用 ${actualCost.totalPriceCents} 分超过预估 ${estimatedCost.totalPriceCents} 分的 1.5 倍，已自动取消`,
+    )
+  }
+
   const textOutput: OutputResult = { type: 'text' as const, text }
   await markGenerationSucceeded(recordId, textOutput, actualCost)
   recordGenerationStatus('succeeded')

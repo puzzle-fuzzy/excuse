@@ -43,13 +43,6 @@
 
 > 这些是真实运行中会炸、会资损、会静默错乱的隐患。多数改动小、收益大，应优先处理。
 
-### 1.2 🔴 text prompt 零长度限制 — 计费穿负 / DB 膨胀
-
-- **证据**：grep `maxLength|MAX_PROMPT|truncate` 在 provider/db/shared/server 路由层零命中（仅 prompt-engine 内部自生成文本有 truncate）。[generate.ts:209](apps/server/src/routes/generate.ts#L209) body schema `parameters: t.Record(t.String(), t.Any())` 完全开放；CLAUDE.md 自承「dedupeKey（text，**无长度限制**）」。
-- **影响**：用户可提交 10MB prompt：文本按 token 计费单次可达数十~数百元，`reserveCredit` 预留不足时 `actualCost > reserved`，余额穿负或 throwing 后状态不一致；`inputParams` JSONB 存全量导致表膨胀。OpenAI 网关对外（[openai-gateway.ts:245](apps/server/src/routes/openai-gateway.ts#L245)）更难追责。
-- **解法**：(a) 路由参数校验层给 `prompt`/`messages[].content` 加 maxLength（text ~100k 字符、image ~8k、gateway messages 同理）；(b) billing 在 `actualCost > reserved × 1.5` 时拒绝执行并 refund（防超额扣，宁可少生成不可穿负）。
-- **验收**：提交超长 prompt 返回 422 + 明确错误；提交接近 reserve 上限的请求在 actualCost 超阈值时被拒绝并退款而非穿负。
-
 ### 1.3 🔴 credit reserve 后崩溃 / 流式中断 → frozen 余额永久泄漏
 
 - **证据**：credit reserve/debit/refund 是原子 SQL（`UPDATE ... WHERE availableCents >= N` + 幂等唯一索引，设计扎实），但 reserve → debit 之间无超时释放、无对账。gateway 流式路径若 provider 慢但不超时（见 1.1）或客户端中途断开，`reservedCents` 会一直 frozen。
@@ -357,9 +350,9 @@ bun run check:boundaries
 
 ## 本轮总览（截至 2026-06-18）
 
-本轮六维度审计新发现 **运行时 🔴×3 / 架构 🔴×2 / 前端 🔴×2 / UX 🔴×1** 等共约 40 项，按 ROI 建议推进顺序：
+本轮六维度审计新发现 **运行时 🔴×2 / 架构 🔴×2 / 前端 🔴×2 / UX 🔴×1** 等共约 40 项，按 ROI 建议推进顺序：
 
-1. **P0（立刻，生产风险）**：§1.1 fetch 超时 · §1.2 prompt 长度限制 · §1.3 credit 对账 · §4.1 regenerate 修复。
+1. **P0（立刻，生产风险）**：§1.1 fetch 超时 · §1.3 credit 对账 · §4.1 regenerate 修复。
 2. **P1（短期，drift / 体验）**：§2.1 阶段注册表 · §2.2 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §4.4 流水线 12 阶段 · §5.1 generate 去重 · §6.1 traceId 贯穿。
 3. **P2（治理 / 打磨）**：§2.3-2.5 拓展性注册表化 · §3.3 状态色收敛 · §4.3/4.5/4.6 空状态/上传/Toast/导航/a11y · §5.2-5.5 文件拆分与去重。
 4. **暂缓**：§7 多租户 / i18n / Redis 限流（待路线图）。

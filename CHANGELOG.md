@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **prompt 零长度限制 + 超额计费保护（TODO §1.2）**：新增 `apps/server/src/utils/prompt-limits.ts`，定义 `PROMPT_LENGTH_LIMITS`（text 100k / image 8k / video 8k），通过 `assertPromptWithinLimit` 在 POST `/generate` 和 `/records/:id/retry` 路由层校验 prompt 长度超限返回 422；`assertGatewayMessagesWithinLimit` 在 OpenAI 兼容网关 `/v1/chat/completions` 校验 messages 总长度（上限 100k）。billing 层保护：`executeGeneration`（同步任务完成）和 `settleGatewaySuccess`（网关成功结算）在 `actualCost > estimatedCost × 1.5` 时拒绝扣款、自动退款并标记失败，防止预估严重不足导致余额穿负。验收：server typecheck / lint 通过。
+
 - **provider fetch 全链路超时（TODO §1.1）**：DashScope / ASR 此前所有 `fetch` **零超时**——provider 端 hang 会让请求连接常驻、流式 ReadableStream 永不 close（连接泄漏）、worker 同步 task（text/image）永不完成（仅 video 有 4h 业务超时兜底）。新增 `packages/provider/src/http-timeout.ts`：同步调用加 `AbortSignal.timeout(ms)`（默认 60s，env `PROVIDER_HTTP_TIMEOUT_MS`）；流式调用加「每 chunk 之间空闲超时」控制器（默认 30s，env `PROVIDER_STREAM_IDLE_TIMEOUT_MS`），覆盖「连接 + 首字节」与「chunk 间隔」两阶段。超时/中断错误经 `FailedProviderResult.code`（`'TIMEOUT'`/`'ECONNRESET'`）→ canvas-runtime `cause.code` 透传 → `@excuse/task-engine.classifyTaskError` 进入可重试分类，避免一次性 provider 抽风让任务永久失败。`ServerConfig`/`WorkerConfig` 增加 `providerHttpTimeoutMs`/`providerStreamIdleTimeoutMs`，context 注入到 `DashScopeClient`/`ASRClient`。ASR `queryTask` 的 UNKNOWN/FAILED 路径同步透传 `errorCode`（与 video handler 一致）。验收：provider(142)/canvas-runtime(62)/task-engine(25)/worker(55) 测试全绿；新增 `http-timeout.test.ts`（4 例，含 hang→TIMEOUT 端到端，signal-aware mock + 2s 硬兜底防挂死）。
 
 ### Changed

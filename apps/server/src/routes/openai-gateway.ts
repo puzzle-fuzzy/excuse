@@ -27,6 +27,7 @@ import {
 } from '@excuse/gateway'
 import { getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { Elysia, t } from 'elysia'
+import { assertGatewayMessagesWithinLimit } from '../utils/prompt-limits'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import {
   handleGatewayChatCompletion,
@@ -173,6 +174,9 @@ export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerConte
           throwOpenAIGatewayError(quotaErr)
         }
       }
+
+      // messages 长度上限（防超长 prompt 爆量计费 / API Key 滥用，TODO §1.2）
+      assertGatewayMessagesWithinLimit(body.messages.map(m => ({ content: m.content })))
 
       const normalized = normalizeOpenAIChatRequest(request)
       if (isOpenAIGatewayError(normalized)) {

@@ -21,6 +21,7 @@ import { audit } from '../services/audit'
 import { ForbiddenError, NotFoundError, PaymentRequiredError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
 import { createDedupeKey } from '../utils/dedupe-key'
+import { assertPromptWithinLimit } from '../utils/prompt-limits'
 
 /**
  * 生成任务路由 — CRUD + retry/cancel
@@ -101,6 +102,9 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         throw new ValidationError(detail)
       }
       const validatedParams = validationResult.params
+
+      // prompt 长度上限（防超长 prompt 爆量计费 / 穿负，TODO §1.2）
+      assertPromptWithinLimit(modelConfig, validatedParams)
 
       // 视频模型独立限流 — 5 次/分钟/用户，防止高成本任务滥用
       if (category === 'video') {
@@ -360,6 +364,9 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         throw new ValidationError(detail)
       }
       const validatedParams = validationResult.params
+
+      // prompt 长度上限（防超长 prompt 爆量计费 / 穿负，TODO §1.2）
+      assertPromptWithinLimit(modelConfig, validatedParams)
 
       const newTaskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
