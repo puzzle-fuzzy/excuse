@@ -408,7 +408,7 @@ export default function Workspace() {
 
         {/* 右栏 — 生成记录 */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">生成记录</h3>
+          <h3 className="text-title text-muted-foreground">生成记录</h3>
           <ScrollArea className="h-[calc(100vh-8rem)]">
             <div className="space-y-3 pr-2">
               {records.length === 0 && (

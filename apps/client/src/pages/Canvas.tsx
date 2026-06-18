@@ -122,7 +122,7 @@ export default function Canvas() {
       {/* 创建区 */}
       <Card>
         <CardHeader>
-          <CardTitle>新建创意项目</CardTitle>
+          <CardTitle className="text-title-lg">新建创意项目</CardTitle>
           <CardDescription>输入故事文本，自动生成完整的创意流水线</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -148,7 +148,7 @@ export default function Canvas() {
 
       {/* 项目列表 */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">我的项目</h2>
+        <h2 className="text-title-lg">我的项目</h2>
         {projects.length === 0
           ? (
               <p className="text-sm text-muted-foreground py-8 text-center">暂无项目，请创建一个新项目开始创作</p>

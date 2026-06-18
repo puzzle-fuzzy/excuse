@@ -39,50 +39,37 @@
 
 ---
 
-## 一、前端设计 / 美观度
+## 一、用户体验 (UX) / 可访问性
 
-> 当前前端是**未经改动的 shadcn 默认值**——功能完备但视觉上与无数 AI SaaS 雷同，缺品牌识别。多为感知层，但「给产品上色」是单文件最高杠杆改动。
-
-### 1.1 🟡 排版 / 按钮尺寸 / 触摸目标
-
-- **证据**：[button.tsx:24](apps/client/src/components/ui/button.tsx#L24) `default` 高 `h-8`(32px)、`lg` `h-9`(36px)；核心「生成」CTA（[Workspace.tsx](apps/client/src/pages/Workspace.tsx)）`size="lg"` 仅 36px；页面标题散落 `text-lg`/`text-sm` 无统一层级。
-- **影响**：UI 局促、核心操作不显眼；按钮 <44px 在移动端难点击。
-- **解法**：主操作按钮提到 `h-10`/`h-11`；定义标题工具类（`text-title-lg`/`text-title`/`text-body`）统一层级；触摸目标 ≥44px。
-- **验收**：核心 CTA ≥40px；标题层级有统一 token；窄屏按钮可点。
-
----
-
-## 二、用户体验 (UX) / 可访问性
-
-### 2.1 🟠 加载态全是「菊花」/纯文本，零骨架屏
+### 1.1 🟠 加载态全是「菊花」/纯文本，零骨架屏
 
 - **证据**：grep `Skeleton` **零文件**。所有页面二选一：居中「加载中...」（[Canvas.tsx:131](apps/client/src/pages/Canvas.tsx#L131)、[Billing.tsx:86](apps/client/src/pages/Billing.tsx#L86)、[CanvasEditor.tsx:122](apps/client/src/components/canvas/CanvasEditor.tsx#L122)）或内联 `<Loader2 animate-spin>`。路由切换 [App.tsx:25-31](apps/client/src/App.tsx#L25-L31) 是全屏「页面加载中...」。
 - **影响**：慢网下页面闪烁空白再弹出内容，列表布局抖动，廉价感。
 - **解法**：为 3 个主列表（RecordCard、Canvas 项目、Billing 卡片）加 `Skeleton`；裸「加载中...」换骨架屏。
 - **验收**：列表加载显示骨架而非空白文字。
 
-### 2.2 🟠 空状态无引导、无 CTA
+### 1.2 🟠 空状态无引导、无 CTA
 
 - **证据**：[Workspace.tsx:361-364](apps/client/src/pages/Workspace.tsx#L361-L364) 仅图标 + 「暂无生成记录」；[Billing.tsx:202,238,275](apps/client/src/pages/Billing.tsx#L202) 「暂无数据」重复三次；[Navbar.tsx:184](apps/client/src/components/Navbar.tsx#L184) 「暂无通知」。
 - **影响**：首次用户到达空状态是死胡同，没有继续路径。
 - **解法**：抽共享 `EmptyState`（图标 + 标题 + 可选 CTA slot）；Workspace 空状态指向左侧表单（「← 输入 Prompt 开始生成」）。
 - **验收**：核心空状态有明确下一步动作。
 
-### 2.3 🟠 流水线 UI 只显示 9/12 阶段 + 无耗时提示
+### 1.3 🟠 流水线 UI 只显示 9/12 阶段 + 无耗时提示
 
 - **证据**：[PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) `PHASES` 数组只有 9 项，后端 `CANVAS_PHASE_ORDER` 已是 12 阶段（含 dialogue/bgm/assemble）；无 ETA / 典型耗时提示；auto 模式失败时仅 toast，后台标签页用户不知流水线已停。
 - **影响**：videos 之后用户看不到在发生什么；不知道一个阶段要等多久；静默中断。
-- **解法**：(a) 前端 `PHASES` 与后端 12 阶段同源（见 4.1 注册表）；(b) 加每阶段历史平均耗时提示；(c) auto 失败在状态栏留持久红色徽章而非仅 toast。
+- **解法**：(a) 前端 `PHASES` 与后端 12 阶段同源（见 3.1 注册表）；(b) 加每阶段历史平均耗时提示；(c) auto 失败在状态栏留持久红色徽章而非仅 toast。
 - **验收**：流水线 UI 显示全 12 阶段；各阶段有耗时范围提示；失败有持久视觉中断。
 
-### 2.4 🟠 上传失败静默吞 + 无草稿/未保存警告
+### 1.4 🟠 上传失败静默吞 + 无草稿/未保存警告
 
 - **证据**：[workspace.ts:286-328](apps/client/src/stores/workspace.ts#L286-L328) `uploadReferenceFiles`/`uploadMediaParam` 失败只翻 `uploadingRefs` 无 toast；Canvas 创建故事 textarea（[Canvas.tsx:150-156](apps/client/src/pages/Canvas.tsx#L150-L156)）与 Workspace prompt 无持久化、无 `beforeunload`。
 - **影响**：参考图上传静默失败 → 下次生成在降级输入上跑；用户粘 2000 字故事误点导航 → 全丢。
 - **解法**：(a) 两处上传路径加 `toast.error`；(b) Canvas 创建故事 + Workspace prompt 持久化到 sessionStorage（按路由 key）；未保存的长输入加 `beforeunload`。
 - **验收**：上传失败有提示；长输入跨刷新/导航不丢。
 
-### 2.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（一组打磨项）
+### 1.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（一组打磨项）
 
 > 接触相关区域时顺手做，不专门开冲刺。
 
@@ -95,39 +82,39 @@
 
 ---
 
-## 三、运行时可靠性（生产风险）
+## 二、运行时可靠性（生产风险）
 
 > 这些是真实运行中会炸、会资损、会静默错乱的隐患。多数改动小、收益大，应优先处理。
 
-### 3.1 🟠 FFmpeg 操作无超时 / 无强制 kill
+### 2.1 🟠 FFmpeg 操作无超时 / 无强制 kill
 
 - **证据**：[ffmpeg](packages/ffmpeg/src/) 的 concat/烧字幕/抽音频可能跑很久甚至卡死（坏文件、超大文件、编码死循环）。当前依赖 Bun 子进程默认行为，无显式 `timeout` + kill 兜底。
 - **影响**：单条坏媒体可让 worker 卡在某 phase 直到 4h 视频超时（且只覆盖 video），临时目录泄漏，assemble 阶段尤其危险（多镜头拼接）。
 - **解法**：FFmpeg 调用统一加超时（env 可配，默认如 10min）+ 超时 kill 子进程 + 失败抛可重试错误；临时目录 `finally` 清理已有，补「进程强杀时也清」。
 - **验收**：构造一个会卡死的 ffmpeg 调用，确认超时后被 kill、临时目录被清、task 进入失败/重试。
 
-### 3.2 🟠 三套状态机写入无原子性 → crash drift
+### 2.2 🟠 三套状态机写入无原子性 → crash drift
 
 - **证据**：`tasks.status`（[schema/tasks.ts](packages/db/src/schema/tasks.ts)）、`canvas_pipeline_runs.status`、`generation_records.status` 三套独立 enum。一个 canvas 阶段的「完成」由**两次分别写入**：task 经 `completeTaskWithAdapter`，run 经 `markPipelineRunSucceeded`（[canvas-handlers.ts](apps/worker/src/canvas-handlers.ts)）；失败路径 [task-handler.ts:177-196](apps/worker/src/task-handler.ts#L177-L196) 同时更新两者。**两次写之间无事务**。
 - **影响**：worker 在两次写之间崩溃 → task=succeeded 但 run=running（或反之），永久漂移、不可自愈；排查需 join 多表。
 - **解法**（二选一）：(a) 用单一事务/单一 adapter 原子更新 task 与 run；(b) 加 reconcile 任务定期 `WHERE task.status != run.status` 修复并告警。推荐 (b)（改动小、且能兜历史漂移）。
 - **验收**：构造两次写之间崩溃的 fixture，reconcile 能修复；正常流程不误改。
 
-### 3.3 🟠 task 锁 heartbeat 失败无防御性检查
+### 2.3 🟠 task 锁 heartbeat 失败无防御性检查
 
 - **证据**：[lifecycle](apps/worker/src/) 的 `extendTaskLock` 抛错时仅记日志后继续（DB 临时中断时）；执行中途不复查 `lockedBy=workerId`。长任务（assemble 可达数分钟）期间锁若静默丢失，孤儿 sweep 可能把任务重新 claim 给另一 worker → 双跑。
 - **影响**：DB 抖动叠加长任务 → 两个 worker 同时执行同一 task → 双扣费、双写产物。
 - **解法**：(a) 长任务（assemble/burn-subtitle/video）适当加大 `claimTtl`；(b) 在耗时的子操作之间（如 assemble 的 concat 与 mixBgmTrack 之间）复查 `SELECT ... WHERE lockedBy=workerId AND lockedUntil>now()`，不再持锁即中止；(c) heartbeat 失败重试 2-3 次（退避）而非直接吞。
 - **验收**：模拟 DB 中断使锁过期，确认原 worker 在下一个 checkpoint 主动中止而非继续跑。
 
-### 3.4 🟠 SSE 死连接回收
+### 2.4 🟠 SSE 死连接回收
 
 - **证据**：[events](packages/events/src/) 的 `UserEventHub` 已有全局 10000 + 单用户 3 上限（设计扎实），但**慢客户端/半开连接**未在心跳超时后被 server 主动移除——`pgClient.notify()` 仍向死连接 dispatch。
 - **影响**：长期运行 server 内存里累积死连接，NOTIFY 往死连接推造成延迟堆积，极端 OOM。
 - **解法**：SSE 连接加空闲超时（如 60s 心跳无响应即 close 并移除）；定期清理超时连接。
 - **验收**：构造一个不读流的客户端连接，确认 N 秒后被 server 回收且从 hub 移除。
 
-### 3.5 🟡 rate-limit key 可被伪造 + 限流 Map 无 GC
+### 2.5 🟡 rate-limit key 可被伪造 + 限流 Map 无 GC
 
 - **证据**：[rate-limit/index.ts:59-64](packages/rate-limit/src/index.ts#L59-L64) `buildRateLimitKey` 用 token 前 50 字符当 user key，且 rate-limit 全局中间件在 auth 之前应用。恶意客户端发不同伪造 token → 每个一个限流 bucket → 绕过单用户限流 + Map 无限增长（未被 check 命中的 key 永不清）。
 - **影响**：限流绕过 + 内存增长。
@@ -136,64 +123,64 @@
 
 ---
 
-## 四、架构设计与拓展性
+## 三、架构设计与拓展性
 
-### 4.1 🔴 Canvas 阶段列表多份手抄 + 前端仍缺 3 阶段
+### 3.1 🔴 Canvas 阶段列表多份手抄 + 前端仍缺 3 阶段
 
 - **证据**：阶段序列目前仍存在多份手抄副本：[workflow-engine](packages/workflow-engine/src/index.ts) `CANVAS_PHASE_ORDER`、[shared/canvas.ts:141-153](packages/shared/src/canvas.ts#L141-L153) `CanvasPipelinePhase`、[db schema](packages/db/src/schema/canvas-pipeline-runs.ts) `canvasPipelinePhaseEnum`，且前端 [PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) 独立维护的 `PHASES` 数组只有 9 项，不读后端 `CANVAS_PAUSE_BEFORE`。`CanvasCostPhase` 漏 `dialogue`/`bgm`/`assemble` 已修，不能再作为剩余 drift 证据。
 - **影响**：新增一个 Canvas 阶段仍需散弹式改 10+ 处；前端流水线在 videos 之后仍看不到 dialogue/bgm/assemble，也无法同源体现 `assemble` 的 pause-before 行为。
 - **解法**：阶段元数据收敛为**单一注册表**（推荐放纯包 `canvas-engine`）：每阶段一项 `{ phase, taskType, pauseBefore, costVisible, statusTransition }`，workflow-engine / db pgEnum / shared / 前端全部从该表派生（db enum 由代码生成迁移，前端从 `/api/canvas/phases` 拉取或 codegen）。
 - **验收**：新增一个测试阶段只改 1-2 处（注册表 + 实现）；前端显示全 12 阶段；前端 `pauseBefore` 与后端 `CANVAS_PAUSE_BEFORE` 同源。
 
-### 4.2 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
+### 3.2 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
 
 - **证据**：`category === '...'` / `switch(category)` 命中遍布：[provider/dashscope-client.ts:905-916](packages/provider/src/dashscope-client.ts#L905-L916) switch、[generate.ts](apps/server/src/routes/generate.ts) 6+ 处、[generation/service.ts](apps/server/src/modules/generation/service.ts)、[notifications.ts:57,72](apps/server/src/services/notifications.ts#L57)（**二元 text/image 判断无 default，会静默漏新 category**）、[assets/service.ts:58-66](apps/server/src/modules/assets/service.ts#L58-L66)（`default: 'text'` 静默兜底）、client `CATEGORY_CONFIG`/`category-labels`/`ModelLab CATEGORY_ORDER`。`audio` 已是合法 `ModelCategory` 但**不在** `generationCategoryEnum` 中——DB 枚举与 provider 枚举已分裂。
 - **影响**：新增 category 触碰 ~20 处，且 `notifications.ts` 二元判断会静默漏掉，`assets/service.ts` 静默 fallback 掩盖错误。
 - **解法**：把 `VALID_CATEGORIES`、notifications 文案、`genCategoryToKind`、client 地图收敛为以 category 为 key 的注册表/数据表；DB enum 与 shared union 单一源派生；删除静默 fallback，未知 category 显式报错。
 - **验收**：新增一个测试 category 只改注册表 1 处；未知 category 不再静默兜底。
 
-### 4.3 🟠 task-engine 反向耦合 workflow 词汇（纯包纪律）
+### 3.3 🟠 task-engine 反向耦合 workflow 词汇（纯包纪律）
 
 - **证据**：[task-engine/index.ts](packages/task-engine/src/index.ts) `getTaskPriority`（:179-193）与 `computeRetryDelay`（:351-360）用 if 链硬编码具体 type 字符串（`'generate.video'`/`'canvas.videos'`/`'subtitle.asr'`）和子串匹配 `taskType.includes('video')`。源码注释自承这是「straddle workflow-engine vocabulary」。
 - **影响**：纯包 `task-engine` 本应与具体业务类型解耦，但优先级/退避里写死了业务 type——新增一个长耗时 type（如 `generate.3d`）必须改 task-engine；`includes('video')` 子串匹配是隐性耦合。
 - **解法**：把优先级/退避表抽成**注入的策略对象**（与现有 `*Adapter` 纪律一致），由 app/worker 注入；或声明式 `TASK_TYPE_POLICY: Record<type, {priority, backoff}>` 数据表。
 - **验收**：task-engine 不再含任何具体业务 type 字符串；新增 type 只在 app/worker 注入策略。
 
-### 4.4 🟠 配置硬编码：退避 / 优先级 / 限流 / 错误分类双轨
+### 3.4 🟠 配置硬编码：退避 / 优先级 / 限流 / 错误分类双轨
 
-- **证据**：(1) task-engine 退避/优先级见 4.3 的魔数 if 链；(2) [rate-limit/index.ts:46-51](packages/rate-limit/src/index.ts#L46-L51) 全路由共享单一 `DEFAULT_GLOBAL_RATE_LIMIT`，无 per-route 声明式表；(3) 错误分类**两套形状**：task-engine 是 if 链 + inline 字符串比较，[error-recovery/index.ts:112-159](packages/error-recovery/src/index.ts#L112-L159) 是声明式 `Array<{match, domain}>` 表——新增可重试错误码要在两处分别改。
+- **证据**：(1) task-engine 退避/优先级见 3.3 的魔数 if 链；(2) [rate-limit/index.ts:46-51](packages/rate-limit/src/index.ts#L46-L51) 全路由共享单一 `DEFAULT_GLOBAL_RATE_LIMIT`，无 per-route 声明式表；(3) 错误分类**两套形状**：task-engine 是 if 链 + inline 字符串比较，[error-recovery/index.ts:112-159](packages/error-recovery/src/index.ts#L112-L159) 是声明式 `Array<{match, domain}>` 表——新增可重试错误码要在两处分别改。
 - **影响**：调参需改代码发版；新增限流规则/错误码易漏改其中一套。
 - **解法**：统一为「声明式规则 + 纯函数 apply」形状（error-recovery 已是范本）：退避/优先级/限流/错误分类全部表式化；限流支持 per-route 声明。
 - **验收**：调参只改数据表/配置不改逻辑；错误分类单一来源。
 
 ---
 
-## 五、文件单一职责 / 大文件拆分（接触时顺手做）
+## 四、文件单一职责 / 大文件拆分（接触时顺手做）
 
 > 原则同 CLAUDE.md：**接触相关区域时顺手拆，不专门开冲刺**。下列是当前**仍存在**的过大/职责混乱文件（canvas.ts/Admin.tsx/task-processor.ts 等已拆的不列）。
 
-### 5.1 🟠 generate.ts 生成编排去重（隐式 bug 源，最高 ROI）
+### 4.1 🟠 generate.ts 生成编排去重（隐式 bug 源，最高 ROI）
 
 - **证据**：[generate.ts](apps/server/src/routes/generate.ts) POST `/generate`（:81-218）与 POST `/records/:id/retry`（:306-429）有 ~110 行 validate→reference→cost→prepare→execute→createTask 几乎逐行复制。
 - **影响**：任何生成流程/credit/audit 改动需双改两处，是隐式 bug 源。
 - **解法**：抽 `modules/generation/orchestration.ts` 共享编排。
 - **验收**：两路径共享同一编排函数；既有 retry/cancel 测试全绿。
 
-### 5.2 🟠 dashscope-client.ts（918 行）拆四模块
+### 4.2 🟠 dashscope-client.ts（918 行）拆四模块
 
 - **证据**：[dashscope-client.ts](packages/provider/src/dashscope-client.ts) 全局 hook 注册表 + 纯请求构造器（applyMappings/buildRequestBody）+ SSE 解析器 + Client 类四职责混一处；5 个 fetch 方法各重复 ~30 行 guard/build/observe 骨架；两 SSE 解析器 80% 重叠。
 - **影响**：最大文件、跨 server/worker 多人协作点；SSE 解析器无法脱离 client 单测。
 - **解法**：抽 `provider-hooks.ts`（observer/guard registry）、`dashscope-request-builder.ts`（纯函数）、`dashscope-sse.ts`（`iterSSEEvents` + 两解析器）；Client 内抽私有 `invokeEndpoint(model, body)` 压缩重复。
 - **验收**：Client 收缩至 ~400 行；SSE 解析器可独立单测；既有 provider 测试全绿。
 
-### 5.3 🟠 admin.ts（707 行）路由按子域拆
+### 4.3 🟠 admin.ts（707 行）路由按子域拆
 
 - **证据**：[admin.ts](apps/server/src/routes/admin.ts) 单文件 17+ 路由跨 6+ 子域（tasks/users/providers/projects/audit/api-keys），且 17 个 handler 内手写 `if (!adminAllowed) return adminDenied()`，`/overview` 还重复了 `canAccessAdmin` 检查。
 - **影响**：多人并行改 admin 必撞车；手写守卫重复。
 - **解法**：按域拆 `routes/admin/{tasks,users,providers,projects,audit,api-keys,gateway,credit}.ts` + `_shared.ts` 收 helper；auth 守卫下沉到 plugin，handler 直接信任 derive 结果。
 - **验收**：admin 路由按域分文件；手写守卫归零；admin 测试全绿。
 
-### 5.4 🟡 其余大组件拆分（接触时）
+### 4.4 🟡 其余大组件拆分（接触时）
 
 | 文件 | 行数 | 拆分方向 |
 |---|---|---|
@@ -209,7 +196,7 @@
 
 **验收（通用）**：拆分后行为不变（既有测试全绿），新增子文件单一职责，barrel 对外 API 不变。
 
-### 5.5 🟡 跨文件重复抽取（接触时）
+### 4.5 🟡 跨文件重复抽取（接触时）
 
 - **Admin 列表分页模板**：[Admin/ApiKeys.tsx:451-576](apps/client/src/pages/Admin/ApiKeys.tsx#L451-L576) 与 [Admin/Users.tsx:336-473](apps/client/src/pages/Admin/Users.tsx#L336-L473) 逐字复制（debounce + queryParams + refetchInterval 30s + footer + prev/next）。→ 抽 `useAdminListPagination` + `AdminListCard`。
 - **API key 表格**：`AdminGatewayKeysTable`（ApiKeys）与 `AdminUserApiKeysSection`（Users）渲染同列。→ 抽 `ApiKeyTable.tsx`。
@@ -220,16 +207,16 @@
 
 ---
 
-## 六、可观测性
+## 五、可观测性
 
-### 6.1 🟠 traceId 不贯穿统一队列 / Canvas 流水线
+### 5.1 🟠 traceId 不贯穿统一队列 / Canvas 流水线
 
 - **证据**：`tasks` 表与 `canvas_pipeline_runs` 表**均无 `traceId` 列**；worker 日志（task-handler/pipeline-stepper/poll-sources/canvas-handlers）只带 taskId/projectId/部分 runId，**无 traceId**。仅 generation_records 链路（generate-video-handler/media-handlers）透传 traceId。CLAUDE.md 称「traceId 跨服务关联」——对 records 成立，对统一队列/Canvas 不成立。
 - **影响**：排查 Canvas 流水线问题无法用单一 traceId 串起 server 提交 → task 排队 → worker 执行 → run 状态 → SSE，必须手工 join 多表。
 - **解法**：`tasks` 表加 `traceId`（task 创建时从 server 透传）；worker logger 在 task scope bind `{taskId, runId, projectId, traceId}`；SSE 事件载荷带 task 的 traceId。
 - **验收**：一次 Canvas 流水线全过程可用单一 traceId 在 server/worker/DB/SSE 日志中检索到。
 
-### 6.2 🟡 错误日志 / SSE 可能含 prompt 全文
+### 5.2 🟡 错误日志 / SSE 可能含 prompt 全文
 
 - **证据**：[dashscope-client.ts](packages/provider/src/dashscope-client.ts) `parseDashScopeError(data)` 进 errorMessage → 进 DB errorMessage → 推 SSE 给前端；[error-recovery/index.ts:270](packages/error-recovery/src/index.ts#L270) 有 `truncate(detail, 500)` 但只在 recovery 分类层。
 - **影响**：DashScope 错误响应可能 echo 请求 prompt 片段 → 敏感内容泄露到前端/日志。
@@ -238,7 +225,7 @@
 
 ---
 
-## 七、暂缓事项（需路线图 / 显式设计假设）
+## 六、暂缓事项（需路线图 / 显式设计假设）
 
 > 这些不是缺陷，而是「当前设计假设未预留」。需相应路线图触发时再立项；本轮仅显式标注，避免误判为漏做。
 

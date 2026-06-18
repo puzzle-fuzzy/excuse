@@ -201,3 +201,25 @@
     background-image: var(--gradient-brand-soft);
   }
 }
+
+@layer utilities {
+  .text-title-lg {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  .text-title {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  .text-body {
+    font-size: 0.875rem;
+    line-height: 1.5rem;
+  }
+}

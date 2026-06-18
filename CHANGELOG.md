@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **前端按钮触摸目标与标题层级 token（TODO §1.1）**：`Button` 基础尺寸从 32/36px 提升为 default 40px、lg 44px，icon 尺寸同步抬高，核心「开始生成」CTA 因 `size="lg"` 达到 44px；新增 `text-title-lg` / `text-title` / `text-body` 工具类，并把 Workspace、Canvas、Billing 的核心标题接入统一层级。至此 `docs/TODO.md`「前端设计 / 美观度」大项全部完成并移除。验收：client typecheck 通过；相关文件 eslint 通过。
+
 - **前端状态色 token 单一来源（TODO §1.1）**：新增 `apps/client/src/lib/status-tokens.ts` 与 `--status-info/success/warning/danger/neutral/accent-*` CSS 变量，把 generation record、Canvas 项目/状态栏、ShotNode、TaskQueuePanel、PipelineController、Billing、字幕状态、连接指示器、资产历史等业务状态颜色从散落的 Tailwind palette 类收敛到语义 token；`CATEGORY_CONFIG` 与 Billing 类别条也改用品牌/category token，删除多份 `STATUS_COLORS`/`CATEGORY_COLORS`/`TX_TYPE_COLORS` 手抄映射。验收：`rg "bg-(red|green|yellow|blue)-[0-9]|text-(red|green|yellow|blue)-[0-9]|border-(red|green|yellow|blue)-[0-9]" apps/client/src` 无命中；client typecheck 通过；相关文件 eslint 通过。
 
 - **前端深色模式端到端接线（TODO §1.1）**：复用已安装的 `next-themes`，新增 `ThemeProvider` 并在 client 入口以 `attribute="class"` 接管根节点 `.dark`，让现有 dark token 与 `dark:` 变体真正生效；Navbar 新增浅/深色切换按钮（带 `aria-label` / `title`），Sonner Toast 不再硬编码 light，而是跟随当前 resolved theme。验收：client typecheck 通过；相关文件 eslint 通过。
