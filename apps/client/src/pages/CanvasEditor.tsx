@@ -65,9 +65,9 @@ export default function CanvasEditor() {
   }, [loadProject])
 
   // 项目版本号变化时重新加载（由 pipeline_node_update SSE 事件中的 phase 级别事件驱动）
+  // 仅用 800ms 延迟加载，避免立即调用拿到尚未提交的旧数据
   useEffect(() => {
     if (projectVersion && projectVersion > 0) {
-      loadProject()
       const timer = window.setTimeout(loadProject, 800)
       return () => clearTimeout(timer)
     }
