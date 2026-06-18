@@ -249,6 +249,50 @@ export async function sweepOrphanTasks(timeoutMinutes = 5): Promise<number> {
   return (result as unknown as { count: number }).count
 }
 
+// ===== Reconcile =====
+
+/** 漂移对：task 与关联 pipeline run 状态不一致 */
+export interface DriftedTaskRunPair {
+  taskId: string
+  taskStatus: string
+  runId: string
+  projectId: string | null
+  phase: string | null
+}
+
+/**
+ * 查找 task 与关联 canvas_pipeline_runs 状态漂移的对。
+ *
+ * task 已终态（succeeded/failed/cancelled）但 run 仍为 running → 视为漂移。
+ * 典型场景：Worker 在 markRunSucceeded 与 completeTask 之间崩溃，
+ * task 已 succeed 但 run 仍 running。
+ *
+ * 每轮 poll 周期末尾调用一次，频率低、开销可控。
+ */
+export async function findDriftedTaskRunPairs(): Promise<DriftedTaskRunPair[]> {
+  const result = await getDb().execute(sql`
+    SELECT
+      t.id AS "taskId",
+      t.status AS "taskStatus",
+      r.id AS "runId",
+      r.project_id AS "projectId",
+      r.phase AS "phase"
+    FROM tasks t
+    JOIN canvas_pipeline_runs r ON r.task_id = t.id
+    WHERE t.status IN ('succeeded', 'failed', 'cancelled')
+      AND r.status = 'running'
+  `)
+
+  const rows = result as unknown as Array<Record<string, unknown>>
+  return rows.map(row => ({
+    taskId: String(row.taskId ?? ''),
+    taskStatus: String(row.taskStatus ?? ''),
+    runId: String(row.runId ?? ''),
+    projectId: row.projectId ? String(row.projectId) : null,
+    phase: row.phase ? String(row.phase) : null,
+  }))
+}
+
 // ===== Notify =====
 
 /**

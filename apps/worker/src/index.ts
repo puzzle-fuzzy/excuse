@@ -18,6 +18,7 @@ import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { loadConfig } from './config'
 import { createWorkerContext } from './context'
 import { createTaskPollSource } from './poll-sources'
+import { reconcileTaskRunDrift } from './reconcile'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startCreditReconciliation, startOrphanSweep } from './worker-lifecycle'
@@ -105,6 +106,9 @@ async function main() {
     }
     healthState.isPolling = false
 
+    // 每轮 poll 后检查 task↔run 状态漂移并修复
+    await reconcileTaskRunDrift()
+
     // 分段 sleep，以便更快响应退出信号
     const sleepMs = config.pollIntervalMs
     const checkInterval = 1000
@@ -117,6 +121,7 @@ async function main() {
   }
 
   stopSweep()
+  stopCreditRecon()
   logger.info('🤖 Worker stopped.')
 }
 
