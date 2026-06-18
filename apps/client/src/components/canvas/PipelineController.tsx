@@ -8,6 +8,7 @@
 import type { CanvasModelPreferences, ModelConfig, ProjectDTO } from '@excuse/shared'
 import type { PhaseDoneEvent, RunningPhaseInfo } from './usePipelineController'
 import { Play, Square } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
 import { cn } from '@/lib/utils'
 import { usePipelineController } from './usePipelineController'
@@ -243,17 +244,17 @@ function ModelSelect({ label, models, value, onChange, disabled }: {
   return (
     <label className="flex items-center gap-1.5 text-muted-foreground">
       <span>{label}</span>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        disabled={disabled}
-        className="max-w-45 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <option value="">默认</option>
-        {models.map(m => (
-          <option key={m.id} value={m.id}>{m.name}</option>
-        ))}
-      </select>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger size="sm" className="h-7 max-w-45 gap-1 border-border px-2 text-xs text-foreground">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="">默认</SelectItem>
+          {models.map(m => (
+            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   )
 }

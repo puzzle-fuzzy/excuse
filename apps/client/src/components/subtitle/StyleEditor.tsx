@@ -3,6 +3,8 @@ import { SUBTITLE_STYLE_PRESETS } from '@excuse/subtitle-engine'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 
 const FONT_SIZE_MIN = 18
 const FONT_SIZE_MAX = 96
@@ -77,14 +79,12 @@ export default function StyleEditor({
                   <span className="text-xs text-muted-foreground">px</span>
                 </div>
               </div>
-              <input
-                type="range"
+              <Slider
                 min={FONT_SIZE_MIN}
                 max={FONT_SIZE_MAX}
                 step={FONT_SIZE_STEP}
-                value={currentStyle.fontSize}
-                onChange={e => onStyleOverride('fontSize', clampFontSize(Number(e.target.value)))}
-                className="w-full accent-primary"
+                value={[currentStyle.fontSize]}
+                onValueChange={values => onStyleOverride('fontSize', clampFontSize(Number(values[0])))}
                 aria-label="字幕大小"
               />
               <div className="grid grid-cols-4 gap-1">
@@ -131,15 +131,19 @@ export default function StyleEditor({
             </div>
             <div>
               <label className="text-xs text-muted-foreground">位置</label>
-              <select
-                className="w-full rounded-md border p-2 text-sm"
+              <Select
                 value={currentStyle.position}
-                onChange={e => onStyleOverride('position', e.target.value)}
+                onValueChange={v => onStyleOverride('position', v)}
               >
-                <option value="top">顶部</option>
-                <option value="center">居中</option>
-                <option value="bottom">底部</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="top">顶部</SelectItem>
+                  <SelectItem value="center">居中</SelectItem>
+                  <SelectItem value="bottom">底部</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}

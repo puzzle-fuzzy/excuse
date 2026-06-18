@@ -7,6 +7,7 @@ import {
   buildAssetLibraryStats,
   canDeleteAsset,
   createAssetLibraryQueryKey,
+  DATE_RANGE_OPTIONS,
   DEFAULT_FILTERS,
   filterAssetLibraryItems,
   findProjectLabel,
@@ -16,6 +17,7 @@ import {
   getCanvasFocusParam,
   getCanvasProjectUrl,
   getCanvasSourceLabel,
+  inferDateRangePreset,
   inferReferenceRole,
   isReferenceAssetAdded,
   isReferenceAssetCandidate,
@@ -23,6 +25,7 @@ import {
   normalizeAssetLibraryFiltersFromSearchParams,
   parseFocusParam,
   previewApplyReferenceAssets,
+  resolveDateRange,
   resolveFocusNodeWithProject,
 } from '../src/lib/asset-library'
 
@@ -840,5 +843,85 @@ describe('previewApplyReferenceAssets', () => {
 
   it('空 targets 返回空数组', () => {
     expect(previewApplyReferenceAssets([], [ref], 'append')).toEqual([])
+  })
+})
+
+// ── 日期区间预设（资产库筛选条，Phase 2.3）──────────────────────────────────
+
+describe('resolveDateRange', () => {
+  // 固定 now，避免测试受运行时间影响；用本地时区的中午避开跨日边界
+  const now = new Date(2026, 5, 19, 12, 0, 0) // 2026-06-19 本地中午
+
+  it('all → 空区间（不过滤）', () => {
+    expect(resolveDateRange('all', now)).toEqual({ createdFrom: '', createdTo: '' })
+  })
+
+  it('today → 起止都是当天', () => {
+    expect(resolveDateRange('today', now)).toEqual({ createdFrom: '2026-06-19', createdTo: '2026-06-19' })
+  })
+
+  it('7d → 覆盖最近 7 天（含今天，往前推 6 天）', () => {
+    expect(resolveDateRange('7d', now)).toEqual({ createdFrom: '2026-06-13', createdTo: '2026-06-19' })
+  })
+
+  it('30d → 覆盖最近 30 天（含今天，往前推 29 天）', () => {
+    expect(resolveDateRange('30d', now)).toEqual({ createdFrom: '2026-05-21', createdTo: '2026-06-19' })
+  })
+
+  it('跨月正确（7d 跨越 5/6 月）', () => {
+    const crossMonth = new Date(2026, 5, 3, 12, 0, 0) // 2026-06-03
+    expect(resolveDateRange('7d', crossMonth)).toEqual({ createdFrom: '2026-05-28', createdTo: '2026-06-03' })
+  })
+
+  it('月份/日期补零（个位数月日）', () => {
+    const singleDigit = new Date(2026, 0, 5, 12, 0, 0) // 2026-01-05
+    expect(resolveDateRange('today', singleDigit)).toEqual({ createdFrom: '2026-01-05', createdTo: '2026-01-05' })
+  })
+
+  it('默认 now 参数生效（不注入时返回当天）', () => {
+    const result = resolveDateRange('all')
+    expect(result).toEqual({ createdFrom: '', createdTo: '' })
+  })
+})
+
+describe('inferDateRangePreset', () => {
+  const now = new Date(2026, 5, 19, 12, 0, 0) // 2026-06-19
+
+  it('空区间 → all', () => {
+    expect(inferDateRangePreset('', '', now)).toBe('all')
+  })
+
+  it('today 区间 → today', () => {
+    expect(inferDateRangePreset('2026-06-19', '2026-06-19', now)).toBe('today')
+  })
+
+  it('7d 区间 → 7d', () => {
+    expect(inferDateRangePreset('2026-06-13', '2026-06-19', now)).toBe('7d')
+  })
+
+  it('30d 区间 → 30d', () => {
+    expect(inferDateRangePreset('2026-05-21', '2026-06-19', now)).toBe('30d')
+  })
+
+  it('自定义区间 → null（UI 不高亮任何预设）', () => {
+    expect(inferDateRangePreset('2026-06-01', '2026-06-15', now)).toBeNull()
+  })
+
+  it('resolveDateRange 与 inferDateRangePreset 互为逆运算（all/today/7d/30d）', () => {
+    for (const preset of ['all', 'today', '7d', '30d'] as const) {
+      const range = resolveDateRange(preset, now)
+      expect(inferDateRangePreset(range.createdFrom, range.createdTo, now)).toBe(preset)
+    }
+  })
+})
+
+describe('日期预设选项常量', () => {
+  it('包含 all/today/7d/30d 四个预设', () => {
+    expect(DATE_RANGE_OPTIONS.map(o => o.value)).toEqual(['all', 'today', '7d', '30d'])
+  })
+
+  it('每个选项都有非空 label', () => {
+    for (const o of DATE_RANGE_OPTIONS)
+      expect(o.label.length).toBeGreaterThan(0)
   })
 })

@@ -206,28 +206,26 @@ describe('assets PreviewModal 编辑入口', () => {
 })
 
 describe('assets 排序下拉', () => {
-  it('默认显示「最新优先」（sort=created_desc）', async () => {
+  it('默认 sort=created_desc（初始查询）', async () => {
     renderAssets([])
 
-    const sortSelect = await screen.findByLabelText('排序')
-    expect(sortSelect).toHaveValue('created_desc')
+    // 等排序 trigger 渲染完成
+    await screen.findByRole('combobox', { name: '排序' })
+
+    expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
+      filters: expect.objectContaining({ sort: 'created_desc' }),
+    }))
   })
 
   it('切换到「标题 A→Z」后 queryAssetLibrary 收到 sort=title_asc', async () => {
     const user = userEvent.setup()
     renderAssets([])
 
-    // 等初始查询完成
-    await screen.findByLabelText('排序')
+    await screen.findByRole('combobox', { name: '排序' })
 
-    // 初始默认 sort=created_desc
-    expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
-      filters: expect.objectContaining({ sort: 'created_desc' }),
-    }))
-
-    // 切换到「标题 A→Z」
-    const sortSelect = screen.getByLabelText('排序')
-    await user.selectOptions(sortSelect, 'title_asc')
+    // 排序是 shadcn Select（combobox），点开 trigger 再选选项
+    await user.click(screen.getByRole('combobox', { name: '排序' }))
+    await user.click(await screen.findByRole('option', { name: '标题 A→Z' }))
 
     await waitFor(() => {
       expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -240,10 +238,10 @@ describe('assets 排序下拉', () => {
     const user = userEvent.setup()
     renderAssets([])
 
-    await screen.findByLabelText('排序')
+    await screen.findByRole('combobox', { name: '排序' })
 
-    const sortSelect = screen.getByLabelText('排序')
-    await user.selectOptions(sortSelect, 'title_desc')
+    await user.click(screen.getByRole('combobox', { name: '排序' }))
+    await user.click(await screen.findByRole('option', { name: '标题 Z→A' }))
 
     await waitFor(() => {
       expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -254,19 +252,22 @@ describe('assets 排序下拉', () => {
 })
 
 describe('assets 收藏功能', () => {
-  it('「仅看收藏」复选框默认未勾', async () => {
+  it('「仅看收藏」开关默认关闭', async () => {
     renderAssets([])
 
-    const favoriteCheckbox = await screen.findByLabelText('仅看收藏')
-    expect(favoriteCheckbox).not.toBeChecked()
+    // 等筛选条渲染完成（项目筛选器作为稳定标志）
+    await screen.findByRole('combobox', { name: '项目筛选' })
+    const favoriteSwitch = screen.getByRole('switch', { name: '仅看收藏' })
+    expect(favoriteSwitch).not.toBeChecked()
   })
 
-  it('勾选「仅看收藏」后 filters.favorite=true 并刷新查询', async () => {
+  it('打开「仅看收藏」后 filters.favorite=true 并刷新查询', async () => {
     const user = userEvent.setup()
     renderAssets([])
 
-    const favoriteCheckbox = await screen.findByLabelText('仅看收藏')
-    await user.click(favoriteCheckbox)
+    await screen.findByRole('combobox', { name: '项目筛选' })
+    const favoriteSwitch = screen.getByRole('switch', { name: '仅看收藏' })
+    await user.click(favoriteSwitch)
 
     await waitFor(() => {
       expect(vi.mocked(queryAssetLibrary)).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -383,13 +384,16 @@ describe('assets 标签功能', () => {
 
   it('筛选区标签下拉按钮存在', async () => {
     renderAssets([])
-    await screen.findByLabelText('排序')
+    // 等筛选条渲染完成（项目筛选器作为稳定标志）
+    await screen.findByRole('combobox', { name: '项目筛选' })
     expect(screen.getByLabelText('标签筛选')).toBeInTheDocument()
   })
 
-  it('空标签时筛选下拉显示"全部标签"', async () => {
+  it('空标签时筛选按钮显示「标签」（无计数）', async () => {
     renderAssets([])
-    await screen.findByLabelText('排序')
-    expect(screen.getByText('全部标签')).toBeInTheDocument()
+    await screen.findByRole('combobox', { name: '项目筛选' })
+    // 空标签时按钮内显示「全部」计数
+    const tagBtn = screen.getByLabelText('标签筛选')
+    expect(tagBtn).toHaveTextContent('全部')
   })
 })

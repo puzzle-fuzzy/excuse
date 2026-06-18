@@ -9,6 +9,7 @@ import OutputPreview from '@/components/generation/OutputPreview'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { formatCents } from '@/lib/generation-utils'
 import { copyToClipboard } from '@/lib/utils'
 
@@ -176,11 +177,10 @@ export default function ModelComparisonSection({
           <div className="grid gap-2 sm:grid-cols-2">
             {categoryModels.map(model => (
               <label key={model.id} className="flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
+                <Checkbox
                   className="mt-1"
                   checked={compareModelIds.includes(model.id)}
-                  onChange={() => toggleCompareModel(model.id)}
+                  onCheckedChange={() => toggleCompareModel(model.id)}
                 />
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{model.name}</span>

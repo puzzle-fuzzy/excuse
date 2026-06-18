@@ -17,8 +17,10 @@ import {
 } from '../../lib/asset-library'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { Checkbox } from '../ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 // ── 参考资产 role 中文标签 ────────────────────────────
 const ROLE_LABELS: Record<CanvasShotReferenceAsset['role'], string> = {
@@ -399,16 +401,20 @@ export function ShotReferenceAssets({
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1">
-                  <select
+                  <Select
                     value={asset.role}
-                    onChange={e => handleRoleChange(i, e.target.value as CanvasShotReferenceAsset['role'])}
+                    onValueChange={v => handleRoleChange(i, v as CanvasShotReferenceAsset['role'])}
                     disabled={saving}
-                    className="rounded border border-input bg-background px-1 py-0.5 text-[10px] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {ROLE_OPTIONS.map(role => (
-                      <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger size="sm" className="h-6 w-auto gap-1 px-1.5 text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map(role => (
+                        <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {asset.label && (
                     <span className="truncate">{asset.label}</span>
                   )}
@@ -453,15 +459,19 @@ export function ShotReferenceAssets({
       <div className="space-y-1.5 pt-1 border-t border-border/60">
         <p className="text-[10px] text-muted-foreground">或手动输入 URL（高级）</p>
         <div className="flex gap-1.5">
-          <select
+          <Select
             value={addRole}
-            onChange={e => setAddRole(e.target.value as CanvasShotReferenceAsset['role'])}
-            className="w-20 rounded-lg border border-input bg-background px-2 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onValueChange={v => setAddRole(v as CanvasShotReferenceAsset['role'])}
           >
-            {ROLE_OPTIONS.map(role => (
-              <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="h-8 w-24 gap-1 px-2 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTIONS.map(role => (
+                <SelectItem key={role} value={role}>{ROLE_LABELS[role]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Input
             value={addUrl}
             onChange={e => setAddUrl(e.target.value)}
@@ -501,10 +511,9 @@ export function ShotReferenceAssets({
               className="text-sm"
             />
             <label className="flex items-center gap-1 text-xs whitespace-nowrap text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={onlyCurrentProject}
-                onChange={e => setOnlyCurrentProject(e.target.checked)}
+                onCheckedChange={c => setOnlyCurrentProject(c === true)}
               />
               仅当前项目
             </label>
@@ -617,11 +626,10 @@ export function ShotReferenceAssets({
                 <p className="text-xs text-muted-foreground text-center py-3">项目中没有其他镜头</p>
               )}
               {otherShots.map(s => (
-                <label key={s.id} className="flex items-center gap-2 text-xs p-1.5 rounded cursor-pointer hover:bg-muted/30">
-                  <input
-                    type="checkbox"
+                <label key={s.id} className="flex items-center gap-2 p-1.5 text-xs rounded cursor-pointer hover:bg-muted/30">
+                  <Checkbox
                     checked={selectedShotIds.has(s.id)}
-                    onChange={() => toggleShotSelection(s.id)}
+                    onCheckedChange={() => toggleShotSelection(s.id)}
                   />
                   <span className="font-medium">
                     镜头

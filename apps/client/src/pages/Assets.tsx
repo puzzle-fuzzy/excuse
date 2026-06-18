@@ -1,11 +1,12 @@
 import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, AssetTagDTO, ProjectDTO } from '@excuse/shared'
-import type { AssetLibraryFilters } from '@/lib/asset-library'
+import type { AssetDateRangePreset, AssetLibraryFilters } from '@/lib/asset-library'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AudioLines,
   Box,
+  Calendar,
+  ChevronDown,
   FileText,
-  Filter,
   FolderOpen,
   ImageIcon,
   Layers,
@@ -13,7 +14,6 @@ import {
   MapPin,
   RotateCcw,
   Search,
-  SlidersHorizontal,
   Star,
   Tag,
   Tags,
@@ -39,34 +39,33 @@ import { AssetTagManager } from '@/components/assets/AssetTagManager'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   buildAssetLibraryStats,
   createAssetLibraryQueryKey,
+  DATE_RANGE_OPTIONS,
   DEFAULT_FILTERS,
   formatProjectOptionLabel,
   getAssetLibraryPreviewKind,
+  inferDateRangePreset,
   KIND_LABELS,
   normalizeAssetLibraryFiltersFromSearchParams,
+  resolveDateRange,
   SOURCE_LABELS,
 } from '@/lib/asset-library'
 import { cn } from '@/lib/utils'
 
+/** 首屏直接展示的高频类型 chips（其余收进「类型」下拉） */
+const PRIMARY_KINDS: AssetLibraryKind[] = ['image', 'video', 'text', 'upload']
+/** 收进下拉的低频类型 */
+const SECONDARY_KINDS: AssetLibraryKind[] = ['character', 'location', 'shot', 'project']
+
 type SourceFilter = 'all' | AssetLibrarySource
 type KindFilter = 'all' | AssetLibraryKind
 type StatusFilter = 'all' | AssetLibraryStatusFilter
-
-const KIND_CARDS: Array<{ value: KindFilter, label: string, icon: typeof Layers }> = [
-  { value: 'all', label: '全部', icon: Layers },
-  { value: 'image', label: '图片', icon: ImageIcon },
-  { value: 'video', label: '视频', icon: Video },
-  { value: 'character', label: '角色', icon: User },
-  { value: 'location', label: '场景', icon: MapPin },
-  { value: 'shot', label: '镜头', icon: Box },
-  { value: 'text', label: '文本', icon: FileText },
-  { value: 'project', label: '项目', icon: FolderOpen },
-  { value: 'upload', label: '上传', icon: Upload },
-]
 
 const SOURCE_OPTIONS: Array<{ value: SourceFilter, label: string }> = [
   { value: 'all', label: '全部来源' },
@@ -83,6 +82,13 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter, label: string }> = [
   { value: 'queued', label: '排队中' },
 ]
 
+const SORT_OPTIONS: Array<{ value: AssetLibrarySort, label: string }> = [
+  { value: 'created_desc', label: '最新优先' },
+  { value: 'created_asc', label: '最早优先' },
+  { value: 'title_asc', label: '标题 A→Z' },
+  { value: 'title_desc', label: '标题 Z→A' },
+]
+
 // 预览图标映射（按 kind 选 lucide 图标，避免裸文本时无图标）
 const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
   image: ImageIcon,
@@ -94,6 +100,20 @@ const KIND_ICON: Partial<Record<AssetLibraryKind, typeof FileText>> = {
   location: MapPin,
   shot: Box,
   project: FolderOpen,
+}
+
+/** 类型 chip 用到的图标 */
+const KIND_CHIP_ICON: Record<AssetLibraryKind, typeof ImageIcon> = {
+  image: ImageIcon,
+  video: Video,
+  text: FileText,
+  upload: Upload,
+  character: User,
+  location: MapPin,
+  shot: Box,
+  project: FolderOpen,
+  subtitle: AudioLines,
+  audio: AudioLines,
 }
 
 // ── URL ↔ 状态同步 ──────────────────────────────────────────────────────────
@@ -149,6 +169,16 @@ export default function Assets() {
       m.set(t.name, t.id)
     return m
   }, [allTags])
+
+  // 日期预设派生自 filters.createdFrom/To（URL 还原时也能高亮对应预设）
+  const datePreset = useMemo(
+    () => inferDateRangePreset(filters.createdFrom, filters.createdTo),
+    [filters.createdFrom, filters.createdTo],
+  )
+  function handleDatePresetChange(preset: AssetDateRangePreset) {
+    const range = resolveDateRange(preset)
+    setFilters(f => ({ ...f, createdFrom: range.createdFrom, createdTo: range.createdTo }))
+  }
 
   // Debounce search term to avoid firing API on every keystroke
   const [debouncedSearch] = useDebounce(filters.search, 300)
@@ -285,265 +315,275 @@ export default function Assets() {
   }
 
   return (
-    <div className="product-page flex flex-col gap-6">
-      {/* 标题 + 项目选择器 */}
-      <section className="rounded-2xl border bg-card p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-muted/45 px-3 py-1 text-xs text-muted-foreground">
-              <FolderOpen className="size-3.5 text-primary" />
-              {isLoading ? '正在同步资产' : `${allItems.length} 个资产可浏览`}
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">资产库</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-              管理生成结果、上传文件、Canvas 角色场景和可复用素材。筛选、预览、打标签和收藏都应该在这里顺手完成。
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
-              value={projectId ?? ''}
-              onChange={e => setProjectId(e.target.value || null)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
-              aria-label="项目筛选"
-            >
-              <option value="">全部项目</option>
-              {projects.map(p => (
-                <option key={p.id} value={p.id}>{formatProjectOptionLabel(p)}</option>
-              ))}
-            </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTagManageOpen(true)}
-            >
-              <Tags className="size-3.5" />
-              标签管理
-            </Button>
-          </div>
+    <div className="product-page flex flex-col gap-4">
+      {/* 顶部工具栏 — 资产计数 + 项目筛选 + 标签管理 */}
+      <section className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+            <FolderOpen className="size-4.5" />
+          </span>
+          <span className="text-sm font-medium tabular-nums text-foreground">
+            {isLoading ? '同步中…' : `${allItems.length}`}
+          </span>
+          <span className="text-sm text-muted-foreground">个资产</span>
         </div>
-        {projectId && !projects.some(p => p.id === projectId) && (
-          <Badge variant="secondary" className="mt-4 gap-1">
-            <Link2 className="size-3" />
-            当前链接项目：
-            {projectId.slice(0, 8)}
-            …
-          </Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={projectId ?? '__all__'}
+            onValueChange={v => setProjectId(v === '__all__' ? null : v)}
+          >
+            <SelectTrigger aria-label="项目筛选" className="h-9 w-[200px] gap-2 text-sm">
+              <FolderOpen className="size-3.5 text-muted-foreground" />
+              <SelectValue placeholder="全部项目" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">全部项目</SelectItem>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.id}>{formatProjectOptionLabel(p)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setTagManageOpen(true)}>
+            <Tags className="size-3.5" />
+            标签管理
+          </Button>
+        </div>
       </section>
 
-      {/* 来源 + 状态筛选 */}
-      <section className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-              <SlidersHorizontal className="size-4" />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold">筛选与排序</h2>
-              <p className="text-xs text-muted-foreground">组合搜索、来源、状态、时间和标签，快速找回可复用资产。</p>
-            </div>
-          </div>
+      {projectId && !projects.some(p => p.id === projectId) && (
+        <Badge variant="secondary" className="w-fit gap-1">
+          <Link2 className="size-3" />
+          当前链接项目：
+          {projectId.slice(0, 8)}
+          …
+        </Badge>
+      )}
+
+      {/* 类型统计条 — 高频类型 chips（带计数）+ 低频类型下拉 */}
+      <section className="flex flex-wrap items-center gap-1.5">
+        {/* 全部 */}
+        <KindChip
+          active={filters.kind === 'all'}
+          count={stats.total}
+          label="全部"
+          onClick={() => updateFilter('kind', 'all')}
+        />
+        {PRIMARY_KINDS.map(kind => (
+          <KindChip
+            key={kind}
+            kind={kind}
+            active={filters.kind === kind}
+            count={stats.byKind[kind] ?? 0}
+            label={KIND_LABELS[kind]}
+            onClick={() => updateFilter('kind', kind)}
+          />
+        ))}
+        {/* 低频类型收纳进下拉 */}
+        <Select
+          value={SECONDARY_KINDS.includes(filters.kind as AssetLibraryKind) ? filters.kind : '__primary__'}
+          onValueChange={v => updateFilter('kind', (v === '__primary__' ? 'all' : v) as KindFilter)}
+        >
+          <SelectTrigger size="sm" aria-label="更多类型" className="h-8 w-auto gap-1.5 rounded-full px-3 text-xs">
+            <ChevronDown className="size-3.5 text-muted-foreground" />
+            {SECONDARY_KINDS.includes(filters.kind as AssetLibraryKind)
+              ? KIND_LABELS[filters.kind as AssetLibraryKind]
+              : '更多类型'}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__primary__">全部类型</SelectItem>
+            {SECONDARY_KINDS.map(kind => (
+              <SelectItem key={kind} value={kind}>
+                {KIND_LABELS[kind]}
+                （
+                {stats.byKind[kind] ?? 0}
+                ）
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </section>
+
+      {/* 筛选条 — 搜索 / 来源 / 状态 / 模型 / 日期预设 / 标签 / 排序 / 收藏 */}
+      <section className="rounded-xl border bg-card p-3">
+        <div className="mb-2.5 flex items-center justify-end gap-2">
           {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <RotateCcw className="size-3.5" />
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
+              <RotateCcw className="size-3" />
               清空筛选
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {/* 搜索框 */}
-          <div className="relative flex items-center">
-            <Search className="absolute left-2 size-3.5 text-muted-foreground" />
-            <input
-              type="text"
+
+        {/* 第一行：搜索 + 下拉维度 */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex min-w-56 flex-1 items-center sm:max-w-xs">
+            <Search className="absolute left-2.5 size-3.5 text-muted-foreground" />
+            <Input
               value={filters.search}
               onChange={e => updateFilter('search', e.target.value)}
-              placeholder="搜索文件名、Prompt、模型、项目内容..."
-              className="h-9 w-full min-w-64 rounded-lg border bg-background pl-8 pr-8 text-sm sm:w-80"
+              placeholder="搜索文件名、Prompt、模型..."
+              className="h-9 pl-8 pr-8"
             />
             {filters.search && (
               <button
                 type="button"
                 onClick={() => updateFilter('search', '')}
-                className="absolute right-1.5 text-muted-foreground hover:text-foreground"
+                className="absolute right-2 text-muted-foreground hover:text-foreground"
                 aria-label="清空搜索"
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             )}
           </div>
-          <span className="mx-1 hidden self-center text-muted-foreground sm:inline">·</span>
-          {SOURCE_OPTIONS.map(({ value, label }) => (
-            <Button
-              key={value}
-              variant={filters.source === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => updateFilter('source', value)}
-            >
-              {label}
-            </Button>
-          ))}
-          <span className="mx-1 hidden self-center text-muted-foreground sm:inline">·</span>
-          {STATUS_OPTIONS.map(({ value, label }) => (
-            <Button
-              key={value}
-              variant={filters.status === value ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => updateFilter('status', value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      </section>
 
-      {/* 统计卡片（按 kind，点击切换 kind 筛选） */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
-        {KIND_CARDS.map(({ value, label, icon: Icon }) => {
-          const count = value === 'all' ? stats.total : (stats.byKind[value] ?? 0)
-          const selected = filters.kind === value
-          return (
-            <Card
-              key={value}
-              className={cn(
-                'cursor-pointer bg-card transition-colors hover:bg-muted/35',
-                selected && 'border-primary bg-primary/5 ring-1 ring-primary/35',
-              )}
-              onClick={() => updateFilter('kind', value)}
-            >
-              <CardContent className="flex flex-col items-center gap-1 p-3 text-center">
-                <Icon className={cn('size-4', selected ? 'text-primary' : 'text-muted-foreground')} />
-                <p className="text-xl font-semibold tracking-tight">{count}</p>
-                <p className="text-[10px] text-muted-foreground">{label}</p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </section>
+          <FilterSelect
+            label="来源"
+            value={filters.source}
+            options={SOURCE_OPTIONS}
+            onChange={v => updateFilter('source', v as SourceFilter)}
+          />
+          <FilterSelect
+            label="状态"
+            value={filters.status}
+            options={STATUS_OPTIONS}
+            onChange={v => updateFilter('status', v as StatusFilter)}
+          />
+          <Input
+            value={filters.model}
+            onChange={e => updateFilter('model', e.target.value)}
+            placeholder="模型精确匹配"
+            className="h-9 w-36 text-xs"
+          />
 
-      {/* 模型 + 时间筛选 + 排序 + 清空 */}
-      <section className="rounded-xl border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-          <Filter className="size-4 text-muted-foreground" />
-          高级筛选
+          {/* 日期预设区间 */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  'h-9 gap-1.5 rounded-lg px-3 text-xs',
+                  datePreset && datePreset !== 'all' && 'border-primary/50 bg-primary/5',
+                )}
+                aria-label="创建时间"
+              >
+                <Calendar className="size-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">时间</span>
+                <span className="font-medium">
+                  {datePreset ? DATE_RANGE_OPTIONS.find(o => o.value === datePreset)?.label ?? '全部' : '全部'}
+                </span>
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-44 p-1" align="start">
+              {DATE_RANGE_OPTIONS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleDatePresetChange(value)}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs hover:bg-accent',
+                    datePreset === value && 'bg-accent font-medium',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          {/* 标签筛选 */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  'h-9 gap-1.5 rounded-lg px-3 text-xs',
+                  filters.tagIds.length > 0 && 'border-primary/50 bg-primary/5',
+                )}
+                aria-label="标签筛选"
+              >
+                <Tag className="size-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">标签</span>
+                <span className="font-medium">{filters.tagIds.length > 0 ? filters.tagIds.length : '全部'}</span>
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-56 p-1" align="start">
+              {allTags.length === 0
+                ? (
+                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                      还没有标签，前往
+                      <button type="button" className="mx-1 underline" onClick={() => setTagManageOpen(true)}>
+                        标签管理
+                      </button>
+                      创建
+                    </p>
+                  )
+                : (
+                    <div className="max-h-60 overflow-y-auto">
+                      {allTags.map(tag => (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() => toggleFilterTagId(tag.id)}
+                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                        >
+                          <span className="truncate">{tag.name}</span>
+                          {filters.tagIds.includes(tag.id) && <X className="size-3" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted-foreground">模型</label>
-            <input
-              type="text"
-              value={filters.model}
-              onChange={e => updateFilter('model', e.target.value)}
-              placeholder="精确匹配"
-              className="h-9 w-36 rounded-lg border bg-background px-3 text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted-foreground">开始日期</label>
-            <input
-              type="date"
-              value={filters.createdFrom}
-              onChange={e => updateFilter('createdFrom', e.target.value)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted-foreground">结束日期</label>
-            <input
-              type="date"
-              value={filters.createdTo}
-              onChange={e => updateFilter('createdTo', e.target.value)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted-foreground">排序</label>
-            <select
-              value={filters.sort}
-              onChange={e => updateFilter('sort', e.target.value as AssetLibrarySort)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
-              aria-label="排序"
-            >
-              <option value="created_desc">最新优先</option>
-              <option value="created_asc">最早优先</option>
-              <option value="title_asc">标题 A→Z</option>
-              <option value="title_desc">标题 Z→A</option>
-            </select>
-          </div>
-          <label className="flex h-9 items-center gap-2 self-end rounded-lg border bg-background px-3 text-sm">
-            <input
-              type="checkbox"
+
+        {/* 第二行：排序 + 仅看收藏 + 已选标签 chip */}
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+          <FilterSelect
+            label="排序"
+            value={filters.sort}
+            options={SORT_OPTIONS}
+            onChange={v => updateFilter('sort', v as AssetLibrarySort)}
+            className="w-36"
+          />
+          <label className="flex h-9 cursor-pointer items-center gap-2 rounded-lg px-2 text-sm">
+            <Switch
               checked={filters.favorite}
-              onChange={e => updateFilter('favorite', e.target.checked)}
+              onCheckedChange={c => updateFilter('favorite', c)}
               aria-label="仅看收藏"
             />
-            仅看收藏
+            <Star className={cn('size-3.5', filters.favorite && 'fill-[color:var(--status-warning-fg)] text-[color:var(--status-warning-fg)]')} />
+            <span className="text-muted-foreground">仅看收藏</span>
           </label>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] text-muted-foreground">标签</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="标签筛选" className="h-8">
-                  <Tag className="size-3" />
-                  {filters.tagIds.length > 0 ? `已选 ${filters.tagIds.length}` : '全部标签'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56 p-1" align="start">
-                {allTags.length === 0
-                  ? (
-                      <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                        还没有标签，前往
-                        <button type="button" className="mx-1 underline" onClick={() => setTagManageOpen(true)}>
-                          标签管理
-                        </button>
-                        创建
-                      </p>
-                    )
-                  : (
-                      <div className="max-h-60 overflow-y-auto">
-                        {allTags.map(tag => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            onClick={() => toggleFilterTagId(tag.id)}
-                            className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                          >
-                            <span className="truncate">{tag.name}</span>
-                            {filters.tagIds.includes(tag.id) && <X className="size-3" />}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-              </PopoverContent>
-            </Popover>
-          </div>
+
+          {/* 已选标签 chip 行 */}
+          {filters.tagIds.length > 0 && (
+            <div className="flex flex-1 flex-wrap items-center justify-end gap-1">
+              {filters.tagIds.map((tagId) => {
+                const tag = allTags.find(t => t.id === tagId)
+                if (!tag)
+                  return null
+                return (
+                  <Badge key={tagId} variant="secondary" className="gap-1 text-[10px]">
+                    {tag.name}
+                    <button
+                      type="button"
+                      aria-label={`移除标签 ${tag.name}`}
+                      onClick={() => toggleFilterTagId(tagId)}
+                      className="hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </Badge>
+                )
+              })}
+            </div>
+          )}
         </div>
       </section>
-
-      {/* 已选标签 badge 行（filters.tagIds 非空时显示） */}
-      {filters.tagIds.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">已选标签：</span>
-          {filters.tagIds.map((tagId) => {
-            const tag = allTags.find(t => t.id === tagId)
-            if (!tag)
-              return null
-            return (
-              <Badge key={tagId} variant="secondary" className="gap-1 text-[10px]">
-                {tag.name}
-                <button
-                  type="button"
-                  aria-label={`移除标签 ${tag.name}`}
-                  onClick={() => toggleFilterTagId(tagId)}
-                  className="hover:text-foreground"
-                >
-                  <X className="size-3" />
-                </button>
-              </Badge>
-            )
-          })}
-        </div>
-      )}
 
       {/* 加载状态 */}
       {isLoading && (
@@ -638,6 +678,88 @@ export default function Assets() {
   )
 }
 
+// ── 筛选条辅助组件 ──────────────────────────────────────────────────────────
+
+/** 类型统计 chip — 紧凑的圆角按钮，带图标 + 计数 */
+function KindChip({
+  kind,
+  active,
+  count,
+  label,
+  onClick,
+}: {
+  kind?: AssetLibraryKind
+  active: boolean
+  count: number
+  label: string
+  onClick: () => void
+}) {
+  const Icon = kind ? KIND_CHIP_ICON[kind] : Layers
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors',
+        active
+          ? 'border-primary bg-primary/10 text-primary'
+          : 'border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+      )}
+    >
+      <Icon className="size-3.5" />
+      {label}
+      <span className={cn('tabular-nums', active ? 'text-primary/80' : 'text-muted-foreground/70')}>{count}</span>
+    </button>
+  )
+}
+
+/**
+ * 筛选条统一下拉 — 承载来源 / 状态 / 排序等多选项维度。
+ *
+ * 必须使用 Radix 的 <SelectValue /> 作为 trigger 子元素 —— 它不只是显示文本，
+ * 还参与 Radix Select 的选中态映射与 content 定位计算。用裸 span 替代会导致
+ * 点击后下拉不展开（item-aligned 定位失效）。
+ */
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+  className,
+}: {
+  label: string
+  value: string
+  options: Array<{ value: string, label: string }>
+  onChange: (v: string) => void
+  className?: string
+}) {
+  // Radix SelectValue 显示的是"当前选中 item 的文本"，但筛选条希望同时显示维度名。
+  // 解法：把维度名塞进 SelectValue 的 placeholder（仅未选中时显示），选中后只显示值；
+  // 维度名改为 trigger 内一个常驻的 muted 前缀 span，但它不参与 Radix 逻辑。
+  const current = options.find(o => o.value === value)
+  const isActive = current && value !== 'all'
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        aria-label={label}
+        className={cn(
+          'px-3 text-xs',
+          isActive && 'border-primary/50 bg-primary/5',
+          className,
+        )}
+      >
+        <span className="shrink-0 text-muted-foreground">{label}</span>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(o => (
+          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 function AssetCard({
   item,
   onClick,
@@ -661,36 +783,57 @@ function AssetCard({
   const Icon = KIND_ICON[item.kind] ?? FileText
   const visibleTagNames = item.tagNames.slice(0, 3)
   const overflowCount = Math.max(0, item.tagNames.length - 3)
+  const hasMedia = (previewKind === 'image' || previewKind === 'video') && item.previewUrl
 
   return (
     <Card
-      className="group cursor-pointer overflow-hidden bg-card transition-colors hover:bg-muted/30"
+      className={cn(
+        'group relative cursor-pointer overflow-hidden bg-card py-0 transition-all duration-200',
+        'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/5',
+      )}
       onClick={onClick}
     >
-      <div className="relative aspect-video bg-muted/70">
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted/50">
         {previewKind === 'image' && item.previewUrl && (
-          <img src={item.previewUrl} alt="" className="size-full object-cover" loading="lazy" />
+          <img
+            src={item.previewUrl}
+            alt=""
+            className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+          />
         )}
         {previewKind === 'video' && item.previewUrl && (
           <div className="relative size-full">
-            <video src={item.previewUrl} className="size-full object-cover" muted />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <Video className="size-6 text-white" />
+            <video src={item.previewUrl} className="size-full object-cover transition-transform duration-300 group-hover:scale-105" muted />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/15 transition-colors group-hover:bg-black/25">
+              <span className="grid size-10 place-items-center rounded-full bg-white/90 text-foreground shadow-lg">
+                <Video className="size-4" />
+              </span>
             </div>
           </div>
         )}
         {(previewKind === 'text' || previewKind === 'file' || !item.previewUrl) && (
-          <div className="flex size-full items-center justify-center">
-            <Icon className="size-8 text-muted-foreground" />
+          <div className="flex size-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted/40 to-muted/80">
+            <span className="grid size-11 place-items-center rounded-2xl bg-background/70 text-muted-foreground shadow-sm">
+              <Icon className="size-5" />
+            </span>
           </div>
         )}
-        <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-background/90 text-[10px]">
+
+        {/* 顶部渐变遮罩 + 类型标识 */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/45 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+        <Badge
+          variant="secondary"
+          className={cn(
+            'absolute left-2 top-2 gap-1 border-0 text-[10px] backdrop-blur-md',
+            hasMedia ? 'bg-black/45 text-white' : 'bg-background/85 text-foreground',
+          )}
+        >
           <Icon className="size-3" />
           {KIND_LABELS[item.kind]}
         </Badge>
-        <Badge variant="outline" className="absolute right-2 top-2 bg-background/90 text-[10px]">
-          {SOURCE_LABELS[item.source]}
-        </Badge>
+
+        {/* 悬停浮现的收藏按钮 */}
         <button
           type="button"
           onClick={(e) => {
@@ -700,9 +843,14 @@ function AssetCard({
           }}
           aria-label={item.isFavorite ? '取消收藏' : '收藏'}
           aria-pressed={item.isFavorite}
-          className="absolute bottom-2 right-2 rounded-full bg-background/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
+          className={cn(
+            'absolute right-2 top-2 grid size-7 place-items-center rounded-full shadow-sm backdrop-blur-md transition-all',
+            item.isFavorite
+              ? 'bg-white/90 text-[color:var(--status-warning-fg)] opacity-100'
+              : 'bg-black/40 text-white opacity-0 hover:bg-black/60 group-hover:opacity-100',
+          )}
         >
-          <Star className={`size-3.5 ${item.isFavorite ? 'fill-[color:var(--status-warning-fg)] text-[color:var(--status-warning-fg)]' : ''}`} />
+          <Star className={cn('size-3.5', item.isFavorite && 'fill-[color:var(--status-warning-fg)]')} />
         </button>
         <Popover open={tagPopoverOpen} onOpenChange={onTagPopoverOpenChange}>
           <PopoverTrigger asChild>
@@ -714,7 +862,10 @@ function AssetCard({
               }}
               aria-label="加标签"
               data-testid={`asset-tag-trigger-${tagPopoverKey}`}
-              className="absolute bottom-2 left-2 rounded-full bg-background/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
+              className={cn(
+                'absolute bottom-2 left-2 grid size-7 place-items-center rounded-full bg-black/40 text-white shadow-sm backdrop-blur-md transition-all hover:bg-black/60',
+                tagPopoverOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+              )}
             >
               <Tag className="size-3.5" />
             </button>
@@ -760,20 +911,23 @@ function AssetCard({
         </Popover>
       </div>
       <CardContent className="p-3">
-        <p className="truncate text-sm font-medium">{item.title}</p>
-        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <p className="truncate text-sm font-medium leading-5">{item.title}</p>
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/50 px-1.5 py-0.5 font-medium">
+            {SOURCE_LABELS[item.source]}
+          </span>
           <span className="truncate">{item.model ?? '—'}</span>
-          <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
+          <span className="ml-auto shrink-0 tabular-nums">{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
         </div>
         {item.tagNames.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {visibleTagNames.map(name => (
-              <Badge key={name} variant="secondary" className="text-[9px]">
+              <Badge key={name} variant="secondary" className="px-1.5 py-0 text-[10px] font-normal">
                 {name}
               </Badge>
             ))}
             {overflowCount > 0 && (
-              <Badge variant="outline" className="text-[9px]">
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
                 +
                 {overflowCount}
               </Badge>

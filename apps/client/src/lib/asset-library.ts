@@ -95,6 +95,82 @@ function resolveSortParam(raw: string | null): AssetLibrarySort {
   return raw && ALLOWED_SORTS.includes(raw as AssetLibrarySort) ? raw as AssetLibrarySort : 'created_desc'
 }
 
+// ── 创建时间区间预设（资产库筛选条） ────────────────────────────────────────
+
+/**
+ * 资产库「创建时间」筛选的预设区间。
+ *
+ * 不再用裸 `<input type="date">` 暴露起止日期，而是用一组高频预设
+ * （全部 / 今天 / 最近 7 天 / 最近 30 天）。后端契约不变，前端把预设
+ * 换算成 createdFrom/createdTo 写入 filter。URL 仍存真实日期，刷新可还原。
+ */
+export type AssetDateRangePreset = 'all' | 'today' | '7d' | '30d'
+
+export const DATE_RANGE_OPTIONS: Array<{ value: AssetDateRangePreset, label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'today', label: '今天' },
+  { value: '7d', label: '最近 7 天' },
+  { value: '30d', label: '最近 30 天' },
+]
+
+/** 把「YYYY-MM-DD」格式化为当天本地零点 */
+function toDateOnly(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/**
+ * 根据预设区间换算 {createdFrom, createdTo}（本地日期，YYYY-MM-DD）。
+ *
+ * - all：不限制（空串）
+ * - today：当天
+ * - 7d/30d：从今天往前推 6/29 天（含当天），覆盖完整 7/30 天窗口
+ *
+ * @param preset 预设值
+ * @param now    当前时间（可注入便于单测）
+ */
+export function resolveDateRange(
+  preset: AssetDateRangePreset,
+  now: Date = new Date(),
+): { createdFrom: string, createdTo: string } {
+  if (preset === 'all')
+    return { createdFrom: '', createdTo: '' }
+  const todayStr = toDateOnly(now)
+  if (preset === 'today')
+    return { createdFrom: todayStr, createdTo: todayStr }
+  const days = preset === '7d' ? 6 : 29
+  const from = new Date(now)
+  from.setDate(now.getDate() - days)
+  return { createdFrom: toDateOnly(from), createdTo: todayStr }
+}
+
+/**
+ * 由真实 createdFrom/createdTo 反推预设区间（UI 高亮用）。
+ *
+ * 精确匹配 today/7d/30d 时返回对应预设，否则返回 null（表示自定义区间，
+ * 当前 UI 不产生自定义区间，null 仅用于从 URL 还原未知值时的降级）。
+ */
+export function inferDateRangePreset(
+  createdFrom: string,
+  createdTo: string,
+  now: Date = new Date(),
+): AssetDateRangePreset | null {
+  if (!createdFrom && !createdTo)
+    return 'all'
+  const todayStr = toDateOnly(now)
+  for (const preset of ['today', '7d', '30d'] as const) {
+    const range = resolveDateRange(preset, now)
+    if (range.createdFrom === createdFrom && range.createdTo === createdTo)
+      return preset
+  }
+  // today 边界：用户跨天访问时 createdTo 可能是昨天，单独容错
+  if (createdFrom === todayStr)
+    return 'today'
+  return null
+}
+
 /** 页面本地筛选条件 — 与 URL query 同步，服务端下推过滤 */
 export interface AssetLibraryFilters {
   source: 'all' | AssetLibrarySource

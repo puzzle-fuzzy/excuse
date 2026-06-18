@@ -1,6 +1,7 @@
 import type { ModelParameter } from '@/api/client'
 import { FileText, Loader2, Upload, Video, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -172,13 +173,11 @@ export default function ParameterInput({
   // ── boolean ───────────────────────────────────────
   if (param.type === 'boolean') {
     return (
-      <label htmlFor={inputId} className="flex items-center gap-2 cursor-pointer">
-        <input
+      <label htmlFor={inputId} className="flex cursor-pointer items-center gap-2">
+        <Checkbox
           id={inputId}
-          type="checkbox"
           checked={Boolean(value ?? param.defaultValue ?? false)}
-          onChange={e => onChange(e.target.checked)}
-          className="rounded border-input"
+          onCheckedChange={checked => onChange(checked === true)}
         />
         <span className="text-sm text-muted-foreground">{param.description || param.name}</span>
       </label>

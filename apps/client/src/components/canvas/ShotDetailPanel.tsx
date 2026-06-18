@@ -10,7 +10,9 @@ import { toast } from 'sonner'
 import { statusTextClass } from '@/lib/status-tokens'
 import { deleteCanvasShot, regenerateCanvasShot, retryCanvasShot, updateCanvasShot } from '../../api/client'
 import { Button } from '../ui/button'
+import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import AssetHistory from './AssetHistory'
 import { PromptEditor } from './PromptEditor'
 import { ShotReferenceAssets } from './ShotReferenceAssets'
@@ -109,16 +111,20 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
       {project.locations.length > 0 && (
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">场景</label>
-          <select
+          <Select
             value={shot.locationId || ''}
-            onChange={e => handleShotFieldUpdate({ locationId: e.target.value || undefined })}
-            className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onValueChange={v => handleShotFieldUpdate({ locationId: v || undefined })}
           >
-            <option value="">无场景</option>
-            {project.locations.map(loc => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="h-7 w-full gap-1 px-2 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">无场景</SelectItem>
+              {project.locations.map(loc => (
+                <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -127,17 +133,15 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
           <label className="text-xs font-medium text-muted-foreground">出场角色</label>
           <div className="flex flex-wrap gap-1.5">
             {project.characters.map(ch => (
-              <label key={ch.id} className="flex items-center gap-1 text-xs cursor-pointer">
-                <input
-                  type="checkbox"
+              <label key={ch.id} className="flex cursor-pointer items-center gap-1 text-xs">
+                <Checkbox
                   checked={shot.characterIds.includes(ch.id)}
-                  onChange={(e) => {
-                    const ids = e.target.checked
+                  onCheckedChange={(checked) => {
+                    const ids = checked === true
                       ? [...shot.characterIds, ch.id]
                       : shot.characterIds.filter((id: string) => id !== ch.id)
                     handleShotFieldUpdate({ characterIdsJson: ids })
                   }}
-                  className="rounded border-input"
                 />
                 {ch.name}
               </label>
