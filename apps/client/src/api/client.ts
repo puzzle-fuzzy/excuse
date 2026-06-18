@@ -108,6 +108,13 @@ export function unwrapEden<T>(response: { data: unknown, error: unknown }): T {
       : edenErr.message || edenErr.statusText || '请求失败'
     const error = new Error(message) as Error & { status?: number }
     error.status = edenErr.status
+
+    // 401/403: 认证已过期，清理登录态并通知 AuthProvider 跳转
+    if (edenErr.status === 401 || edenErr.status === 403) {
+      setAuthToken(null)
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
+
     throw error
   }
   return response.data as T

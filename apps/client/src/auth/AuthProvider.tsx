@@ -51,6 +51,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(res.data.user)
   }, [])
 
+  // 监听 unwrapEden 发出的 401/403 未授权事件 → 强制登出
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null)
+      navigate('/login')
+    }
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
+  }, [navigate])
+
   const logout = useCallback(async () => {
     try {
       await logoutRequest()
