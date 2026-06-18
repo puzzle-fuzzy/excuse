@@ -35,9 +35,23 @@ export const DEFAULT_BOUNDARY_RULES: BoundaryRule[] = [
       'packages/subtitle-engine/test',
       'packages/auth/src',
       'packages/auth/test',
+      'packages/error-recovery/src',
+      'packages/error-recovery/test',
     ],
     forbidden: /from\s+['"]@excuse\/(?:db|provider|storage|ffmpeg|billing|canvas-runtime)['"]|import\s*\(\s*['"]@excuse\/(?:db|provider|storage|ffmpeg|billing|canvas-runtime)['"]|from\s+['"][^'"]*apps\//,
     message: 'pure packages cannot import DB/provider/runtime packages or apps',
+  },
+  {
+    // domain 包（canvas-engine / prompt-engine）可依赖 shared / billing / canvas-runtime 等领域包，
+    // 但不得直接触碰 IO 层（db / provider / storage / ffmpeg）或 apps —— IO 由 app 经 adapter 注入。
+    roots: [
+      'packages/canvas-engine/src',
+      'packages/canvas-engine/test',
+      'packages/prompt-engine/src',
+      'packages/prompt-engine/test',
+    ],
+    forbidden: /from\s+['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]|import\s*\(\s*['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]|from\s+['"][^'"]*apps\//,
+    message: 'domain packages (canvas-engine/prompt-engine) cannot import db/provider/storage/ffmpeg or apps',
   },
 ]
 
@@ -80,7 +94,8 @@ export function checkPackageBoundaries(
         if (!rule.forbidden.test(source))
           continue
 
-        violations.push(`${relative(cwd, file)}: ${rule.message}`)
+        // 归一化为正斜杠，保证 Windows / *nix 输出一致（与 CI / git 路径风格对齐）
+        violations.push(`${relative(cwd, file).replace(/\\/g, '/')}: ${rule.message}`)
       }
     }
   }

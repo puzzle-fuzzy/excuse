@@ -87,7 +87,7 @@ export const CANVAS_PAUSE_BEFORE: ReadonlySet<CanvasPipelinePhase> = new Set([
   'assemble',
 ])
 
-/** 阶段是否需要用户确认才能继续（storyboard / videos） */
+/** 阶段是否需要用户确认才能继续（storyboard / videos / assemble） */
 export function isPauseBeforePhase(phase: CanvasPipelinePhase): boolean {
   return CANVAS_PAUSE_BEFORE.has(phase)
 }

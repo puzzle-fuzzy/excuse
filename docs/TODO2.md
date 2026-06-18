@@ -158,28 +158,18 @@
 
 ---
 
-## §五、文档同步（CLAUDE.md 漂移清单）
+## §五、文档同步（CLAUDE.md 漂移清单） — ✅ 已修复（独立项）
 
-代码已走在文档前面，需一次性对齐（接触时顺手 / 专项均可）：
-
-| CLAUDE.md 原文 | 实际 | 改法 |
-|---|---|---|
-| 「9 个阶段」`analyze→…→videos` | **12 个**（+ dialogue、bgm、assemble） | 改 12 阶段 |
-| 「pause-before 门槛 storyboard、videos」 | **3 个**（+ assemble） | 改 3 个 pause 门 |
-| 「Worker 跑 4 个 workload（含 pollExportingProjects）」 | **3 个** poll source | 见 §1.5 |
-| 「Key domain types live in `packages/db/src/domain-types.ts`」 | 该文件已是 3 行 re-export shim，真身在 `packages/shared/src/domain-types.ts` | 改指向 shared；考虑删 shim |
-| 「新代码优先直接从 `@excuse/storage`/`@excuse/ffmpeg` import」 | 零消费者直连 | 随 §3.1 决策改或删 |
-| 「type `generate.video`」队列公民 | 幽灵 type | 随 §1.1 决策改 |
-
-**验收**：逐项核对 CLAUDE.md 与代码一致；新贡献者按 CLAUDE.md 能找到正确文件。
+> **已完成**（2026-06-18）：① 「9 阶段」→ **12 阶段**（`analyze→characters→locations→characterRefs→locationRefs→storyboard→continuity→rebuild→dialogue→videos→bgm→assemble`）；② pause-before 门槛 → **3 个**（`storyboard`/`videos`/`assemble`，同步修 `workflow-engine` 的 `isPauseBeforePhase` 注释）；③ Worker 「4 个 workload」→ **3 个 PollSource**（字幕导出已迁 `media.burn-subtitle` task）；④ domain-types 真身指向 `packages/shared/src/domain-types.ts`（db 下为 re-export shim）；⑤ `generate.video` 幽灵 type 改为「video 仍走 generation_records 旧轮询」的说明并指向 §一决策。顺带在 e2e fixture 补 `asrStaleTimeoutMs`（§2.5 新增 config 的遗漏）。
+>
+> **随决策项（未改，已在 CLAUDE.md 注明指向 TODO2）**：「storage/ffmpeg 新代码优先直连」（零消费者，随 §3.1 决策）；「generate.video 队列公民」（随 §1.1 决策）。
 
 ---
 
-## §六、边界检查器补强
+## §六、边界检查器补强 — ✅ 已修复
 
-- **证据**：[check-package-boundaries.ts](scripts/check-package-boundaries.ts) 的规则只覆盖 shared + 纯包白名单，**漏了 `error-recovery`、`canvas-engine`、`prompt-engine`**。目前它们恰好干净，但无机制阻止未来回归。
-- **解法**：把 `error-recovery`（纯，应禁 db/provider）加入纯包规则；`canvas-engine`/`prompt-engine`（domain 包）加一条「禁 import db/provider/storage/ffmpeg」规则。
-- **验收**：`bun run check:boundaries` 覆盖这三个包；故意写一个违规 import 能被拦下。
+> **已完成**（2026-06-18）：`error-recovery` 加入纯包规则（禁 db/provider/storage/ffmpeg/billing/canvas-runtime/apps）；新增 domain 规则覆盖 `canvas-engine`/`prompt-engine`（禁 db/provider/storage/ffmpeg/apps，允许 shared/billing 等领域包）。补 3 条 `DEFAULT_BOUNDARY_RULES` 违规拦截测试。顺带修复脚本 `relative()` 路径在 Windows 输出反斜杠、与 CI/*nix 不一致的预存在缺陷（归一化为正斜杠）。验收：`check:boundaries` 通过；boundary test 5/5 全绿（含故意违规 import 被拦下）。
+
 
 ---
 

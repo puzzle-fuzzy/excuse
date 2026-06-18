@@ -80,6 +80,7 @@ export async function startTestStack(): Promise<TestStack> {
     storageRoot,
     pollIntervalMs: 1000,
     staleTimeoutMs: 4 * 60 * 60 * 1000,
+    asrStaleTimeoutMs: 60 * 60 * 1000,
     claimTtlMs: 30_000,
     sweepIntervalMs: 60_000,
     oss: undefined,

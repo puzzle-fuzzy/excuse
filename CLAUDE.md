@@ -108,11 +108,14 @@ packages/
 
 **Adapter 注入（中心模式）** — 纯包绝不触碰 IO。它们声明 `*Adapter` 接口（如 `TaskCompletionAdapter`、`CanvasPipelineTaskAdapter`、`GenerationNotifyDispatcherOptions.dispatchToUser`）与接收 adapter 的纯函数（`completeTaskWithAdapter`、`createNextCanvasPipelineTask`、`applyTaskFailureWithAdapter`）。App 用真实 DB/provider 调用实现 adapter 并注入。**黄金法则**：若你发现自己在给 `task-engine`/`workflow-engine`/`events`/`gateway`/`metrics`/`rate-limit`/`subtitle-engine`/`auth` 加 `@excuse/db` 或 `@excuse/provider` 的 import，停下 —— 规则属于纯包，IO 调用属于 app 注入的 adapter。提取路线图见 `docs/TODO.md`（§P4「基础设施和通用能力治理」）。
 
-**统一任务队列** — `tasks` 表是唯一的异步执行层（domain：`canvas`/`generate`/`subtitle`/`gateway`；type 如 `canvas.analyze`、`generate.video`）。状态机：`queued → running → succeeded | failed | cancelled`，含重试路径 `running → retrying → queued`（由 `nextRunAt` 延迟）。Worker 经 `FOR UPDATE SKIP LOCKED`（`claimNextTask`）认领，设 `lockedBy`/`lockedUntil` 锁，经 heartbeat 续期，并清扫锁过期超 5 分钟的孤儿任务。所有生命周期决策走 `@excuse/task-engine`（分类错误 → retry vs fail → 算 backoff）。输出/计费仍在 `generation_records`；task 只管执行生命周期。
+**统一任务队列** — `tasks` 表是唯一的异步执行层（domain：`canvas`/`generate`/`subtitle`/`gateway`；type 如 `canvas.analyze`、`media.burn-subtitle`）。状态机：`queued → running → succeeded | failed | cancelled`，含重试路径 `running → retrying → queued`（由 `nextRunAt` 延迟）。Worker 经 `FOR UPDATE SKIP LOCKED`（`claimNextTask`）认领，设 `lockedBy`/`lockedUntil` 锁，经 heartbeat 续期，并清扫锁过期超 5 分钟的孤儿任务。所有生命周期决策走 `@excuse/task-engine`（分类错误 → retry vs fail → 算 backoff）。输出/计费仍在 `generation_records`；task 只管执行生命周期。
+
+> 注：统一队列当前只接管 **12 个 canvas 阶段 + 2 个 media task**（`media.extract-audio` / `media.burn-subtitle`）。**`category='video'` 整条线仍走 `generation_records` 旧轮询**（`pollPendingVideoTasks`，无 claim/锁/孤儿回收），ASR 同理 —— 这是「没做完的半成品」，迁移 vs 显式带外见 `docs/TODO2.md` §一（待决策）。
+
 
 **声明式模型配置** — 所有 AI 模型在 `packages/provider/src/model-configs.ts` 声明其参数、端点、输入映射与定价。共享映射片段（`TEXT_MAPPING`、`IMAGE_MAPPING`、`VIDEO_T2V_MAPPING`、`VIDEO_MEDIA_MAPPING`）减少重复。`DashScopeClient` 无任何模型特定分支 —— `applyMappings()` 依据 `InputMapping` 判别联合（`prompt | parameter | media | mediaField | ignored`）路由每个参数，再由 `buildRequestBody()` 按 `requestType`（`chat | openai-chat | image | video-t2v | video-media`）塑形最终 payload。新增模型只需编辑 model-configs.ts。
 
-**类型推导链** — Drizzle schema → `InferSelectModel` → `Serialize`（Date→string）→ API 类型。类型从 DB schema 单向流向 API，无重复。关键领域类型（`CostDetail`、`OutputResult`、`GenerationInputParams`、`CharacterProfile`、`ShotCamera`、`TaskInput`、`TaskOutput`、`TaskErrorInfo` 等）在 `packages/db/src/domain-types.ts` 作为无运行时依赖的纯接口。Schema 文件用 `$type<T>()` 把领域类型附着到 JSONB 列。**运行时序列化** `serialize<T>()`（`packages/db/src/types.ts`）递归把 `Date` 转 ISO，取代路由层各自手写的 `serializeXxx`。
+**类型推导链** — Drizzle schema → `InferSelectModel` → `Serialize`（Date→string）→ API 类型。类型从 DB schema 单向流向 API，无重复。关键领域类型（`CostDetail`、`OutputResult`、`GenerationInputParams`、`CharacterProfile`、`ShotCamera`、`TaskInput`、`TaskOutput`、`TaskErrorInfo` 等）的真身在 `packages/shared/src/domain-types.ts`（无运行时依赖的纯接口，属 BASE 层）；`packages/db/src/domain-types.ts` 已退化为 re-export shim 仅作向后兼容。Schema 文件用 `$type<T>()` 把领域类型附着到 JSONB 列。**运行时序列化** `serialize<T>()`（`packages/db/src/types.ts`）递归把 `Date` 转 ISO，取代路由层各自手写的 `serializeXxx`。
 
 **Eden treaty** — Client 经 `@elysia/eden` import server 的 `App` type，获得端到端类型安全的 API 调用。`apps/client/src/api/client.ts` 的 `unwrapEden<T>()` 从 Eden 的 `{ data, error }` 响应提取 `data` 并抛出结构化错误（401/403 自动清理）。无独立 API client 定义 —— 不要手写 fetch。
 
@@ -122,11 +125,11 @@ packages/
 
 **Auth 双通道** — `apps/server/src/plugins/auth.ts` 两个 auth plugin：`createAuthPlugin`（可空 userId，用于公开/保护混合路由）与 `createRequireAuthPlugin`（resolve-mode 401 守卫，用于完全保护路由）。Auth 优先级：httpOnly cookie → JWT，`exc_` 前缀 → API Key hash 查找（`@excuse/auth`），其他 Bearer → JWT verify。Auth 按路由组应用（非全局），以传播 Elysia 的 `derive` 类型。
 
-**Canvas Worker 驱动流水线** — `CANVAS_PHASE_ORDER` 中 9 个阶段（`analyze → characters → locations → characterRefs → locationRefs → storyboard → continuity → rebuild → videos`）。每个阶段是一条 `canvas.<phase>` 类型的 `tasks` 行，关联 `canvas_pipeline_runs` 行。Pipeline 端点用 `fireAndForget` —— 立即返回 `{ accepted: true, runId }`。task 成功后 worker 的 `pipeline-stepper.ts` 调 `@excuse/workflow-engine`（`decideCanvasAutoAdvance` + `canAdvanceToPhase`）创建下一阶段 task，**除非** `autoProgress=false` 或下一阶段是 pause-before 门槛（`storyboard`、`videos`，需用户确认）。经 `filterActivePipelineRuns` 的并发守卫防止重复阶段 run。非 pipeline 的 Canvas 操作（PATCH/DELETE 子资源、layout、model-preferences）同步返回 `{ success: true }`。
+**Canvas Worker 驱动流水线** — `CANVAS_PHASE_ORDER` 中 12 个阶段（`analyze → characters → locations → characterRefs → locationRefs → storyboard → continuity → rebuild → dialogue → videos → bgm → assemble`）。每个阶段是一条 `canvas.<phase>` 类型的 `tasks` 行，关联 `canvas_pipeline_runs` 行。Pipeline 端点用 `fireAndForget` —— 立即返回 `{ accepted: true, runId }`。task 成功后 worker 的 `pipeline-stepper.ts` 调 `@excuse/workflow-engine`（`decideCanvasAutoAdvance` + `canAdvanceToPhase`）创建下一阶段 task，**除非** `autoProgress=false` 或下一阶段是 pause-before 门槛（`storyboard`、`videos`、`assemble`，需用户确认）。经 `filterActivePipelineRuns` 的并发守卫防止重复阶段 run。非 pipeline 的 Canvas 操作（PATCH/DELETE 子资源、layout、model-preferences）同步返回 `{ success: true }`。
 
 **Subtitle 流水线** — 基于 ASR 的字幕生成：上传视频 → 抽音频 → 经 DashScope ASR（`ASRClient`）转写 → 解析为 `SubtitleSentence[]`（`@excuse/subtitle-engine`）→ 渲染 ASS → 经 `@excuse/ffmpeg` 烧录。路由组在 `/api/subtitle`，自有状态机。Worker 经 `subtitle-processor.ts` 处理 ASR 轮询与字幕导出。
 
-**Provider façade** — `@excuse/provider` 仍 re-export `storage` 与 `ffmpeg`（薄 shim 文件：`provider/src/storage.ts`、`subtitle-burner.ts`、`audio-extractor.ts`）以向后兼容。新代码优先直接从 `@excuse/storage` / `@excuse/ffmpeg` import。
+**Provider façade（待治理）** — `@excuse/provider` 仍 re-export `storage` 与 `ffmpeg`（薄 shim 文件：`provider/src/storage.ts`、`subtitle-burner.ts`、`audio-extractor.ts`、`compose.ts`）以向后兼容。**但当前 `@excuse/storage` / `@excuse/ffmpeg` 在各自包之外、provider 之外零消费者** —— 拆了两个包却没人直连。迁移 vs 合回的决策见 `docs/TODO2.md` §3.1（待决策）。
 
 **SSE 经 PostgreSQL LISTEN/NOTIFY** — Worker 更新 DB → `pgClient.notify()` → Server 的 `startSSEListener()` 接收 → 来自 `@excuse/events` 的 dispatcher 把 NOTIFY 载荷（`generation_status`、`notification` 频道）映射为 SSE 事件 → `UserEventHub.dispatchToUser()` 推送到内存 SSE 连接 → client 收到。30 秒心跳。Client 的 `SSEClient` 类（`apps/client/src/api/sse.ts`）用 `@microsoft/fetch-event-source`（非原生 EventSource，以支持自定义 header 如 Bearer token）。经 `on<K extends keyof SSEEventMap>()` 的类型化事件 handler。错误层级：`RetriableError`（5xx，重连）、`FatalError`（4xx 非 auth）、`UnauthorizedError`（401/403，停重连 + 清 auth）。
 
@@ -154,13 +157,15 @@ Server 内部：领域逻辑在 `src/modules/{canvas,generation,subtitle}/`，�
 
 ### Worker Structure (`apps/worker/src`)
 
-单 poll 循环（`index.ts`）每周期跑四个工作负载：
-1. **统一任务队列** — `claimNextTaskWithAdapter` → `handleTask`（按 `task.type` 分发，含 `canvas-handlers.ts`/`canvas-execution.ts` 中所有 `canvas.*` 阶段 handler）→ `completeTaskWithAdapter` → `advancePipelineAfterTaskSuccess`（workflow-engine 自动推进）。失败经 `handleTaskError` → task-engine retry/fail 决策。
-2. **遗留 video 轮询** — `pollPendingVideoTasks()` → `task-processor.ts`（DashScope 异步 video 任务，`generation_records`）。
-3. **ASR 字幕轮询** — `pollPendingASRProjects()` → `processASRTask`。
-4. **字幕导出轮询** — `pollExportingProjects()` → `processExportTask`。
+单 poll 循环（`index.ts`）每周期遍历三个 PollSource（`poll-sources.ts`）：
+1. **统一任务队列** — `claimNextTaskWithAdapter` → `handleTask`（按 `task.type` 分发，含 `canvas-handlers.ts`/`canvas-execution.ts` 中所有 `canvas.*` 阶段 handler + `media.extract-audio`/`media.burn-subtitle`）→ `completeTaskWithAdapter` → `advancePipelineAfterTaskSuccess`（workflow-engine 自动推进）。失败经 `handleTaskError` → task-engine retry/fail 决策。
+2. **遗留 video 轮询** — `pollPendingVideoTasks()` → `task-processor.ts`（DashScope 异步 video 任务，`generation_records`，4h 超时守卫 + 退款）。**无 claim/锁/孤儿回收** —— 见 TODO2 §一。
+3. **ASR 字幕轮询** — `pollPendingASRProjects()` → `processASRTask`（含 `asrStaleTimeoutMs` 默认 1h 超时守卫）。
+
+> 字幕导出已迁到 `media.burn-subtitle` task（走统一队列），不再有独立的导出轮询。
 
 另有：`startTaskHeartbeat`（续锁）、`runOrphanSweep`（恢复死锁 task，5 分钟宽限）、SIGINT/SIGTERM 优雅退出（等待当前 task 最长 30s）、`WORKER_HEALTH_PORT`（默认 5100）上的 health server。
+
 
 ### Database
 
