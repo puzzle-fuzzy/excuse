@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P1-6 补齐 package 脚本 + P1-7 清理 TODO 引用（2026-06-19）
+
+- **commit `dcaa6861`**: P1-6 为 17 个 packages/* 补充 `test` + `typecheck` 脚本，新增 `scripts/run-package-tests.ts` 自动发现并运行包测试，根 `test` 脚本简化为 3 路并发（server/worker/packages）。P1-7 清理 5 处失效 `docs/TODO2` / `docs/TODO.md` 引用。验收零回归。
+
 ### P0-3: provider observer/guard 注册从入口副作用中隔离（2026-06-19）
 
 - **commit `12a2a0de`**: Server 新增 `bootstrap.ts`，把 provider observer/guard 注册、HTTP listen、SSE 监听、环境检查、优雅退出信号处理全部收敛到 `bootstrapServer()` 内，返回 `start()`/`stop()` 生命周期控制。Worker 新增 `worker-lifecycle.setupLifecycle()`，收敛 observer/guard 注册（含清理函数），增强 graceful shutdown 自动 unregister。`index.ts` 只做 `loadConfig()` + `createContext()` + `createApp()` + `bootstrap.start()`。import 非 index 文件不触发 HTTP/SSE/health server 启动。Worker 配置测试同步更新（`parsePositiveIntEnv` 非法值 throw 含变量名消息）。

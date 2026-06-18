@@ -30,29 +30,6 @@
   - 关键页面和 Canvas/server 模块完成一轮重命名。
   - 搜索 `async function load(`、`function load(` 在业务页面中不再出现。
 
-### 6. 补齐 package 级脚本，降低本地验证成本
-
-- 现状：多数 `packages/*/package.json` 没有 `test` / `typecheck` 脚本，根脚本通过 `bun test --cwd packages/x` 手写串联。
-- 问题：新增包或改包时不容易形成统一开发习惯，也不利于 CI matrix 拆分。
-- 解决办法：
-  - 给每个 package 增加一致脚本：`test`、`typecheck`、必要时 `build`。
-  - 根脚本改为 workspace aware 的聚合脚本，或用脚本自动发现 package。
-  - CI 中拆分 `lint`、`typecheck`、`test:unit`、`test:client`、`test:db`。
-- 验收标准：
-  - 任意 package 下执行 `bun run test` 和 `bun run typecheck` 都有明确行为。
-  - 根 `bun run test` 不需要手动维护长命令列表。
-
-### 7. 清理历史 TODO 引用，建立唯一任务入口
-
-- 现状：代码和 README 多处引用 `docs/TODO.md`、`TODO2`，但当前仓库没有该文件；现在根目录新增了本文档。
-- 问题：注释中的历史锚点失效，后续维护者不知道哪些已完成、哪些仍需做。
-- 解决办法：
-  - 将代码注释中的 `docs/TODO.md` / `TODO2` 改成稳定 ADR、CHANGELOG 或本文具体章节。
-  - 对已经完成的历史 TODO，改为“设计背景”而不是继续叫 TODO。
-  - README 的 docs 描述同步改为当前真实入口。
-- 验收标准：
-  - `rg "docs/TODO|TODO2"` 只剩明确仍有效的引用，或全部清零。
-
 ## P2：测试覆盖和边界处理
 
 ### 8. 让测试覆盖从“数量多”升级为“风险分层”
@@ -126,11 +103,12 @@
 
 ## 建议执行顺序
 
-1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅ 已完成（commit `15df5506`）
-2. ~~P0-2 配置解析抽取~~ ✅ 已完成（commit `71d1cdbe`）
-3. ~~P0-3 provider observer/guard 副作用隔离~~ ✅ 已完成（commit `12a2a0de`）
-4. 做 P1-4 拆分前端大页面，把 ModelLab 的状态逻辑从 UI 中拿出来。
-5. 继续 P1-5/6/7、P2、P3 等项目。
+1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅（`15df5506`）
+2. ~~P0-2 配置解析抽取~~ ✅（`71d1cdbe`）
+3. ~~P0-3 provider observer/guard 副作用隔离~~ ✅（`12a2a0de`）
+4. ~~P1-6 补齐 package 脚本 + P1-7 清理 TODO 引用~~ ✅（`dcaa6861`）
+5. 做 P1-4 拆分前端大页面 ModelLab.tsx
+6. 继续 P1-5、P2、P3 等项目。
 
 ## 本次审计已运行的检查
 
