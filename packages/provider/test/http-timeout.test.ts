@@ -1,7 +1,7 @@
 import type { DashScopeConfig } from '../src/types'
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 import { DashScopeClient } from '../src/dashscope-client'
-import { DEFAULT_HTTP_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS, isAbortError } from '../src/http-timeout'
+import { DEFAULT_HTTP_TIMEOUT_MS, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from '../src/http-timeout'
 
 /**
  * docs/TODO.md §1.1：provider fetch 全链路超时验收。

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **provider fetch 全链路超时（TODO §1.1）**：DashScope / ASR 此前所有 `fetch` **零超时**——provider 端 hang 会让请求连接常驻、流式 ReadableStream 永不 close（连接泄漏）、worker 同步 task（text/image）永不完成（仅 video 有 4h 业务超时兜底）。新增 `packages/provider/src/http-timeout.ts`：同步调用加 `AbortSignal.timeout(ms)`（默认 60s，env `PROVIDER_HTTP_TIMEOUT_MS`）；流式调用加「每 chunk 之间空闲超时」控制器（默认 30s，env `PROVIDER_STREAM_IDLE_TIMEOUT_MS`），覆盖「连接 + 首字节」与「chunk 间隔」两阶段。超时/中断错误经 `FailedProviderResult.code`（`'TIMEOUT'`/`'ECONNRESET'`）→ canvas-runtime `cause.code` 透传 → `@excuse/task-engine.classifyTaskError` 进入可重试分类，避免一次性 provider 抽风让任务永久失败。`ServerConfig`/`WorkerConfig` 增加 `providerHttpTimeoutMs`/`providerStreamIdleTimeoutMs`，context 注入到 `DashScopeClient`/`ASRClient`。ASR `queryTask` 的 UNKNOWN/FAILED 路径同步透传 `errorCode`（与 video handler 一致）。验收：provider(142)/canvas-runtime(62)/task-engine(25)/worker(55) 测试全绿；新增 `http-timeout.test.ts`（4 例，含 hang→TIMEOUT 端到端，signal-aware mock + 2s 硬兜底防挂死）。
+
 ### Changed
 
 - **Admin/Billing/Developers refetchInterval 受页面可见性控制（TODO2 §4.2）**：7 处 `refetchInterval` 从固定数字改为函数形式 `() => document.hidden ? false : N`，后台 tab 时停止轮询避免浪费服务端资源。涉及 Admin index/Users/ApiKeys/Providers/Audit + Billing + Developers。验收：client build 通过。
@@ -17,6 +21,8 @@ All notable changes to this project will be documented in this file.
 - **安全响应头插件 + nginx 双重保障（TODO2 §5.1）**：新增 `apps/server/src/plugins/security-headers.ts`，为所有 HTTP 响应添加 `X-Frame-Options: DENY`（防 clickjacking）、`X-Content-Type-Options: nosniff`（防 MIME 嗅探）、`Referrer-Policy: strict-origin-when-cross-origin`、`X-XSS-Protection: 0`、`Permissions-Policy: camera/mic/geolocation 禁用`。Elysia 层 `.derive` 设置 + nginx 层 `add_header` 双重保障，覆盖开发和生产环境。验收：server typecheck / index.test.ts(5) / auth-plugin.test.ts(11) 通过。
 
 ### Fixed
+
+- **错误反馈分级策略（TODO2 §2.1）**：新增 `handleApiError(err, fallback)` 工具函数，根据 HTTP 状态码分级展示有意义的错误提示——402 余额不足、429 请求频繁、5xx 服务异常、无 status 网络错误。替换 workspace.ts（3 处）、Canvas.tsx（3 处）、subtitle.ts（8 处）的硬编码 `toast.error('xxx失败')`，统一提取服务端返回的具体错误消息。验收：client build 通过。
 
 - **ModelLab 未保存更改离开确认（TODO2 §2.2）**：表单修改后通过 `beforeunload` 事件阻止意外离开（关闭 tab/刷新/导航），保护用户精心调整的参数。使用 react-hook-form 的 `formState.isDirty` 检测变更。验收：client build 通过。
 

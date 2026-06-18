@@ -1,8 +1,8 @@
 import type { ProjectDTO } from '@excuse/shared'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { toast } from 'sonner'
 import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCanvasModelPreferences } from '../api/client'
+import { handleApiError } from '../lib/utils'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -58,8 +58,8 @@ export default function Canvas() {
       const res = await listCanvasProjects()
       setProjects(res.items)
     }
-    catch {
-      toast.error('加载项目列表失败')
+    catch (err) {
+      handleApiError(err, '加载项目列表失败')
     }
     finally {
       setLoading(false)
@@ -101,8 +101,8 @@ export default function Canvas() {
 
       navigate(`/canvas/${projectId}`)
     }
-    catch {
-      toast.error('创建项目失败')
+    catch (err) {
+      handleApiError(err, '创建项目失败')
     }
     finally {
       setCreating(false)
@@ -119,8 +119,8 @@ export default function Canvas() {
       await deleteCanvasProject(deleteConfirm.id)
       setProjects(prev => prev.filter(p => p.id !== deleteConfirm.id))
     }
-    catch {
-      toast.error('删除项目失败')
+    catch (err) {
+      handleApiError(err, '删除项目失败')
     }
     finally {
       setDeleteConfirm({ open: false, id: '' })

@@ -11,6 +11,7 @@ import {
   updateSubtitleSentences,
   updateSubtitleStyle,
 } from '@/api/client'
+import { handleApiError } from '@/lib/utils'
 
 export interface SubtitleState {
   projects: SubtitleProjectDTO[]
@@ -41,8 +42,8 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       const { items } = await listSubtitleProjects()
       set({ projects: items })
     }
-    catch {
-      toast.error('加载字幕项目失败')
+    catch (err) {
+      handleApiError(err, '加载字幕项目失败')
     }
   },
 
@@ -53,7 +54,7 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       set(state => ({ projects: [data, ...state.projects], currentProject: data, loading: false }))
     }
     catch (err) {
-      toast.error(err instanceof Error ? err.message : '创建字幕项目失败')
+      handleApiError(err, '创建字幕项目失败')
       set({ loading: false })
     }
   },
@@ -63,8 +64,8 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       const { data } = await getSubtitleProject(id)
       set({ currentProject: data })
     }
-    catch {
-      toast.error('加载项目详情失败')
+    catch (err) {
+      handleApiError(err, '加载项目详情失败')
     }
   },
 
@@ -76,8 +77,8 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       const { data } = await updateSubtitleSentences(project.id, sentences)
       set({ currentProject: data })
     }
-    catch {
-      toast.error('更新字幕失败')
+    catch (err) {
+      handleApiError(err, '更新字幕失败')
     }
   },
 
@@ -90,7 +91,7 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       set({ currentProject: data })
     }
     catch (err) {
-      toast.error('更新样式失败')
+      handleApiError(err, '更新样式失败')
       throw err
     }
   },
@@ -115,7 +116,7 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       toast.success('导出任务已提交，完成后将自动通知')
     }
     catch (err) {
-      toast.error(err instanceof Error ? err.message : '导出失败')
+      handleApiError(err, '导出失败')
     }
     finally {
       set({ exporting: false })
@@ -139,7 +140,7 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
       toast.success('重试任务已提交')
     }
     catch (err) {
-      toast.error(err instanceof Error ? err.message : '重试失败')
+      handleApiError(err, '重试失败')
       set({ loading: false })
     }
   },
@@ -152,8 +153,8 @@ export const useSubtitleStore = create<SubtitleState>((set, get) => ({
         currentProject: state.currentProject?.id === id ? null : state.currentProject,
       }))
     }
-    catch {
-      toast.error('删除项目失败')
+    catch (err) {
+      handleApiError(err, '删除项目失败')
     }
   },
 

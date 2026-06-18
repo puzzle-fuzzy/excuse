@@ -1,6 +1,5 @@
 import type { GenerateResponse, GenerationRecord, ModelConfig, ModelParameter } from '@/api/client'
 import type { Category } from '@/lib/generation-utils'
-import { toast } from 'sonner'
 import { create } from 'zustand'
 import {
   deleteRecord,
@@ -9,6 +8,7 @@ import {
   uploadFile,
 } from '@/api/client'
 import { useGenerationStore } from './generation'
+import { handleApiError } from '@/lib/utils'
 
 export type WorkspaceParameterValue = string | number | boolean | string[] | null
 
@@ -247,8 +247,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       if (result.success && result.record)
         useGenerationStore.getState().addRecord(result.record)
     }
-    catch {
-      toast.error('生成请求失败')
+    catch (err) {
+      handleApiError(err, '生成请求失败')
     }
     finally {
       set({ loading: false })
@@ -265,8 +265,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       if (result.success && result.record)
         useGenerationStore.getState().addRecord(result.record)
     }
-    catch {
-      toast.error('生成请求失败')
+    catch (err) {
+      handleApiError(err, '生成请求失败')
     }
     finally {
       set({ loading: false })
@@ -278,8 +278,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       await deleteRecord(id)
       useGenerationStore.getState().removeRecord(id)
     }
-    catch {
-      toast.error('删除记录失败')
+    catch (err) {
+      handleApiError(err, '删除记录失败')
     }
   },
 

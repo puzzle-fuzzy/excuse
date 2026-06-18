@@ -43,13 +43,6 @@
 
 > 这些是真实运行中会炸、会资损、会静默错乱的隐患。多数改动小、收益大，应优先处理。
 
-### 1.1 🔴 DashScope / ASR 全链路 fetch 无超时
-
-- **证据**：[dashscope-client.ts](packages/provider/src/dashscope-client.ts) 内 7 处 `fetch(endpoint, {...})`（chat/image/audio/video/video-fallback/queryTask）、[asr-client.ts](packages/provider/src/asr-client.ts) 同理，grep `signal|AbortSignal|timeout` **零命中**。Bun fetch 默认无超时。
-- **影响**：(1) 同步 chat/image 调用若 provider hang → Elysia 请求连接常驻 → 累积拖垮 server；(2) 流式 gateway 的 `ReadableStream` 永不 close → 客户端连接泄漏；(3) worker 的同步 provider 调用挂起 → task 永不完成（视频有 4h 超时守卫兜底，**text/image 无任何超时守卫**）。
-- **解法**：所有 provider fetch 加 `signal: AbortSignal.timeout(ms)`；同步路径默认 60s（env `PROVIDER_HTTP_TIMEOUT_MS` 可配），流式路径加「两 chunk 之间 30s 无数据即中断」的 read timeout。
-- **验收**：构造一个永不返回的 mock endpoint，确认同步路径 60s 后抛超时错误并进入 task-engine 可重试分类；流式路径 30s 无 chunk 中断并 refund credit。
-
 ### 1.2 🔴 text prompt 零长度限制 — 计费穿负 / DB 膨胀
 
 - **证据**：grep `maxLength|MAX_PROMPT|truncate` 在 provider/db/shared/server 路由层零命中（仅 prompt-engine 内部自生成文本有 truncate）。[generate.ts:209](apps/server/src/routes/generate.ts#L209) body schema `parameters: t.Record(t.String(), t.Any())` 完全开放；CLAUDE.md 自承「dedupeKey（text，**无长度限制**）」。
