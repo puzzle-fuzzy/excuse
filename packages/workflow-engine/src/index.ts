@@ -56,6 +56,7 @@ export interface CanvasPipelineTaskAdapter<TRun extends { id: string }, TTask ex
     projectId: string
     targetType: 'pipeline_run'
     targetId: string
+    traceId?: string | null
   }) => Promise<TTask> | TTask
   linkPipelineRunToTask: (runId: string, taskId: string) => Promise<unknown> | unknown
 }
@@ -64,6 +65,8 @@ export interface CreateNextCanvasPipelineTaskInput<TRun extends { id: string }, 
   projectId: string
   accountId: string
   nextPhase: CanvasPipelinePhase
+  /** traceId 透传：当前 task 的 traceId 传递给下一阶段 task，保持全链路可追踪 */
+  traceId?: string | null
   adapter: CanvasPipelineTaskAdapter<TRun, TTask>
 }
 
@@ -91,6 +94,7 @@ export async function createNextCanvasPipelineTask<TRun extends { id: string }, 
     projectId: input.projectId,
     targetType: 'pipeline_run',
     targetId: run.id,
+    ...(input.traceId && { traceId: input.traceId }),
   })
 
   await input.adapter.linkPipelineRunToTask(run.id, task.id)

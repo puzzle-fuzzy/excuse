@@ -52,7 +52,7 @@ export function fireAndForgetWithRun(
         error: err instanceof Error ? err.message : String(err),
         runId,
       })
-      notifyCanvasPhaseFailed(userId, projectId, phaseKey, err instanceof Error ? err.message : String(err)).catch(() => {})
+      notifyCanvasPhaseFailed(userId, projectId, phaseKey, err instanceof Error ? err.message : String(err)).catch(err => logger.warn({ err, userId, projectId, phaseKey }, 'notifyCanvasPhaseFailed failed'))
     })
 }
 
@@ -65,6 +65,7 @@ export async function createTaskDrivenPhase(
   phase: CanvasPipelinePhase,
 ): Promise<AcceptedResponse> {
   const run = await createPipelineRun({ projectId, phase, createdBy: userId })
+  const traceId = crypto.randomUUID()
   const task = await createTask({
     accountId: userId,
     type: `canvas.${phase}`,
@@ -73,6 +74,7 @@ export async function createTaskDrivenPhase(
     projectId,
     targetType: 'pipeline_run',
     targetId: run.id,
+    traceId,
   })
   await linkPipelineRunToTask(run.id, task.id)
 

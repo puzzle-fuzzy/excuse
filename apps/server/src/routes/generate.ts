@@ -198,6 +198,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
           priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
           maxAttempts: 5000,
           generationRecordId: result.record.id,
+          traceId,
           input: {
             recordId: result.record.id,
             providerTaskId: result.record.outputResult.taskId,
@@ -423,6 +424,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
           priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
           maxAttempts: 5000,
           generationRecordId: result.record.id,
+          traceId: record.traceId ?? undefined,
           input: {
             recordId: result.record.id,
             providerTaskId: result.record.outputResult.taskId,

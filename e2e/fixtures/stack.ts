@@ -141,6 +141,7 @@ export async function startTestStack(): Promise<TestStack> {
       priority: 5,
       maxAttempts: 5000,
       attempts: 0,
+      traceId: null,
       status: 'running' as const,
       lockedBy: 'e2e',
       lockedUntil: new Date(Date.now() + 30000),

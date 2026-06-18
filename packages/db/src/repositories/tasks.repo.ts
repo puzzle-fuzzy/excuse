@@ -312,6 +312,7 @@ export async function notifyTaskStatusChange(task: TaskRow) {
     targetType: task.targetType,
     targetId: task.targetId,
     errorMessage: task.errorMessage,
+    traceId: task.traceId,
   })
   await pgClient.notify('task_status_changed', payload)
 }

@@ -56,6 +56,8 @@ export const tasks = pgTable('tasks', {
   domain: taskDomainEnum('domain').notNull(),
   /** 优先级（0=最高，默认 5） */
   priority: integer('priority').notNull().default(5),
+  /** 分布式追踪 ID — 从 server 透传，贯穿 submit→task→worker→SSE 全链路 */
+  traceId: varchar('trace_id', { length: 64 }),
 
   // ── 目标关联 ──────────────────────────────────────
   /** Canvas 项目 ID（仅 canvas 域任务） */

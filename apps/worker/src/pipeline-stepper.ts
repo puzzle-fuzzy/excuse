@@ -49,7 +49,7 @@ export const PAUSE_BEFORE: ReadonlySet<CanvasPipelinePhase> = CANVAS_PAUSE_BEFOR
  * @returns 创建的 task ID（如果推进成功），null（如果不推进）
  */
 export async function advancePipelineAfterTaskSuccess(
-  task: { id: string, type: string, domain: string, projectId: string | null, accountId: string | null },
+  task: { id: string, type: string, domain: string, projectId: string | null, accountId: string | null, traceId?: string | null },
   _workerConfig: WorkerConfig,
 ): Promise<string | null> {
   const preflight = decideCanvasAutoAdvance(task, true)
@@ -94,6 +94,7 @@ export async function advancePipelineAfterTaskSuccess(
       projectId,
       accountId,
       nextPhase,
+      traceId: task.traceId,
       adapter: {
         createPipelineRun,
         createTask,

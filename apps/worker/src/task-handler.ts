@@ -147,7 +147,7 @@ const taskRegistry = createTaskHandlerRegistry<TaskRow, WorkerContext, WorkerTas
  * 抛异常由 index.ts 的 handleTaskError 统一处理（retryable vs permanent）
  */
 export async function handleTask(task: TaskRow, ctx: WorkerContext): Promise<Record<string, unknown> | undefined> {
-  logger.info({ taskId: task.id, type: task.type, domain: task.domain }, 'Handling task')
+  logger.info({ taskId: task.id, type: task.type, domain: task.domain, traceId: task.traceId, projectId: task.projectId }, 'Handling task')
   return taskRegistry.handle(task, ctx)
 }
 
