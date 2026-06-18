@@ -1,4 +1,5 @@
 import type { GenerateResponse, GenerationRecord, ModelConfig, ModelParameter } from '@/api/client'
+import type { ReferenceFile } from '@/components/generation/ReferenceImageUploader'
 import type { ModelLabFormValues } from '@/lib/form-schemas'
 import type { Category } from '@/lib/generation-utils'
 import { isImageOutput, isTextOutput, isVideoOutput } from '@excuse/shared'
@@ -11,24 +12,22 @@ import {
   ImageIcon,
   Loader2,
   Play,
-  Upload,
   Video,
-  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { fetchModels, generate, uploadFile } from '@/api/client'
 import OutputPreview from '@/components/generation/OutputPreview'
+import ParameterInput from '@/components/generation/ParameterInput'
+import ReferenceImageUploader from '@/components/generation/ReferenceImageUploader'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 import { useConfirmNavigation } from '@/hooks/use-confirm-navigation'
 import { buildModelLabSchema } from '@/lib/form-schemas'
 import { CATEGORY_CONFIG, formatCents } from '@/lib/generation-utils'
@@ -391,104 +390,19 @@ export default function ModelLab() {
     }
   }
 
+  // 渲染参数输入（委托给共享 ParameterInput 组件）
   function renderParam(param: ModelParameter) {
-    const value = values[param.name]
-    const inputId = `model-lab-param-${param.name}`
-    if (param.mediaUpload) {
-      const currentUrl = typeof value === 'string' ? value : ''
-      return (
-        <div className="space-y-2">
-          {currentUrl && (
-            <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
-              <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{currentUrl}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="size-7 p-0"
-                onClick={() => form.setValue(param.name, '', { shouldDirty: true })}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-center border-dashed"
-            disabled={uploadingParam === param.name}
-            onClick={() => uploadParamFile(param)}
-          >
-            {uploadingParam === param.name ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-            上传
-            {param.description || param.name}
-          </Button>
-        </div>
-      )
-    }
-
-    if (param.type === 'text') {
-      const isPrompt = param.name === 'prompt' || param.name === 'negative_prompt'
-      const Field = isPrompt ? Textarea : Input
-      const registration = form.register(param.name)
-      return (
-        <Field
-          id={inputId}
-          name={registration.name}
-          ref={registration.ref}
-          onBlur={registration.onBlur}
-          value={typeof value === 'string' ? value : ''}
-          onChange={(event) => {
-            void registration.onChange(event)
-            form.setValue(param.name, event.target.value, { shouldDirty: true, shouldValidate: true })
-          }}
-          rows={isPrompt ? 5 : undefined}
-          placeholder={param.description || param.name}
-          className={isPrompt ? 'resize-none' : undefined}
-        />
-      )
-    }
-
-    if (param.type === 'number') {
-      return (
-        <Input
-          id={inputId}
-          type="number"
-          min={param.min}
-          max={param.max}
-          value={String(value ?? '')}
-          onChange={event => form.setValue(param.name, Number(event.target.value), { shouldDirty: true, shouldValidate: true })}
-        />
-      )
-    }
-
-    if (param.type === 'select') {
-      return (
-        <Select
-          value={String(value ?? '')}
-          onValueChange={val => form.setValue(param.name, val, { shouldDirty: true, shouldValidate: true })}
-        >
-          <SelectTrigger id={inputId}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {param.options?.map(option => (
-              <SelectItem key={String(option.value)} value={String(option.value)}>{option.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )
-    }
-
     return (
-      <label className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={event => form.setValue(param.name, event.target.checked, { shouldDirty: true, shouldValidate: true })}
-        />
-        <span>{param.description || param.name}</span>
-      </label>
+      <ParameterInput
+        key={param.name}
+        param={param}
+        value={values[param.name]}
+        onChange={val => form.setValue(param.name, val as string | number | boolean, { shouldDirty: true, shouldValidate: true })}
+        idPrefix="model-lab-param"
+        uploading={uploadingParam === param.name}
+        onUpload={param.mediaUpload ? () => uploadParamFile(param) : undefined}
+        onClear={param.mediaUpload ? () => form.setValue(param.name, '', { shouldDirty: true }) : undefined}
+      />
     )
   }
 
@@ -612,41 +526,13 @@ export default function ModelLab() {
           </Card>
 
           {selectedModel?.referenceMediaType && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">参考素材</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed p-4 text-sm text-muted-foreground hover:bg-muted/40">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    disabled={uploadingRefs}
-                    onChange={event => uploadReferenceFiles(event.target.files)}
-                  />
-                  {uploadingRefs ? <Loader2 className="size-4 animate-spin" /> : <Upload className="mr-2 size-4" />}
-                  上传参考图片（最多 5 张）
-                </label>
-                {referenceFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {referenceFiles.map(file => (
-                      <div key={file.id} className="group relative size-16 overflow-hidden rounded-lg border">
-                        <img src={file.url} alt={file.name} className="size-full object-cover" />
-                        <button
-                          type="button"
-                          className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-background/90 text-xs opacity-0 shadow group-hover:opacity-100"
-                          onClick={() => setReferenceFiles(prev => prev.filter(item => item.id !== file.id))}
-                        >
-                          <X className="size-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ReferenceImageUploader
+              files={referenceFiles as ReferenceFile[]}
+              uploading={uploadingRefs}
+              onUpload={uploadReferenceFiles}
+              onRemove={id => setReferenceFiles(prev => prev.filter(item => item.id !== id))}
+              title="参考素材"
+            />
           )}
 
           <Card>

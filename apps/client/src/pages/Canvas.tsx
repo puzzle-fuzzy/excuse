@@ -6,6 +6,7 @@ import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCan
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Skeleton } from '../components/ui/skeleton'
 import { clearDraft, guardBeforeUnload, loadDraft, saveDraft } from '../lib/draft-storage'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 import { CANVAS_PROJECT_STATUS_TONES, statusBadgeClass } from '../lib/status-tokens'
@@ -127,7 +128,17 @@ export default function Canvas() {
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">加载中...</div>
+    return (
+      <div className="mx-auto max-w-5xl p-6 space-y-8">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-4 w-48" />
+        <div className="space-y-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

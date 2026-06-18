@@ -111,6 +111,7 @@ export default function RecordCard({
                   className="size-6 p-0 text-muted-foreground hover:text-foreground"
                   onClick={() => onCopyPrompt(record.id, prompt)}
                   title="复制提示词"
+                  aria-label="复制提示词"
                 >
                   <Copy className="size-3" />
                 </Button>

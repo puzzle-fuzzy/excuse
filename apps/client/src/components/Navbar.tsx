@@ -33,6 +33,7 @@ import {
 } from '@/api/notifications'
 import { notificationQueryKeys } from '@/api/query-client'
 import ConnectionIndicator from '@/components/ConnectionIndicator'
+import EmptyState from '@/components/EmptyState'
 import { formatRelativeTime } from '@/lib/format-time'
 import { resolveNotificationTarget } from '@/lib/notification-target'
 import { statusDotClass, statusTextClass } from '@/lib/status-tokens'
@@ -172,7 +173,7 @@ export default function Navbar() {
               {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>
             <div ref={dropdownRef} className="relative">
-              <Button variant="ghost" size="icon" title="通知" onClick={() => setOpen(v => !v)}>
+              <Button variant="ghost" size="icon" title="通知" aria-label="通知" onClick={() => setOpen(v => !v)}>
                 <Bell className="size-4" />
               </Button>
               {unreadCount > 0 && (
@@ -199,9 +200,9 @@ export default function Navbar() {
                   <div className="max-h-[420px] overflow-auto">
                     {items.length === 0
                       ? (
-                          <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-                            {listLoading ? '加载中...' : '暂无通知'}
-                          </p>
+                          listLoading
+                            ? <p className="px-3 py-8 text-center text-xs text-muted-foreground">加载中...</p>
+                            : <EmptyState icon={Bell} title="暂无通知" />
                         )
                       : (
                           items.map((n) => {
@@ -236,7 +237,7 @@ export default function Navbar() {
               )}
             </div>
             <span className="text-sm text-muted-foreground">{user.username}</span>
-            <Button variant="ghost" size="icon" onClick={logout} title="退出登录">
+            <Button variant="ghost" size="icon" onClick={logout} title="退出登录" aria-label="退出登录">
               <LogOut className="size-4" />
             </Button>
           </div>

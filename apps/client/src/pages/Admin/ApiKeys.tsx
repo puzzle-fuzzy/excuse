@@ -4,7 +4,7 @@
 import type { AdminApiKeyItem, AdminGatewayClientDetail, AdminGatewayClientItem } from '@excuse/shared'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, KeyRound, Pencil, RotateCcw, Search } from 'lucide-react'
+import { KeyRound, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatNumber } from '@/lib/admin-format'
 import { formatCents } from '@/lib/generation-utils'
 import {
+  AdminPaginationFooter,
+  ApiKeyTable,
   formatDate,
   statusLabel,
   statusVariant,
@@ -51,99 +53,15 @@ function AdminGatewayKeysTable({
   onReset: (key: AdminApiKeyItem) => void
   onRevoke: (key: AdminApiKeyItem) => void
 }) {
-  if (keys.length === 0) {
-    return <p className="text-xs text-muted-foreground">该客户暂无 API Key</p>
-  }
-
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="py-1.5 font-medium">前缀</th>
-            <th className="py-1.5 font-medium">Scope</th>
-            <th className="py-1.5 font-medium">限流</th>
-            <th className="py-1.5 font-medium">额度消耗</th>
-            <th className="py-1.5 font-medium">状态</th>
-            <th className="py-1.5 font-medium">最近使用</th>
-            <th className="py-1.5 text-right font-medium">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {keys.map(key => (
-            <tr key={key.id} className="border-b last:border-b-0">
-              <td className="py-1.5 font-mono text-xs">
-                {key.prefix}
-                ...
-              </td>
-              <td className="py-1.5">
-                <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
-                  {key.scope === 'gateway' ? 'Gateway' : 'All'}
-                </Badge>
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">
-                {key.rateLimitPerMinute ? `${key.rateLimitPerMinute}次/分` : '-'}
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">
-                {key.quotaMaxCents
-                  ? (
-                      <span>
-                        ¥
-                        {formatCents(key.totalSpendCents)}
-                        /
-                        ¥
-                        {formatCents(key.quotaMaxCents)}
-                      </span>
-                    )
-                  : (
-                      <span>
-                        ¥
-                        {formatCents(key.totalSpendCents)}
-                      </span>
-                    )}
-              </td>
-              <td className="py-1.5">
-                <Badge variant={key.revokedAt ? 'outline' : 'default'}>
-                  {key.revokedAt ? '已撤销' : '启用'}
-                </Badge>
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td>
-              <td className="py-1.5 text-right">
-                {key.revokedAt
-                  ? <span className="text-xs text-muted-foreground">-</span>
-                  : (
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => onEdit(key)}>
-                          <Pencil className="size-3.5" />
-                          配置
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={isMutating}
-                          onClick={() => onReset(key)}
-                        >
-                          <RotateCcw className="size-3.5" />
-                          重置额度
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          disabled={isMutating}
-                          onClick={() => onRevoke(key)}
-                        >
-                          <Ban className="size-3.5" />
-                          撤销
-                        </Button>
-                      </div>
-                    )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ApiKeyTable
+      keys={keys}
+      isMutating={isMutating}
+      showActions
+      onEdit={onEdit}
+      onReset={onReset}
+      onRevoke={onRevoke}
+    />
   )
 }
 
@@ -540,41 +458,13 @@ export function AdminGatewayClientsTab() {
                   </div>
                 )}
 
-          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              第
-              {' '}
-              {total === 0 ? 0 : page * USERS_PAGE_SIZE + 1}
-              {' '}
-              -
-              {' '}
-              {Math.min((page + 1) * USERS_PAGE_SIZE, total)}
-              {' '}
-              条 / 共
-              {' '}
-              {total}
-              {' '}
-              条
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0 || isFetching}
-                onClick={() => setPage(prev => Math.max(0, prev - 1))}
-              >
-                上一页
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={(page + 1) * USERS_PAGE_SIZE >= total || isFetching}
-                onClick={() => setPage(prev => prev + 1)}
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
+          <AdminPaginationFooter
+            page={page}
+            pageSize={USERS_PAGE_SIZE}
+            total={total}
+            isFetching={isFetching}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
 

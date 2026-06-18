@@ -1,25 +1,25 @@
 import type { GenerationRecord, ModelParameter } from '@/api/client'
+import type { ReferenceFile } from '@/components/generation/ReferenceImageUploader'
 import type { WorkspaceParameters } from '@/lib/generation-form-utils'
 import type { Category } from '@/lib/generation-utils'
 import {
   FileText,
   Loader2,
   Sparkles,
-  Upload,
-  Video,
-  X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import EmptyState from '@/components/EmptyState'
+import ParameterInput from '@/components/generation/ParameterInput'
 import RecordCard from '@/components/generation/RecordCard'
+import { RecordCardSkeletonList } from '@/components/generation/RecordCardSkeleton'
+import ReferenceImageUploader from '@/components/generation/ReferenceImageUploader'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { buildInitialParameters, checkCanGenerate } from '@/lib/generation-form-utils'
 import { CATEGORY_CONFIG } from '@/lib/generation-utils'
 import { useGenerationStore } from '@/stores/generation'
@@ -59,6 +59,7 @@ export default function Workspace() {
 
   // Generation store — 生成记录
   const records = useGenerationStore(s => s.records)
+  const loadingRecords = useGenerationStore(s => s.loadingRecords)
   const fetchRecords = useGenerationStore(s => s.fetchRecords)
   const addRecord = useGenerationStore(s => s.addRecord)
   const removeRecord = useGenerationStore(s => s.removeRecord)
@@ -147,135 +148,22 @@ export default function Workspace() {
     removeRecord(id)
   }, [removeRecordAction, removeRecord])
 
-  // 渲染媒体上传控件
-  function renderMediaUpload(param: ModelParameter) {
-    const state = mediaUploadState[param.name]
-    const currentUrl = String(parameters[param.name] || '')
-    const hasUrl = currentUrl.trim() !== ''
-    const isImage = param.mediaUpload?.accept.startsWith('image/')
-    const isVideo = param.mediaUpload?.accept.startsWith('video/')
-    const isAudio = param.mediaUpload?.accept.startsWith('audio/')
-
-    return (
-      <div key={param.name} className="space-y-2">
-        {hasUrl && (
-          <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2">
-            {isImage && (
-              <img src={currentUrl} alt={param.description || ''} className="size-12 rounded border object-cover" />
-            )}
-            {isVideo && (
-              <div className="flex size-12 items-center justify-center rounded border bg-muted">
-                <Video className="size-5 text-muted-foreground" />
-              </div>
-            )}
-            {isAudio && (
-              <div className="flex size-12 items-center justify-center rounded border bg-muted">
-                <FileText className="size-5 text-muted-foreground" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-xs text-muted-foreground">
-                {state?.uploadedName || currentUrl}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="size-7 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => clearMediaUpload(param.name)}
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-        )}
-
-        {!hasUrl && (
-          <button
-            type="button"
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/25 p-3 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/50 hover:bg-muted/30"
-            onClick={() => uploadMediaParam(param.name, param.mediaUpload!.accept)}
-            disabled={state?.uploading}
-          >
-            {state?.uploading
-              ? <Loader2 className="size-4 animate-spin" />
-              : <Upload className="size-4" />}
-            {state?.uploading ? '上传中...' : `点击上传${isImage ? '图片' : isVideo ? '视频' : isAudio ? '音频' : '文件'}`}
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  // 渲染参数输入
+  // 渲染参数输入（委托给共享 ParameterInput 组件）
   function renderParamInput(param: ModelParameter) {
-    const value = parameters[param.name]
-
-    switch (param.type) {
-      case 'text':
-        if (param.mediaUpload)
-          return renderMediaUpload(param)
-        if (param.name === 'prompt' || param.name === 'negative_prompt') {
-          return (
-            <Textarea
-              key={param.name}
-              placeholder={param.description || param.name}
-              value={String(value || '')}
-              onChange={e => setParameter(param.name, e.target.value)}
-              rows={param.name === 'prompt' ? 4 : 2}
-              className="resize-none"
-            />
-          )
-        }
-        return (
-          <Input
-            key={param.name}
-            placeholder={param.description || param.name}
-            value={String(value || '')}
-            onChange={e => setParameter(param.name, e.target.value)}
-          />
-        )
-      case 'number':
-        return (
-          <Input
-            key={param.name}
-            type="number"
-            placeholder={param.description || param.name}
-            value={String(value ?? param.defaultValue ?? '')}
-            min={param.min}
-            max={param.max}
-            onChange={e => setParameter(param.name, Number(e.target.value))}
-          />
-        )
-      case 'select':
-        return (
-          <Select
-            key={param.name}
-            value={String(value ?? param.defaultValue ?? '')}
-            onValueChange={val => setParameter(param.name, val)}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {param.options?.map(o => (
-                <SelectItem key={String(o.value)} value={String(o.value)}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )
-      case 'boolean':
-        return (
-          <label key={param.name} className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(value ?? param.defaultValue ?? false)}
-              onChange={e => setParameter(param.name, e.target.checked)}
-              className="rounded border-input"
-            />
-            <span className="text-sm text-muted-foreground">{param.description || param.name}</span>
-          </label>
-        )
-    }
+    const state = param.mediaUpload ? mediaUploadState[param.name] : undefined
+    return (
+      <ParameterInput
+        key={param.name}
+        param={param}
+        value={parameters[param.name]}
+        onChange={val => setParameter(param.name, val as string | number | boolean)}
+        idPrefix="workspace"
+        uploading={state?.uploading}
+        onUpload={param.mediaUpload ? () => uploadMediaParam(param.name, param.mediaUpload!.accept) : undefined}
+        onClear={param.mediaUpload ? () => clearMediaUpload(param.name) : undefined}
+        uploadedName={state?.uploadedName}
+      />
+    )
   }
 
   function togglePrompt(id: string) {
@@ -352,43 +240,12 @@ export default function Workspace() {
           </Card>
 
           {showReferenceUpload && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">参考图片</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <label className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-4 transition-colors hover:border-muted-foreground/50">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={e => e.target.files?.length && uploadReferenceFiles(e.target.files)}
-                      disabled={uploadingRefs}
-                    />
-                    {uploadingRefs
-                      ? <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                      : <span className="text-sm text-muted-foreground">点击上传参考图片（最多 5 张）</span>}
-                  </label>
-                  {referenceFiles.length > 0 && (
-                    <div className="flex gap-2 flex-wrap">
-                      {referenceFiles.map(file => (
-                        <div key={file.id} className="relative size-16 overflow-hidden rounded-lg border">
-                          <img src={file.url} alt={file.name} className="size-full object-cover" />
-                          <button
-                            className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white text-xs"
-                            onClick={() => useWorkspaceStore.getState().removeReferenceFile(file.id)}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <ReferenceImageUploader
+              files={referenceFiles as ReferenceFile[]}
+              uploading={uploadingRefs}
+              onUpload={uploadReferenceFiles}
+              onRemove={id => useWorkspaceStore.getState().removeReferenceFile(id)}
+            />
           )}
 
           {selectedModel && (
@@ -439,28 +296,33 @@ export default function Workspace() {
           <h3 className="text-title text-muted-foreground">生成记录</h3>
           <ScrollArea className="h-[calc(100vh-8rem)]">
             <div className="space-y-3 pr-2">
-              {records.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <FileText className="mb-2 size-8" />
-                  <p className="text-sm">暂无生成记录</p>
-                </div>
-              )}
-
-              {records.map(record => (
-                <RecordCard
-                  key={record.id}
-                  record={record}
-                  models={models}
-                  expanded={expandedPrompts.has(record.id)}
-                  copied={copiedId === record.id}
-                  onToggleExpand={togglePrompt}
-                  onCopyPrompt={copyPrompt}
-                  onRegenerate={handleRegenerate}
-                  onDelete={id => setDeleteConfirm({ open: true, id })}
-                  onPreview={setPreviewUrl}
-                  onCopyDiagnostics={(text) => { navigator.clipboard.writeText(text).catch(() => {}) }}
-                />
-              ))}
+              {loadingRecords && records.length === 0
+                ? <RecordCardSkeletonList count={3} />
+                : records.length === 0
+                  ? (
+                      <EmptyState
+                        icon={FileText}
+                        title="暂无生成记录"
+                        description="← 在左侧输入 Prompt 开始生成"
+                      />
+                    )
+                  : (
+                      records.map(record => (
+                        <RecordCard
+                          key={record.id}
+                          record={record}
+                          models={models}
+                          expanded={expandedPrompts.has(record.id)}
+                          copied={copiedId === record.id}
+                          onToggleExpand={togglePrompt}
+                          onCopyPrompt={copyPrompt}
+                          onRegenerate={handleRegenerate}
+                          onDelete={id => setDeleteConfirm({ open: true, id })}
+                          onPreview={setPreviewUrl}
+                          onCopyDiagnostics={(text) => { navigator.clipboard.writeText(text).catch(() => {}) }}
+                        />
+                      ))
+                    )}
             </div>
           </ScrollArea>
         </div>

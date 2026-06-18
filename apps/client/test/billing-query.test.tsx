@@ -60,8 +60,10 @@ beforeEach(() => {
 describe('billing page', () => {
   it('shows loading state', () => {
     mockGetBillingStatistics.mockReturnValue(new Promise(() => {})) // never resolves
-    renderBilling()
-    expect(screen.getByText('加载中...')).toBeInTheDocument()
+    const { container } = renderBilling()
+    // 骨架屏代替了旧的「加载中...」文字
+    const skeletons = container.querySelectorAll('.animate-pulse')
+    expect(skeletons.length).toBeGreaterThan(0)
   })
 
   it('shows overview cards after successful fetch', async () => {

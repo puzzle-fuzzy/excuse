@@ -4,8 +4,10 @@ import { ArrowDownLeft, ArrowUpRight, Calendar, CalendarDays, DollarSign, Refres
 import { getBillingStatistics } from '@/api/billing'
 import { fetchBillingBalance, fetchBillingTransactions } from '@/api/client'
 import { billingQueryKeys } from '@/api/query-client'
+import EmptyState from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { BILLING_CATEGORY_LABELS } from '@/lib/category-labels'
 import { formatCents } from '@/lib/generation-utils'
 import { CATEGORY_TOKENS, statusTextClass } from '@/lib/status-tokens'
@@ -73,13 +75,26 @@ export default function Billing() {
   const balanceData: BillingBalance | undefined = balance?.data
   const transactions: CreditTransactionDTO[] = txData?.items ?? []
 
-  // 加载态
+  // 加载态 — 骨架屏
   if (statsLoading) {
     return (
-      <div className="mx-auto max-w-7xl p-4">
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          加载中...
+      <div className="mx-auto max-w-7xl p-4 space-y-6">
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-5" />
+          <Skeleton className="h-7 w-28" />
         </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-20 rounded-xl" />
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-48 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
+        <Skeleton className="h-44 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     )
   }
@@ -139,7 +154,10 @@ export default function Billing() {
         <CardContent>
           {balanceLoading || !balanceData
             ? (
-                <p className="text-sm text-muted-foreground">加载中...</p>
+                <div className="space-y-2">
+                  <Skeleton className="h-9 w-32" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
               )
             : (
                 <div className="flex items-baseline gap-6">
@@ -194,7 +212,7 @@ export default function Billing() {
           <CardContent className="space-y-3">
             {stats.byCategory.length === 0
               ? (
-                  <p className="text-sm text-muted-foreground">暂无数据</p>
+                  <EmptyState title="暂无数据" />
                 )
               : (
                   stats.byCategory.map(item => (
@@ -230,7 +248,7 @@ export default function Billing() {
           <CardContent className="space-y-3">
             {stats.byModel.length === 0
               ? (
-                  <p className="text-sm text-muted-foreground">暂无数据</p>
+                  <EmptyState title="暂无数据" />
                 )
               : (
                   stats.byModel.map(item => (
@@ -267,7 +285,7 @@ export default function Billing() {
         <CardContent>
           {stats.dailyTrend.every(d => d.totalCents === 0)
             ? (
-                <p className="text-sm text-muted-foreground">暂无数据</p>
+                <EmptyState title="暂无数据" />
               )
             : (
                 <div className="flex items-end gap-1 h-32">
@@ -310,7 +328,11 @@ export default function Billing() {
         <CardContent>
           {txLoading
             ? (
-                <p className="text-sm text-muted-foreground">加载中...</p>
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                  ))}
+                </div>
               )
             : transactions.length === 0
               ? (

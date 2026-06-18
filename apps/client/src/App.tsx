@@ -3,6 +3,7 @@ import { Link, Route, Routes } from 'react-router'
 import { sseClient } from './api/sse'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { Skeleton } from './components/ui/skeleton'
 import { Toaster } from './components/ui/sonner'
 import { useRealtimeSync } from './stores/realtime-sync'
 
@@ -26,8 +27,8 @@ const Workspace = lazy(() => import('./pages/Workspace'))
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-      页面加载中...
+    <div className="flex min-h-screen items-center justify-center">
+      <Skeleton className="h-6 w-32" />
     </div>
   )
 }
@@ -56,7 +57,7 @@ function App() {
 
   return (
     <>
-      <Toaster richColors position="top-center" />
+      <Toaster richColors position="bottom-right" />
       <ErrorBoundary>
         <Suspense fallback={<RouteFallback />}>
           <Routes>

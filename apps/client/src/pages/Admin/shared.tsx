@@ -1,13 +1,14 @@
 /**
  * Admin 共享组件与工具函数
  */
-import type { AdminOverview, AdminTaskGenerationRecord, AdminTaskItem } from '@excuse/shared'
+import type { AdminApiKeyItem, AdminOverview, AdminTaskGenerationRecord, AdminTaskItem } from '@excuse/shared'
 import type { Activity } from 'lucide-react'
-import { Ban, RotateCcw } from 'lucide-react'
+import { Ban, Pencil, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
+import { formatCents } from '@/lib/generation-utils'
 
 export const TASK_LIMIT = 40
 export const USERS_PAGE_SIZE = 20
@@ -161,6 +162,196 @@ export function StatusList({ title, rows }: { title: string, rows: AdminOverview
         ))}
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * 共享分页底部栏 — 替代 ApiKeys / Users 中逐字复制的分页 UI。
+ *
+ * 显示 "第 X - Y 条 / 共 Z 条" + 上一页/下一页按钮。
+ */
+export function AdminPaginationFooter({
+  page,
+  pageSize,
+  total,
+  isFetching,
+  onPageChange,
+}: {
+  page: number
+  pageSize: number
+  total: number
+  isFetching?: boolean
+  onPageChange: (page: number) => void
+}) {
+  return (
+    <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+      <span>
+        第
+        {' '}
+        {total === 0 ? 0 : page * pageSize + 1}
+        {' '}
+        -
+        {' '}
+        {Math.min((page + 1) * pageSize, total)}
+        {' '}
+        条 / 共
+        {' '}
+        {total}
+        {' '}
+        条
+      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page === 0 || isFetching}
+          onClick={() => onPageChange(Math.max(0, page - 1))}
+        >
+          上一页
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={(page + 1) * pageSize >= total || isFetching}
+          onClick={() => onPageChange(page + 1)}
+        >
+          下一页
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 共享 API Key 表格 — 替代 ApiKeys.tsx AdminGatewayKeysTable 与 Users.tsx AdminUserApiKeysSection。
+ *
+ * 始终渲染：前缀、Scope、限流、额度消耗、状态、最近使用。
+ * 可选列：名称（showName）、创建时间（showCreatedAt）、操作按钮（showActions）。
+ */
+export function ApiKeyTable({
+  keys,
+  isMutating,
+  showName,
+  showCreatedAt,
+  showActions,
+  onEdit,
+  onReset,
+  onRevoke,
+}: {
+  keys: AdminApiKeyItem[]
+  isMutating?: boolean
+  showName?: boolean
+  showCreatedAt?: boolean
+  showActions?: boolean
+  onEdit?: (key: AdminApiKeyItem) => void
+  onReset?: (key: AdminApiKeyItem) => void
+  onRevoke?: (key: AdminApiKeyItem) => void
+}) {
+  if (keys.length === 0) {
+    return <p className="text-xs text-muted-foreground">暂无 API Key</p>
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-muted-foreground">
+            <th className="py-1.5 font-medium">前缀</th>
+            {showName && <th className="py-1.5 font-medium">名称</th>}
+            <th className="py-1.5 font-medium">Scope</th>
+            <th className="py-1.5 font-medium">限流</th>
+            <th className="py-1.5 font-medium">额度消耗</th>
+            <th className="py-1.5 font-medium">状态</th>
+            <th className="py-1.5 font-medium">最近使用</th>
+            {showCreatedAt && <th className="py-1.5 font-medium">创建时间</th>}
+            {showActions && <th className="py-1.5 text-right font-medium">操作</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {keys.map(key => (
+            <tr key={key.id} className="border-b last:border-b-0">
+              <td className="py-1.5 font-mono text-xs">
+                {key.prefix}
+                ...
+              </td>
+              {showName && <td className="py-1.5 text-xs">{key.name ?? '-'}</td>}
+              <td className="py-1.5">
+                <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
+                  {key.scope === 'gateway' ? 'Gateway' : 'All'}
+                </Badge>
+              </td>
+              <td className="py-1.5 text-xs text-muted-foreground">
+                {key.rateLimitPerMinute ? `${key.rateLimitPerMinute}次/分` : '-'}
+              </td>
+              <td className="py-1.5 text-xs text-muted-foreground">
+                {key.quotaMaxCents
+                  ? (
+                      <span>
+                        ¥
+                        {formatCents(key.totalSpendCents)}
+                        /
+                        ¥
+                        {formatCents(key.quotaMaxCents)}
+                      </span>
+                    )
+                  : (
+                      <span>
+                        ¥
+                        {formatCents(key.totalSpendCents)}
+                      </span>
+                    )}
+              </td>
+              <td className="py-1.5">
+                <Badge variant={key.revokedAt ? 'outline' : 'default'}>
+                  {key.revokedAt ? '已撤销' : '启用'}
+                </Badge>
+              </td>
+              <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td>
+              {showCreatedAt && <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.createdAt)}</td>}
+              {showActions && (
+                <td className="py-1.5 text-right">
+                  {key.revokedAt
+                    ? <span className="text-xs text-muted-foreground">-</span>
+                    : (
+                        <div className="flex items-center justify-end gap-1">
+                          {onEdit && (
+                            <Button variant="ghost" size="sm" onClick={() => onEdit(key)}>
+                              <Pencil className="size-3.5" />
+                              配置
+                            </Button>
+                          )}
+                          {onReset && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isMutating}
+                              onClick={() => onReset(key)}
+                            >
+                              <RotateCcw className="size-3.5" />
+                              重置额度
+                            </Button>
+                          )}
+                          {onRevoke && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              disabled={isMutating}
+                              onClick={() => onRevoke(key)}
+                            >
+                              <Ban className="size-3.5" />
+                              撤销
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
