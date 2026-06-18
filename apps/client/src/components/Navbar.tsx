@@ -5,6 +5,7 @@ import {
   Beaker,
   Bell,
   CheckCheck,
+  ChevronDown,
   Clapperboard,
   ClosedCaption,
   Code2,
@@ -15,6 +16,7 @@ import {
   LayoutDashboard,
   LogOut,
   Map,
+  Menu,
   Moon,
   Receipt,
   ShieldCheck,
@@ -40,16 +42,21 @@ import { statusDotClass, statusTextClass } from '@/lib/status-tokens'
 import { useAuth } from '../auth/AuthContext'
 import { Button } from './ui/button'
 
-const NAV_ITEMS = [
+/** 主导航项目（始终显示，前 6 个） */
+const PRIMARY_NAV_ITEMS = [
   { to: '/', label: '工作台', icon: LayoutDashboard },
   { to: '/canvas', label: '画布', icon: Map },
   { to: '/subtitle', label: '加字幕', icon: ClosedCaption },
   { to: '/assets', label: '资产', icon: FolderOpen },
-  { to: '/subjects', label: '资产库', icon: FolderOpen },
   { to: '/billing', label: '计费', icon: Receipt },
+  { to: '/model-lab', label: 'Model Lab', icon: Beaker },
+] as const
+
+/** 次要导航（折叠到「更多」下拉中） */
+const MORE_NAV_ITEMS = [
+  { to: '/subjects', label: '资产库', icon: FolderOpen },
   { to: '/api-keys', label: 'API Keys', icon: KeyRound },
   { to: '/developers', label: '开发者', icon: Code2 },
-  { to: '/model-lab', label: 'Model Lab', icon: Beaker },
   { to: '/admin', label: '管理', icon: ShieldCheck },
 ] as const
 
@@ -79,7 +86,9 @@ export default function Navbar() {
   })
 
   const [open, setOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const moreDropdownRef = useRef<HTMLDivElement>(null)
 
   // 通知列表 — 下拉展开时启用
   const { data: items = [], isLoading: listLoading } = useQuery({
@@ -113,7 +122,7 @@ export default function Navbar() {
     },
   })
 
-  // 点击外部关闭下拉
+  // 点击外部关闭通知下拉
   useEffect(() => {
     if (!open)
       return
@@ -124,6 +133,18 @@ export default function Navbar() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
+
+  // 点击外部关闭「更多」下拉
+  useEffect(() => {
+    if (!moreOpen)
+      return
+    const handler = (e: MouseEvent) => {
+      if (moreDropdownRef.current && !moreDropdownRef.current.contains(e.target as Node))
+        setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moreOpen])
 
   function handleClickItem(n: NotificationItem) {
     if (!n.read)
@@ -141,7 +162,7 @@ export default function Navbar() {
       <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
         <span className="mr-6 text-lg font-bold tracking-tight">Excuse</span>
         <nav className="flex items-center gap-1">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+          {PRIMARY_NAV_ITEMS.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -156,6 +177,45 @@ export default function Navbar() {
               {label}
             </NavLink>
           ))}
+
+          {/* 「更多」折叠下拉 */}
+          <div ref={moreDropdownRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreOpen(v => !v)}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                moreOpen
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              }`}
+              aria-label="更多导航"
+              title="更多导航"
+            >
+              <Menu className="size-4" />
+              更多
+              <ChevronDown className={`size-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {moreOpen && (
+              <div className="absolute left-0 top-11 z-50 w-40 rounded-lg border bg-background shadow-lg py-1">
+                {MORE_NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    onClick={() => setMoreOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                        isActive
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                      }`}
+                  >
+                    <Icon className="size-4" />
+                    {label}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* 右侧用户区域 */}
