@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P1-5: 统一命名 — 避免泛化函数名和歧义缩写（2026-06-19）
+
+- **commit `7ad18c77`**: 关键页面泛化函数重命名：load→loadCanvasProjects/loadModelLabModels、handleCreate→createProjectFromStory、confirmDelete→confirmProjectDeletion/confirmRecordDeletion/confirmSubtitleDeletion。
+
 ### P2-10: 统一错误处理与可观测性口径（2026-06-19）
 
 - **commit `9ec7e135`**: 新增 `apps/client/src/lib/client-logger.ts`，warn/error/info 统一附带 route/action/recordId/taskId/projectId 上下文。更新 sse.ts (12 处)、query-client.ts、workspace.ts、Canvas.tsx。

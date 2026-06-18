@@ -18,18 +18,6 @@
   - 单个 page 文件控制在 250-350 行以内。
   - 复杂 hook 有独立单测，组件测试只覆盖用户可见行为。
 
-### 5. 统一命名：避免泛化函数名和歧义缩写
-
-- 现状：前端页面内常见 `load`、`handleCreate`、`confirmDelete` 等泛化命名；后端存在 `ctx`、`p`、`res` 等局部缩写；`CATEGORY_LABELS` 等历史注释显示曾出现命名和值不一致。
-- 问题：局部看能懂，跨文件搜索和 code review 时可读性下降。
-- 解决办法：
-  - 页面内异步函数使用业务语义：`loadCanvasProjects`、`createProjectFromDraft`、`confirmProjectDeletion`、`runModelComparison`。
-  - DTO mapper、route handler、service 方法保持动词 + 领域对象 + 结果，例如 `mapCanvasProjectDetail`。
-  - 对 shared 常量增加命名约定：`*_LABELS` 只放展示文案，`*_STATUS` / `*_CATEGORY` 放机器值。
-- 验收标准：
-  - 关键页面和 Canvas/server 模块完成一轮重命名。
-  - 搜索 `async function load(`、`function load(` 在业务页面中不再出现。
-
 ## P2：测试覆盖和边界处理
 
 ### 8. 让测试覆盖从“数量多”升级为“风险分层”
@@ -51,16 +39,14 @@
 
 ## 建议执行顺序
 
-## 建议执行顺序
-
-1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅（`15df5506`）
-2. ~~P0-2 配置解析抽取~~ ✅（`71d1cdbe`）
-3. ~~P0-3 provider observer/guard 副作用隔离~~ ✅（`12a2a0de`）
-4. ~~P1-6 补齐 package 脚本 + P1-7 清理 TODO 引用~~ ✅（`dcaa6861`）
-5. ~~P2-9 输入限制常量~~ ✅（`991d6a9c`）
-6. ~~P3-12 ADR 文档~~ ✅（`2f65d8cd`）
+1. ~~P0-1/2/3 架构治理~~ ✅（`15df5506`, `71d1cdbe`, `12a2a0de`）
+2. ~~P1-6/7 脚本+引用~~ ✅（`dcaa6861`）
+3. ~~P2-9 输入限制~~ ✅（`991d6a9c`）
+4. ~~P3-11/12 规则+ADR~~ ✅（`f1846b11`, `2f65d8cd`）
+5. ~~P2-10 clientLogger~~ ✅（`9ec7e135`）
+6. ~~P1-5 统一命名~~ ✅（`7ad18c77`）
 7. 做 P1-4 拆分前端大页面 ModelLab.tsx
-8. 继续 P1-5、P2-8、P2-10、P3-11 等项目。
+8. 做 P2-8 测试覆盖升级
 
 ## 本次审计已运行的检查
 
