@@ -147,7 +147,7 @@
 | [PipelineController.tsx](apps/client/src/components/canvas/PipelineController.tsx) | 753→180 | 状态管理 + 业务逻辑 → `usePipelineController` hook（~350 行） | ✅ 已拆 |
 | [gateway/index.ts](packages/gateway/src/index.ts) | 469→barrel | `errors.ts` + `protocol.ts` + `usage.ts` | ✅ 已拆 |
 | [Assets.tsx](apps/client/src/pages/Assets.tsx) | 1136→740 | URL 同步 + 卡片网格 + 标签管理 + 详情/删除对话框 → `AssetDetailDialog` + `AssetTagManager` | ✅ 已拆 |
-| [ModelLab.tsx](apps/client/src/pages/ModelLab.tsx) | 919→810 | 表单 + 多模型对比 + Canvas 默认值 + 6 面板（ParameterInput/ReferenceImageUploader 已抽） | 接触时 |
+| [ModelLab.tsx](apps/client/src/pages/ModelLab.tsx) | 919→810 | 表单 + 多模型对比 + Canvas 默认值 + 6 面板（ParameterInput/ReferenceImageUploader 已抽） | 合理范围 |
 
 **不应误拆（大但合理）**：`client.ts`（Eden 薄封装）、`domain-types.ts`/`shared/canvas.ts`/`shared/admin.ts`（纯类型契约）、`model-configs.ts`（声明式目录）、`generation-records.repo.ts`（单表 repo）、`modules/assets/service.ts`（单一职责 query+map）、`Developers.tsx`（文档页）。这些是「内容多」非「关注点混」，保持现状。
 
