@@ -5,14 +5,42 @@ interface MediaPreviewDialogProps {
   onClose: () => void
 }
 
+/** 根据 URL 后缀推断媒体类型 */
+function detectMediaType(url: string): 'image' | 'video' | 'audio' {
+  const lower = url.toLowerCase().split('?')[0]
+  if (/\.(mp4|webm|mov|avi|mkv|m4v)$/.test(lower))
+    return 'video'
+  if (/\.(mp3|wav|ogg|aac|flac|m4a)$/.test(lower))
+    return 'audio'
+  return 'image'
+}
+
 export default function MediaPreviewDialog({ url, onClose }: MediaPreviewDialogProps) {
   if (!url)
     return null
 
+  const mediaType = detectMediaType(url)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={onClose}>
       <div className="relative max-h-[90vh] max-w-[90vw]">
-        <img src={url} alt="Preview" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain" />
+        {mediaType === 'image' && (
+          <img src={url} alt="Preview" className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain" />
+        )}
+        {mediaType === 'video' && (
+          <video
+            src={url}
+            controls
+            autoPlay
+            className="max-h-[90vh] max-w-[90vw] rounded-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        )}
+        {mediaType === 'audio' && (
+          <div className="flex items-center gap-4 rounded-lg bg-gray-900 p-8" onClick={e => e.stopPropagation()}>
+            <audio src={url} controls autoPlay />
+          </div>
+        )}
         <a
           href={url}
           download
