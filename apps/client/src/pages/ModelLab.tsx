@@ -22,6 +22,7 @@ import OutputPreview from '@/components/generation/OutputPreview'
 import ParameterInput from '@/components/generation/ParameterInput'
 import ReferenceImageUploader from '@/components/generation/ReferenceImageUploader'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
+import ModelComparisonSection from '@/components/model-lab/ModelComparisonSection'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -47,13 +48,6 @@ interface LabReferenceFile {
   name: string
 }
 
-interface CompareResult {
-  modelId: string
-  status: 'succeeded' | 'failed'
-  record?: GenerationRecord
-  error?: string
-}
-
 const CATEGORY_ORDER: Category[] = ['text', 'image', 'video', 'subtitle']
 
 function defaultValueFor(param: ModelParameter): LabValue {
@@ -70,24 +64,6 @@ function initialValuesFor(model: ModelConfig | undefined): ModelLabFormValues {
   if (!model)
     return {}
   return Object.fromEntries(model.parameters.map(param => [param.name, defaultValueFor(param)]))
-}
-
-function hasRequiredValues(model: ModelConfig | undefined, values: ModelLabFormValues): boolean {
-  if (!model)
-    return false
-  return model.parameters.every((param) => {
-    if (!param.required)
-      return true
-    const value = values[param.name]
-    return value !== '' && value !== null && value !== undefined && value !== false
-  })
-}
-
-function parametersForModel(model: ModelConfig, values: ModelLabFormValues): ModelLabFormValues {
-  const next: ModelLabFormValues = {}
-  for (const param of model.parameters)
-    next[param.name] = values[param.name] ?? defaultValueFor(param)
-  return next
 }
 
 function modelUnitLabel(model: ModelConfig): string {
@@ -137,9 +113,7 @@ export default function ModelLab() {
   const [uploadingParam, setUploadingParam] = useState<string | null>(null)
   const [uploadingRefs, setUploadingRefs] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [comparing, setComparing] = useState(false)
-  const [compareModelIds, setCompareModelIds] = useState<string[]>([])
-  const [compareResults, setCompareResults] = useState<CompareResult[]>([])
+  const [isComparing, setIsComparing] = useState(false)
   const [result, setResult] = useState<GenerateResponse | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [canvasDefaults, setCanvasDefaults] = useState(() => loadCanvasModelDefaults())
@@ -160,39 +134,24 @@ export default function ModelLab() {
   const isDirty = form.formState.isDirty
   useConfirmNavigation(isDirty, '有未保存的更改，确定要离开吗？')
 
-  // 模型首次加载后初始化 form + compareModelIds
-  const [didInitForm, setDidInitForm] = useState(false)
-  useEffect(() => {
-    if (!didInitForm && selectedModel && !loadingModels) {
-      setDidInitForm(true)
-      setCompareModelIds([selectedModel.id])
-      reset(initialValuesFor(selectedModel))
-    }
-  }, [selectedModel, loadingModels, reset, didInitForm])
-
   function chooseCategory(category: Category) {
     chooseModelCategory(category)
-    setCompareResults([])
     setReferenceFiles([])
     setResult(null)
-    // 切换分类后 form 由 chooseModelById 内部触发的 selectedModel 变化重置
   }
 
   function chooseModel(id: string) {
     chooseModelById(id)
-    setCompareModelIds([id])
-    setCompareResults([])
     setReferenceFiles([])
     setResult(null)
   }
 
-  // 模型切换时重置 form + compareModelIds
+  // 模型切换时重置 form
   useEffect(() => {
     if (selectedModel) {
-      setCompareModelIds(prev => prev.length === 0 || prev[0] !== selectedModel.id ? [selectedModel.id] : prev)
       reset(initialValuesFor(selectedModel))
     }
-  }, [selectedModel?.id, reset])
+  }, [selectedModel, reset])
 
   async function uploadParamFile(param: ModelParameter) {
     const input = document.createElement('input')
@@ -271,14 +230,6 @@ export default function ModelLab() {
     }
   }
 
-  function toggleCompareModel(modelId: string) {
-    setCompareModelIds((prev) => {
-      if (prev.includes(modelId))
-        return prev.filter(id => id !== modelId)
-      return [...prev, modelId]
-    })
-  }
-
   function saveSelectedModelAsCanvasDefault() {
     if (!selectedModel)
       return
@@ -310,57 +261,6 @@ export default function ModelLab() {
     toast.success('已应用 Canvas 默认模型')
   }
 
-  async function runComparison(values: ModelLabFormValues) {
-    const selectedModels = compareModelIds
-      .map(id => models.find(model => model.id === id))
-      .filter((model): model is ModelConfig => Boolean(model))
-
-    if (selectedModels.length < 2) {
-      toast.error('至少选择 2 个模型进行对比')
-      return
-    }
-
-    setComparing(true)
-    setCompareResults([])
-    const referenceFileIds = referenceFiles.length > 0 ? referenceFiles.map(file => file.id) : undefined
-
-    try {
-      const settled = await Promise.all(selectedModels.map(async (model): Promise<CompareResult> => {
-        try {
-          if (!hasRequiredValues(model, parametersForModel(model, values))) {
-            return {
-              modelId: model.id,
-              status: 'failed',
-              error: '缺少必填参数',
-            }
-          }
-          const response = await generate({
-            model: model.id,
-            parameters: parametersForModel(model, values),
-            referenceFileIds,
-          })
-          return {
-            modelId: model.id,
-            status: 'succeeded',
-            record: response.record,
-          }
-        }
-        catch (error) {
-          return {
-            modelId: model.id,
-            status: 'failed',
-            error: error instanceof Error ? error.message : '实验请求失败',
-          }
-        }
-      }))
-      setCompareResults(settled)
-      toast.success('对比实验已完成')
-    }
-    finally {
-      setComparing(false)
-    }
-  }
-
   // 渲染参数输入（委托给共享 ParameterInput 组件）
   function renderParam(param: ModelParameter) {
     return (
@@ -384,11 +284,6 @@ export default function ModelLab() {
   }, null, 2)
   const record = result?.record ?? null
   const hasModel = Boolean(selectedModel)
-  const compareRequestPreview = JSON.stringify({
-    models: compareModelIds,
-    parameters: values,
-    referenceFileIds: referenceFiles.map(file => file.id),
-  }, null, 2)
 
   return (
     <div className="mx-auto max-w-7xl p-4">
@@ -535,51 +430,12 @@ export default function ModelLab() {
             type="button"
             size="lg"
             className="w-full"
-            disabled={submitting || comparing || !hasModel}
+            disabled={submitting || isComparing || !hasModel}
             onClick={form.handleSubmit(submit)}
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
             {submitting ? '提交中...' : '运行实验'}
           </Button>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">同 prompt 多模型对比</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {categoryModels.map(model => (
-                  <label key={model.id} className="flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={compareModelIds.includes(model.id)}
-                      onChange={() => toggleCompareModel(model.id)}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">{model.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{model.id}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                disabled={comparing || !hasModel || compareModelIds.length < 2}
-                onClick={form.handleSubmit(runComparison)}
-              >
-                {comparing ? <Loader2 className="size-4 animate-spin" /> : <Beaker className="size-4" />}
-                {comparing ? '对比中...' : '运行对比实验'}
-              </Button>
-
-              {compareModelIds.length < 2 && (
-                <p className="text-xs text-muted-foreground">选择至少 2 个同分类模型后，可用当前 prompt 和参数并行提交对比。</p>
-              )}
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader className="pb-3">
@@ -630,16 +486,10 @@ export default function ModelLab() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-sm">请求预览</CardTitle>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => copyToClipboard(compareRequestPreview)}>
-                  <Copy className="size-3" />
-                  复制对比
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={() => copyToClipboard(requestPreview)}>
-                  <Copy className="size-3" />
-                  复制
-                </Button>
-              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => copyToClipboard(requestPreview)}>
+                <Copy className="size-3" />
+                复制
+              </Button>
             </CardHeader>
             <CardContent>
               <pre className="max-h-80 overflow-auto rounded-lg bg-muted p-3 text-xs">
@@ -648,58 +498,15 @@ export default function ModelLab() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">对比结果</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {compareResults.length === 0 && (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-10 text-muted-foreground">
-                  <Beaker className="mb-2 size-7" />
-                  <p className="text-sm">运行对比后会按模型展示结果</p>
-                </div>
-              )}
-
-              {compareResults.map((item) => {
-                const model = models.find(m => m.id === item.modelId)
-                return (
-                  <div key={item.modelId} className="rounded-lg border p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{model?.name || item.modelId}</div>
-                        <div className="truncate text-xs text-muted-foreground">{item.modelId}</div>
-                      </div>
-                      <Badge variant={item.status === 'failed' ? 'destructive' : 'secondary'}>
-                        {item.record?.status || item.status}
-                      </Badge>
-                    </div>
-
-                    {item.record && (
-                      <div className="mt-2 rounded-lg bg-muted/40 p-2 text-xs">
-                        <div>{outputSummary(item.record)}</div>
-                        {item.record.cost && (
-                          <div className="mt-1 text-muted-foreground">
-                            成本：
-                            {formatCents(item.record.cost.totalPriceCents)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {item.error && (
-                      <p className="mt-2 text-xs text-destructive">{item.error}</p>
-                    )}
-
-                    {item.record?.outputResult && (
-                      <div className="mt-2">
-                        <OutputPreview output={item.record.outputResult} onPreview={setPreviewUrl} />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
+          <ModelComparisonSection
+            models={models}
+            categoryModels={categoryModels}
+            selectedModelId={selectedModelId}
+            values={values}
+            referenceFiles={referenceFiles}
+            onPreview={setPreviewUrl}
+            onComparingChange={setIsComparing}
+          />
 
           <Card>
             <CardHeader className="pb-3">
