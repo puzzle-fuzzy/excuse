@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P2-9: 强化用户输入和资源边界（2026-06-19）
+
+- **commit `991d6a9c`**: 新增 `@excuse/shared input-limits.ts`，集中声明 `PROMPT_LENGTH_LIMITS`、`MAX_STORY_TEXT_LENGTH`、`MAX_CANVAS_SHOTS`、`MAX_REFERENCE_FILES`、`ALLOWED_UPLOAD_MIMES`、温度/Token 范围等限制常量 + `isAllowedMime()`/`checkPromptLengthLimit()` 辅助函数。server `prompt-limits.ts` 改为引用 shared 常量，前后端可引用同一来源。
+
 ### P1-6 补齐 package 脚本 + P1-7 清理 TODO 引用（2026-06-19）
 
 - **commit `dcaa6861`**: P1-6 为 17 个 packages/* 补充 `test` + `typecheck` 脚本，新增 `scripts/run-package-tests.ts` 自动发现并运行包测试，根 `test` 脚本简化为 3 路并发（server/worker/packages）。P1-7 清理 5 处失效 `docs/TODO2` / `docs/TODO.md` 引用。验收零回归。

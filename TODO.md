@@ -49,18 +49,6 @@
   - 关键 mapper、config、bootstrap、Canvas phase adapter 都有直接测试。
   - 单个测试文件建议不超过 500 行；超过需有明确分组原因。
 
-### 9. 强化用户输入和资源边界
-
-- 现状：已有 `maxRequestBodySize`、prompt limit、计费超额保护、provider timeout 等保护；但前端和 server 的输入限制仍分散。
-- 问题：故事文本、上传数量、参考素材类型、Canvas 实体数量、模型参数范围等需要统一定义，否则前后端边界可能不一致。
-- 解决办法：
-  - 在 shared/domain schema 中集中声明限制：`MAX_STORY_TEXT_LENGTH`、`MAX_REFERENCE_FILES`、`MAX_CANVAS_SHOTS`、允许 mime、文件大小等。
-  - 前端表单、server route、worker phase 都引用同一组常量或 schema。
-  - 对超限错误返回机器可读 code，前端按 code 展示可恢复提示。
-- 验收标准：
-  - 任一输入限制只在一个地方定义。
-  - server 测试覆盖边界值：0、最大值、最大值 + 1、非法 mime、重复资源。
-
 ### 10. 统一错误处理与可观测性口径
 
 - 现状：server 有 `AppError` 和统一错误插件，client 有 `handleApiError`、SSE fallback、React Query query error log；仍有若干 `console.warn/error` 分散在页面、store 和 API client。
