@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P2 治理 + 去重轮次 #4（2026-06-19）
+
+#### 大文件拆分（§4.3）
+- **§4.3 admin.ts 路由按子域拆** — `routes/admin/` 目录下按 10 子域拆为独立 handler 文件（`overview`/`tasks`/`users`/`providers`/`asset-retention`/`projects`/`audit-logs`/`api-keys`/`gateway-clients`/`credit`）+ `helpers.ts`（原 `admin-helpers.ts`）+ `index.ts`（barrel 路由注册）。Admin 鉴权从 derive 块下沉为 `resolve` 守卫（非管理员直接 throw ForbiddenError），17 个 handler 手写 `if (!adminAllowed) return adminDenied()` 归零。handler 函数可独立单测。35 个 admin 测试全绿。
+
+### P2 治理 + 去重轮次 #3（2026-06-19）
+
+#### 架构治理（§3.2, §3.4）
+- **§3.2 dashscope-client endpoint switch 注册表化** — `generate()` 中 4-case switch 替换为 `CATEGORY_GENERATORS` 方法映射表，新增 category 时在表中登记一行即可。
+- **§3.4 rate-limit per-route 插件接入** — 替换 `elysia-rate-limit` 为自定义 Elysia `onRequest` 插件，通过 `matchRouteRateLimit()` 匹配请求路径 → 查找 `DEFAULT_ROUTE_RATE_LIMITS` 表 → 覆盖全局默认 → `SlidingWindowRateLimiter.check()` 判定。移除 `elysia-rate-limit` 依赖。
+
+#### 组件去重（§4.5）
+- **ParameterInput 组件** — 新增 `components/generation/ParameterInput.tsx`，覆盖 text/number/select/boolean/mediaUpload 五种参数形态。Workspace.tsx 与 ModelLab.tsx 均已接入，删除约 170 行重复渲染逻辑。
+- **ReferenceImageUploader 组件** — 新增 `components/generation/ReferenceImageUploader.tsx`，标准化虚线框上传区 + 缩略图网格。Workspace.tsx 与 ModelLab.tsx 均已接入。
+- **AdminPaginationFooter 组件** — 新增 `Admin/shared.tsx` 中共享分页底部栏（"第 X-Y 条 / 共 Z 条" + 上一页/下一页）。ApiKeys.tsx 与 Users.tsx 均已接入，删除约 35 行逐字复制。
+- **ApiKeyTable 组件** — 新增 `Admin/shared.tsx` 中共享 API Key 表格，通过 `showName`/`showCreatedAt`/`showActions` 控制差异化列。`AdminGatewayKeysTable`（ApiKeys）与 `AdminUserApiKeysSection`（Users）均已委托给共享组件，删除约 100 行重复表格渲染。
+
+#### 大文件拆分（§4.4）
+- **gateway/index.ts 拆三模块** — 469 行单文件拆为：`errors.ts`（错误码常量 + createOpenAIError + 9 个语义化错误工厂，172 行）、`protocol.ts`（normalizeOpenAIChatRequest + 响应/流式构建，200 行）、`usage.ts`（mapGatewayUsageItem + aggregateGatewayUsage，108 行）。index.ts 退化为 barrel re-export。既有 77 个 gateway 测试全绿。
+
 ### TODO 核查清理 + P0/P1 修复轮次（2026-06-18）
 
 对 `docs/TODO.md` 全 ~40 项做了逐项源码验证，清理 2 项已修复条目，完成 7 项修复。
@@ -30,6 +50,30 @@ All notable changes to this project will be documented in this file.
 
 #### P2 治理
 - **§3.2 category 注册表** — 新增 `CATEGORY_META` 注册表（`@excuse/shared/src/models.ts`），含 label/assetKind/notify 文案/sync 等 category 元数据；`notifications.ts` 通知文案改用 `CATEGORY_META[category]`，参数类型从 `'text' | 'image'` 拓宽为 `ModelCategory`；`assets/service.ts` `genCategoryToKind` 改用 `CATEGORY_META`，删除静默 `default: 'text'` 兜底（未知 category 改为显式 throw）；`AssetLibraryKind` / `NotificationMeta.category` 补 `'audio'` 成员。dashscope-client endpoint switch / client 端标签地图等接触时渐进替换。
+
+### P2 治理 + 体验打磨轮次 #2（2026-06-19）
+
+#### UX 打磨
+- **§1.5 Toast 位置** — Toaster 从 `top-center` 移至 `bottom-right`，避免遮挡状态栏/标题。
+- **§1.5 a11y aria-label** — RecordCard 复制按钮、Navbar 通知铃/退出登录按钮补 `aria-label`。
+
+#### 架构治理
+- **§4.2 dashscope-client.ts 拆四模块** — 988 行单文件拆为：`provider-hooks.ts`（observer/guard registry，127 行）、`dashscope-request-builder.ts`（applyMappings + buildRequestBody 纯函数，147 行）、`dashscope-sse.ts`（iterSSEEvents + 两 SSE 解析器，151 行）。Client 收缩至 515 行；4 个 sync fetch 方法通过 `withErrorHandling` 模板消除传输层 try/catch 重复。重导出保持下游 import 路径不变。既有 provider 142 个测试全绿。
+- **§4.5 status 集合收敛** — `ACTIVE_GENERATION_STATUSES` / `GEN_RUNNING_STATUSES` 收敛至 `@excuse/shared/src/generation.ts`（与 `GenerationStatus` 类型同源）。generation/service、generation-records.repo、assets/service 三个散落定义统一为单一来源。
+
+### P2 治理 + 体验打磨轮次（2026-06-19）
+
+#### UX 体验
+- **§1.1 骨架屏** — 新增 `ui/skeleton.tsx`（shadcn 风格 Skeleton 组件）+ `RecordCardSkeleton` / `RecordCardSkeletonList`。Workspace 记录列表加载态、Billing 全页加载态、Canvas 列表页加载态、App.tsx 路由切换 fallback 全部替换为骨架屏，替代裸「加载中...」文字。
+- **§1.2 空状态引导** — 新增共享 `EmptyState` 组件（图标 + 标题 + 可选描述 + CTA slot）。Workspace 空状态指引「← 在左侧输入 Prompt 开始生成」；Billing 三处「暂无数据」统一用 EmptyState；Navbar 通知空状态用 EmptyState + Bell 图标。
+
+#### 架构治理
+- **§3.3 task-engine 去耦** — 为 `getTaskPriority` / `computeRetryDelay` 引入声明式策略表：`TaskPriorityPolicy` / `TaskBackoffPolicy` + `DEFAULT_PRIORITY_POLICY` / `DEFAULT_BACKOFF_POLICY` 常量。函数接受可选 policy 参数，新增业务 type 在策略表登记一行即可。移除 `taskType.includes('video')` 子串匹配隐性耦合。错误码分类同步表式化（`ERROR_CODE_REGISTRY` 替代 if 链）。28 个 task-engine 测试全绿。
+- **§3.4 配置表式化** — task-engine 错误码分类从 if 链迁移至 `ERROR_CODE_REGISTRY` 声明式表；rate-limit 包新增 `DEFAULT_ROUTE_RATE_LIMITS` per-route 声明式配置表 + `matchRouteRateLimit()` 纯函数匹配（插件消费待后续）。
+- **§4.3 admin.ts 轻量重构** — 共享 helper（percentile/latency/serializeApiKey/toHealthSummary）提取至 `admin-helpers.ts`；admin.ts 保持单文件（Elysia derive 类型链约束），但按 9 个子域清晰分段。
+
+#### 安全加固
+- **§5.2 错误消息脱敏** — `@excuse/shared` 新增 `sanitizeErrorMessage()`（500 字符截断 + 敏感 JSON 嵌入移除）。`parseDashScopeError` 返回前、`markTaskFailed` / `markGenerationFailed` / `cancelGenerationRecordIfActive` 入库前统一脱敏。
 
 ### TODO2 核查修正轮次（2026-06-18）
 

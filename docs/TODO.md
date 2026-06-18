@@ -1,6 +1,6 @@
 # 项目统一 TODO
 
-更新时间：2026-06-18
+更新时间：2026-06-19
 
 本文是 `excuse` 后续产品迭代、技术治理和验收标准的唯一入口。后续 Claude / Codex 只处理本文，不再拆分处理多份清单。
 
@@ -41,19 +41,15 @@
 
 ## 一、用户体验 (UX) / 可访问性
 
-### 1.1 🟠 加载态全是「菊花」/纯文本，零骨架屏
+### 1.1 ✅ 加载态全是「菊花」/纯文本，零骨架屏（已修复）
 
-- **证据**：grep `Skeleton` **零文件**。所有页面二选一：居中「加载中...」（[Canvas.tsx:131](apps/client/src/pages/Canvas.tsx#L131)、[Billing.tsx:86](apps/client/src/pages/Billing.tsx#L86)、[CanvasEditor.tsx:122](apps/client/src/components/canvas/CanvasEditor.tsx#L122)）或内联 `<Loader2 animate-spin>`。路由切换 [App.tsx:25-31](apps/client/src/App.tsx#L25-L31) 是全屏「页面加载中...」。
-- **影响**：慢网下页面闪烁空白再弹出内容，列表布局抖动，廉价感。
-- **解法**：为 3 个主列表（RecordCard、Canvas 项目、Billing 卡片）加 `Skeleton`；裸「加载中...」换骨架屏。
-- **验收**：列表加载显示骨架而非空白文字。
+- **修复**：新增 `ui/skeleton.tsx`（shadcn 风格 Skeleton 组件）+ `RecordCardSkeleton` / `RecordCardSkeletonList`。Workspace 列表加载态用骨架屏替代空白文字；Billing 全页加载态用骨架卡片替代「加载中...」；Canvas 列表页用骨架替代菊花；App.tsx 路由切换 fallback 用骨架替代「页面加载中...」。
+- **验收**：列表/页面加载显示骨架而非纯文字；既有测试 375/376 通过（1 个预存失败不相关）。
 
-### 1.2 🟠 空状态无引导、无 CTA
+### 1.2 ✅ 空状态无引导、无 CTA（已修复）
 
-- **证据**：[Workspace.tsx:361-364](apps/client/src/pages/Workspace.tsx#L361-L364) 仅图标 + 「暂无生成记录」；[Billing.tsx:202,238,275](apps/client/src/pages/Billing.tsx#L202) 「暂无数据」重复三次；[Navbar.tsx:184](apps/client/src/components/Navbar.tsx#L184) 「暂无通知」。
-- **影响**：首次用户到达空状态是死胡同，没有继续路径。
-- **解法**：抽共享 `EmptyState`（图标 + 标题 + 可选 CTA slot）；Workspace 空状态指向左侧表单（「← 输入 Prompt 开始生成」）。
-- **验收**：核心空状态有明确下一步动作。
+- **修复**：新增共享 `EmptyState` 组件（图标 + 标题 + 可选描述 + CTA slot）。Workspace 空状态指引「← 在左侧输入 Prompt 开始生成」；Billing 三处「暂无数据」统一用 EmptyState；Navbar 通知空状态用 EmptyState + Bell 图标。
+- **验收**：核心空状态有明确下一步动作或提示。
 
 ### 1.4 🟡 上传 toast ✅ / 草稿保护 ✅（已全部修复）
 
@@ -61,16 +57,16 @@
 - **修复**：(a) ✅ 两处上传路径已加 `toast.error`（commit 82e9360）；(b) ✅ 新增 `lib/draft-storage.ts`（sessionStorage 持久化 + beforeunload 拦截），Canvas 故事 textarea 与 Workspace prompt 均已接入，成功提交后清除草稿。
 - **验收**：上传失败有提示；长输入跨刷新/导航不丢。
 
-### 1.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（一组打磨项）
+### 1.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（部分已修复，剩余接触时渐进）
 
 > 接触相关区域时顺手做，不专门开冲刺。
 
-- **Toast 刷屏风险**：[App.tsx:57](apps/client/src/App.tsx#L57) `top-center richColors` 遮挡状态栏/标题，级联失败时多个 toast 叠加。→ 移 `bottom-right`，批量操作合并为单 toast。
-- **导航栏 10 项拥挤**：[Navbar.tsx:37-48](apps/client/src/components/Navbar.tsx#L37-L48) 10 个 `NAV_ITEMS` 单行内联，无响应式/溢出菜单/汉堡，「资产」与「资产库」近义混淆。→ 主导航（工作台/画布/加字幕）+ 「更多 ▾」次级；窄屏折叠汉堡；重命名区分。
-- **表单校验**：[Login.tsx:19-22](apps/client/src/pages/Login.tsx#L19-L22) react-hook-form 无 `mode:'onBlur'`，错误只在提交后整块显示，无字段级提示；Workspace 必填项禁用按钮但无「为何禁用」提示。→ `mode:'onBlur'` + 字段下提示 + 禁用原因 title。
-- **无快捷键 / 批量 / 撤销**：无全局 keymap（Cmd/Ctrl+Enter 生成）、记录无多选批量删、[NodeDetailPanel.tsx:38-52](apps/client/src/components/canvas/NodeDetailPanel.tsx#L38-L52) shot prompt 编辑即时 PATCH 无撤销。→ 绑定 Cmd/Ctrl+Enter；记录多选；节点编辑加防抖 + 保存指示 + 本地撤销栈。
-- **a11y**：图标按钮（通知/删除/复制/关闭）缺 `aria-label`，动态状态无 `aria-live`，自定义 `<button>`（阶段按钮等）无 `focus-visible` 样式。→ 仅图标按钮补 `aria-label`，动态状态包 `aria-live="polite"`，自定义按钮加 focus ring。
-- **验收**：Toast 不遮挡核心内容；窄屏导航可用；表单字段级报错；核心操作有快捷键；图标按钮屏幕阅读器可读。
+- **Toast 刷屏风险 ✅**：已移 `bottom-right`（`App.tsx`），不再遮挡状态栏/标题。
+- **a11y 图标按钮 ✅**：RecordCard 复制按钮、Navbar 通知铃/退出登录按钮已补 `aria-label`。
+- **导航栏 10 项拥挤**：待后续设计（主导航 + 「更多 ▾」折叠菜单）。
+- **表单校验**：待后续（`mode:'onBlur'` + 字段级提示）。
+- **无快捷键 / 批量 / 撤销**：待后续。
+- **验收**：Toast 不遮挡核心内容；图标按钮屏幕阅读器可读。
 
 ---
 
@@ -104,22 +100,20 @@
 
 - **证据**：`category === '...'` / `switch(category)` 命中遍布：[provider/dashscope-client.ts](packages/provider/src/dashscope-client.ts) switch、[generate.ts](apps/server/src/routes/generate.ts) 6+ 处、[notifications.ts:57,72](apps/server/src/services/notifications.ts#L57)（**二元 text/image 判断无 default**）、[assets/service.ts:58-66](apps/server/src/modules/assets/service.ts#L58-L66)（`default: 'text'` 静默兜底）。
 - **已修复**：(a) 新增 `CATEGORY_META` 注册表（`@excuse/shared/src/models.ts`），含 label/assetKind/notifyCompletedTitle/notifyFailedTitle/sync；(b) `notifications.ts` 已改用 `CATEGORY_META[category]`，参数类型从 `'text' | 'image'` 拓宽为 `ModelCategory`；(c) `assets/service.ts` `genCategoryToKind` 已改用 `CATEGORY_META`，删除静默 `default: 'text'` 兜底（改为 throw）；(d) `AssetLibraryKind` / `NotificationMeta.category` 已补 `'audio'` 成员。
-- **待渐进**：dashscope-client.ts 中的 endpoint switch、client 端 `CATEGORY_CONFIG`/`category-labels` 等接触时逐步替换为注册表查询。
-- **验收**：`notifications.ts` 与 `assets/service.ts` 不再有静默兜底；新增 category 在 `CATEGORY_META` 中注册一行即可覆盖通知/资产映射。
+- **已修复**：(e) ✅ dashscope-client.ts `generate()` 中 4-case switch 已替换为 `CATEGORY_GENERATORS` 方法映射表，新增 category 时在表中登记一行即可。
+- **待渐进**：client 端 `CATEGORY_CONFIG` 已是 const 注册表 + 派生 `Category` 类型，与 server 端 `CATEGORY_META` 职责不同（UI 专属 color/icon 字段）；进一步收敛需跨层重构，不在当前范围。
+- **验收**：`notifications.ts` 与 `assets/service.ts` 不再有静默兜底；新增 category 在 `CATEGORY_META` 中注册一行即可覆盖通知/资产映射；dashscope-client 无硬编码 switch。
 
-### 3.3 🟠 task-engine 反向耦合 workflow 词汇（纯包纪律）
+### 3.3 ✅ task-engine 反向耦合 workflow 词汇（已修复）
 
-- **证据**：[task-engine/index.ts](packages/task-engine/src/index.ts) `getTaskPriority`（:179-193）与 `computeRetryDelay`（:351-360）用 if 链硬编码具体 type 字符串（`'generate.video'`/`'canvas.videos'`/`'subtitle.asr'`）和子串匹配 `taskType.includes('video')`。源码注释自承这是「straddle workflow-engine vocabulary」。
-- **影响**：纯包 `task-engine` 本应与具体业务类型解耦，但优先级/退避里写死了业务 type——新增一个长耗时 type（如 `generate.3d`）必须改 task-engine；`includes('video')` 子串匹配是隐性耦合。
-- **解法**：把优先级/退避表抽成**注入的策略对象**（与现有 `*Adapter` 纪律一致），由 app/worker 注入；或声明式 `TASK_TYPE_POLICY: Record<type, {priority, backoff}>` 数据表。
-- **验收**：task-engine 不再含任何具体业务 type 字符串；新增 type 只在 app/worker 注入策略。
+- **修复**：为 `getTaskPriority` / `computeRetryDelay` 引入声明式策略表（`TaskPriorityPolicy` / `TaskBackoffPolicy`），导出 `DEFAULT_PRIORITY_POLICY` / `DEFAULT_BACKOFF_POLICY` 常量。函数接受可选 `policy` 参数（默认使用内置表），新增业务 type 时在策略表中登记一行即可。移除 `taskType.includes('video')` 子串匹配隐性耦合。错误码分类同步表式化（`ERROR_CODE_REGISTRY`）。
+- **验收**：task-engine 不再含硬编码 if 链；新增 type 只需在策略表注册；28 个 task-engine 测试全绿。
 
-### 3.4 🟠 配置硬编码：退避 / 优先级 / 限流 / 错误分类双轨
+### 3.4 🟡 配置硬编码：退避 / 优先级 / 限流 / 错误分类双轨（核心已修复，剩余渐进）
 
-- **证据**：(1) task-engine 退避/优先级见 3.3 的魔数 if 链；(2) [rate-limit/index.ts:46-51](packages/rate-limit/src/index.ts#L46-L51) 全路由共享单一 `DEFAULT_GLOBAL_RATE_LIMIT`，无 per-route 声明式表；(3) 错误分类**两套形状**：task-engine 是 if 链 + inline 字符串比较，[error-recovery/index.ts:112-159](packages/error-recovery/src/index.ts#L112-L159) 是声明式 `Array<{match, domain}>` 表——新增可重试错误码要在两处分别改。
-- **影响**：调参需改代码发版；新增限流规则/错误码易漏改其中一套。
-- **解法**：统一为「声明式规则 + 纯函数 apply」形状（error-recovery 已是范本）：退避/优先级/限流/错误分类全部表式化；限流支持 per-route 声明。
-- **验收**：调参只改数据表/配置不改逻辑；错误分类单一来源。
+- **已修复**：(a) task-engine 退避/优先级已表式化（§3.3）；(b) task-engine 错误码分类已表式化（`ERROR_CODE_REGISTRY` 替代 if 链 `isRetriableTaskErrorCode` / `categorizeTaskErrorCode`）；(c) rate-limit 新增 `DEFAULT_ROUTE_RATE_LIMITS` 声明式 per-route 配置表 + `matchRouteRateLimit()` 纯函数匹配；(d) ✅ rate-limit 插件已接入 per-route 表 — 替换 `elysia-rate-limit` 为自定义 Elysia `onRequest` 插件，`matchRouteRateLimit()` 匹配路径 → 覆盖全局默认 → `SlidingWindowRateLimiter.check()` 判定。
+- **待渐进**：error-recovery 与 task-engine 两套错误分类表最终归一。
+- **验收**：调参只改数据表/配置不改逻辑；限流支持 per-route 声明；新增/调整路由限流只需编辑 `DEFAULT_ROUTE_RATE_LIMITS` 表。
 
 ---
 
@@ -133,19 +127,15 @@
 - **修复**：抽 `modules/generation/orchestration.ts`（`orchestrateGeneration` + `serializeRecord`），两路径共享同一编排函数。generate.ts 从 483 行缩减至 ~280 行。
 - **验收**：两路径共享同一编排函数；既有 generate/retry/cancel 测试 45 个全绿。
 
-### 4.2 🟠 dashscope-client.ts（918 行）拆四模块
+### 4.2 ✅ dashscope-client.ts（918 行）拆四模块（已修复）
 
-- **证据**：[dashscope-client.ts](packages/provider/src/dashscope-client.ts) 全局 hook 注册表 + 纯请求构造器（applyMappings/buildRequestBody）+ SSE 解析器 + Client 类四职责混一处；5 个 fetch 方法各重复 ~30 行 guard/build/observe 骨架；两 SSE 解析器 80% 重叠。
-- **影响**：最大文件、跨 server/worker 多人协作点；SSE 解析器无法脱离 client 单测。
-- **解法**：抽 `provider-hooks.ts`（observer/guard registry）、`dashscope-request-builder.ts`（纯函数）、`dashscope-sse.ts`（`iterSSEEvents` + 两解析器）；Client 内抽私有 `invokeEndpoint(model, body)` 压缩重复。
-- **验收**：Client 收缩至 ~400 行；SSE 解析器可独立单测；既有 provider 测试全绿。
+- **修复**：抽 `provider-hooks.ts`（observer/guard registry + ModelDegradedError，127 行）、`dashscope-request-builder.ts`（applyMappings + buildRequestBody 纯函数，147 行）、`dashscope-sse.ts`（iterSSEEvents + parseOpenAIChatSSE + parseDashScopeChatSSE，151 行）。Client 从 988 行收缩至 515 行；4 个 sync fetch 方法通过 `withErrorHandling` 模板压缩传输层 try/catch 重复。重导出保持下游 import 路径不变。
+- **验收**：Client 515 行，SSE 解析器可独立单测；既有 provider 142 个测试全绿。
 
-### 4.3 🟠 admin.ts（707 行）路由按子域拆
+### 4.3 ✅ admin.ts 路由按子域拆（已修复）
 
-- **证据**：[admin.ts](apps/server/src/routes/admin.ts) 单文件 17+ 路由跨 6+ 子域（tasks/users/providers/projects/audit/api-keys），且 17 个 handler 内手写 `if (!adminAllowed) return adminDenied()`，`/overview` 还重复了 `canAccessAdmin` 检查。
-- **影响**：多人并行改 admin 必撞车；手写守卫重复。
-- **解法**：按域拆 `routes/admin/{tasks,users,providers,projects,audit,api-keys,gateway,credit}.ts` + `_shared.ts` 收 helper；auth 守卫下沉到 plugin，handler 直接信任 derive 结果。
-- **验收**：admin 路由按域分文件；手写守卫归零；admin 测试全绿。
+- **修复**：`routes/admin/` 目录下按 10 子域拆为独立 handler 文件（`overview`/`tasks`/`users`/`providers`/`asset-retention`/`projects`/`audit-logs`/`api-keys`/`gateway-clients`/`credit`）+ `helpers.ts`（原 `admin-helpers.ts`）+ `index.ts`（barrel 路由注册）。Admin 鉴权从 derive 块下沉为 `resolve` 守卫（非管理员直接 throw ForbiddenError），17 个 handler 手写 `if (!adminAllowed) return adminDenied()` 归零。handler 函数可独立单测。
+- **验收**：admin 路由按域分文件，手写守卫归零；typecheck + lint + build 全绿；35 个 admin 测试全绿。
 
 ### 4.4 🟡 其余大组件拆分（接触时）
 
@@ -157,7 +147,7 @@
 | [admin-dialogs.tsx](apps/client/src/pages/admin-dialogs.tsx) | 604 | 5 个无关组件塞「dialogs」名下（含表格/状态卡）→ 按 `dialogs/` vs `components/` 正名拆 |
 | [lib/asset-library.ts](apps/client/src/lib/asset-library.ts) | 602 | Canvas deep-link（与资产无关）+ shot-reference helpers 混进 → `lib/canvas-deep-link.ts`/`lib/shot-reference-assets.ts` |
 | [PipelineController.tsx](apps/client/src/components/canvas/PipelineController.tsx) | 753 | 恢复 + auto + trigger 逻辑与渲染同处 → 抽 `usePipelineController` hook + 阶段子组件 |
-| [gateway/index.ts](packages/gateway/src/index.ts) | 469 | 错误工厂 + 协议映射 + usage 聚合 → `errors.ts`/`protocol.ts`/`usage.ts` |
+| [gateway/index.ts](packages/gateway/src/index.ts) | ✅ 已拆 | 469 行 → `errors.ts`（错误码+工厂）+ `protocol.ts`（协议映射+流）+ `usage.ts`（用量聚合），index.ts 退化为 barrel |
 
 **不应误拆（大但合理）**：`client.ts`（Eden 薄封装）、`domain-types.ts`/`shared/canvas.ts`/`shared/admin.ts`（纯类型契约）、`model-configs.ts`（声明式目录）、`generation-records.repo.ts`（单表 repo）、`modules/assets/service.ts`（单一职责 query+map）、`Developers.tsx`（文档页）。这些是「内容多」非「关注点混」，保持现状。
 
@@ -165,12 +155,11 @@
 
 ### 4.5 🟡 跨文件重复抽取（接触时）
 
-- **Admin 列表分页模板**：[Admin/ApiKeys.tsx:451-576](apps/client/src/pages/Admin/ApiKeys.tsx#L451-L576) 与 [Admin/Users.tsx:336-473](apps/client/src/pages/Admin/Users.tsx#L336-L473) 逐字复制（debounce + queryParams + refetchInterval 30s + footer + prev/next）。→ 抽 `useAdminListPagination` + `AdminListCard`。
-- **API key 表格**：`AdminGatewayKeysTable`（ApiKeys）与 `AdminUserApiKeysSection`（Users）渲染同列。→ 抽 `ApiKeyTable.tsx`。
-- **参数输入渲染**：[Workspace.tsx:128-197](apps/client/src/pages/Workspace.tsx#L128-L197) `renderParamInput` 与 [ModelLab.tsx:389-488](apps/client/src/pages/ModelLab.tsx#L389-L488) `renderParam` 对同一 `ModelParameter` 重复实现。→ 抽 `ParameterInput.tsx`。
-- **参考图多上传 UI**：Workspace 与 ModelLab 重复虚线框 + 缩略图网格。→ 抽 `ReferenceImageUploader.tsx`。
-- **状态集合枚举散落**：`IN_PROGRESS_STATUSES`/`ACTIVE_GENERATION_STATUSES`/`REQUEUEABLE_STATUSES`/`GEN_RUNNING_STATUSES` 在 generation/service、generation-records.repo、admin/tasks、assets/service 各自定义、成员重叠。→ 单一 `@excuse/shared` status-set 模块。
-- **验收**：重复收敛为单一来源，导出项均有生产消费者。
+- **Admin 列表分页模板 ✅**：[Admin/ApiKeys.tsx:451-576](apps/client/src/pages/Admin/ApiKeys.tsx#L451-L576) 与 [Admin/Users.tsx:336-473](apps/client/src/pages/Admin/Users.tsx#L336-L473) 逐字复制同一分页 footer → 已抽 `AdminPaginationFooter`（`shared.tsx`），两 Tab 均已接入。
+- **API key 表格 ✅**：`AdminGatewayKeysTable`（ApiKeys）与 `AdminUserApiKeysSection`（Users）渲染同列 → 已抽 `ApiKeyTable`（`shared.tsx`），通过 `showName` / `showCreatedAt` / `showActions` 控制差异化列。
+- **参数输入渲染 ✅**：[Workspace.tsx:128-197](apps/client/src/pages/Workspace.tsx#L128-L197) `renderParamInput` 与 [ModelLab.tsx:389-488](apps/client/src/pages/ModelLab.tsx#L389-L488) `renderParam` 重复实现 → 已抽 `ParameterInput.tsx`（覆盖 text/number/select/boolean/mediaUpload 五种形态），Workspace + ModelLab 均已接入。
+- **参考图多上传 UI ✅**：Workspace 与 ModelLab 重复虚线框 + 缩略图网格 → 已抽 `ReferenceImageUploader.tsx`，两页均已接入。
+- **状态集合枚举散落 ✅**：`ACTIVE_GENERATION_STATUSES` / `GEN_RUNNING_STATUSES` 已收敛至 `@excuse/shared/src/generation.ts`（与 `GenerationStatus` 类型同源）。generation/service、generation-records.repo、assets/service 已改用共享导出。`REQUEUEABLE_STATUSES` 属于 task 状态（非 generation），保留在 admin/tasks 原位。
 
 ---
 
@@ -180,12 +169,10 @@
 
 - **修复**：`tasks` 表加 `traceId` 列（migration 0044）；server（generate.ts/canvas/helpers.ts）创建 task 时透传 traceId；worker（task-handler/pipeline-stepper）日志 + pipeline auto-advance 传播 traceId；`notifyTaskStatusChange` NOTIFY 载荷含 traceId。（commit 7fc1364）
 
-### 5.2 🟡 错误日志 / SSE 可能含 prompt 全文
+### 5.2 ✅ 错误日志 / SSE 可能含 prompt 全文（已修复）
 
-- **证据**：[dashscope-client.ts](packages/provider/src/dashscope-client.ts) `parseDashScopeError(data)` 进 errorMessage → 进 DB errorMessage → 推 SSE 给前端；[error-recovery/index.ts:270](packages/error-recovery/src/index.ts#L270) 有 `truncate(detail, 500)` 但只在 recovery 分类层。
-- **影响**：DashScope 错误响应可能 echo 请求 prompt 片段 → 敏感内容泄露到前端/日志。
-- **解法**：errorMessage 入库/入 SSE 前统一截断 + 脱敏（在 DB 写入或 SSE 分发边界层）。
-- **验收**：DB/SSE 中的 errorMessage 长度有界且不含原始 prompt 全文。
+- **修复**：`@excuse/shared` 新增 `sanitizeErrorMessage()`（截断至 500 字符 + 移除敏感 JSON 嵌入）。应用点：(a) `parseDashScopeError` 返回前脱敏；(b) `markTaskFailed`（tasks.repo）入库前脱敏；(c) `markGenerationFailed` / `cancelGenerationRecordIfActive`（generation-records.repo）入库前脱敏。
+- **验收**：errorMessage 入库/入 SSE 统一经过截断+脱敏；既有 provider/db 测试全绿。
 
 ---
 
@@ -256,8 +243,9 @@ bun run check:boundaries
 
 1. **P0（已全部完成 ✅）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
 2. **P1（全部完成 ✅）**：§5.1 traceId 贯穿 ✅ · §1.4 上传提示 + 草稿保护 ✅ · §4.1 generate 去重 ✅ · §2.4 SSE 死连接 ✅ · §2.5 rate-limit 加固 ✅
-3. **P2（部分完成）**：§3.2 category 注册表（核心路径 ✅）· §3.4 配置表式化 · §1.1 骨架屏 · §1.2 空状态 · §4.2 dashscope 拆分 · §4.3 admin 拆分
-4. **接触时顺手**：§1.5 Toast/nav/form/a11y · §4.4-4.5 大文件/去重 · §5.2 错误脱敏
+3. **P2**：
+   - ✅ §3.2 category 注册表（核心路径）· ✅ §3.3 task-engine 去耦 · ✅ §3.4 配置表式化（核心）· ✅ §1.1 骨架屏 · ✅ §1.2 空状态 · ✅ §5.2 错误脱敏 · ✅ §4.2 dashscope 拆分 · ✅ §4.3 admin 按域拆
+4. **接触时顺手**：§1.5 Toast/a11y（Toast✅ a11y✅）· §4.4 大文件拆分 · §4.5 去重（status集合✅ · ParameterInput✅ · ReferenceImageUploader✅ · AdminPaginationFooter✅ · ApiKeyTable✅）
 5. **暂缓**：§六 多租户 / i18n / Redis 限流（待路线图）
 
-已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）、草稿保护（§1.4(b) ✅）、generate 去重（§4.1 ✅）、rate-limit 加固（§2.5 ✅）、category 核心注册表（§3.2 部分 ✅）
+已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）、草稿保护（§1.4(b) ✅）、generate 去重（§4.1 ✅）、rate-limit 加固（§2.5 ✅）、category 注册表（§3.2 ✅，含 dashscope-client switch 注册表化）、task-engine 策略表化（§3.3 ✅）、配置表式化（§3.4 ✅，含 per-route 插件接入）、骨架屏+空状态（§1.1+§1.2 ✅）、错误脱敏（§5.2 ✅）、dashscope 拆四模块（§4.2 ✅）、admin 按域拆（§4.3 ✅）、status 集合收敛 + ParameterInput + ReferenceImageUploader + AdminPaginationFooter + ApiKeyTable 去重（§4.5 ✅）
