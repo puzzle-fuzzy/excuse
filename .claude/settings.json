@@ -27,7 +27,16 @@
       "Bash(mv /tmp/Assets_trimmed.tsx /Users/yxswy/Documents/excuse/apps/client/src/pages/Assets.tsx)",
       "Bash(npx tsc *)",
       "Bash(git reset *)",
-      "Bash(bun --env-file .env -e ' *)"
+      "Bash(bun --env-file .env -e ' *)",
+      "Bash(bun --env-file .env drizzle-kit push --help)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(echo \"FULL TYPECHECK EXIT: $?\")",
+      "Bash(echo \"LINT EXIT: $?\")",
+      "Bash(echo \"BUILD EXIT: $?\")",
+      "Bash(echo \"TEST EXIT: $?\")",
+      "Bash(echo \"TEST:CLIENT EXIT: $?\")"
     ]
   }
 }
