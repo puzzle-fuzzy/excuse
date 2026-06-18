@@ -20,7 +20,7 @@ import { createWorkerContext } from './context'
 import { createTaskPollSource } from './poll-sources'
 import { recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
-import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startOrphanSweep } from './worker-lifecycle'
+import { checkWorkerEnvironment, setupGracefulShutdown, setupHealthServer, startCreditReconciliation, startOrphanSweep } from './worker-lifecycle'
 
 const config = loadConfig()
 const logger = createLogger('worker')
@@ -46,6 +46,7 @@ const currentTaskPromiseRef = { value: null as Promise<unknown> | null }
 // ── 优雅退出 + 孤儿任务清扫 ────────────────────────────
 setupGracefulShutdown(runningRef, currentTaskPromiseRef, server)
 const stopSweep = startOrphanSweep(config, healthState)
+const stopCreditRecon = startCreditReconciliation(config)
 
 // ── 主循环 ──────────────────────────────────────────────
 const pollSources = [

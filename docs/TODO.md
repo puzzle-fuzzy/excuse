@@ -43,13 +43,6 @@
 
 > 这些是真实运行中会炸、会资损、会静默错乱的隐患。多数改动小、收益大，应优先处理。
 
-### 1.3 🔴 credit reserve 后崩溃 / 流式中断 → frozen 余额永久泄漏
-
-- **证据**：credit reserve/debit/refund 是原子 SQL（`UPDATE ... WHERE availableCents >= N` + 幂等唯一索引，设计扎实），但 reserve → debit 之间无超时释放、无对账。gateway 流式路径若 provider 慢但不超时（见 1.1）或客户端中途断开，`reservedCents` 会一直 frozen。
-- **影响**：server/worker 崩溃、流式断开、长任务中途失败但 refund 未走到，都会让用户余额被「冻死」在 reserved 状态，长期累积即资损 + 用户被锁死。
-- **解法**：加一个对账 job（worker 周期任务）：扫描 `credit_transactions` 中 `type=reserve` 且超过阈值时长（如 1h）无对应 debit/refund 收尾的记录，自动 refund 并审计。
-- **验收**：构造 reserve 后无收尾的 fixture，对账 job 能识别并 refund；正常 debit/refund 流程不被误伤。
-
 ### 1.4 🟠 FFmpeg 操作无超时 / 无强制 kill
 
 - **证据**：[ffmpeg](packages/ffmpeg/src/) 的 concat/烧字幕/抽音频可能跑很久甚至卡死（坏文件、超大文件、编码死循环）。当前依赖 Bun 子进程默认行为，无显式 `timeout` + kill 兜底。
@@ -343,9 +336,9 @@ bun run check:boundaries
 
 ## 本轮总览（截至 2026-06-18）
 
-本轮六维度审计新发现 **运行时 🔴×2 / 架构 🔴×2 / 前端 🔴×2** 等共约 40 项，按 ROI 建议推进顺序：
+本轮六维度审计新发现 **运行时 🔴×1 / 架构 🔴×2 / 前端 🔴×2** 等共约 40 项，按 ROI 建议推进顺序：
 
-1. **P0（立刻，生产风险）**：§1.1 fetch 超时 · §1.3 credit 对账。
+1. **P0（立刻，生产风险）**：§1.1 fetch 超时。
 2. **P1（短期，drift / 体验）**：§2.1 阶段注册表 · §2.2 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §4.4 流水线 12 阶段 · §5.1 generate 去重 · §6.1 traceId 贯穿。
 3. **P2（治理 / 打磨）**：§2.3-2.5 拓展性注册表化 · §3.3 状态色收敛 · §4.3/4.5/4.6 空状态/上传/Toast/导航/a11y · §5.2-5.5 文件拆分与去重。
 4. **暂缓**：§7 多租户 / i18n / Redis 限流（待路线图）。

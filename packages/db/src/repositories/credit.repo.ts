@@ -1,5 +1,5 @@
 import type { CreditAccountRow, CreditTransactionRow } from '../types'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, lte, or, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { creditAccounts, creditTransactions, usageEvents } from '../schema'
 
@@ -292,6 +292,64 @@ export async function listCreditTransactions(opts: {
     .orderBy(desc(creditTransactions.createdAt))
     .limit(limit)
     .offset(offset)
+}
+
+/**
+ * 查找孤立的 reserve 交易 — 已 reserve 超过阈值但无对应 debit/refund 收尾的记录。
+ *
+ * 用于信用对账 job（worker 周期任务，TODO §1.3）：防止 server/worker 崩溃或流式中断
+ * 导致用户余额永久 frozen。正常 reserve → debit/refund 应在数分钟内完成，
+ * 超过 thresholdMinutes 的孤立 reserve 应自动 refund。
+ */
+export async function findStaleReservedCredits(thresholdMinutes = 60): Promise<Array<{
+  reserveTxId: string
+  accountId: string
+  generationRecordId: string
+  reservedCents: number
+  createdAt: Date
+}>> {
+  const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000)
+
+  // 子查询：查找有 reserve 但无 debit 也无 refund 的 generationRecordId
+  const recordsWithDebitOrRefund = getDb()
+    .select({ generationRecordId: creditTransactions.generationRecordId })
+    .from(creditTransactions)
+    .where(
+      and(
+        sql`${creditTransactions.generationRecordId} IS NOT NULL`,
+        or(
+          eq(creditTransactions.type, 'debit'),
+          eq(creditTransactions.type, 'refund'),
+        ),
+      ),
+    )
+    .as('records_with_debit_or_refund')
+
+  const rows = await getDb()
+    .select({
+      reserveTxId: creditTransactions.id,
+      accountId: creditTransactions.accountId,
+      generationRecordId: creditTransactions.generationRecordId,
+      reservedCents: creditTransactions.amountCents,
+      createdAt: creditTransactions.createdAt,
+    })
+    .from(creditTransactions)
+    .where(and(
+      eq(creditTransactions.type, 'reserve'),
+      lte(creditTransactions.createdAt, cutoff),
+      sql`${creditTransactions.generationRecordId} IS NOT NULL`,
+      sql`${creditTransactions.generationRecordId} NOT IN (SELECT ${recordsWithDebitOrRefund.generationRecordId} FROM ${recordsWithDebitOrRefund})`,
+    ))
+
+  return rows
+    .filter((r): r is typeof r & { generationRecordId: string } => r.generationRecordId !== null)
+    .map(r => ({
+      reserveTxId: r.reserveTxId,
+      accountId: r.accountId,
+      generationRecordId: r.generationRecordId,
+      reservedCents: Number(r.reservedCents),
+      createdAt: r.createdAt,
+    }))
 }
 
 // ===== Error =====

@@ -6,7 +6,7 @@
 
 import type { WorkerConfig } from './config'
 import type { WorkerHealthState } from './health'
-import { sweepOrphanTasks } from '@excuse/db'
+import { findStaleReservedCredits, refundCredit, sweepOrphanTasks } from '@excuse/db'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { createHealthServer } from './health'
@@ -115,6 +115,67 @@ export function startOrphanSweep(
   run()
   sweepTimer = setInterval(run, config.sweepIntervalMs)
   return () => clearInterval(sweepTimer)
+}
+
+/**
+ * 信用对账 — 释放孤立 reserve 冻结资金（TODO §1.3）
+ *
+ * 扫描 credit_transactions 中 reserve 超过 1h 但无对应 debit/refund 收尾的记录，
+ * 自动 refund 并审计。防止 server/worker 崩溃或流式中断导致用户余额永久 frozen。
+ *
+ * 幂等：refundCredit 已按 generationRecordId + type 唯一索引防重。
+ */
+async function reconcileStaleReservedCredits(): Promise<number> {
+  const orphans = await findStaleReservedCredits(60) // 1h 阈值
+  if (orphans.length === 0)
+    return 0
+
+  const CREDIT_RECONCILE_DESCRIPTION = '信用对账：孤立 reserve 自动退款'
+  let reconciled = 0
+  for (const orphan of orphans) {
+    try {
+      await refundCredit({
+        accountId: orphan.accountId,
+        generationRecordId: orphan.generationRecordId,
+        description: CREDIT_RECONCILE_DESCRIPTION,
+      })
+      reconciled++
+    }
+    catch (err) {
+      logger.error({ err, generationRecordId: orphan.generationRecordId }, '信用对账失败')
+    }
+  }
+  return reconciled
+}
+
+/**
+ * 启动信用对账周期任务（与孤儿清扫同频）。
+ * 返回 clearInterval 函数。
+ */
+export function startCreditReconciliation(config: WorkerConfig): () => void {
+  let timer: ReturnType<typeof setInterval>
+
+  async function run() {
+    try {
+      const count = await reconcileStaleReservedCredits()
+      if (count > 0) {
+        logger.info({ count }, '💰 Credit reconciliation: released orphaned reserved credits')
+      }
+    }
+    catch (err) {
+      if (isPgTableNotFoundError(err)) {
+        logger.error('❌ 数据库表不存在，请先运行数据库迁移')
+        clearInterval(timer)
+        return
+      }
+      logger.error({ err }, 'Credit reconciliation error')
+    }
+  }
+
+  run()
+  // 与孤儿清扫共用 sweep 间隔（默认 60s），对账轻量无额外负担
+  timer = setInterval(run, config.sweepIntervalMs)
+  return () => clearInterval(timer)
 }
 
 /**
