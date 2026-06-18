@@ -47,11 +47,9 @@
 - **解法**：随 §一 决策——迁移则自动统一；带外则把 `classifyTaskError` 的决策回填到 video/ASR 的 FAILED 分支（区分 retriable vs permanent）。
 - **验收**：构造一次 DashScope Throttling，确认 video 与 canvas 阶段**行为一致**（都按 backoff 重试）。
 
-### 1.5 🟡 CLAUDE.md「4 个 workload」已过时
+### 1.5 🟡 CLAUDE.md「4 个 workload」已过时 — ✅ 已修复
 
-- **证据**：CLAUDE.md「Worker Structure」列 4 个 workload 含 `pollExportingProjects → processExportTask`；实际 [index.ts](apps/worker/src/index.ts) 只有 3 个 poll source，字幕导出已迁到 `media.burn-subtitle` task；`pollExportingProjects`（[subtitle-projects.repo.ts:116](packages/db/src/repositories/subtitle-projects.repo.ts#L116)）与 `processExportTask` 均为**死代码**（零调用方）。
-- **解法**：CLAUDE.md 改为 3 个 workload，注明字幕导出已是 `media.burn-subtitle` task；删除死函数 `pollExportingProjects`。
-- **验收**：`grep pollExportingProjects` 仅剩删除记录；CLAUDE.md 与 index.ts 一致。
+> **已完成**：`pollExportingProjects` 死函数已删（§八 死代码清理 commit）；CLAUDE.md「Worker Structure」已改为 **3 个 PollSource** 并注明字幕导出已迁 `media.burn-subtitle` task（§五 文档同步）。
 
 > **§一 决策点（需用户拍板）**：video/ASR 是迁进统一队列（推荐，一次性消灭 1.1/1.2/1.3/1.4 四个问题）还是显式带外保留？这决定后续 4 项的解法走向。
 
@@ -126,29 +124,21 @@
 - **解法**：让 `@excuse/gateway` 抛 AppError 子类（首选，统一契约）；auth 的 resolve 守卫改抛 `UnauthorizedError`。
 - **验收**：`set.status =` / `status(…, …)` 业务错误造法收敛到「仅 errorHandlerPlugin」一处。
 
-### 3.6 🟢 client 78 处手动 useMemo/useCallback（React Compiler 已开）
+### 3.6 🟢 client 78 处手动 useMemo/useCallback（React Compiler 已开） — ⏸ 暂不批量处理（需 profiling）
 
-- **证据**：vite.config 确认 `babel({ presets: [reactCompilerPreset()] })` 已启用；client 仍有 78 处手动 memo（最密集：`ShotReferenceAssets.tsx` 13、`NodeDetailPanel.tsx` 10）。
-- **影响**：Compiler 已自动 memoize，这些是死复杂度 + stale-closure 隐患，与 CLAUDE.md「auto-memoize」表述矛盾。
-- **解法**：接触相关组件时顺手删纯派生/stable-dep 的 memo（先开 compiler eslint 插件校验）；仅保留经 profiling 确认的高耗时计算。
-- **验收**：数量显著下降；既有交互无回归。
+> **处置**：本项解法明确要求「先开 compiler eslint 插件校验」「仅保留经 profiling 确认的高耗时计算」——即**不能盲目批量删除**（stale-closure 风险 + 可能引入 re-render 回归）。当前无 profiling 基线，批量删 memo 违反解法自身的谨慎前提。建议：接触 `ShotReferenceAssets.tsx`（13）/`NodeDetailPanel.tsx`（10）等密集组件时顺手删纯派生 memo，配合 compiler eslint 插件 + 交互回归验证。**不作为独立批量任务。**
 
 ---
 
 ## §四、过度复杂化（Over-complexity，整体轻微）
 
-### 4.1 🟡 `auth` 包 32 LOC 太小
+### 4.1 🟡 `auth` 包 32 LOC 太小 — ✅ 已处置（接受现状）
 
-- **证据**：[packages/auth](packages/auth/) 全包 32 行（`API_KEY_PREFIX` + SHA-256 hash + prefix 抽取），6 个 export 中 3 个零外部消费者。架构理由（保持 auth plugin 纯净、不 import db）成立，但 32 行不值得一个包边界 + package.json + tsconfig + 测试脚手架。
-- **解法**：并入 `@excuse/shared`（已有 `domain-types.ts`/`config-helpers.ts` 等纯 helper），或保留但接受现状。
-- **验收**：若并入，`@excuse/auth` 消失，import 改向 `@excuse/shared`，边界检查器规则同步移除 auth 条目。
+> **已完成**（采用解法「保留但接受现状」）：`@excuse/auth` 的纯度边界（不 import db，保持 auth plugin 纯净）成立且已被边界检查器强制（§六 纯包规则含 auth）。并入 shared 需迁文件 + 改 N 处 import + 改边界规则，而 §4.3 明确「不建议大动包结构」。故保留现状，零代码改动。
 
-### 4.2 🟡 `getTaskPriority` / `computeRetryDelay` 把 phase 名硬编码进 task-engine
+### 4.2 🟡 `getTaskPriority` / `computeRetryDelay` 把 phase 名硬编码进 task-engine — ✅ 已处置（接受现状 + 文档化）
 
-- **证据**：[task-engine/src/index.ts:190-200](packages/task-engine/src/index.ts#L190) 的 `getTaskPriority` 硬编码 `canvas.videos`/`media.*`；[index.ts:386-391](packages/task-engine/src/index.ts#L386) 的 `computeRetryDelay` 硬编码 `canvas.videos`/`generate.video` 给指数退避。task-engine（生命周期）越界懂了 workflow-engine（phase 编排）的词汇。
-- **影响**：缝漏——task/workflow-engine 的拆分概念正确不该合，但 priority/backoff 策略无处安放，只能字符串特判。每加一个「慢阶段」都要改 task-engine。
-- **解法**：把 priority/backoff 策略挪到声明式表（canvas 的归 workflow-engine，generate 的归 gateway），task-engine 只留生命周期机制；或接受现状但文档化「task-engine 持有一张策略表」。
-- **验收**：新增一个 canvas 阶段时，priority/backoff 无需改 task-engine（除非改默认策略）。
+> **已完成**（采用解法 B「接受现状但文档化」）：`getTaskPriority` 与 `computeRetryDelay` 已加文档注释，明确两者同属 task-engine 持有的「策略表」——priority/backoff 按已知 phase/type 字符串特判是权衡后的选择（挪到 workflow-engine 会让 task-engine 无法独立计算退避），新增「慢阶段」在此一处登记即可。拆分本身正确不合，缝漏可接受。
 
 ### 4.3 🟢 19 个包整体偏多但多数站得住
 

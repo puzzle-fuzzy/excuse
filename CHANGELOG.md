@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **P3 处置批次：§1.5 标记完成 / §4.1 接受现状 / §4.2 文档化策略表 / §3.6 暂不批量处理**（TODO2）：① §1.5（CLAUDE.md 4→3 workload + 删 `pollExportingProjects`）已在先前 commit 完成，本批补标记；② §4.1 `@excuse/auth` 32 行包——采用「保留但接受现状」（纯度边界成立且被边界检查器强制，§4.3 不建议大动包结构），零代码改动；③ §4.2 `getTaskPriority`/`computeRetryDelay` 给两函数加文档注释，明确同属 task-engine 持有的「策略表」（权衡后接受字符串特判，新增慢阶段一处登记）；④ §3.6 client 78 处手动 memo——按解法自身的谨慎前提（「仅保留经 profiling 确认」「先开 compiler eslint 插件校验」），无 profiling 基线下不批量删除（stale-closure/re-render 回归风险），改为接触密集组件时顺手清理。验收：task-engine test(25)/lint 全绿。
+
 ### Fixed
 
 - **优雅关停 drain 统一任务队列（不只视频）**（TODO2 §1.3）：此前 `currentTaskPromiseRef` 只在视频轮询源赋值，统一队列最长的 `canvas.assemble`（FFmpeg 合成，数分钟）收到 SIGTERM 被 `process.exit(0)` 直接砍掉，task 卡 `running`、锁被带飞，只能等 5 分钟孤儿回收——「最长的活反而最不安全」。修复：`createTaskPollSource` 把 in-flight promise（提取为 `executeClaimedTask`）写入共享 `currentTaskPromiseRef`，`setupGracefulShutdown` 关停时 await 它，drain 所有 poll source。`currentTaskPromiseRef` 类型从 `Promise<TaskResult>` 放宽为 `Promise<unknown>`（两源 promise 形状不同），视频源改用本地 typed 变量保留 `TaskResult` 推断。新增 `poll-sources.test.ts`（drain 行为 + 无任务不触碰 ref）。顺带 worker `test` 脚本加 `--isolate`（与 root 调用 + server 一致，worker 套件含 `mock.module` 需隔离）。验收：worker typecheck/lint/test(108, +2) 全绿。§1.1/§1.2/§1.4 仍待 §一 A/B 决策。

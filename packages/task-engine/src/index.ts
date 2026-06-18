@@ -334,6 +334,16 @@ export function decideTaskFailureAction(task: TaskRetryCandidate, error: unknown
   }
 }
 
+/**
+ * 统一任务退避策略（与 getTaskPriority 同属 task-engine 持有的「策略表」）。
+ *
+ * 慢阶段（video）用指数退避（60s → 120s → 240s → 480s，封顶 4 次），其余固定 30s。
+ *
+ * 设计说明（TODO2 §4.2，接受现状 + 文档化）：priority/backoff 按已知 phase/type 字符串
+ * 特判确实让 task-engine（生命周期）越界懂了 workflow-engine（phase 编排）的词汇，
+ * 但策略无处更合适安放——挪到 workflow-engine 会让 task-engine 无法独立计算退避。
+ * 故保留此策略表，新增「慢阶段」时在此一处登记即可（无需改机制）。
+ */
 export function computeRetryDelay(taskType: string, attempts: number): number {
   if (taskType.includes('video') || taskType === 'canvas.videos' || taskType === 'generate.video') {
     return 60_000 * 2 ** Math.min(attempts - 1, 3)
