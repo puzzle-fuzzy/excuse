@@ -38,6 +38,63 @@ export interface TaskPriorityInput {
   domain: string
 }
 
+/**
+ * 优先级策略表 — 声明式映射 task type/domain → priority（数字越小越早领取）。
+ *
+ * 新增业务 type 时在此表登记一行即可，无需改动 getTaskPriority 逻辑。
+ */
+export interface TaskPriorityPolicy {
+  /** Per-type priority overrides（优先级最高） */
+  typeOverrides: Record<string, number>
+  /** Per-domain fallback priority */
+  domainFallbacks: Record<string, number>
+  /** Default priority when no type or domain match */
+  default: number
+}
+
+/**
+ * 退避策略表 — 声明式映射 task type → delay。
+ *
+ * - `fixedInterval`：轮询型 task（如 DashScope 异步 video/ASR）固定间隔
+ * - `exponentialBase`：慢阶段指数退避 base（60s × 2^attempt）
+ * - 其余 task 使用 `default` 值
+ */
+export interface TaskBackoffPolicy {
+  /** Type → fixed polling interval (ms) */
+  fixedInterval: Record<string, number>
+  /** Type → exponential base (ms), delay = base × 2^(attempts-1) */
+  exponentialBase: Record<string, number>
+  /** Default delay (ms) for types not in fixedInterval or exponentialBase */
+  default: number
+}
+
+/** 当前默认优先级策略（与历史行为一致） */
+export const DEFAULT_PRIORITY_POLICY: TaskPriorityPolicy = {
+  typeOverrides: {
+    'generate.video': 4,
+    'subtitle.asr': 4,
+    'media.extract-audio': 3,
+    'media.burn-subtitle': 3,
+    'canvas.videos': 6,
+  },
+  domainFallbacks: {
+    canvas: 5,
+  },
+  default: 5,
+}
+
+/** 当前默认退避策略（与历史行为一致） */
+export const DEFAULT_BACKOFF_POLICY: TaskBackoffPolicy = {
+  fixedInterval: {
+    'generate.video': 5_000,
+    'subtitle.asr': 5_000,
+  },
+  exponentialBase: {
+    'canvas.videos': 60_000,
+  },
+  default: 30_000,
+}
+
 export interface TaskDefinition<TTask, TContext, TOutput = Record<string, unknown> | undefined> {
   type: string
   handler: TaskHandler<TTask, TContext, TOutput>
@@ -191,21 +248,20 @@ export function createTaskHandlerRegistry<TTask extends { type: string }, TConte
  *
  * 数字越小越早被 `claimNextTask` 领取。Worker 当前单进程串行执行 task，
  * 因此 priority 是用户可感知公平性的第一道调度边界。
+ *
+ * @param input 任务类型与领域信息
+ * @param policy 可注入的自定义优先级策略，默认使用 `DEFAULT_PRIORITY_POLICY`。
+ *               新增业务 type 时在 policy 表登记即可，无需改动此函数逻辑。
  */
-export function getTaskPriority(input: TaskPriorityInput): number {
-  if (input.type === 'generate.video')
-    return 4
-  if (input.type === 'subtitle.asr')
-    return 4
-  if (input.type === 'media.extract-audio')
-    return 3
-  if (input.type === 'media.burn-subtitle')
-    return 3
-  if (input.type === 'canvas.videos')
-    return 6
-  if (input.domain === 'canvas')
-    return 5
-  return 5
+export function getTaskPriority(
+  input: TaskPriorityInput,
+  policy: TaskPriorityPolicy = DEFAULT_PRIORITY_POLICY,
+): number {
+  if (input.type in policy.typeOverrides)
+    return policy.typeOverrides[input.type]!
+  if (input.domain in policy.domainFallbacks)
+    return policy.domainFallbacks[input.domain]!
+  return policy.default
 }
 
 export async function completeTaskWithAdapter<TTask extends { id: string }, TOutput = Record<string, unknown> | undefined>(
@@ -375,24 +431,29 @@ export function decideTaskFailureAction(task: TaskRetryCandidate, error: unknown
 }
 
 /**
- * 统一任务退避策略（与 getTaskPriority 同属 task-engine 持有的「策略表」）。
+ * 统一任务退避策略。
  *
- * 慢阶段（video）用指数退避（60s → 120s → 240s → 480s，封顶 4 次），其余固定 30s。
- *
- * 设计说明（TODO2 §4.2，接受现状 + 文档化）：priority/backoff 按已知 phase/type 字符串
- * 特判确实让 task-engine（生命周期）越界懂了 workflow-engine（phase 编排）的词汇，
- * 但策略无处更合适安放——挪到 workflow-engine 会让 task-engine 无法独立计算退避。
- * 故保留此策略表，新增「慢阶段」时在此一处登记即可（无需改机制）。
+ * @param taskType 任务类型字符串
+ * @param attempts 当前重试次数
+ * @param policy 可注入的自定义退避策略，默认使用 `DEFAULT_BACKOFF_POLICY`。
+ *               新增退避规则时在 policy 表登记即可，无需改动此函数逻辑。
  */
-export function computeRetryDelay(taskType: string, attempts: number): number {
-  // 轮询型 task（generate.video / subtitle.asr）：固定 5s 间隔重新 poll
-  if (taskType === 'generate.video' || taskType === 'subtitle.asr') {
-    return 5_000
+export function computeRetryDelay(
+  taskType: string,
+  attempts: number,
+  policy: TaskBackoffPolicy = DEFAULT_BACKOFF_POLICY,
+): number {
+  // 轮询型 task：固定间隔重新 poll
+  if (taskType in policy.fixedInterval)
+    return policy.fixedInterval[taskType]!
+
+  // 指数退避：base × 2^(attempts-1)，封顶 exponent 3（即 8× base）
+  if (taskType in policy.exponentialBase) {
+    const base = policy.exponentialBase[taskType]!
+    return base * 2 ** Math.min(attempts - 1, 3)
   }
-  if (taskType.includes('video') || taskType === 'canvas.videos') {
-    return 60_000 * 2 ** Math.min(attempts - 1, 3)
-  }
-  return 30_000
+
+  return policy.default
 }
 
 export function extractErrorCode(error: unknown): string | undefined {
@@ -407,25 +468,32 @@ export function extractErrorCode(error: unknown): string | undefined {
   return cause?.code
 }
 
+/**
+ * 错误码分类注册表 — 声明式定义每个错误码的 category + retriable 属性。
+ *
+ * 新增可重试/分类错误码时在此表登记一行即可，无需修改 isRetriable/categorize 逻辑。
+ * 与 `@excuse/error-recovery` 的 `Array<{match, domain}>` 表侧重不同：
+ *   - 此表负责 task lifecycle 决策（retry vs fail）
+ *   - error-recovery 表负责 user-facing recovery 映射（suggestion / diagnostics）
+ */
+const ERROR_CODE_REGISTRY: Record<string, { category: TaskErrorCategory, retriable: boolean }> = {
+  ECONNREFUSED: { category: 'timeout', retriable: true },
+  ETIMEDOUT: { category: 'timeout', retriable: true },
+  TIMEOUT: { category: 'timeout', retriable: true },
+  ECONNRESET: { category: 'provider_error', retriable: true },
+  Throttling: { category: 'provider_error', retriable: true },
+  InternalError: { category: 'provider_error', retriable: true },
+  MODEL_DEGRADED: { category: 'provider_error', retriable: true },
+  LOCK_LOST: { category: 'system', retriable: true },
+  FFMPEG_TIMEOUT: { category: 'timeout', retriable: true },
+} as const
+
 function isRetriableTaskErrorCode(code: string | undefined): boolean {
-  return code === 'ECONNREFUSED'
-    || code === 'ETIMEDOUT'
-    || code === 'ECONNRESET'
-    || code === 'Throttling'
-    || code === 'InternalError'
-    || code === 'TIMEOUT'
-    || code === 'MODEL_DEGRADED'
-    || code === 'LOCK_LOST'
+  return code != null && ERROR_CODE_REGISTRY[code]?.retriable === true
 }
 
 function categorizeTaskErrorCode(code: string | undefined): TaskErrorCategory {
-  if (code === 'ECONNREFUSED' || code === 'ETIMEDOUT' || code === 'TIMEOUT')
-    return 'timeout'
-  if (code === 'Throttling' || code === 'InternalError' || code === 'ECONNRESET' || code === 'MODEL_DEGRADED')
-    return 'provider_error'
-  if (code === 'LOCK_LOST')
-    return 'system'
-  return 'system'
+  return ERROR_CODE_REGISTRY[code ?? '']?.category ?? 'system'
 }
 
 function toTaskErrorInfo(decision: TaskErrorDecision, message: string): TaskErrorInfo {

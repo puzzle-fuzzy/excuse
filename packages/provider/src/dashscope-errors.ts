@@ -5,6 +5,8 @@
  * 参考文档：docs/bailian/错误码.md
  */
 
+import { sanitizeErrorMessage } from '@excuse/shared'
+
 const DASHSCOPE_ERROR_MESSAGES: Record<string, string> = {
   // ── 认证 / 授权 ──
   'Arrearage': '账号欠费，请前往阿里云控制台充值后重试',
@@ -103,6 +105,12 @@ export function getDashScopeErrorMessage(code: string, fallback: string): string
  * 4. 异步任务失败: { output: { task_status: "FAILED", message } }
  */
 export function parseDashScopeError(response: unknown): string {
+  const raw = parseRawDashScopeError(response)
+  return sanitizeErrorMessage(raw)
+}
+
+/** 解析原始 DashScope 错误响应（未脱敏），供内部调用 */
+function parseRawDashScopeError(response: unknown): string {
   if (!response || typeof response !== 'object') {
     return '未知错误'
   }

@@ -27,6 +27,19 @@ export type GenerationStatus
     | 'failed'
     | 'cancelled'
 
+/**
+ * 进行中的 generation status（非终态）—— 用于去重检查、取消活跃记录等场景。
+ *
+ * 之前散落在 generation/service、generation-records.repo、assets/service 各自定义，
+ * 成员重叠。现在单一来源，消费者直接 import。
+ */
+export const ACTIVE_GENERATION_STATUSES = ['pending', 'submitting', 'processing', 'saving_output'] as const
+
+/**
+ * Provider 侧正在执行的 generation status（不含 pending 排队态）。
+ */
+export const GEN_RUNNING_STATUSES: readonly GenerationStatus[] = ['submitting', 'processing', 'saving_output']
+
 // ===== SSE → GenerationRecord 运行时解析 =====
 
 /** 根据 type 辨识字段的类型守卫 */

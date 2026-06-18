@@ -35,7 +35,7 @@ import {
   listGenerationRecords,
   listUploadedFilesForAccount,
 } from '@excuse/db'
-import { CATEGORY_META, isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
+import { CATEGORY_META, GEN_RUNNING_STATUSES, isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 
 // ── 集中映射：canvas_assets.category → AssetLibraryKind ──────────────────────
 //
@@ -77,9 +77,6 @@ function kindIsGenCategory(kind: AssetLibraryKind): boolean {
 }
 
 // ── 集中映射：统一 status 过滤 → 各来源原始状态集合 ──────────────────────────
-
-/** generation_records 原始状态中属于“生成中（running）”的集合 */
-const GEN_RUNNING_STATUSES: GenerationStatus[] = ['submitting', 'processing', 'saving_output']
 
 /** 统一 status 过滤 → generation_records 状态集合（undefined 表示不过滤） */
 function genStatusesFor(status: AssetLibraryStatusFilter | 'all'): GenerationStatus[] | undefined {

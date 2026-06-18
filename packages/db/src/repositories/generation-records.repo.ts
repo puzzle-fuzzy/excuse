@@ -1,5 +1,6 @@
 import type { CostDetail, OutputResult } from '../domain-types'
 import type { GenerationRecordInsert, ListGenerationRecordsFilter } from '../types'
+import { ACTIVE_GENERATION_STATUSES, sanitizeErrorMessage } from '@excuse/shared'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { generationRecords } from '../schema'
@@ -105,9 +106,10 @@ export async function listGenerationRecords(filter: ListGenerationRecordsFilter 
  * 标记生成记录为失败
  */
 export async function markGenerationFailed(id: string, errorMessage: string) {
+  const sanitized = sanitizeErrorMessage(errorMessage)
   await getDb()
     .update(generationRecords)
-    .set({ status: 'failed', errorMessage, dedupeKey: null, updatedAt: new Date() })
+    .set({ status: 'failed', errorMessage: sanitized, dedupeKey: null, updatedAt: new Date() })
     .where(eq(generationRecords.id, id))
 }
 
@@ -212,9 +214,6 @@ export async function cancelGenerationRecord(id: string, providerCancelStatus: P
     .where(eq(generationRecords.id, id))
 }
 
-/** 非终态生成状态：仅这些状态的记录可被级联取消（避免覆盖已 succeeded/failed 的记录） */
-const ACTIVE_GENERATION_STATUSES = ['pending', 'submitting', 'processing', 'saving_output'] as const
-
 /**
  * 仅当生成记录处于非终态（pending/submitting/processing/saving_output）时取消。
  *
@@ -228,11 +227,12 @@ export async function cancelGenerationRecordIfActive(
   errorMessage = '管理员取消任务',
   providerCancelStatus: ProviderCancelStatus = 'not_requested',
 ): Promise<boolean> {
+  const sanitized = sanitizeErrorMessage(errorMessage)
   const [updated] = await getDb()
     .update(generationRecords)
     .set({
       status: 'cancelled',
-      errorMessage,
+      errorMessage: sanitized,
       dedupeKey: null,
       cancelRequestedAt: new Date(),
       providerCancelStatus,

@@ -8,6 +8,8 @@ import {
   computeRetryDelay,
   createTaskHandlerRegistry,
   decideTaskFailureAction,
+  DEFAULT_BACKOFF_POLICY,
+  DEFAULT_PRIORITY_POLICY,
   extendTaskLockWithAdapter,
   getTaskPriority,
   shouldRetryTask,
@@ -93,6 +95,36 @@ describe('@excuse/task-engine', () => {
     expect(getTaskPriority({ type: 'canvas.analyze', domain: 'canvas' })).toBe(5)
     expect(getTaskPriority({ type: 'canvas.videos', domain: 'canvas' })).toBe(6)
     expect(getTaskPriority({ type: 'unknown.task', domain: 'generate' })).toBe(5)
+  })
+
+  it('getTaskPriority 接受可选的自定义 policy', () => {
+    const custom = {
+      typeOverrides: { 'my.custom': 2 },
+      domainFallbacks: { generate: 8 },
+      default: 10,
+    }
+    expect(getTaskPriority({ type: 'my.custom', domain: 'generate' }, custom)).toBe(2)
+    expect(getTaskPriority({ type: 'generate.text', domain: 'generate' }, custom)).toBe(8)
+    expect(getTaskPriority({ type: 'unknown', domain: 'unknown' }, custom)).toBe(10)
+  })
+
+  it('computeRetryDelay 接受可选的自定义 policy', () => {
+    const custom = {
+      fixedInterval: { 'poll.task': 10_000 },
+      exponentialBase: { 'slow.task': 30_000 },
+      default: 15_000,
+    }
+    expect(computeRetryDelay('poll.task', 1, custom)).toBe(10_000)
+    expect(computeRetryDelay('slow.task', 2, custom)).toBe(60_000)
+    expect(computeRetryDelay('simple.task', 1, custom)).toBe(15_000)
+  })
+
+  it('默认 policy 常量在 task-engine 中直接可用', () => {
+    expect(DEFAULT_PRIORITY_POLICY.typeOverrides['canvas.videos']).toBe(6)
+    expect(DEFAULT_PRIORITY_POLICY.domainFallbacks.canvas).toBe(5)
+    expect(DEFAULT_BACKOFF_POLICY.fixedInterval['generate.video']).toBe(5_000)
+    expect(DEFAULT_BACKOFF_POLICY.exponentialBase['canvas.videos']).toBe(60_000)
+    expect(DEFAULT_BACKOFF_POLICY.default).toBe(30_000)
   })
 
   it('通过类型化 handler 注册表分发任务', async () => {

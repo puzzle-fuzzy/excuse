@@ -1,21 +1,54 @@
-import { buildRateLimitKey, createRateLimitErrorResponse, DEFAULT_GLOBAL_RATE_LIMIT } from '@excuse/rate-limit'
-import { DefaultContext, rateLimit } from 'elysia-rate-limit'
+import {
+  buildRateLimitKey,
+  createRateLimitErrorResponse,
+  DEFAULT_GLOBAL_RATE_LIMIT,
+  DEFAULT_ROUTE_RATE_LIMITS,
+  matchRouteRateLimit,
+  SlidingWindowRateLimiter,
+} from '@excuse/rate-limit'
+import { Elysia } from 'elysia'
 
 /**
- * 限流插件
+ * 全局限流插件 — 进程内滑动窗口限流 + per-route 声明式规则。
  *
- * 全局每 IP 每分钟 60 次请求（无效/伪造 token 统一落到 IP bucket）。
- * 超限返回 429 + Retry-After + 可展示中文错误信息。
+ * - 默认：每 key 60s 窗口内 60 次请求（`DEFAULT_GLOBAL_RATE_LIMIT`）。
+ * - Per-route 覆盖：`DEFAULT_ROUTE_RATE_LIMITS` 表按 pathPrefix 匹配，
+ *   命中后使用该规则的 durationMs / max / retryAfterSec / message。
+ * - Key 策略：`buildRateLimitKey()` (Bearer JWT → userId，无效 token → IP)。
+ * - 被限流时返回 429 + Retry-After + JSON 错误体。
  *
- * maxSize: 50000（默认 5000）—— 防止恶意轮换伪造 key 驱逐合法用户条目。
- * §2.5 rate-limit 加固：buildRateLimitKey 已改为尽力 JWT 解码提取 userId，
- * 无效 token 统一回退 IP，消除伪造 token 无限 bucket 绕过。
+ * 依赖 `@excuse/rate-limit` 的纯函数/类，不直接依赖 elysia-rate-limit。
  */
-export const rateLimitPlugin = rateLimit({
-  duration: DEFAULT_GLOBAL_RATE_LIMIT.durationMs,
-  max: DEFAULT_GLOBAL_RATE_LIMIT.max,
-  headers: true,
-  generator: buildRateLimitKey,
-  errorResponse: createRateLimitErrorResponse(),
-  context: new DefaultContext(50_000),
-})
+const limiter = new SlidingWindowRateLimiter()
+
+export const rateLimitPlugin = new Elysia()
+  .onRequest(({ request, set }) => {
+    const key = buildRateLimitKey(request)
+    const url = new URL(request.url)
+    const routeRule = matchRouteRateLimit(url.pathname, DEFAULT_ROUTE_RATE_LIMITS)
+
+    const max = routeRule?.max ?? DEFAULT_GLOBAL_RATE_LIMIT.max
+    const durationMs = routeRule?.durationMs ?? DEFAULT_GLOBAL_RATE_LIMIT.durationMs
+    const retryAfterSec = routeRule?.retryAfterSec ?? DEFAULT_GLOBAL_RATE_LIMIT.retryAfterSec
+    const message = routeRule?.message ?? DEFAULT_GLOBAL_RATE_LIMIT.message
+
+    // 配置为不限制（如 health 探测）→ 直接放行，不写滑动窗口
+    if (max <= 0 || durationMs <= 0)
+      return
+
+    const decision = limiter.check({
+      userId: key,
+      category: 'global',
+      maxRequests: max,
+      windowMs: durationMs,
+    })
+
+    if (!decision.allowed) {
+      set.status = 429
+      set.headers['Retry-After'] = String(Math.max(retryAfterSec, decision.retryAfterSec))
+      return createRateLimitErrorResponse(
+        Math.max(retryAfterSec, decision.retryAfterSec),
+        message,
+      )
+    }
+  })

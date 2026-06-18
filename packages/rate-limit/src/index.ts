@@ -50,6 +50,63 @@ export const DEFAULT_GLOBAL_RATE_LIMIT = {
   message: '请求过于频繁，请稍后再试',
 } as const
 
+/** 单条路由的限流策略 */
+export interface RouteRateLimitRule {
+  /** URL 路径前缀匹配（如 "/api/generate" 匹配 /api/generate 及 /api/generate/xxx） */
+  pathPrefix: string
+  /** 窗口大小（毫秒） */
+  durationMs: number
+  /** 窗口内最大请求数 */
+  max: number
+  /** 建议客户端等待秒数 */
+  retryAfterSec: number
+  /** 限流提示消息 */
+  message: string
+}
+
+/**
+ * 声明式 per-route 限流配置表。
+ *
+ * 条目按 pathPrefix 匹配第一个命中者获胜；无匹配时回落全局默认。
+ * 调用方（apps/server rateLimitPlugin）在请求进入时遍历此表，命中即覆盖全局默认。
+ *
+ * 新增/调整路由限流时在此表登记即可，无需改动插件逻辑。
+ */
+export const DEFAULT_ROUTE_RATE_LIMITS: readonly RouteRateLimitRule[] = [
+  {
+    pathPrefix: '/api/generate',
+    durationMs: 10_000,
+    max: 5,
+    retryAfterSec: 10,
+    message: '生成请求过于频繁，请稍后再试',
+  },
+  {
+    pathPrefix: '/api/openai',
+    durationMs: 60_000,
+    max: 30,
+    retryAfterSec: 60,
+    message: 'API 请求过于频繁，请稍后再试',
+  },
+  {
+    pathPrefix: '/api/health',
+    durationMs: 1_000,
+    max: 999_999,
+    retryAfterSec: 0,
+    message: '',
+  },
+]
+
+/**
+ * 按请求路径匹配路由限流规则，返回第一条匹配的规则。
+ * 无匹配时返回 null——调用方应回落全局默认。
+ */
+export function matchRouteRateLimit(
+  pathname: string,
+  rules: readonly RouteRateLimitRule[] = DEFAULT_ROUTE_RATE_LIMITS,
+): RouteRateLimitRule | null {
+  return rules.find(r => pathname.startsWith(r.pathPrefix)) ?? null
+}
+
 /**
  * 从 Request 头中提取限流 Key：
  *   - Bearer JWT → 尝试无验证解码提取 sub（userId），成功则 `user:<userId>`

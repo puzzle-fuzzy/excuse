@@ -1,0 +1,201 @@
+import type {
+  OpenAIChatCompletionChunk,
+  OpenAIChatRequest,
+  OpenAIChatResponse,
+  OpenAIModelsResponse,
+} from '@excuse/shared'
+import type { OpenAIGatewayError } from './errors'
+import { resolveModelId } from '@excuse/shared'
+import { invalidParametersError, missingUserMessageError } from './errors'
+import { openaiChatRequestSchema } from './schemas'
+
+/**
+ * @excuse/gateway — 协议映射模块
+ *
+ * OpenAI Chat Completions ↔ 内部 DashScope 单轮 prompt 的无状态协议转换。
+ *   - 入站：normalizeOpenAIChatRequest — 把 OpenAI 请求归一化为内部参数
+ *   - 出站：createOpenAIChatResponse / createOpenAIModelsResponse — 封装为 OpenAI 兼容响应
+ *   - 流式：createOpenAIStreamChunk / serializeOpenAIStreamChunk — SSE chunk 构造与序列化
+ */
+
+/**
+ * 归一化后的 chat 请求。
+ * - internalModelId：经过 MODEL_ALIASES 解析后的内部模型 ID（如 gpt-4 → qwen-max）
+ * - prompt：取自最后一条 user 消息的内容（DashScope 文本生成是单轮接口）
+ * - parameters：传给内部 generate 接口的参数集合（已剔除 undefined）
+ * - stream：是否走流式响应 — route 据此分流，normalize 不再拒绝
+ */
+export interface NormalizedOpenAIChatRequest {
+  request: OpenAIChatRequest
+  internalModelId: string
+  prompt: string
+  parameters: Record<string, unknown>
+  stream: boolean
+}
+
+/** /v1/models 列表项的最小入参（只关心 id，其余字段由 createOpenAIModelsResponse 补全）。 */
+export interface GatewayModelListItem {
+  id: string
+}
+
+/** 构造 chat.completion 响应所需的最小输入（由调用方从 generation_records 中拼装）。 */
+export interface OpenAIChatResponseInput {
+  id: string
+  createdAt: Date
+  requestedModel: string
+  text: string
+  inputTokens?: number
+  outputTokens?: number
+}
+
+/**
+ * 把 OpenAI Chat Completions 请求归一化为内部参数。
+ *
+ * 返回值是联合类型（NormalizedOpenAIChatRequest | OpenAIGatewayError），
+ * 调用方必须先用 isOpenAIGatewayError() 做类型收窄。
+ *
+ * 规则：
+ *   - 先用 `openaiChatRequestSchema.safeParse(request)` 做运行时校验
+ *     （route 传的是 Elysia 解析的 JSON，可能是任意 shape）。
+ *     parse 失败 → 400 invalid_parameters（携带 zod issues 字段路径 + message）。
+ *   - stream 字段透传到返回值；route 层根据模型协议决定是否支持
+ *   - 没有 user 消息 → 400 missing_user_message
+ *   - 否则取最后一条 user 消息作为 prompt，附上 temperature/max_tokens/top_p（仅当用户显式传入时）
+ */
+export function normalizeOpenAIChatRequest(request: OpenAIChatRequest): NormalizedOpenAIChatRequest | OpenAIGatewayError {
+  const parsed = openaiChatRequestSchema.safeParse(request)
+  if (!parsed.success) {
+    const errors = parsed.error.issues.map(issue => ({
+      field: issue.path.length > 0 ? issue.path.join('.') : '(root)',
+      message: issue.message,
+    }))
+    return invalidParametersError(errors)
+  }
+
+  const value = parsed.data
+  const userMessages = value.messages.filter(m => m.role === 'user')
+  if (userMessages.length === 0) {
+    return missingUserMessageError()
+  }
+
+  const lastUserMessage = userMessages[userMessages.length - 1]!
+
+  const parameters: Record<string, unknown> = { prompt: lastUserMessage.content }
+  if (value.temperature !== undefined)
+    parameters.temperature = value.temperature
+  if (value.max_tokens !== undefined)
+    parameters.max_tokens = value.max_tokens
+  if (value.top_p !== undefined)
+    parameters.top_p = value.top_p
+
+  return {
+    request,
+    internalModelId: resolveModelId(value.model),
+    prompt: lastUserMessage.content,
+    parameters,
+    stream: value.stream ?? false,
+  }
+}
+
+/**
+ * 类型守卫：判断未知值是否为 OpenAIGatewayError。
+ * 用于在调用 normalizeOpenAIChatRequest 之后对联合类型做收窄。
+ */
+export function isOpenAIGatewayError(value: unknown): value is OpenAIGatewayError {
+  return typeof value === 'object'
+    && value !== null
+    && 'response' in value
+    && 'status' in value
+}
+
+/**
+ * 把内部生成结果封装成 OpenAI Chat Completions 响应。
+ * 注意：created 字段是 Unix 秒（OpenAI 规范），需要把 Date.getTime() 的毫秒值除以 1000。
+ */
+export function createOpenAIChatResponse(input: OpenAIChatResponseInput): OpenAIChatResponse {
+  const promptTokens = input.inputTokens ?? 0
+  const completionTokens = input.outputTokens ?? 0
+
+  return {
+    id: input.id,
+    object: 'chat.completion',
+    created: Math.floor(input.createdAt.getTime() / 1000),
+    model: input.requestedModel,
+    choices: [{
+      index: 0,
+      message: { role: 'assistant', content: input.text },
+      finish_reason: 'stop',
+    }],
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: promptTokens + completionTokens,
+    },
+  }
+}
+
+/**
+ * 构造 /v1/models 列表响应。
+ * - created 取当前 Unix 秒（与 chat.completion 一致）
+ * - owned_by 固定为 'excuse'（对外标识模型所有方）
+ */
+export function createOpenAIModelsResponse(models: GatewayModelListItem[]): OpenAIModelsResponse {
+  const created = Math.floor(Date.now() / 1000)
+  return {
+    object: 'list',
+    data: models.map(m => ({
+      id: m.id,
+      object: 'model',
+      created,
+      owned_by: 'excuse',
+    })),
+  }
+}
+
+/** 构造 chat.completion.chunk 帧 */
+export interface OpenAIStreamChunkInput {
+  id: string
+  createdAt: Date
+  requestedModel: string
+  delta: string
+  finishReason: 'stop' | 'length' | null
+  isFirst: boolean
+  usage?: { prompt_tokens: number, completion_tokens: number }
+}
+
+/**
+ * 构造一个 OpenAI 兼容的 chat.completion.chunk 数据帧。
+ *
+ * - 首帧（isFirst=true）的 delta 带 `role: 'assistant'`，与 OpenAI SDK 行为一致。
+ * - usage 仅在终止帧传入；其余帧 usage 为 undefined。
+ */
+export function createOpenAIStreamChunk(input: OpenAIStreamChunkInput): OpenAIChatCompletionChunk {
+  return {
+    id: input.id,
+    object: 'chat.completion.chunk',
+    created: Math.floor(input.createdAt.getTime() / 1000),
+    model: input.requestedModel,
+    choices: [{
+      index: 0,
+      delta: input.isFirst
+        ? { role: 'assistant', content: input.delta }
+        : { content: input.delta },
+      finish_reason: input.finishReason,
+    }],
+    usage: input.usage
+      ? {
+          prompt_tokens: input.usage.prompt_tokens,
+          completion_tokens: input.usage.completion_tokens,
+          total_tokens: input.usage.prompt_tokens + input.usage.completion_tokens,
+        }
+      : undefined,
+  }
+}
+
+/** 把单个 chunk 序列化为 SSE 数据帧（含尾部 `\n\n`） */
+export function serializeOpenAIStreamChunk(chunk: OpenAIChatCompletionChunk): string {
+  return `data: ${JSON.stringify(chunk)}\n\n`
+}
+
+/** SSE 结束标记 */
+export const OPENAI_STREAM_DONE = 'data: [DONE]\n\n'

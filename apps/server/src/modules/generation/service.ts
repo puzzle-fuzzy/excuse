@@ -28,7 +28,7 @@ import {
   markGenerationSucceeded,
   notifyGenerationStatus,
 } from '@excuse/db'
-import { extractBillingParams, getPgErrorCode, logger } from '@excuse/shared'
+import { ACTIVE_GENERATION_STATUSES, extractBillingParams, getPgErrorCode, logger } from '@excuse/shared'
 import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from '../../services/billing-ledger'
 import { recordGenerationStatus } from '../../services/metrics'
 import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
@@ -89,10 +89,9 @@ export type GenerationResult
  * 已 succeeded/failed/cancelled 的记录不触发去重拦截
  */
 export async function checkDedupe(dedupeKey: string, accountId: string): Promise<DedupeResult> {
-  const IN_PROGRESS_STATUSES = ['pending', 'submitting', 'processing', 'saving_output'] as const
   const existing = await findGenerationByDedupeKeyForAccount(dedupeKey, accountId)
 
-  if (existing && IN_PROGRESS_STATUSES.includes(existing.status as typeof IN_PROGRESS_STATUSES[number])) {
+  if (existing && ACTIVE_GENERATION_STATUSES.includes(existing.status as typeof ACTIVE_GENERATION_STATUSES[number])) {
     return { duplicated: true, record: existing }
   }
 

@@ -1,5 +1,6 @@
 import type { TaskErrorInfo, TaskOutput } from '../domain-types'
 import type { TaskInsert, TaskRow } from '../types'
+import { sanitizeErrorMessage } from '@excuse/shared'
 import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm'
 import { getDb, pgClient } from '../db'
 
@@ -170,13 +171,14 @@ export async function markTaskSucceeded(id: string, output?: TaskOutput) {
  * @param errorMessage 简短错误描述
  */
 export async function markTaskFailed(id: string, errorInfo?: TaskErrorInfo, errorMessage?: string) {
+  const sanitized = errorMessage ? sanitizeErrorMessage(errorMessage) : undefined
   const [updated] = await getDb()
     .update(tasks)
     .set({
       status: 'failed',
       finishedAt: new Date(),
       ...(errorInfo && { errorJson: errorInfo }),
-      ...(errorMessage && { errorMessage }),
+      ...(sanitized && { errorMessage: sanitized }),
       updatedAt: new Date(),
     })
     .where(and(eq(tasks.id, id), eq(tasks.status, 'running')))
