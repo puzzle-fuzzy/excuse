@@ -1,1 +1,1 @@
-ALTER TABLE "tasks" ADD COLUMN "trace_id" varchar(64);
+ALTER TABLE "tasks" ADD COLUMN IF NOT EXISTS "trace_id" varchar(64);

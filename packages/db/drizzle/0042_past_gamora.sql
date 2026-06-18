@@ -1,1 +1,1 @@
-ALTER TABLE "accounts" ADD COLUMN "last_login_at" timestamp with time zone;
+ALTER TABLE "accounts" ADD COLUMN IF NOT EXISTS "last_login_at" timestamp with time zone;

@@ -26,6 +26,6 @@ CREATE TABLE IF NOT EXISTS "project_subject_refs" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX "idx_subject_library_user_type" ON "subject_library" USING btree ("account_id","subject_type");--> statement-breakpoint
-CREATE INDEX "idx_subject_library_tags" ON "subject_library" USING gin ("tags");--> statement-breakpoint
-CREATE UNIQUE INDEX "idx_project_subject_unique" ON "project_subject_refs" USING btree ("project_id","subject_id");
+CREATE INDEX IF NOT EXISTS "idx_subject_library_user_type" ON "subject_library" USING btree ("account_id","subject_type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_subject_library_tags" ON "subject_library" USING gin ("tags");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "idx_project_subject_unique" ON "project_subject_refs" USING btree ("project_id","subject_id");
