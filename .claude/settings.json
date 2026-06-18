@@ -22,7 +22,9 @@
       "Bash(git rm *)",
       "Bash(bun vitest *)",
       "Bash(npx vitest *)",
-      "Bash(bun eslint *)"
+      "Bash(bun eslint *)",
+      "Bash(head -757 /Users/yxswy/Documents/excuse/apps/client/src/pages/Assets.tsx)",
+      "Bash(mv /tmp/Assets_trimmed.tsx /Users/yxswy/Documents/excuse/apps/client/src/pages/Assets.tsx)"
     ]
   }
 }
