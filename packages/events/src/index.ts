@@ -34,6 +34,7 @@ export interface AddConnectionResult {
 
 export class UserEventHub {
   private readonly connections = new Map<string, Set<EventSender>>()
+  private readonly lastActivity = new Map<EventSender, number>()
   private readonly maxTotalConnections: number
   private readonly maxConnectionsPerUser: number
 
@@ -61,6 +62,7 @@ export class UserEventHub {
 
     const userConnections = this.connections.get(userId)!
     userConnections.add(send)
+    this.lastActivity.set(send, Date.now())
     return { accepted: true, userCount: userConnections.size, totalCount: totalCount + 1 }
   }
 
@@ -70,6 +72,7 @@ export class UserEventHub {
       return 0
 
     userConnections.delete(send)
+    this.lastActivity.delete(send)
     const remaining = userConnections.size
     if (remaining === 0)
       this.connections.delete(userId)
@@ -86,6 +89,7 @@ export class UserEventHub {
     for (const send of userConnections) {
       try {
         send(event, data)
+        this.lastActivity.set(send, Date.now())
         dispatched += 1
       }
       catch (error) {
@@ -101,6 +105,38 @@ export class UserEventHub {
 
   getConnectionCount(userId: string): number {
     return this.connections.get(userId)?.size ?? 0
+  }
+
+  /**
+   * 清除空闲超时的连接（慢客户端 / 半开连接）。
+   *
+   * 连接在 addConnection 时记录初次活动时间，在 dispatchToUser 时刷新。
+   * 超过 maxIdleMs 无活动的连接被视为死连接，从 hub 中移除。
+   *
+   * 每轮 SSE heartbeat 时调用一次，防止内存泄漏与 NOTIFY 向死连接推送。
+   *
+   * @param maxIdleMs 最大空闲时间（毫秒），默认 60_000（60 秒）
+   * @returns 清除的连接数
+   */
+  sweepStaleConnections(maxIdleMs: number = 60_000): number {
+    const now = Date.now()
+    let swept = 0
+
+    for (const [userId, userConnections] of this.connections) {
+      for (const send of userConnections) {
+        const last = this.lastActivity.get(send)
+        if (last !== undefined && now - last > maxIdleMs) {
+          userConnections.delete(send)
+          this.lastActivity.delete(send)
+          swept++
+        }
+      }
+      if (userConnections.size === 0) {
+        this.connections.delete(userId)
+      }
+    }
+
+    return swept
   }
 }
 

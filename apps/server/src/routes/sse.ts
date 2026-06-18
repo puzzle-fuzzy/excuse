@@ -1,7 +1,10 @@
 import type { ServerConfig } from '../config'
+import { createLogger } from '@excuse/shared'
 import { Elysia, sse } from 'elysia'
 import { createRequireAuthPlugin } from '../plugins/auth'
-import { addConnection, removeConnection } from '../services/sse-manager'
+import { addConnection, removeConnection, sweepStaleSseConnections } from '../services/sse-manager'
+
+const logger = createLogger('sse')
 
 // ===== Push → Pull 适配器 =====
 // Elysia 的 sse() 使用 generator（pull 模式），
@@ -79,12 +82,17 @@ export function createSSERoutes(config: ServerConfig) {
           data: { timestamp: new Date().toISOString() },
         })
 
-        // 心跳保活 — 防止空闲连接被中间代理或 Bun 关闭
+        // 心跳保活 + 空闲连接回收 — 防止慢客户端/半开连接占用内存
         const heartbeat = setInterval(() => {
           channel.push({
             event: 'heartbeat',
             data: { timestamp: new Date().toISOString() },
           })
+          // 每轮心跳同步清理空闲 >60s 的死连接
+          const swept = sweepStaleSseConnections()
+          if (swept > 0) {
+            logger.debug({ swept }, 'SSE stale connections swept')
+          }
         }, 30_000)
 
         try {

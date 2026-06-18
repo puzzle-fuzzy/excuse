@@ -73,6 +73,14 @@ export function getOnlineUserCount() {
   return eventHub.getOnlineUserCount()
 }
 
+/**
+ * 清除空闲超时的 SSE 连接（慢客户端/半开连接）。
+ * 建议在 heartbeat interval 中调用（每 30s）。
+ */
+export function sweepStaleSseConnections(maxIdleMs?: number): number {
+  return eventHub.sweepStaleConnections(maxIdleMs)
+}
+
 // ===== PostgreSQL LISTEN =====
 
 /**
