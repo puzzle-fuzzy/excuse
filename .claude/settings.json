@@ -11,7 +11,17 @@
       "Bash(echo \"--- lint scoped exit: $? ---\")",
       "Bash(bun run *)",
       "Bash(bun --env-file ../../.env -e ' *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(bun tsc *)",
+      "Bash(rg -rn \"type GenerationStatus\" packages/shared/)",
+      "Bash(rg -rn \"type GenerationStatus|GenerationStatus =\" packages/)",
+      "Bash(rg -rn \"admin-helpers\" /Users/yxswy/Documents/excuse/apps/server/src/)",
+      "Bash(rg -rn \"classifyRecovery\" /Users/yxswy/Documents/excuse --type ts)",
+      "Bash(rg -rn \"classifyTaskError\\\\|shouldRetryTask\\\\|decideTaskFailureAction\\\\|extractErrorCode\\\\|isRetriableTaskErrorCode\\\\|categorizeTaskErrorCode\\\\|ERROR_CODE_REGISTRY\\\\|TaskErrorCategory\\\\|TaskErrorDecision\" /Users/yxswy/Documents/excuse --type ts)",
+      "Bash(rg -rn \"applyTaskFailureWithAdapter\" /Users/yxswy/Documents/excuse --type ts)",
+      "Bash(git rm *)",
+      "Bash(bun vitest *)",
+      "Bash(npx vitest *)"
     ]
   }
 }
