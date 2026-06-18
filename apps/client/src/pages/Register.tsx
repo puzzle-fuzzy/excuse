@@ -43,7 +43,7 @@ export default function Register() {
   const bannerError = errors.username?.message ?? serverError
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="brand-auth-shell flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold tracking-tight">Excuse</CardTitle>
@@ -117,7 +117,7 @@ export default function Register() {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="brand-cta w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               注册
             </Button>

@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **前端品牌 token 与主 CTA 渐变（TODO §1.1）**：补充 `PRODUCT.md` 记录产品型设计上下文；将 client 全局 shadcn 默认灰度 token 改为带品牌倾向的 OKLCH 色系，`--primary` / `--accent` / `chart-*` 不再是纯灰，并新增 `--gradient-brand`、`--brand-text` / `--brand-image` / `--brand-video` 等品牌 token。新增 `.brand-cta` 与 `.brand-auth-shell`，工作台「开始生成」和登录/注册/忘记密码/重置密码主按钮统一使用品牌渐变，认证页背景加入克制的品牌氛围层。验收：client typecheck 通过；相关文件 eslint 通过。
+
 - **Canvas 成本阶段补齐 12 阶段（TODO §2.1 局部）**：`CanvasCostPhase` 从 9 阶段补齐为完整 12 阶段，新增 `dialogue` / `bgm` / `assemble`；`CostPanel` 同步补中文标签和展示顺序，避免后续成本 rollup 出现这些阶段时被类型或 UI 漏展示。`TODO §2.1` 已收窄为剩余的阶段注册表/前端 PipelineController 同源问题。验收：client typecheck 通过；相关文件 eslint 通过。
 
 - **Canvas pipeline run 状态 union 去除幽灵 paused（TODO §2.2）**：`@excuse/workflow-engine` 的 `PipelineRunStatus` 删除 DB/shared 均不支持的 `'paused'`，`WorkflowCommand` 收敛为当前实际接线的 `cancel | retry`，避免类型层允许写入一个 PostgreSQL enum 无法持久化的状态。同步修正 `canvas-pipeline-runs` schema、worker stepper、canvas phase route 中残留的「9 阶段」注释为 12 阶段，并确认目标范围 grep 无 `paused`/`resume` 残留。验收：workflow-engine test 全绿；pipeline-stepper test 全绿；相关文件 eslint 通过。

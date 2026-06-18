@@ -31,7 +31,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="brand-auth-shell flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold tracking-tight">忘记密码</CardTitle>
@@ -81,7 +81,7 @@ export default function ForgotPassword() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  <Button type="submit" className="brand-cta w-full" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
                     发送重置链接
                   </Button>

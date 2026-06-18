@@ -385,7 +385,7 @@ export default function Workspace() {
           )}
 
           <Button
-            className="w-full"
+            className="brand-cta w-full"
             size="lg"
             disabled={loading || !canGenerate}
             onClick={handleSubmit}
