@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Canvas 阶段注册表统一 + 前端全 12 阶段可见（TODO §3.1 🔴）**：阶段元数据收敛为 `@excuse/shared/canvas-phases.ts` 单一权威注册表（`CANVAS_PHASE_ORDER` + `CanvasPipelinePhase` 类型 + `CANVAS_PAUSE_BEFORE` + helper 函数），所有消费者从此派生——workflow-engine re-export（保持公开 API）、db pgEnum 经编译期双向断言 `AssertCanvasPhaseSync` 强制同源（新增/遗漏阶段 → 编译失败并提示「补 pgEnum + db:generate」）、前端 `PipelineController` 用 `Record<CanvasPipelinePhase, ...>` 强制覆盖全部阶段（漏一个即编译失败）。前端 PHASES 从 9 项补齐为 12 项（新增 dialogue/bgm/assemble），`pauseBefore` 从共享注册表 `CANVAS_PAUSE_BEFORE` 派生而非手抄；`CostPanel` 的 `PHASE_ORDER` 同样由注册表派生。`CanvasCostPhase` 改为 `CanvasPipelinePhase` 的类型别名。新增 3 个客户端 API 函数（`generateCanvasDialogue` / `generateCanvasBgm` / `assembleCanvas`）。验收：typecheck + lint + build + worker/workflow-engine/shared 测试全绿；漂移断言经注入虚假阶段证实有效（编译失败并显示精确错误信息）。
+
 - **前端按钮触摸目标与标题层级 token（TODO §1.1）**：`Button` 基础尺寸从 32/36px 提升为 default 40px、lg 44px，icon 尺寸同步抬高，核心「开始生成」CTA 因 `size="lg"` 达到 44px；新增 `text-title-lg` / `text-title` / `text-body` 工具类，并把 Workspace、Canvas、Billing 的核心标题接入统一层级。至此 `docs/TODO.md`「前端设计 / 美观度」大项全部完成并移除。验收：client typecheck 通过；相关文件 eslint 通过。
 
 - **前端状态色 token 单一来源（TODO §1.1）**：新增 `apps/client/src/lib/status-tokens.ts` 与 `--status-info/success/warning/danger/neutral/accent-*` CSS 变量，把 generation record、Canvas 项目/状态栏、ShotNode、TaskQueuePanel、PipelineController、Billing、字幕状态、连接指示器、资产历史等业务状态颜色从散落的 Tailwind palette 类收敛到语义 token；`CATEGORY_CONFIG` 与 Billing 类别条也改用品牌/category token，删除多份 `STATUS_COLORS`/`CATEGORY_COLORS`/`TX_TYPE_COLORS` 手抄映射。验收：`rg "bg-(red|green|yellow|blue)-[0-9]|text-(red|green|yellow|blue)-[0-9]|border-(red|green|yellow|blue)-[0-9]" apps/client/src` 无命中；client typecheck 通过；相关文件 eslint 通过。

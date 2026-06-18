@@ -1,3 +1,4 @@
+import type { CanvasPipelinePhase as SharedCanvasPipelinePhase } from '@excuse/shared'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import type { accounts, canvasAssetCategoryEnum, canvasAssets, canvasAssetStatusEnum, canvasCharacters, canvasContinuityReports, canvasLocations, canvasPipelinePhaseEnum, canvasPipelineRuns, canvasPipelineRunStatusEnum, canvasProjects, canvasProjectStatusEnum, canvasShots, canvasShotStatusEnum, creditAccounts, creditTransactions, generationCategoryEnum, generationRecords, generationStatusEnum, notifications, subtitleProjects, subtitleProjectStatusEnum, taskDomainEnum, tasks, taskStatusEnum, uploadedFiles, usageEvents } from './schema'
 
@@ -113,8 +114,25 @@ export type CanvasProjectStatus = typeof canvasProjectStatusEnum.enumValues exte
 /** 画布镜头状态：从 pgEnum 定义推断 */
 export type CanvasShotStatus = typeof canvasShotStatusEnum.enumValues extends (infer T)[] ? T : never
 
-/** 画布流水线阶段：从 pgEnum 定义推断 */
-export type CanvasPipelinePhase = typeof canvasPipelinePhaseEnum.enumValues extends (infer T)[] ? T : never
+/**
+ * 画布流水线阶段 — 权威源在 @excuse/shared（canvas-phases 注册表）。
+ *
+ * 此处做编译期双向断言：DB 的 `canvas_pipeline_phase` pgEnum 值集合必须精确等于
+ * shared 的 `CanvasPipelinePhase` 集合。新增阶段时若只改了 shared 没补 pgEnum
+ * （或反之），此断言编译失败并给出明确错误，阻止 silent drift。
+ * 真正的 pgEnum 字面量仍留在 schema 文件里（drizzle-kit 生成迁移需要字面量）。
+ */
+type _DbCanvasPipelinePhase = typeof canvasPipelinePhaseEnum.enumValues extends (infer T)[] ? T : never
+type _AssertCanvasPhaseSync
+  = [_DbCanvasPipelinePhase] extends [SharedCanvasPipelinePhase]
+    ? [SharedCanvasPipelinePhase] extends [_DbCanvasPipelinePhase]
+        ? true
+        : 'ERR: shared 有阶段不在 DB canvas_pipeline_phase pgEnum 中（需补 pgEnum + db:generate 迁移）'
+    : 'ERR: DB canvas_pipeline_phase pgEnum 含 shared 中不存在的阶段'
+// 导出以强制条件类型求值：失配时解析为错误字面量，`true` 不可赋值 → 编译失败并显示上面的信息。
+// 前导下划线标记其为内部断言，非公开 API。
+export const _assertCanvasPhaseSync: _AssertCanvasPhaseSync = true
+export type CanvasPipelinePhase = SharedCanvasPipelinePhase
 
 /** 画布流水线运行状态：从 pgEnum 定义推断 */
 export type CanvasPipelineRunStatus = typeof canvasPipelineRunStatusEnum.enumValues extends (infer T)[] ? T : never

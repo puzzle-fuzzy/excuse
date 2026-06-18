@@ -57,9 +57,9 @@
 
 ### 1.3 🟠 流水线 UI 只显示 9/12 阶段 + 无耗时提示
 
-- **证据**：[PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) `PHASES` 数组只有 9 项，后端 `CANVAS_PHASE_ORDER` 已是 12 阶段（含 dialogue/bgm/assemble）；无 ETA / 典型耗时提示；auto 模式失败时仅 toast，后台标签页用户不知流水线已停。
-- **影响**：videos 之后用户看不到在发生什么；不知道一个阶段要等多久；静默中断。
-- **解法**：(a) 前端 `PHASES` 与后端 12 阶段同源（见 3.1 注册表）；(b) 加每阶段历史平均耗时提示；(c) auto 失败在状态栏留持久红色徽章而非仅 toast。
+- **证据**：[PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) `PHASES` 数组只有 9 项，后端 `CANVAS_PHASE_ORDER` 已是 12 阶段（含 dialogue/bgm/assemble）；仅有「已耗秒数」计时（`已耗时 Ns`，每秒刷新），无每阶段典型耗时范围 / 预估剩余；auto 模式失败时仅 toast，后台标签页用户不知流水线已停。
+- **影响**：videos 之后用户看不到在发生什么；不知道一个阶段还要等多久；静默中断。
+- **解法**：(a) 前端 `PHASES` 与后端 12 阶段同源（见 3.1 注册表）；(b) 补每阶段历史平均耗时 / 预估剩余提示；(c) auto 失败在状态栏留持久红色徽章而非仅 toast。
 - **验收**：流水线 UI 显示全 12 阶段；各阶段有耗时范围提示；失败有持久视觉中断。
 
 ### 1.4 🟠 上传失败静默吞 + 无草稿/未保存警告
@@ -116,21 +116,14 @@
 
 ### 2.5 🟡 rate-limit key 可被伪造 + 限流 Map 无 GC
 
-- **证据**：[rate-limit/index.ts:59-64](packages/rate-limit/src/index.ts#L59-L64) `buildRateLimitKey` 用 token 前 50 字符当 user key，且 rate-limit 全局中间件在 auth 之前应用。恶意客户端发不同伪造 token → 每个一个限流 bucket → 绕过单用户限流 + Map 无限增长（未被 check 命中的 key 永不清）。
-- **影响**：限流绕过 + 内存增长。
-- **解法**：限流 key 应在 auth 之后的 `userId` 上构建，无效 token 统一落到 IP bucket（需 trusted proxy 配置防 `x-forwarded-for` 伪造）；SlidingWindowRateLimiter 增加周期性 sweep 清理空窗口 key。
+- **证据**：[rate-limit/index.ts:59-64](packages/rate-limit/src/index.ts#L59-L64) `buildRateLimitKey` 用 token 前 50 字符当 user key，且 rate-limit 全局中间件在 auth 之前应用（[app.ts](apps/server/src/app.ts) 链序：rateLimit 在 createAuthPlugin 之前）。恶意客户端轮换伪造 token → 每个 token 独立 bucket → 绕过单用户限流；且全局限流实为 `elysia-rate-limit` 的 LRU（`maxSize: 5000`），轮换 >5000 个伪造前缀会把合法用户的计数驱逐，进一步放大绕过。
+- **影响**：限流可被伪造 token 绕过（资损/滥用面）；LRU 驱逐使合法用户限流失效。
+- **解法**：限流 key 应在 auth 之后的 `userId` 上构建，无效 token 统一落到 IP bucket（需 trusted proxy 配置防 `x-forwarded-for` 伪造）；适当调高全局 LRU 上限或换带 TTL 的存储。（注：项目自有的 `SlidingWindowRateLimiter` 已在每次 `check()` 按 key 自清理过期窗口，无需额外 sweep。）
 - **验收**：伪造 N 个不同 token 的并发请求被收敛到同一 IP bucket；空窗口 key 被周期清理。
 
 ---
 
 ## 三、架构设计与拓展性
-
-### 3.1 🔴 Canvas 阶段列表多份手抄 + 前端仍缺 3 阶段
-
-- **证据**：阶段序列目前仍存在多份手抄副本：[workflow-engine](packages/workflow-engine/src/index.ts) `CANVAS_PHASE_ORDER`、[shared/canvas.ts:141-153](packages/shared/src/canvas.ts#L141-L153) `CanvasPipelinePhase`、[db schema](packages/db/src/schema/canvas-pipeline-runs.ts) `canvasPipelinePhaseEnum`，且前端 [PipelineController.tsx:63-73](apps/client/src/components/canvas/PipelineController.tsx#L63-L73) 独立维护的 `PHASES` 数组只有 9 项，不读后端 `CANVAS_PAUSE_BEFORE`。`CanvasCostPhase` 漏 `dialogue`/`bgm`/`assemble` 已修，不能再作为剩余 drift 证据。
-- **影响**：新增一个 Canvas 阶段仍需散弹式改 10+ 处；前端流水线在 videos 之后仍看不到 dialogue/bgm/assemble，也无法同源体现 `assemble` 的 pause-before 行为。
-- **解法**：阶段元数据收敛为**单一注册表**（推荐放纯包 `canvas-engine`）：每阶段一项 `{ phase, taskType, pauseBefore, costVisible, statusTransition }`，workflow-engine / db pgEnum / shared / 前端全部从该表派生（db enum 由代码生成迁移，前端从 `/api/canvas/phases` 拉取或 codegen）。
-- **验收**：新增一个测试阶段只改 1-2 处（注册表 + 实现）；前端显示全 12 阶段；前端 `pauseBefore` 与后端 `CANVAS_PAUSE_BEFORE` 同源。
 
 ### 3.2 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
 
@@ -291,6 +284,6 @@ bun run check:boundaries
 本轮六维度审计新发现 **运行时 🔴×1 / 架构 🔴×2 / 前端 🔴×2** 等共约 40 项，按 ROI 建议推进顺序：
 
 1. **P0（立刻，生产风险）**：§1.1 fetch 超时。
-2. **P1（短期，drift / 体验）**：§2.1 阶段注册表 · §2.2 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §4.4 流水线 12 阶段 · §5.1 generate 去重 · §6.1 traceId 贯穿。
+2. **P1（短期，drift / 体验）**：§2.1 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §5.1 generate 去重 · §6.1 traceId 贯穿。（§2.1 阶段注册表 ✅ 已完成，§4.4 流水线 12 阶段 ✅ 已随注册表完成）
 3. **P2（治理 / 打磨）**：§2.3-2.5 拓展性注册表化 · §3.3 状态色收敛 · §4.3/4.5/4.6 空状态/上传/Toast/导航/a11y · §5.2-5.5 文件拆分与去重。
 4. **暂缓**：§7 多租户 / i18n / Redis 限流（待路线图）。

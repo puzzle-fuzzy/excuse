@@ -1,18 +1,25 @@
+import type { CanvasPipelinePhase } from '@excuse/shared'
+import {
+  CANVAS_PAUSE_BEFORE,
+  CANVAS_PHASE_ORDER,
+  getCanvasPhaseFromTaskType,
+  getNextCanvasPhase,
+  isPauseBeforePhase,
+  phaseToTaskType,
+} from '@excuse/shared'
 import { getTaskPriority } from '@excuse/task-engine'
 
-export type CanvasPipelinePhase
-  = | 'analyze'
-    | 'characters'
-    | 'locations'
-    | 'characterRefs'
-    | 'locationRefs'
-    | 'storyboard'
-    | 'continuity'
-    | 'rebuild'
-    | 'dialogue'
-    | 'videos'
-    | 'bgm'
-    | 'assemble'
+// 阶段注册表的权威源在 @excuse/shared（canvas-phases）。
+// 此处 re-export 保持 workflow-engine 的公开 API，消费者无需改 import 路径。
+export {
+  CANVAS_PAUSE_BEFORE,
+  CANVAS_PHASE_ORDER,
+  getCanvasPhaseFromTaskType,
+  getNextCanvasPhase,
+  isPauseBeforePhase,
+  phaseToTaskType,
+}
+export type { CanvasPipelinePhase }
 
 export type CanvasAutoAdvanceSkipReason
   = | 'not_canvas_task'
@@ -66,36 +73,6 @@ export interface CreateNextCanvasPipelineTaskResult {
   taskType: `canvas.${CanvasPipelinePhase}`
 }
 
-export const CANVAS_PHASE_ORDER: readonly CanvasPipelinePhase[] = [
-  'analyze',
-  'characters',
-  'locations',
-  'characterRefs',
-  'locationRefs',
-  'storyboard',
-  'continuity',
-  'rebuild',
-  'dialogue',
-  'videos',
-  'bgm',
-  'assemble',
-]
-
-export const CANVAS_PAUSE_BEFORE: ReadonlySet<CanvasPipelinePhase> = new Set([
-  'storyboard',
-  'videos',
-  'assemble',
-])
-
-/** 阶段是否需要用户确认才能继续（storyboard / videos / assemble） */
-export function isPauseBeforePhase(phase: CanvasPipelinePhase): boolean {
-  return CANVAS_PAUSE_BEFORE.has(phase)
-}
-
-export function phaseToTaskType(phase: CanvasPipelinePhase): `canvas.${CanvasPipelinePhase}` {
-  return `canvas.${phase}`
-}
-
 export async function createNextCanvasPipelineTask<TRun extends { id: string }, TTask extends { id: string }>(
   input: CreateNextCanvasPipelineTaskInput<TRun, TTask>,
 ): Promise<CreateNextCanvasPipelineTaskResult> {
@@ -123,21 +100,6 @@ export async function createNextCanvasPipelineTask<TRun extends { id: string }, 
     taskId: task.id,
     taskType,
   }
-}
-
-export function getCanvasPhaseFromTaskType(taskType: string): CanvasPipelinePhase | null {
-  if (!taskType.startsWith('canvas.'))
-    return null
-
-  const phase = taskType.slice('canvas.'.length) as CanvasPipelinePhase
-  return isCanvasPipelinePhase(phase) ? phase : null
-}
-
-export function getNextCanvasPhase(currentPhase: CanvasPipelinePhase): CanvasPipelinePhase | null {
-  const index = CANVAS_PHASE_ORDER.indexOf(currentPhase)
-  if (index === -1 || index === CANVAS_PHASE_ORDER.length - 1)
-    return null
-  return CANVAS_PHASE_ORDER[index + 1]!
 }
 
 export function decideCanvasAutoAdvance(
@@ -196,10 +158,6 @@ export function decideCanvasAutoAdvance(
     currentPhase,
     nextPhase,
   }
-}
-
-function isCanvasPipelinePhase(value: string): value is CanvasPipelinePhase {
-  return CANVAS_PHASE_ORDER.includes(value as CanvasPipelinePhase)
 }
 
 // ===== Canvas pipeline run 状态规则 =====

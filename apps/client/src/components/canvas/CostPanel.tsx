@@ -1,4 +1,5 @@
 import type { CanvasAssetsPoll, CanvasCostPhase } from '@excuse/shared'
+import { CANVAS_PHASE_ORDER } from '@excuse/shared'
 import { statusTextClass } from '@/lib/status-tokens'
 
 /**
@@ -24,21 +25,7 @@ const PHASE_LABELS: Record<CanvasCostPhase, string> = {
   assemble: '最终合成',
 }
 
-/** 展示顺序（镜像 CanvasPipelinePhase 顺序） */
-const PHASE_ORDER: CanvasCostPhase[] = [
-  'analyze',
-  'characters',
-  'locations',
-  'characterRefs',
-  'locationRefs',
-  'storyboard',
-  'continuity',
-  'rebuild',
-  'dialogue',
-  'videos',
-  'bgm',
-  'assemble',
-]
+/** 展示顺序 = 共享注册表顺序（不再镜像） */
 
 /** cents → 元展示（保留两位） */
 function formatCents(cents: number): string {
@@ -53,7 +40,7 @@ interface CostPanelProps {
 export default function CostPanel({ pollData, onClose }: CostPanelProps) {
   const summary = pollData?.costSummary
   const hasAny = summary && (summary.totalEstimatedCents + summary.totalFinalCents + summary.totalFailedCents) > 0
-  const phases = summary ? PHASE_ORDER.filter(p => summary.byPhase[p]) : []
+  const phases = summary ? CANVAS_PHASE_ORDER.filter(p => summary.byPhase[p]) : []
 
   return (
     <div className="absolute right-4 top-4 bottom-4 w-96 bg-background border rounded-lg shadow-lg overflow-auto z-20">

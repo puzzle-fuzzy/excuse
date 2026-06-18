@@ -127,6 +127,27 @@ export async function generateCanvasVideos(projectId: string): Promise<AcceptedR
   )
 }
 
+/** 对白层 — 为每个 shot 生成对话/语气/环境音效 prompt（dialogue 阶段） */
+export async function generateCanvasDialogue(projectId: string): Promise<AcceptedResponse> {
+  return unwrapEden<AcceptedResponse>(
+    await api.api.canvas.projects({ projectId }).dialogue.post(),
+  )
+}
+
+/** 生成配乐 — FunMusic 按 genre/mood 生成 BGM（bgm 阶段） */
+export async function generateCanvasBgm(projectId: string): Promise<AcceptedResponse> {
+  return unwrapEden<AcceptedResponse>(
+    await api.api.canvas.projects({ projectId }).bgm.post(),
+  )
+}
+
+/** 合成成片 — FFmpeg 拼接镜头视频 + BGM（assemble 阶段，pause-before） */
+export async function assembleCanvas(projectId: string): Promise<AcceptedResponse> {
+  return unwrapEden<AcceptedResponse>(
+    await api.api.canvas.projects({ projectId }).assemble.post(),
+  )
+}
+
 export async function saveCanvasLayout(projectId: string, layout: import('@excuse/shared').CanvasLayoutDto): Promise<CanvasMutationOkResponse> {
   return unwrapEden<CanvasMutationOkResponse>(
     await api.api.canvas.projects({ projectId }).layout.post(layout),

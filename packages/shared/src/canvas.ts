@@ -1,5 +1,6 @@
 import type { EntityResponse, ListResponse, MutationOkResponse } from './api-response'
 import type { CanvasFailureKind } from './canvas-failure'
+import type { CanvasPipelinePhase } from './canvas-phases'
 import type {
   CanvasLayoutDto,
   CanvasLayoutEdge,
@@ -137,20 +138,6 @@ export function hasDialogueAudio(narrative: string | null | undefined): boolean 
   // 中文/英文成对引号任一出现即视为含对白。
   return /["“”‘’「」『』]/u.test(narrative)
 }
-
-export type CanvasPipelinePhase
-  = | 'analyze'
-    | 'characters'
-    | 'locations'
-    | 'characterRefs'
-    | 'locationRefs'
-    | 'storyboard'
-    | 'continuity'
-    | 'rebuild'
-    | 'dialogue'
-    | 'videos'
-    | 'bgm'
-    | 'assemble'
 
 export type CanvasPipelineRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
@@ -484,24 +471,8 @@ export interface CanvasAssetsPoll {
   generatedAt: number
 }
 
-/**
- * Canvas 成本聚合阶段维度。
- * 镜像 DB 的 `CanvasPipelinePhase` enum（权威源），用于成本按阶段分组展示。
- * 此处不直接 import db 类型以避免 shared ← db 反向依赖。
- */
-export type CanvasCostPhase
-  = | 'analyze'
-    | 'characters'
-    | 'locations'
-    | 'characterRefs'
-    | 'locationRefs'
-    | 'storyboard'
-    | 'continuity'
-    | 'rebuild'
-    | 'dialogue'
-    | 'videos'
-    | 'bgm'
-    | 'assemble'
+/** Canvas 成本聚合阶段维度 — 与 CanvasPipelinePhase 同源（单一权威注册表见 ./canvas-phases）。 */
+export type CanvasCostPhase = CanvasPipelinePhase
 
 /** 单个阶段的成本聚合条目（cents） */
 export interface CanvasCostPhaseEntry {

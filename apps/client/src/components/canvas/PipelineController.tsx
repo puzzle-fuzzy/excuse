@@ -1,14 +1,19 @@
-import type { CanvasModelPreferences, CanvasProjectStatus, ModelConfig, ProjectDTO } from '@excuse/shared'
+import type { CanvasModelPreferences, CanvasPipelinePhase, CanvasProjectStatus, ModelConfig, ProjectDTO } from '@excuse/shared'
+import { CANVAS_PAUSE_BEFORE, CANVAS_PHASE_ORDER } from '@excuse/shared'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
 import {
   analyzeCanvasProject,
+  assembleCanvas,
   cancelCanvasActivePhase,
   checkCanvasContinuity,
   fetchCanvasPipelineRuns,
   fetchModels,
+  generateCanvasBgm,
   generateCanvasCharacterRefs,
   generateCanvasCharacters,
+  generateCanvasDialogue,
   generateCanvasLocationRefs,
   generateCanvasLocations,
   generateCanvasStoryboard,
@@ -18,7 +23,6 @@ import {
   updateCanvasModelPreferences,
 } from '../../api/client'
 import { useCanvasPipelineRunsPolling } from '../../hooks/use-canvas-pipeline-runs-polling'
-import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
 
 // ── RunningPhaseInfo: 管线阶段运行时的丰富信息 ──────────
 
@@ -51,28 +55,48 @@ function resolveModelDisplayName(
 }
 
 // ── PHASES 元数据 ──────────────────────────────────────
+// 阶段顺序与 pauseBefore 全部从 @excuse/shared 的单一注册表派生；
+// 新增阶段只在 PHASE_UI 补一项（Record 强制覆盖全部阶段，漏一个即编译失败）。
 
 interface PipelinePhase {
-  key: string
+  key: CanvasPipelinePhase
   label: string
   status: CanvasProjectStatus | null
   run: (projectId: string) => Promise<unknown>
-  pauseBefore?: boolean
+  pauseBefore: boolean
   modelCategory: 'text' | 'image' | 'video' | null
 }
 
-const PHASES: PipelinePhase[] = [
-  { key: 'analyze', label: '分析故事', status: 'analyzed', run: id => analyzeCanvasProject(id), modelCategory: 'text' },
-  { key: 'characters', label: '生成角色', status: 'characters_ready', run: id => generateCanvasCharacters(id), modelCategory: 'text' },
-  { key: 'locations', label: '生成场景', status: 'locations_ready', run: id => generateCanvasLocations(id), modelCategory: 'text' },
-  { key: 'characterRefs', label: '角色参考图', status: 'refs_ready', run: id => generateCanvasCharacterRefs(id), modelCategory: 'image' },
-  { key: 'locationRefs', label: '场景参考图', status: null, run: id => generateCanvasLocationRefs(id), modelCategory: 'image' },
-  { key: 'storyboard', label: '生成分镜', status: 'storyboard_ready', run: id => generateCanvasStoryboard(id), modelCategory: 'text', pauseBefore: true },
-  { key: 'continuity', label: '连续性检查', status: 'continuity_checked', run: id => checkCanvasContinuity(id), modelCategory: null },
-  { key: 'rebuild', label: '重建 Prompt', status: 'prompts_ready', run: id => rebuildCanvasPrompts(id), modelCategory: 'text' },
-  { key: 'videos', label: '生成视频', status: 'generating', run: id => generateCanvasVideos(id), modelCategory: 'video', pauseBefore: true },
-]
+/** UI 元数据按阶段键索引（Record<CanvasPipelinePhase, ...> 强制覆盖全部阶段） */
+const PHASE_UI: Record<CanvasPipelinePhase, Omit<PipelinePhase, 'key' | 'pauseBefore'>> = {
+  analyze: { label: '分析故事', status: 'analyzed', run: analyzeCanvasProject, modelCategory: 'text' },
+  characters: { label: '生成角色', status: 'characters_ready', run: generateCanvasCharacters, modelCategory: 'text' },
+  locations: { label: '生成场景', status: 'locations_ready', run: generateCanvasLocations, modelCategory: 'text' },
+  characterRefs: { label: '角色参考图', status: 'refs_ready', run: generateCanvasCharacterRefs, modelCategory: 'image' },
+  locationRefs: { label: '场景参考图', status: null, run: generateCanvasLocationRefs, modelCategory: 'image' },
+  storyboard: { label: '生成分镜', status: 'storyboard_ready', run: generateCanvasStoryboard, modelCategory: 'text' },
+  continuity: { label: '连续性检查', status: 'continuity_checked', run: checkCanvasContinuity, modelCategory: null },
+  rebuild: { label: '重建 Prompt', status: 'prompts_ready', run: rebuildCanvasPrompts, modelCategory: 'text' },
+  dialogue: { label: '对白层', status: null, run: generateCanvasDialogue, modelCategory: 'text' },
+  videos: { label: '生成视频', status: 'generating', run: generateCanvasVideos, modelCategory: 'video' },
+  bgm: { label: '生成配乐', status: null, run: generateCanvasBgm, modelCategory: null },
+  assemble: { label: '合成成片', status: null, run: assembleCanvas, modelCategory: null },
+}
 
+const PHASES: PipelinePhase[] = CANVAS_PHASE_ORDER.map(key => ({
+  key,
+  ...PHASE_UI[key],
+  pauseBefore: CANVAS_PAUSE_BEFORE.has(key),
+}))
+
+/**
+ * 项目状态 → 流水线恢复索引（点击「自动执行」/刷新后从哪个阶段开始）。
+ *
+ * 注意：dialogue / bgm / assemble 没有独立的 project status，都落在
+ * `generating → completed` 区间。status 只能把索引定位到该区间起点（videos），
+ * 这三者是否「进行中/已完成」以活跃 pipeline run 的 phase 为准（见下方 restore
+ * 逻辑），而非 project.status。
+ */
 function getPhaseIndex(status: CanvasProjectStatus): number {
   const map: Record<string, number> = {
     draft: 0,
@@ -86,7 +110,7 @@ function getPhaseIndex(status: CanvasProjectStatus): number {
     prompts_ready: 8,
     generating: 9,
     partial_failed: 9,
-    completed: 9,
+    completed: CANVAS_PHASE_ORDER.length,
     failed: 0,
   }
   return map[status] ?? 0

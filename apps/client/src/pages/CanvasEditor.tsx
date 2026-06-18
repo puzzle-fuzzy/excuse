@@ -44,6 +44,10 @@ export default function CanvasEditor() {
   // 资产轮询 — SSE 降级时的补充性数据通道 + 状态差异检测
   const { pollData, connectionMode, isPolling } = useCanvasAssetsPolling(projectId)
   const lastReloadRef = useRef(0)
+  // mount 时的 projectVersion 快照 —— 区分「初次挂载（mount effect 已加载最新）」与「真实 phase 增长」
+  const versionAtMountRef = useRef<number | null>(null)
+  // debounce reload 计时器 —— 合并连续的 version bump / phase 完成信号，避免每个 SSE 事件一次请求
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadProject = useCallback(async () => {
     if (!projectId)
@@ -60,18 +64,42 @@ export default function CanvasEditor() {
     }
   }, [projectId])
 
+  /**
+   * 合并连续重载请求 —— 把 version bump、phase 完成等多路信号汇成一次 getCanvasProject。
+   * 每个 phase 完成（SSE bump + onPhaseComplete 回调）原先各触发一次 reload（间隔 800ms），
+   * 现统一经此入口，trailing 合并到一次请求。
+   */
+  const scheduleReload = useCallback((delayMs = 500) => {
+    if (reloadTimerRef.current)
+      clearTimeout(reloadTimerRef.current)
+    reloadTimerRef.current = setTimeout(() => {
+      reloadTimerRef.current = null
+      loadProject()
+    }, delayMs)
+  }, [loadProject])
+
   useEffect(() => {
     loadProject()
   }, [loadProject])
 
   // 项目版本号变化时重新加载（由 pipeline_node_update SSE 事件中的 phase 级别事件驱动）
-  // 仅用 800ms 延迟加载，避免立即调用拿到尚未提交的旧数据
+  // 与 onPhaseComplete（见 PipelineController）共享 scheduleReload，trailing 合并成一次请求。
   useEffect(() => {
-    if (projectVersion && projectVersion > 0) {
-      const timer = window.setTimeout(loadProject, 800)
-      return () => clearTimeout(timer)
+    if (versionAtMountRef.current === null) {
+      versionAtMountRef.current = projectVersion // 初次挂载：mount effect 已加载最新，跳过
+      return
     }
-  }, [projectVersion, loadProject])
+    if (projectVersion === versionAtMountRef.current)
+      return // 版本未变
+    // 版本确实增长（phase 完成）：debounce 合并连续 bump
+    scheduleReload(500)
+  }, [projectVersion, scheduleReload])
+
+  // 卸载时清理 pending reload，避免对已卸载组件 setState
+  useEffect(() => () => {
+    if (reloadTimerRef.current)
+      clearTimeout(reloadTimerRef.current)
+  }, [])
 
   // 实体补丁消费 — shot 状态/视频 URL 的局部 patch，不做全量 reload
   // （character/location 事件无可即时 patch 字段，由 useCanvasAssetsPolling 兜底；见 applyEntityPatches）
@@ -210,7 +238,7 @@ export default function CanvasEditor() {
         projectId={project.id}
         project={project}
         modelPreferences={project.modelPreferences}
-        onPhaseComplete={loadProject}
+        onPhaseComplete={() => scheduleReload()}
         onPhaseChange={setRunningPhase}
         phaseDone={phaseDone}
         onPhaseDoneConsumed={consumePhaseDone}
