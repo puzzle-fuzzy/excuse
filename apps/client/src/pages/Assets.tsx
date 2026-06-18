@@ -5,6 +5,7 @@ import {
   AudioLines,
   Box,
   FileText,
+  Filter,
   FolderOpen,
   ImageIcon,
   Layers,
@@ -12,6 +13,7 @@ import {
   MapPin,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Star,
   Tag,
   Tags,
@@ -48,6 +50,7 @@ import {
   normalizeAssetLibraryFiltersFromSearchParams,
   SOURCE_LABELS,
 } from '@/lib/asset-library'
+import { cn } from '@/lib/utils'
 
 type SourceFilter = 'all' | AssetLibrarySource
 type KindFilter = 'all' | AssetLibraryKind
@@ -282,204 +285,240 @@ export default function Assets() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-4 space-y-6">
+    <div className="product-page flex flex-col gap-6">
       {/* 标题 + 项目选择器 */}
-      <div className="flex items-center gap-2">
-        <FolderOpen className="size-5" />
-        <h1 className="text-lg font-semibold">资产库</h1>
-        <select
-          value={projectId ?? ''}
-          onChange={e => setProjectId(e.target.value || null)}
-          className="h-7 rounded-md border bg-background px-2 text-xs"
-        >
-          <option value="">全部项目</option>
-          {projects.map(p => (
-            <option key={p.id} value={p.id}>{formatProjectOptionLabel(p)}</option>
-          ))}
-        </select>
+      <section className="rounded-2xl border bg-card p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-muted/45 px-3 py-1 text-xs text-muted-foreground">
+              <FolderOpen className="size-3.5 text-primary" />
+              {isLoading ? '正在同步资产' : `${allItems.length} 个资产可浏览`}
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">资产库</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+              管理生成结果、上传文件、Canvas 角色场景和可复用素材。筛选、预览、打标签和收藏都应该在这里顺手完成。
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              value={projectId ?? ''}
+              onChange={e => setProjectId(e.target.value || null)}
+              className="h-9 rounded-lg border bg-background px-3 text-sm"
+              aria-label="项目筛选"
+            >
+              <option value="">全部项目</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{formatProjectOptionLabel(p)}</option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTagManageOpen(true)}
+            >
+              <Tags className="size-3.5" />
+              标签管理
+            </Button>
+          </div>
+        </div>
         {projectId && !projects.some(p => p.id === projectId) && (
-          <Badge variant="secondary" className="gap-1">
+          <Badge variant="secondary" className="mt-4 gap-1">
             <Link2 className="size-3" />
+            当前链接项目：
             {projectId.slice(0, 8)}
             …
           </Badge>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => setTagManageOpen(true)}
-        >
-          <Tags className="size-3" />
-          标签管理
-        </Button>
-      </div>
+      </section>
 
       {/* 来源 + 状态筛选 */}
-      <div className="flex flex-wrap gap-2">
-        {/* 搜索框 */}
-        <div className="relative flex items-center">
-          <Search className="absolute left-2 size-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            value={filters.search}
-            onChange={e => updateFilter('search', e.target.value)}
-            placeholder="搜索文件名、Prompt、模型、项目内容..."
-            className="h-8 w-56 rounded-md border bg-background pl-7 pr-7 text-xs"
-          />
-          {filters.search && (
-            <button
-              type="button"
-              onClick={() => updateFilter('search', '')}
-              className="absolute right-1.5 text-muted-foreground hover:text-foreground"
-              aria-label="清空搜索"
-            >
-              <X className="size-3" />
-            </button>
+      <section className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+              <SlidersHorizontal className="size-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold">筛选与排序</h2>
+              <p className="text-xs text-muted-foreground">组合搜索、来源、状态、时间和标签，快速找回可复用资产。</p>
+            </div>
+          </div>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <RotateCcw className="size-3.5" />
+              清空筛选
+            </Button>
           )}
         </div>
-        <span className="mx-1 self-center text-muted-foreground">·</span>
-        {SOURCE_OPTIONS.map(({ value, label }) => (
-          <Button
-            key={value}
-            variant={filters.source === value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => updateFilter('source', value)}
-          >
-            {label}
-          </Button>
-        ))}
-        <span className="mx-1 self-center text-muted-foreground">·</span>
-        {STATUS_OPTIONS.map(({ value, label }) => (
-          <Button
-            key={value}
-            variant={filters.status === value ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => updateFilter('status', value)}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
+        <div className="flex flex-wrap gap-2">
+          {/* 搜索框 */}
+          <div className="relative flex items-center">
+            <Search className="absolute left-2 size-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={e => updateFilter('search', e.target.value)}
+              placeholder="搜索文件名、Prompt、模型、项目内容..."
+              className="h-9 w-full min-w-64 rounded-lg border bg-background pl-8 pr-8 text-sm sm:w-80"
+            />
+            {filters.search && (
+              <button
+                type="button"
+                onClick={() => updateFilter('search', '')}
+                className="absolute right-1.5 text-muted-foreground hover:text-foreground"
+                aria-label="清空搜索"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+          <span className="mx-1 hidden self-center text-muted-foreground sm:inline">·</span>
+          {SOURCE_OPTIONS.map(({ value, label }) => (
+            <Button
+              key={value}
+              variant={filters.source === value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => updateFilter('source', value)}
+            >
+              {label}
+            </Button>
+          ))}
+          <span className="mx-1 hidden self-center text-muted-foreground sm:inline">·</span>
+          {STATUS_OPTIONS.map(({ value, label }) => (
+            <Button
+              key={value}
+              variant={filters.status === value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => updateFilter('status', value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </section>
 
       {/* 统计卡片（按 kind，点击切换 kind 筛选） */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
         {KIND_CARDS.map(({ value, label, icon: Icon }) => {
           const count = value === 'all' ? stats.total : (stats.byKind[value] ?? 0)
+          const selected = filters.kind === value
           return (
             <Card
               key={value}
-              className={`cursor-pointer transition-colors ${filters.kind === value ? 'ring-2 ring-primary' : ''}`}
+              className={cn(
+                'cursor-pointer bg-card transition-colors hover:bg-muted/35',
+                selected && 'border-primary bg-primary/5 ring-1 ring-primary/35',
+              )}
               onClick={() => updateFilter('kind', value)}
             >
               <CardContent className="flex flex-col items-center gap-1 p-3 text-center">
-                <Icon className="size-4 text-muted-foreground" />
-                <p className="text-xl font-bold">{count}</p>
+                <Icon className={cn('size-4', selected ? 'text-primary' : 'text-muted-foreground')} />
+                <p className="text-xl font-semibold tracking-tight">{count}</p>
                 <p className="text-[10px] text-muted-foreground">{label}</p>
               </CardContent>
             </Card>
           )
         })}
-      </div>
+      </section>
 
       {/* 模型 + 时间筛选 + 排序 + 清空 */}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-muted-foreground">模型</label>
-          <input
-            type="text"
-            value={filters.model}
-            onChange={e => updateFilter('model', e.target.value)}
-            placeholder="精确匹配"
-            className="h-8 w-32 rounded-md border bg-background px-2 text-xs"
-          />
+      <section className="rounded-xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <Filter className="size-4 text-muted-foreground" />
+          高级筛选
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-muted-foreground">开始日期</label>
-          <input
-            type="date"
-            value={filters.createdFrom}
-            onChange={e => updateFilter('createdFrom', e.target.value)}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-muted-foreground">结束日期</label>
-          <input
-            type="date"
-            value={filters.createdTo}
-            onChange={e => updateFilter('createdTo', e.target.value)}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-muted-foreground">排序</label>
-          <select
-            value={filters.sort}
-            onChange={e => updateFilter('sort', e.target.value as AssetLibrarySort)}
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            aria-label="排序"
-          >
-            <option value="created_desc">最新优先</option>
-            <option value="created_asc">最早优先</option>
-            <option value="title_asc">标题 A→Z</option>
-            <option value="title_desc">标题 Z→A</option>
-          </select>
-        </div>
-        <label className="flex items-center gap-1 self-end pb-1.5 text-xs">
-          <input
-            type="checkbox"
-            checked={filters.favorite}
-            onChange={e => updateFilter('favorite', e.target.checked)}
-            aria-label="仅看收藏"
-          />
-          仅看收藏
-        </label>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] text-muted-foreground">标签</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" aria-label="标签筛选" className="h-8">
-                <Tag className="size-3" />
-                {filters.tagIds.length > 0 ? `已选 ${filters.tagIds.length}` : '全部标签'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-1" align="start">
-              {allTags.length === 0
-                ? (
-                    <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                      还没有标签，前往
-                      <button type="button" className="mx-1 underline" onClick={() => setTagManageOpen(true)}>
-                        标签管理
-                      </button>
-                      创建
-                    </p>
-                  )
-                : (
-                    <div className="max-h-60 overflow-y-auto">
-                      {allTags.map(tag => (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          onClick={() => toggleFilterTagId(tag.id)}
-                          className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
-                        >
-                          <span className="truncate">{tag.name}</span>
-                          {filters.tagIds.includes(tag.id) && <X className="size-3" />}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-muted-foreground">模型</label>
+            <input
+              type="text"
+              value={filters.model}
+              onChange={e => updateFilter('model', e.target.value)}
+              placeholder="精确匹配"
+              className="h-9 w-36 rounded-lg border bg-background px-3 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-muted-foreground">开始日期</label>
+            <input
+              type="date"
+              value={filters.createdFrom}
+              onChange={e => updateFilter('createdFrom', e.target.value)}
+              className="h-9 rounded-lg border bg-background px-3 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-muted-foreground">结束日期</label>
+            <input
+              type="date"
+              value={filters.createdTo}
+              onChange={e => updateFilter('createdTo', e.target.value)}
+              className="h-9 rounded-lg border bg-background px-3 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-muted-foreground">排序</label>
+            <select
+              value={filters.sort}
+              onChange={e => updateFilter('sort', e.target.value as AssetLibrarySort)}
+              className="h-9 rounded-lg border bg-background px-3 text-sm"
+              aria-label="排序"
+            >
+              <option value="created_desc">最新优先</option>
+              <option value="created_asc">最早优先</option>
+              <option value="title_asc">标题 A→Z</option>
+              <option value="title_desc">标题 Z→A</option>
+            </select>
+          </div>
+          <label className="flex h-9 items-center gap-2 self-end rounded-lg border bg-background px-3 text-sm">
+            <input
+              type="checkbox"
+              checked={filters.favorite}
+              onChange={e => updateFilter('favorite', e.target.checked)}
+              aria-label="仅看收藏"
+            />
+            仅看收藏
+          </label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] text-muted-foreground">标签</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="标签筛选" className="h-8">
+                  <Tag className="size-3" />
+                  {filters.tagIds.length > 0 ? `已选 ${filters.tagIds.length}` : '全部标签'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56 p-1" align="start">
+                {allTags.length === 0
+                  ? (
+                      <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                        还没有标签，前往
+                        <button type="button" className="mx-1 underline" onClick={() => setTagManageOpen(true)}>
+                          标签管理
                         </button>
-                      ))}
-                    </div>
-                  )}
-            </PopoverContent>
-          </Popover>
+                        创建
+                      </p>
+                    )
+                  : (
+                      <div className="max-h-60 overflow-y-auto">
+                        {allTags.map(tag => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            onClick={() => toggleFilterTagId(tag.id)}
+                            className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs hover:bg-accent"
+                          >
+                            <span className="truncate">{tag.name}</span>
+                            {filters.tagIds.includes(tag.id) && <X className="size-3" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <RotateCcw className="size-3" />
-            清空筛选
-          </Button>
-        )}
-      </div>
+      </section>
 
       {/* 已选标签 badge 行（filters.tagIds 非空时显示） */}
       {filters.tagIds.length > 0 && (
@@ -508,19 +547,27 @@ export default function Assets() {
 
       {/* 加载状态 */}
       {isLoading && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <FolderOpen className="mb-2 size-10 animate-pulse" />
-          <p>加载中...</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {Array.from({ length: 10 }, (_, index) => (
+            <Card key={index} className="overflow-hidden bg-card">
+              <div className="aspect-video animate-pulse bg-muted" />
+              <CardContent className="space-y-2 p-3">
+                <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* 错误状态 */}
       {error && !isLoading && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <FolderOpen className="mb-2 size-10" />
-          <p>加载失败</p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RotateCcw className="size-3" />
+        <div className="rounded-xl border bg-card p-8 text-center">
+          <FolderOpen className="mx-auto mb-2 size-10 text-muted-foreground" />
+          <p className="text-sm font-medium">加载失败</p>
+          <p className="mt-1 text-sm text-muted-foreground">资产库暂时没有返回数据，请检查网络或稍后重试。</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+            <RotateCcw className="size-3.5" />
             重试
           </Button>
         </div>
@@ -528,9 +575,17 @@ export default function Assets() {
 
       {/* 资产网格（服务端已筛选，直接展示） */}
       {!isLoading && !error && allItems.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <FolderOpen className="mb-2 size-10" />
-          <p>暂无资产</p>
+        <div className="rounded-xl border border-dashed bg-card p-10 text-center">
+          <FolderOpen className="mx-auto mb-3 size-10 text-muted-foreground" />
+          <p className="text-sm font-semibold">暂无资产</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            {hasActiveFilters ? '当前筛选条件下没有资产，清空筛选后再看看。' : '完成生成、上传文件或推进 Canvas 项目后，资产会自动沉淀到这里。'}
+          </p>
+          {hasActiveFilters && (
+            <Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>
+              清空筛选
+            </Button>
+          )}
         </div>
       )}
 
@@ -609,10 +664,10 @@ function AssetCard({
 
   return (
     <Card
-      className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
+      className="group cursor-pointer overflow-hidden bg-card transition-colors hover:bg-muted/30"
       onClick={onClick}
     >
-      <div className="relative aspect-video bg-muted">
+      <div className="relative aspect-video bg-muted/70">
         {previewKind === 'image' && item.previewUrl && (
           <img src={item.previewUrl} alt="" className="size-full object-cover" loading="lazy" />
         )}
@@ -629,11 +684,11 @@ function AssetCard({
             <Icon className="size-8 text-muted-foreground" />
           </div>
         )}
-        <Badge variant="secondary" className="absolute left-1.5 top-1.5 gap-1 text-[10px]">
+        <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-background/90 text-[10px]">
           <Icon className="size-3" />
           {KIND_LABELS[item.kind]}
         </Badge>
-        <Badge variant="outline" className="absolute right-1.5 top-1.5 bg-background/80 text-[10px]">
+        <Badge variant="outline" className="absolute right-2 top-2 bg-background/90 text-[10px]">
           {SOURCE_LABELS[item.source]}
         </Badge>
         <button
@@ -645,7 +700,7 @@ function AssetCard({
           }}
           aria-label={item.isFavorite ? '取消收藏' : '收藏'}
           aria-pressed={item.isFavorite}
-          className="absolute bottom-1.5 right-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+          className="absolute bottom-2 right-2 rounded-full bg-background/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
         >
           <Star className={`size-3.5 ${item.isFavorite ? 'fill-[color:var(--status-warning-fg)] text-[color:var(--status-warning-fg)]' : ''}`} />
         </button>
@@ -659,7 +714,7 @@ function AssetCard({
               }}
               aria-label="加标签"
               data-testid={`asset-tag-trigger-${tagPopoverKey}`}
-              className="absolute bottom-1.5 left-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+              className="absolute bottom-2 left-2 rounded-full bg-background/90 p-1.5 text-muted-foreground shadow-sm transition-colors hover:bg-background hover:text-foreground"
             >
               <Tag className="size-3.5" />
             </button>
@@ -704,14 +759,14 @@ function AssetCard({
           </PopoverContent>
         </Popover>
       </div>
-      <CardContent className="p-2">
-        <p className="text-xs font-medium truncate">{item.title}</p>
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+      <CardContent className="p-3">
+        <p className="truncate text-sm font-medium">{item.title}</p>
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span className="truncate">{item.model ?? '—'}</span>
           <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
         </div>
         {item.tagNames.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1">
             {visibleTagNames.map(name => (
               <Badge key={name} variant="secondary" className="text-[9px]">
                 {name}

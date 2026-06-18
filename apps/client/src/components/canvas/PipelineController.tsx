@@ -7,7 +7,9 @@
  */
 import type { CanvasModelPreferences, ModelConfig, ProjectDTO } from '@excuse/shared'
 import type { PhaseDoneEvent, RunningPhaseInfo } from './usePipelineController'
+import { Play, Square } from 'lucide-react'
 import { statusTextClass, statusToneClass } from '@/lib/status-tokens'
+import { cn } from '@/lib/utils'
 import { usePipelineController } from './usePipelineController'
 
 // Re-export for backward compatibility (consumed by CanvasEditor, nodes, RunningOverlay)
@@ -29,10 +31,10 @@ export default function PipelineController(props: Props) {
   const { projectStatus, showShotStats, shotStats, hasFailedShots } = ctrl
 
   return (
-    <div className="border-t bg-background/95 backdrop-blur-sm px-4 py-3">
+    <div className="border-t bg-background/95 px-4 py-3 shadow-[0_-8px_24px_oklch(0.17_0.018_205_/_6%)] backdrop-blur-sm">
       {/* Shot statistics */}
       {showShotStats && shotStats && (
-        <div className="flex items-center gap-3 mb-2 text-xs">
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border bg-muted/25 px-3 py-2 text-xs">
           <span className="text-muted-foreground">
             总镜头:
             {' '}
@@ -57,7 +59,7 @@ export default function PipelineController(props: Props) {
             <button
               onClick={ctrl.handleRetryAllFailed}
               disabled={ctrl.running}
-              className={statusToneClass('warning', 'rounded border px-2 py-0.5 hover:opacity-90')}
+              className={statusToneClass('warning', 'rounded-md border px-2 py-1 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60')}
             >
               重试全部失败镜头
             </button>
@@ -66,7 +68,7 @@ export default function PipelineController(props: Props) {
       )}
 
       {/* Model selectors */}
-      <div className="flex items-center gap-3 mb-2 text-xs">
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
         <ModelSelect
           label="文本模型"
           models={ctrl.textModels}
@@ -84,7 +86,7 @@ export default function PipelineController(props: Props) {
       </div>
 
       {/* Phase progress bar */}
-      <div className="flex items-center gap-1 mb-2">
+      <div className="mb-3 flex items-center gap-1">
         {ctrl.PHASES.map((phase, idx) => {
           const isCompleted = idx < ctrl.startIdx
           const isCurrent = idx === ctrl.currentPhase
@@ -94,13 +96,13 @@ export default function PipelineController(props: Props) {
           return (
             <div
               key={phase.key}
-              className={`
-                flex-1 h-2 rounded-full transition-colors
-                ${isCompleted ? 'bg-[color:var(--status-success-fg)]' : ''}
-                ${isCurrent ? 'bg-[color:var(--status-info-fg)] animate-pulse' : ''}
-                ${isFailed ? 'bg-[color:var(--status-danger-fg)] animate-pulse' : ''}
-                ${isPending ? 'bg-muted' : ''}
-              `}
+              className={cn(
+                'h-2 flex-1 rounded-full transition-colors',
+                isCompleted && 'bg-[color:var(--status-success-fg)]',
+                isCurrent && 'animate-pulse bg-[color:var(--status-info-fg)]',
+                isFailed && 'animate-pulse bg-[color:var(--status-danger-fg)]',
+                isPending && 'bg-muted',
+              )}
               title={phase.label}
             />
           )
@@ -108,8 +110,8 @@ export default function PipelineController(props: Props) {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 flex-wrap flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-1 flex-wrap gap-1.5">
           {ctrl.PHASES.map((phase, idx) => {
             const isCompleted = idx < ctrl.startIdx
             const isCurrent = idx === ctrl.currentPhase
@@ -121,40 +123,40 @@ export default function PipelineController(props: Props) {
                 key={phase.key}
                 onClick={() => canRun && ctrl.handleRunFrom(idx)}
                 disabled={ctrl.running || (!canRun && !isCompleted)}
-                className={`
-                  text-xs px-2 py-1 rounded border transition-colors
-                  ${isCompleted ? statusToneClass('success') : ''}
-                  ${isCurrent ? statusToneClass('info', 'font-medium') : ''}
-                  ${isFailed ? statusToneClass('danger', 'font-medium') : ''}
-                  ${!isCompleted && !isCurrent && !isFailed ? 'bg-muted/50 border-border text-muted-foreground' : ''}
-                  ${canRun && !ctrl.running ? 'hover:bg-accent cursor-pointer' : ''}
-                `}
+                className={cn(
+                  'rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-65',
+                  isCompleted && statusToneClass('success'),
+                  isCurrent && statusToneClass('info', 'font-medium'),
+                  isFailed && statusToneClass('danger', 'font-medium'),
+                  !isCompleted && !isCurrent && !isFailed && 'border-border bg-muted/50 text-muted-foreground',
+                  canRun && !ctrl.running && 'cursor-pointer hover:bg-accent',
+                )}
               >
                 {phase.label}
-                {phase.pauseBefore && ' ⏸'}
+                {phase.pauseBefore && ' · 确认'}
               </button>
             )
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ctrl.pendingConfirmIdx >= 0 && !ctrl.running && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-[color:var(--status-warning-bg)] px-3 py-2 text-sm">
               <span className={statusTextClass('warning', 'font-medium')}>
-                ⏸ 准备执行
+                准备执行
                 {ctrl.PHASES[ctrl.pendingConfirmIdx]?.label}
                 ，请确认继续
               </span>
               <button
                 onClick={ctrl.handleConfirmPausePhase}
-                className="text-xs px-3 py-1.5 rounded bg-[color:var(--status-warning-fg)] text-primary-foreground hover:opacity-90 font-medium"
+                className="rounded-md bg-[color:var(--status-warning-fg)] px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
               >
-                确认继续 →
+                确认继续
                 {ctrl.PHASES[ctrl.pendingConfirmIdx]?.label}
               </button>
               <button
                 onClick={ctrl.handleCancelPausePhase}
-                className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                className="rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
               >
                 暂不执行
               </button>
@@ -185,8 +187,9 @@ export default function PipelineController(props: Props) {
           {ctrl.running && (
             <button
               onClick={ctrl.handleCancelActive}
-              className={statusToneClass('danger', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
+              className={statusToneClass('danger', 'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs hover:opacity-90')}
             >
+              <Square className="size-3.5" />
               终止当前阶段
             </button>
           )}
@@ -198,14 +201,14 @@ export default function PipelineController(props: Props) {
               </span>
               <button
                 onClick={() => ctrl.handleRunFrom(ctrl.failedPhaseIdx >= 0 ? ctrl.failedPhaseIdx : ctrl.startIdx)}
-                className={statusToneClass('warning', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
+                className={statusToneClass('warning', 'rounded-lg border px-2.5 py-1.5 text-xs hover:opacity-90')}
               >
                 重试
               </button>
               {ctrl.startIdx + 1 < ctrl.PHASES.length && (
                 <button
                   onClick={ctrl.handleSkipAndContinue}
-                  className={statusToneClass('info', 'rounded border px-2 py-1 text-xs hover:opacity-90')}
+                  className={statusToneClass('info', 'rounded-lg border px-2.5 py-1.5 text-xs hover:opacity-90')}
                 >
                   跳过继续
                 </button>
@@ -216,8 +219,9 @@ export default function PipelineController(props: Props) {
           {!ctrl.running && ctrl.pendingConfirmIdx < 0 && !ctrl.error && (
             <button
               onClick={ctrl.handleAutoRun}
-              className="text-xs px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 font-medium"
+              className="brand-cta inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
             >
+              <Play className="size-3.5" />
               自动执行全部
             </button>
           )}
@@ -243,7 +247,7 @@ function ModelSelect({ label, models, value, onChange, disabled }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         disabled={disabled}
-        className="text-xs px-1.5 py-0.5 rounded border border-border bg-background text-foreground max-w-45"
+        className="max-w-45 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
         <option value="">默认</option>
         {models.map(m => (

@@ -1,4 +1,5 @@
 import type { CanvasAssetsPoll, CanvasFailureKind, ProjectDTO } from '@excuse/shared'
+import { Activity, AlertTriangle, CheckCircle2, Lightbulb, X } from 'lucide-react'
 import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 import { FAILURE_KIND_TONES, statusBadgeClass, statusTextClass, statusToneClass, TASK_STATUS_TONES } from '@/lib/status-tokens'
 
@@ -63,22 +64,48 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
   const recentFailures = pollData?.recentFailures ?? []
 
   return (
-    <div className="absolute right-4 top-4 bottom-4 w-96 bg-background border rounded-lg shadow-lg overflow-auto z-20">
+    <aside className="floating-product-panel absolute bottom-4 right-4 top-4 z-20 flex w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden">
       {/* 头部 */}
-      <div className="sticky top-0 bg-background border-b px-4 py-2 flex items-center justify-between z-10">
-        <span className="text-sm font-medium">任务队列</span>
-        <button
-          onClick={onClose}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          关闭
-        </button>
+      <div className="border-b bg-background/95 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+              <Activity className="size-4" />
+            </span>
+            <div>
+              <div className="text-sm font-semibold">任务队列</div>
+              <div className="text-xs text-muted-foreground">
+                {activeTasks.length}
+                {' '}
+                个进行中，
+                {recentFailures.length}
+                {' '}
+                个最近失败
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭任务队列"
+            className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="p-4 space-y-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
+        {activeTasks.length === 0 && recentFailures.length === 0 && (
+          <div className="rounded-xl border border-dashed bg-muted/25 p-5 text-center">
+            <CheckCircle2 className="mx-auto size-8 text-[color:var(--status-success-fg)]" />
+            <h4 className="mt-3 text-sm font-semibold">队列当前稳定</h4>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">启动 Canvas 阶段后，提交中、生成中和保存中的任务会集中显示在这里。</p>
+          </div>
+        )}
         {/* ── 活跃任务 ── */}
         <section className="space-y-2">
-          <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+          <h4 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             进行中的任务
             <span className={statusBadgeClass('info', 'px-1.5')}>{activeTasks.length}</span>
           </h4>
@@ -92,7 +119,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
                   {activeTasks.map((task) => {
                     const statusTone = TASK_STATUS_TONES[task.status] ?? 'neutral'
                     return (
-                      <div key={`${task.category}-${task.id}`} className="border rounded p-2 space-y-1">
+                      <div key={`${task.category}-${task.id}`} className="space-y-1 rounded-lg border bg-background p-3">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-medium">
                             {CATEGORY_LABELS[task.category] ?? task.category}
@@ -127,7 +154,8 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
 
         {/* ── 最近失败 ── */}
         <section className="space-y-2">
-          <h4 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+          <h4 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <AlertTriangle className="size-3.5" />
             最近失败
             <span className={statusBadgeClass('danger', 'px-1.5')}>{recentFailures.length}</span>
           </h4>
@@ -139,7 +167,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
             : (
                 <div className="space-y-2">
                   {recentFailures.map(f => (
-                    <div key={`${f.category}-${f.id}`} className="border border-[color:var(--status-danger-border)] rounded p-2 space-y-1.5">
+                    <div key={`${f.category}-${f.id}`} className="space-y-1.5 rounded-lg border border-[color:var(--status-danger-border)] bg-[color:var(--status-danger-bg)]/20 p-3">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-medium">
                           {CATEGORY_LABELS[f.category] ?? f.category}
@@ -161,8 +189,7 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
 
                       {/* 下一步建议 */}
                       <div className={statusToneClass('info', 'rounded border px-1.5 py-1 text-xs')}>
-                        💡
-                        {' '}
+                        <Lightbulb className="mr-1 inline size-3.5" />
                         {f.suggestion}
                       </div>
 
@@ -186,6 +213,6 @@ export default function TaskQueuePanel({ pollData, project, onClose }: TaskQueue
               )}
         </section>
       </div>
-    </div>
+    </aside>
   )
 }

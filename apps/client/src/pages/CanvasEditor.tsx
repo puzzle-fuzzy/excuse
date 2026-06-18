@@ -1,7 +1,8 @@
 import type { ProjectDTO } from '@excuse/shared'
 import type { RunningPhaseInfo } from '../components/canvas/PipelineController'
+import { AlertTriangle, ArrowLeft, Layers3, Loader2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { getCanvasProject } from '../api/client'
 import CanvasFlow from '../components/canvas/CanvasFlow'
 import CanvasStatusBar from '../components/canvas/CanvasStatusBar'
@@ -9,6 +10,8 @@ import CostPanel from '../components/canvas/CostPanel'
 import NodeDetailPanel from '../components/canvas/NodeDetailPanel'
 import PipelineController from '../components/canvas/PipelineController'
 import TaskQueuePanel from '../components/canvas/TaskQueuePanel'
+import { Button } from '../components/ui/button'
+import { Skeleton } from '../components/ui/skeleton'
 import { useCanvasAssetsPolling } from '../hooks/use-canvas-assets-polling'
 import { applyEntityPatches } from '../lib/apply-entity-patches'
 import { resolveFocusNodeWithProject } from '../lib/asset-library'
@@ -147,19 +150,60 @@ export default function CanvasEditor() {
   }, [pollData, project, loadProject])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen text-muted-foreground">加载项目...</div>
+    return (
+      <div className="canvas-stage-shell flex h-[calc(100vh-56px)] min-h-[640px] flex-col">
+        <div className="border-b bg-background/90 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-9 rounded-lg" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-3 w-72" />
+            </div>
+          </div>
+        </div>
+        <div className="grid flex-1 place-items-center p-6">
+          <div className="floating-product-panel w-full max-w-md p-6 text-center">
+            <span className="mx-auto grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Loader2 className="size-5 animate-spin" />
+            </span>
+            <h2 className="mt-4 text-base font-semibold">正在读取 Canvas 项目</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              正在同步故事、镜头、资产和任务状态。长项目首次打开可能需要几秒。
+            </p>
+          </div>
+        </div>
+        <div className="border-t bg-background/90 px-4 py-3">
+          <Skeleton className="h-16 w-full rounded-xl" />
+        </div>
+      </div>
+    )
   }
 
   if (error || !project) {
     return (
-      <div className="flex items-center justify-center h-screen text-[color:var(--status-danger-fg)]">
-        {error || '项目不存在'}
+      <div className="canvas-stage-shell grid h-[calc(100vh-56px)] min-h-[640px] place-items-center p-6">
+        <div className="floating-product-panel w-full max-w-lg p-6">
+          <span className="grid size-11 place-items-center rounded-xl bg-[color:var(--status-danger-bg)] text-[color:var(--status-danger-fg)]">
+            <AlertTriangle className="size-5" />
+          </span>
+          <h1 className="mt-4 text-lg font-semibold">无法打开 Canvas 项目</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{error || '项目不存在，可能已被删除或当前账号没有访问权限。'}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link to="/canvas">
+                <ArrowLeft className="size-4" />
+                返回项目库
+              </Link>
+            </Button>
+            <Button onClick={loadProject}>重新加载</Button>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="canvas-stage-shell flex h-[calc(100vh-56px)] min-h-[640px] flex-col overflow-hidden">
       {/* Status bar */}
       <CanvasStatusBar
         project={project}
@@ -180,7 +224,7 @@ export default function CanvasEditor() {
       />
 
       {/* Canvas area */}
-      <div className="flex-1 relative">
+      <div className="relative flex-1 overflow-hidden">
         <CanvasFlow
           project={project}
           runningPhase={runningPhase}
@@ -212,24 +256,37 @@ export default function CanvasEditor() {
 
         {/* Side panel for selected node */}
         {selectedNode && (
-          <div className="absolute right-4 top-4 bottom-4 w-90 bg-background border rounded-lg shadow-lg overflow-auto">
-            <div className="sticky top-0 bg-background border-b px-4 py-2 flex items-center justify-between">
-              <span className="text-sm font-medium">
-                节点详情
-              </span>
-              <button
-                onClick={() => setSelectedNode(null)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                关闭
-              </button>
+          <aside className="floating-product-panel absolute bottom-4 right-4 top-4 z-30 flex w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden">
+            <div className="border-b bg-background/95 px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Layers3 className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">节点详情</div>
+                    <div className="truncate text-xs text-muted-foreground">{selectedNode.type}</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="关闭节点详情"
+                  title="关闭节点详情"
+                  onClick={() => setSelectedNode(null)}
+                  className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
-            <NodeDetailPanel
-              selectedNode={selectedNode}
-              project={project}
-              onUpdate={loadProject}
-            />
-          </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <NodeDetailPanel
+                selectedNode={selectedNode}
+                project={project}
+                onUpdate={loadProject}
+              />
+            </div>
+          </aside>
         )}
       </div>
 

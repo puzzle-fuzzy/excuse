@@ -1,13 +1,12 @@
 import { MODEL_ALIASES } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
-import { Copy, RefreshCw } from 'lucide-react'
+import { Activity, Code2, Copy, KeyRound, RefreshCw, Terminal } from 'lucide-react'
 import { Link } from 'react-router'
 import { fetchGatewayUsage } from '@/api/client'
 import { gatewayQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { formatCents } from '@/lib/generation-utils'
 import { copyToClipboard } from '@/lib/utils'
 
@@ -138,10 +137,13 @@ function UsageSection() {
   const usage = data
 
   return (
-    <Card>
+    <Card className="bg-card">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">用量概览</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Activity className="size-4 text-primary" />
+            用量概览
+          </CardTitle>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
             <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
@@ -151,20 +153,20 @@ function UsageSection() {
         {isLoading && <p className="text-sm text-muted-foreground">加载中...</p>}
         {!isLoading && !usage && <p className="text-sm text-muted-foreground">暂无调用记录</p>}
         {!isLoading && usage && (
-          <div className="grid grid-cols-4 gap-3 text-sm">
-            <div className="rounded-lg border p-3">
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg border bg-background p-3">
               <p className="text-xs text-muted-foreground">总调用</p>
               <p className="mt-1 font-mono text-lg">{usage.totalCalls}</p>
             </div>
-            <div className="rounded-lg border p-3">
+            <div className="rounded-lg border bg-background p-3">
               <p className="text-xs text-muted-foreground">成功</p>
               <p className="mt-1 font-mono text-lg">{usage.succeededCalls}</p>
             </div>
-            <div className="rounded-lg border p-3">
+            <div className="rounded-lg border bg-background p-3">
               <p className="text-xs text-muted-foreground">失败</p>
               <p className="mt-1 font-mono text-lg text-destructive">{usage.failedCalls}</p>
             </div>
-            <div className="rounded-lg border p-3">
+            <div className="rounded-lg border bg-background p-3">
               <p className="text-xs text-muted-foreground">总消耗</p>
               <p className="mt-1 font-mono text-lg">{formatCents(usage.totalPriceCents)}</p>
             </div>
@@ -177,25 +179,42 @@ function UsageSection() {
 
 export default function Developers() {
   return (
-    <div className="mx-auto max-w-3xl p-4 space-y-6">
+    <div className="product-page flex max-w-5xl flex-col gap-6">
       {/* 标题区 */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">开发者接入</h1>
-        <Badge variant="secondary">内测</Badge>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        使用 API Key 调用 OpenAI 兼容文本生成接口
-      </p>
-
-      <Separator />
+      <section className="rounded-2xl border bg-card p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-muted/45 px-3 py-1 text-xs text-muted-foreground">
+              <Code2 className="size-3.5 text-primary" />
+              OpenAI compatible gateway
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">开发者接入</h1>
+              <Badge variant="secondary">内测</Badge>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              使用 API Key 调用 OpenAI 兼容文本生成接口。这里集中放置 Base URL、鉴权方式、示例代码、模型别名和稳定错误码。
+            </p>
+          </div>
+          <Button asChild className="brand-cta">
+            <Link to="/api-keys">
+              <KeyRound className="size-4" />
+              管理 API Keys
+            </Link>
+          </Button>
+        </div>
+      </section>
 
       {/* 用量概览 */}
       <UsageSection />
 
       {/* 快速开始 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
-          <CardTitle className="text-sm">快速开始</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Terminal className="size-4 text-primary" />
+            快速开始
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div>
@@ -225,7 +244,7 @@ export default function Developers() {
       </Card>
 
       {/* Endpoint 卡片 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">Endpoint</CardTitle>
         </CardHeader>
@@ -246,7 +265,7 @@ export default function Developers() {
       </Card>
 
       {/* 示例代码 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">示例代码</CardTitle>
         </CardHeader>
@@ -259,7 +278,7 @@ export default function Developers() {
                 复制
               </Button>
             </div>
-            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+            <pre className="overflow-auto rounded-lg border bg-background p-4 text-xs">
               <code>{CURL_EXAMPLE}</code>
             </pre>
           </div>
@@ -271,7 +290,7 @@ export default function Developers() {
                 复制
               </Button>
             </div>
-            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+            <pre className="overflow-auto rounded-lg border bg-background p-4 text-xs">
               <code>{JS_EXAMPLE}</code>
             </pre>
           </div>
@@ -283,7 +302,7 @@ export default function Developers() {
                 复制
               </Button>
             </div>
-            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+            <pre className="overflow-auto rounded-lg border bg-background p-4 text-xs">
               <code>{PYTHON_EXAMPLE}</code>
             </pre>
           </div>
@@ -295,7 +314,7 @@ export default function Developers() {
                 复制
               </Button>
             </div>
-            <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto">
+            <pre className="overflow-auto rounded-lg border bg-background p-4 text-xs">
               <code>{CURL_STREAM_EXAMPLE}</code>
             </pre>
           </div>
@@ -303,7 +322,7 @@ export default function Developers() {
       </Card>
 
       {/* 支持模型 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">支持模型</CardTitle>
         </CardHeader>
@@ -331,7 +350,7 @@ export default function Developers() {
       </Card>
 
       {/* 定价说明 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">文本模型定价</CardTitle>
         </CardHeader>
@@ -372,14 +391,14 @@ export default function Developers() {
       </Card>
 
       {/* 错误响应 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">错误响应</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <p className="text-sm">所有错误响应遵循 OpenAI 错误格式：</p>
-            <pre className="mt-2 rounded-lg bg-muted p-4 text-xs overflow-auto">
+            <pre className="mt-2 overflow-auto rounded-lg border bg-background p-4 text-xs">
               <code>{ERROR_RESPONSE_EXAMPLE}</code>
             </pre>
             <p className="mt-2 text-xs text-muted-foreground">
@@ -417,7 +436,7 @@ export default function Developers() {
       </Card>
 
       {/* 当前限制 */}
-      <Card>
+      <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-sm">能力与限制</CardTitle>
         </CardHeader>
