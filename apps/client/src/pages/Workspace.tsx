@@ -9,7 +9,7 @@ import {
   Video,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import RecordCard from '@/components/generation/RecordCard'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
@@ -25,6 +25,7 @@ import { CATEGORY_CONFIG } from '@/lib/generation-utils'
 import { useGenerationStore } from '@/stores/generation'
 import { useModelsStore } from '@/stores/models-store'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { clearDraft, guardBeforeUnload, loadDraft, saveDraft } from '../lib/draft-storage'
 
 export default function Workspace() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -75,6 +76,31 @@ export default function Workspace() {
     fetchRecords()
   }, [fetchRecords])
 
+  // §1.4(b) 草稿保护：prompt 持久化到 sessionStorage + beforeunload 拦截
+  const promptValue = String(parameters.prompt || parameters.text || '')
+  const promptDirtyRef = useRef(false)
+
+  // 还原草稿（当模型加载后 prompt 为空时）
+  useEffect(() => {
+    if (!selectedModel || promptValue)
+      return
+    const saved = loadDraft('workspace_prompt')
+    if (saved) {
+      setParameter('prompt', saved)
+    }
+  }, [selectedModel]) // 仅模型首次加载时触发
+
+  // 同步 prompt 变更到 sessionStorage
+  useEffect(() => {
+    saveDraft('workspace_prompt', promptValue)
+    promptDirtyRef.current = promptValue.trim().length > 0
+  }, [promptValue])
+
+  // beforeunload 拦截（prompt 非空时阻止误关闭）
+  useEffect(() => {
+    return guardBeforeUnload(() => promptDirtyRef.current)
+  }, [])
+
   // 分类切换时同时重置表单参数
   const handleCategoryChange = useCallback((category: Category) => {
     setCategory(category)
@@ -97,6 +123,7 @@ export default function Workspace() {
       return
     const record = await submitAction(selectedModel)
     if (record) {
+      clearDraft('workspace_prompt')
       addRecord(record)
       toast.success('生成请求已提交')
     }

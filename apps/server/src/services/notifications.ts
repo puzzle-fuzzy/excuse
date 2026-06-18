@@ -1,5 +1,7 @@
 import type { NotificationMeta } from '@excuse/db'
+import type { ModelCategory } from '@excuse/shared'
 import { notifyNotification } from '@excuse/db'
+import { CATEGORY_META } from '@excuse/shared'
 import { COOLDOWN_MS, shouldSend } from './notification-cooldown'
 
 /**
@@ -48,28 +50,28 @@ export async function notifyInsufficientBalance(accountId: string) {
 /**
  * 同步任务（文本/图片）完成通知 — 带 3s 冷却防刷
  */
-export async function notifySyncTaskCompleted(accountId: string, recordId: string, category: 'text' | 'image', model: string) {
+export async function notifySyncTaskCompleted(accountId: string, recordId: string, category: ModelCategory, model: string) {
   if (!shouldSend(accountId, 'task_completed', recordId, COOLDOWN_MS.syncTask))
     return
   return pushNotification({
     accountId,
     type: 'task_completed',
-    title: category === 'image' ? '图片生成完成' : '文本生成完成',
+    title: CATEGORY_META[category].notifyCompletedTitle,
     body: `${model} · 点击查看结果`,
     meta: { recordId, category },
   })
 }
 
 /**
- * 同步任务（文本/图片）失败通知 — 带 3s 冷却防刷
+ * 同步任务失败通知 — 带 3s 冷却防刷
  */
-export async function notifySyncTaskFailed(accountId: string, recordId: string, category: 'text' | 'image', model: string, error: string) {
+export async function notifySyncTaskFailed(accountId: string, recordId: string, category: ModelCategory, model: string, error: string) {
   if (!shouldSend(accountId, 'task_failed', recordId, COOLDOWN_MS.syncTask))
     return
   return pushNotification({
     accountId,
     type: 'task_failed',
-    title: category === 'image' ? '图片生成失败' : '文本生成失败',
+    title: CATEGORY_META[category].notifyFailedTitle,
     body: `${model}: ${error}`,
     meta: { recordId, category },
   })

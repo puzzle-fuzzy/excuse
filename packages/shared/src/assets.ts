@@ -28,6 +28,7 @@ export type AssetLibraryKind
     | 'video'
     | 'text'
     | 'subtitle'
+    | 'audio'
     | 'upload'
     | 'character'
     | 'location'

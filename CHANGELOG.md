@@ -21,6 +21,16 @@ All notable changes to this project will be documented in this file.
 - **§2.4 SSE 死连接回收** — `UserEventHub` 加 lastActivity 跟踪 + `sweepStaleConnections(60s)`；SSE route 在 30s heartbeat 中调用 sweep。
 - **§1.4 上传错误提示** — `workspace.ts` 的 `uploadReferenceFiles`/`uploadMediaParam` 现在 toast.error 上传失败（草稿持久化仍待后续）。
 
+### P1 修复补充 + P2 治理轮次（2026-06-19）
+
+#### P1 修复
+- **§4.1 generate.ts 去重** — 新增 `modules/generation/orchestration.ts`（`orchestrateGeneration` + `serializeRecord`），提取 POST `/generate` 与 POST `/records/:id/retry` 中 ~110 行重复的 estimate→prepare→execute→video-task 编排。generate.ts 从 483 行缩减到 ~280 行。既有 45 个测试全绿。
+- **§2.5 rate-limit 加固** — `buildRateLimitKey` 改为尽力 JWT 无验证解码提取 `sub`（userId），无效 token 统一落到 IP bucket（消除伪造 token 无限 bucket 绕过）；全局限流插件 `maxSize` 从 5000 提升到 50000。rate-limit 包 6 个测试全绿。
+- **§1.4(b) 草稿保护** — 新增 `lib/draft-storage.ts`（sessionStorage 持久化 + beforeunload 拦截）；Canvas 故事 textarea 与 Workspace prompt 均已接入，成功提交后清除草稿。
+
+#### P2 治理
+- **§3.2 category 注册表** — 新增 `CATEGORY_META` 注册表（`@excuse/shared/src/models.ts`），含 label/assetKind/notify 文案/sync 等 category 元数据；`notifications.ts` 通知文案改用 `CATEGORY_META[category]`，参数类型从 `'text' | 'image'` 拓宽为 `ModelCategory`；`assets/service.ts` `genCategoryToKind` 改用 `CATEGORY_META`，删除静默 `default: 'text'` 兜底（未知 category 改为显式 throw）；`AssetLibraryKind` / `NotificationMeta.category` 补 `'audio'` 成员。dashscope-client endpoint switch / client 端标签地图等接触时渐进替换。
+
 ### TODO2 核查修正轮次（2026-06-18）
 
 对 `docs/TODO2.md` 原声称「全部 27 项已完成验收」的标记做了独立代码核查，发现多项标记不实，对真实缺口完成修复。

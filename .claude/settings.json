@@ -10,7 +10,8 @@
       "Bash(python3 -)",
       "Bash(echo \"--- lint scoped exit: $? ---\")",
       "Bash(bun run *)",
-      "Bash(bun --env-file ../../.env -e ' *)"
+      "Bash(bun --env-file ../../.env -e ' *)",
+      "Bash(git stash *)"
     ]
   }
 }

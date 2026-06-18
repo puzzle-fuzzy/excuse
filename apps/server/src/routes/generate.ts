@@ -1,24 +1,21 @@
-import type { GenerationCategory, GenerationInputParams, GenerationRecordRow, GenerationStatus } from '@excuse/db'
-import type { DeleteGenerationRecordResponse, GenerateResponse, GenerationRecord, GenerationRecordListResponse, GenerationRecordResponse } from '@excuse/shared'
+import type { GenerationCategory, GenerationInputParams, GenerationStatus } from '@excuse/db'
+import type { DeleteGenerationRecordResponse, GenerateResponse, GenerationRecordListResponse, GenerationRecordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import type { ServerContext } from '../context'
 import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
-  createTask,
   deleteGenerationRecord,
   getGenerationRecordById,
   listGenerationRecords,
   resetGenerationToPending,
-  serialize,
 } from '@excuse/db'
-import { classifyRecovery } from '@excuse/error-recovery'
 import { getModelById, validateAndMerge } from '@excuse/provider'
-import { getTaskPriority } from '@excuse/task-engine'
 import { Elysia, t } from 'elysia'
+import { orchestrateGeneration, serializeRecord } from '../modules/generation/orchestration'
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { ForbiddenError, NotFoundError, PaymentRequiredError, RateLimitError, ValidationError } from '../utils/app-errors'
+import { ForbiddenError, NotFoundError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { assertPromptWithinLimit } from '../utils/prompt-limits'
@@ -38,6 +35,8 @@ import { assertPromptWithinLimit } from '../utils/prompt-limits'
  *   - referenceFileIds: 必须属于当前用户，校验在创建记录之前（不在之后）
  *   - 异步任务（视频）: provider 返回 video_task，Worker 轮询完成后更新
  *   - 同步任务（文本/图片）: 直接下载并保存输出，一步到位
+ *   - orchestrateGeneration: POST /generate 与 POST /records/:id/retry 共享编排核心
+ *     （预估→预留→provider 执行→视频 task→返回格式化），消除 ~110 行重复
  */
 export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
   const billingPolicy = getBillingPolicy('workspace.generate')
@@ -45,57 +44,25 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
 
   const deps: svc.GenerationDependencies = { client: ctx.client, storage: ctx.storage }
 
-  const PROVIDER_CANCEL_STATUSES = ['not_requested', 'no_task', 'requested', 'succeeded', 'failed'] as const
-
-  function serializeProviderCancelStatus(status: string): GenerationRecord['providerCancelStatus'] {
-    return (PROVIDER_CANCEL_STATUSES as readonly string[]).includes(status)
-      ? status as GenerationRecord['providerCancelStatus']
-      : 'not_requested'
-  }
-
-  /** 从 DB 行序列化为前端兼容的 GenerationRecord（Date→string + recovery 分类） */
-  function serializeRecord(record: GenerationRecordRow): GenerationRecord {
-    const isTerminal = record.status === 'failed' || record.status === 'cancelled'
-    const recovery = isTerminal
-      ? classifyRecovery({
-          errorMessage: record.errorMessage,
-          status: record.status,
-          traceId: record.traceId,
-          entityId: record.id,
-          source: 'workspace',
-          billingMode: 'credit-ledger',
-        })
-      : null
-
-    // serialize() 递归处理全部 Date→ISO（createdAt/updatedAt/hiddenAt/cancelRequestedAt），
-    // 此处只补 recovery 派生 + providerCancelStatus 枚举收窄。
-    return {
-      ...serialize(record),
-      providerCancelStatus: serializeProviderCancelStatus(record.providerCancelStatus),
-      recovery,
-    }
-  }
-
   return new Elysia({ prefix: '/api' })
     .use(createRequireAuthPlugin(config))
-    // 发起生成
+    // 发起生成 — 前置校验后委托 orchestrateGeneration 执行核心编排
     .post('/generate', async ({ body, userId }) => {
       const { model, parameters, referenceFileIds } = body
 
-      // 模型校验 — 只允许模型配置中声明过的参数进入 provider
+      // 1. 模型校验
       const modelConfig = getModelById(model)
       if (!modelConfig) {
         throw new ValidationError(`Unknown model: ${model}`)
       }
 
-      // 类别守卫 — generate 流程仅支持 text/image/video/subtitle。
-      // audio（fun-music-v1）为 Canvas BGM 内部模型，由 canvas.bgm 阶段驱动，不通过通用生成接口调用。
+      // 2. 类别守卫 — generate 流程仅支持 text/image/video/subtitle
       const category = modelConfig.category
       if (category !== 'text' && category !== 'image' && category !== 'video' && category !== 'subtitle') {
         throw new ValidationError(`模型 ${model} 的类别 "${category}" 不支持通过生成接口调用`)
       }
 
-      // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
+      // 3. 参数校验 + 合并默认值
       const validationResult = validateAndMerge(modelConfig, parameters)
       if (!validationResult.ok) {
         const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
@@ -103,10 +70,10 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       }
       const validatedParams = validationResult.params
 
-      // prompt 长度上限（防超长 prompt 爆量计费 / 穿负，TODO §1.2）
+      // 4. prompt 长度上限
       assertPromptWithinLimit(modelConfig, validatedParams)
 
-      // 视频模型独立限流 — 5 次/分钟/用户，防止高成本任务滥用
+      // 5. 视频模型独立限流
       if (category === 'video') {
         const { allowed, retryAfterSec } = checkCategoryRateLimit({
           userId,
@@ -119,7 +86,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         }
       }
 
-      // 参考文件归属校验 — 必须在创建 DB 记录之前（P1.9 约束）
+      // 6. 参考文件归属校验
       let referenceUrls: string[] | undefined
       if (referenceFileIds?.length) {
         const refResult = await svc.resolveReferenceUrls(referenceFileIds, userId)
@@ -129,7 +96,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         referenceUrls = refResult.urls
       }
 
-      // 去重：同一用户 + 同一 model + 相同参数，且任务仍在进行中时不重复提交
+      // 7. 去重
       const dedupeKey = await createDedupeKey({
         accountId: userId,
         model,
@@ -142,15 +109,12 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         return { success: true, record: serializeRecord(updated ?? dedupeResult.record), duplicated: true } satisfies GenerateResponse
       }
 
-      // 预估费用（封装 calculateCost + extractBillingParams，下沉到 service）
+      // 8. 预估费用 + 创建记录
       const estimatedCost = svc.estimateGenerationCost(modelConfig, validatedParams)
       const taskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const traceId = crypto.randomUUID()
-
-      // inputParams 信封 — 模型参数 + referenceFileIds 等元字段
       const inputParams: GenerationInputParams = { ...validatedParams, referenceFileIds }
 
-      // 创建数据库记录 — 此时所有前置校验已完成，不会有脏记录风险
       const createResult = await svc.createGenerationRequest({
         accountId: userId,
         taskId,
@@ -161,58 +125,29 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         estimatedCost,
         dedupeKey,
       })
-      const record = createResult.record
       if (!createResult.created) {
-        const updated = await getGenerationRecordById(record.id)
-        return { success: true, record: serializeRecord(updated ?? record), duplicated: true } satisfies GenerateResponse
+        const updated = await getGenerationRecordById(createResult.record.id)
+        return { success: true, record: serializeRecord(updated ?? createResult.record), duplicated: true } satisfies GenerateResponse
       }
 
-      // 预留 credit + 构造执行上下文（POST /generate 与 retry 共享同一编排）
-      const prep = await svc.prepareGeneration({
-        recordId: record.id,
-        accountId: userId,
+      // 9. 委托编排：预估→预留→执行→视频 task→返回
+      const response = await orchestrateGeneration({
+        userId,
+        recordId: createResult.record.id,
         taskId,
         traceId,
-        modelConfig,
         category,
-        parameters: validatedParams,
+        modelConfig,
+        validatedParams,
         referenceUrls,
         inputParams,
         dedupeKey,
-        estimatedCost,
         creditSource: 'generate',
+        deps,
       })
-      if (!prep.ok) {
-        throw new PaymentRequiredError(prep.message)
-      }
 
-      // 调用 service 执行核心业务流程（provider 调用 + 三分枝处理 + DB + SSE）
-      const result = await svc.executeGeneration(prep.context, deps)
-
-      // 视频异步任务：创建 generate.video task（Worker 轮询 DashScope 结果）
-      if (result.success && category === 'video' && result.record?.outputResult?.type === 'processing' && result.record.outputResult.taskId) {
-        await createTask({
-          accountId: userId,
-          type: 'generate.video',
-          domain: 'generate',
-          priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
-          maxAttempts: 5000,
-          generationRecordId: result.record.id,
-          traceId,
-          input: {
-            recordId: result.record.id,
-            providerTaskId: result.record.outputResult.taskId,
-            model,
-          } satisfies Record<string, unknown>,
-        })
-      }
-
-      audit('generate', { accountId: userId, targetId: result.record?.id })
-
-      if (result.success) {
-        return { success: true, record: serializeRecord(result.record) } satisfies GenerateResponse
-      }
-      return { success: false, record: serializeRecord(result.record) } satisfies GenerateResponse
+      audit('generate', { accountId: userId, targetId: createResult.record.id })
+      return response
     }, {
       body: t.Object({
         model: t.String(),
@@ -312,22 +247,22 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       },
     })
 
-    // 重试失败任务 — 重走完整的 provider 调用流程（参数校验 → 调用 → 结果处理）
+    // 重试失败任务 — 前置校验后委托 orchestrateGeneration 执行核心编排
     .post('/records/:id/retry', async ({ params, userId }) => {
       const record = await getGenerationRecordById(params.id)
       if (!record)
         throw new NotFoundError('记录不存在')
       if (record.accountId !== userId)
         throw new ForbiddenError('无权操作该记录')
-      // 只能重试 failed 或 cancelled 的任务
       if (record.status !== 'failed' && record.status !== 'cancelled')
         throw new ValidationError('只能重试失败或已取消的任务')
 
+      // 1. 模型校验
       const modelConfig = getModelById(record.model)
       if (!modelConfig)
         throw new ValidationError(`Unknown model: ${record.model}`)
 
-      // 视频模型独立限流 — 重试同样受限于 5 次/分钟
+      // 2. 视频模型独立限流
       if (modelConfig.category === 'video') {
         const { allowed, retryAfterSec } = checkCategoryRateLimit({
           userId,
@@ -340,7 +275,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         }
       }
 
-      // 参考文件归属校验 — 必须在 resetGenerationToPending 之前（P1.9 约束）
+      // 3. 参考文件归属校验
       const inputParams: GenerationInputParams = record.inputParams
       const referenceFileIds = Array.isArray(inputParams.referenceFileIds)
         ? inputParams.referenceFileIds as string[]
@@ -355,7 +290,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         referenceUrls = refResult.urls
       }
 
-      // 从 inputParams 信封中提取纯模型参数（删除信封字段）
+      // 4. 从 inputParams 信封中提取纯模型参数
       const rawParameters: Record<string, unknown> = { ...inputParams }
       delete rawParameters.source
       delete rawParameters.projectId
@@ -363,7 +298,7 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       delete rawParameters.referenceFileIds
       delete rawParameters.requestedModel
 
-      // 参数校验 + 合并默认值 — validateAndMerge 是 ValidatedModelParameters 的唯一构造路径
+      // 5. 参数校验 + 合并默认值
       const validationResult = validateAndMerge(modelConfig, rawParameters)
       if (!validationResult.ok) {
         const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
@@ -371,13 +306,10 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
       }
       const validatedParams = validationResult.params
 
-      // prompt 长度上限（防超长 prompt 爆量计费 / 穿负，TODO §1.2）
+      // 6. prompt 长度上限
       assertPromptWithinLimit(modelConfig, validatedParams)
 
-      const newTaskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-
-      // 所有校验通过后才重置状态 — 防止校验失败产生脏状态。
-      // 条件更新 failed/cancelled -> pending 也是 retry 的并发门闩：连点时只有一个请求能赢。
+      // 7. 重置记录状态 (failed/cancelled → pending)，并发门闩
       const resetRecord = await resetGenerationToPending(record.id)
       if (!resetRecord) {
         const latest = await getGenerationRecordById(record.id)
@@ -391,52 +323,21 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         detail: { recordId: record.id, model: record.model, previousStatus: record.status },
       })
 
-      // 预估费用（封装 calculateCost + extractBillingParams，下沉到 service）
-      const estimatedCost = svc.estimateGenerationCost(modelConfig, validatedParams)
-
-      // 预留 credit + 构造执行上下文（POST /generate 与 retry 共享同一编排）
-      const prep = await svc.prepareGeneration({
+      // 8. 委托编排：预估→预留→执行→视频 task→返回
+      const newTaskId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      return orchestrateGeneration({
+        userId,
         recordId: record.id,
-        accountId: userId,
         taskId: newTaskId,
         traceId: record.traceId ?? undefined,
-        modelConfig,
         category: record.category,
-        parameters: validatedParams,
+        modelConfig,
+        validatedParams,
         referenceUrls,
         inputParams,
-        estimatedCost,
         creditSource: 'retry',
+        deps,
       })
-      if (!prep.ok) {
-        throw new PaymentRequiredError(prep.message)
-      }
-
-      // 调用 service 执行核心业务流程（与 POST /generate 共享同一逻辑）
-      const result = await svc.executeGeneration(prep.context, deps)
-
-      // 视频异步任务：创建 generate.video task（Worker 轮询 DashScope 结果）
-      if (result.success && modelConfig.category === 'video' && result.record?.outputResult?.type === 'processing' && result.record.outputResult.taskId) {
-        await createTask({
-          accountId: userId,
-          type: 'generate.video',
-          domain: 'generate',
-          priority: getTaskPriority({ type: 'generate.video', domain: 'generate' }),
-          maxAttempts: 5000,
-          generationRecordId: result.record.id,
-          traceId: record.traceId ?? undefined,
-          input: {
-            recordId: result.record.id,
-            providerTaskId: result.record.outputResult.taskId,
-            model: record.model,
-          } satisfies Record<string, unknown>,
-        })
-      }
-
-      if (result.success) {
-        return { success: true, record: serializeRecord(result.record) } satisfies GenerateResponse
-      }
-      return { success: false, record: serializeRecord(result.record) } satisfies GenerateResponse
     }, {
       params: t.Object({
         id: t.String(),

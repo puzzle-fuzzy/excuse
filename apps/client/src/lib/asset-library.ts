@@ -17,6 +17,7 @@ export const KIND_LABELS: Record<AssetLibraryKind, string> = {
   video: '视频',
   text: '文本',
   subtitle: '字幕',
+  audio: '音频',
   upload: '上传',
   character: '角色',
   location: '场景',
@@ -199,7 +200,7 @@ export interface AssetLibraryStats {
 const EMPTY_STATS: AssetLibraryStats = {
   total: 0,
   bySource: { generation_record: 0, canvas_asset: 0, uploaded_file: 0 },
-  byKind: { image: 0, video: 0, text: 0, subtitle: 0, upload: 0, character: 0, location: 0, shot: 0, project: 0 },
+  byKind: { image: 0, video: 0, text: 0, subtitle: 0, audio: 0, upload: 0, character: 0, location: 0, shot: 0, project: 0 },
   succeeded: 0,
   failed: 0,
   running: 0,

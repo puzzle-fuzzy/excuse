@@ -52,15 +52,52 @@ export const DEFAULT_GLOBAL_RATE_LIMIT = {
 
 /**
  * 从 Request 头中提取限流 Key：
- *   - 命中 Authorization 头 → `user:<token 前 50 字符>`
- *     （截断防止长 token 导致 Map key 膨胀；前缀已能唯一区分用户，不影响隔离）
- *   - 否则回退 `x-forwarded-for` 第一个 IP；再缺失则记为 `ip:unknown`
+ *   - Bearer JWT → 尝试无验证解码提取 sub（userId），成功则 `user:<userId>`
+ *   - Bearer API key（exc_ 前缀）→ 无法无状态提取用户，统一落到 IP
+ *   - 无效/缺失 token → 回退 `x-forwarded-for` 第一个 IP；再缺失则记为 `ip:unknown`
+ *
+ * 设计要点：本函数运行在 auth 之前（全局限流中间件），无法做真正的 token 验证，
+ * 仅通过 JWT 无验证解码尽力提取 userId。恶意客户端轮换伪造 JWT 会得到不同 userId
+ * 从而分配独立 bucket——这是无验证解码的固有局限。真正的 per-user 限流应在 auth 之后、
+ * 路由 handler 内使用 SlidingWindowRateLimiter（已有 category-rate-limit 实现）。
+ * 生产环境多副本部署时建议在反向代理层做 per-IP 限流兜底。
+ *
+ * 安全改进（§2.5）：旧实现用 `token 前 50 字符` 做 key，恶意客户端可轮换任意
+ * 随机字符串创建无限 bucket 绕过限流。现在无效 token 统一落到 IP bucket，
+ * 大幅提高绕过门槛。
  */
 export function buildRateLimitKey(request: Request): string {
   const authHeader = request.headers.get('authorization')
-  if (authHeader)
-    return `user:${authHeader.slice(0, 50)}`
+  if (authHeader) {
+    // 尝试无验证 JWT 解码提取 sub（userId）
+    const userId = tryDecodeJwtSub(authHeader)
+    if (userId)
+      return `user:${userId}`
+  }
+  // 无效 token 或无 auth header → 统一落到 IP bucket
   return `ip:${request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'}`
+}
+
+/**
+ * 无验证 JWT 解码：提取 payload 中的 `sub` 字段。
+ *
+ * 不做签名验证（本包运行在 auth 之前），仅从 base64url 编码的 payload 段
+ * 尽力提取 userId。解码失败返回 null——调用方回退到 IP key。
+ */
+function tryDecodeJwtSub(authHeader: string): string | null {
+  try {
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7)
+      : authHeader
+    const parts = token.split('.')
+    if (parts.length !== 3)
+      return null
+    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf8'))
+    return typeof payload.sub === 'string' ? payload.sub : null
+  }
+  catch {
+    return null
+  }
 }
 
 /** 构造 429 响应体（与 @excuse/shared 的 RateLimitErrorResponse 对齐）。 */

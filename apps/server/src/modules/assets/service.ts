@@ -35,7 +35,7 @@ import {
   listGenerationRecords,
   listUploadedFilesForAccount,
 } from '@excuse/db'
-import { isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
+import { CATEGORY_META, isImageOutput, isVideoOutput, parseOutputResult } from '@excuse/shared'
 
 // ── 集中映射：canvas_assets.category → AssetLibraryKind ──────────────────────
 //
@@ -54,15 +54,14 @@ const CANVAS_CATEGORY_KIND: Record<CanvasAssetCategory, AssetLibraryKind> = {
   videoPrompt: 'project',
 }
 
-/** generation_records.category → AssetLibraryKind（直接对应） */
+/** generation_records.category → AssetLibraryKind（来自 CATEGORY_META 注册表，§3.2） */
 function genCategoryToKind(category: GenerationCategory): AssetLibraryKind {
-  switch (category) {
-    case 'image': return 'image'
-    case 'video': return 'video'
-    case 'text': return 'text'
-    case 'subtitle': return 'subtitle'
-    default: return 'text'
+  const meta = CATEGORY_META[category]
+  if (!meta) {
+    // 不要静默兜底：未知 category 意味着 registry 漏注册，应显式暴露
+    throw new Error(`未知的生成分类: ${category}`)
   }
+  return meta.assetKind
 }
 
 /** kind → 该 kind 覆盖的 canvas_assets.category 列表（用于 SQL 预筛） */

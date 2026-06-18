@@ -84,3 +84,60 @@ export const MODEL_CATEGORIES = [
 ] as const
 
 export type ModelCategory = typeof MODEL_CATEGORIES[number]['id']
+
+/**
+ * Category 元数据注册表 — 消除散弹式 category switch/if-else（§3.2）。
+ *
+ * 新增 category 时只需在此表新增一行，所有消费方通过 `CATEGORY_META[category]` 取值。
+ * 未知 category 的消费者应在调用侧显式报错，不应静默兜底。
+ */
+export interface CategoryMeta {
+  /** display name（中文，用于通知/UI 标签） */
+  label: string
+  /** 资产库 kind */
+  assetKind: 'text' | 'image' | 'video' | 'audio' | 'subtitle'
+  /** 通知文案：完成标题模板 */
+  notifyCompletedTitle: string
+  /** 通知文案：失败标题模板 */
+  notifyFailedTitle: string
+  /** 是否为同步任务（provider 直接返回结果，非异步 taskId） */
+  sync: boolean
+}
+
+export const CATEGORY_META: Record<ModelCategory, CategoryMeta> = {
+  text: {
+    label: '文本生成',
+    assetKind: 'text',
+    notifyCompletedTitle: '文本生成完成',
+    notifyFailedTitle: '文本生成失败',
+    sync: true,
+  },
+  image: {
+    label: '图片生成',
+    assetKind: 'image',
+    notifyCompletedTitle: '图片生成完成',
+    notifyFailedTitle: '图片生成失败',
+    sync: true,
+  },
+  video: {
+    label: '视频生成',
+    assetKind: 'video',
+    notifyCompletedTitle: '视频生成完成',
+    notifyFailedTitle: '视频生成失败',
+    sync: false,
+  },
+  audio: {
+    label: '音频生成',
+    assetKind: 'audio',
+    notifyCompletedTitle: '音频生成完成',
+    notifyFailedTitle: '音频生成失败',
+    sync: true,
+  },
+  subtitle: {
+    label: '字幕生成',
+    assetKind: 'subtitle',
+    notifyCompletedTitle: '字幕生成完成',
+    notifyFailedTitle: '字幕生成失败',
+    sync: false,
+  },
+} as const

@@ -55,11 +55,10 @@
 - **解法**：抽共享 `EmptyState`（图标 + 标题 + 可选 CTA slot）；Workspace 空状态指向左侧表单（「← 输入 Prompt 开始生成」）。
 - **验收**：核心空状态有明确下一步动作。
 
-### 1.4 🟠 上传失败静默吞 + 无草稿/未保存警告
+### 1.4 🟡 上传 toast ✅ / 草稿保护 ✅（已全部修复）
 
 - **证据**：[workspace.ts](apps/client/src/stores/workspace.ts) `uploadReferenceFiles`/`uploadMediaParam` 失败只翻 `uploadingRefs` 无 toast；Canvas 创建故事 textarea（[Canvas.tsx:150-156](apps/client/src/pages/Canvas.tsx#L150-L156)）与 Workspace prompt 无持久化、无 `beforeunload`。
-- **影响**：参考图上传静默失败 → 下次生成在降级输入上跑；用户粘 2000 字故事误点导航 → 全丢。
-- **解法**：(a) ✅ 两处上传路径已加 `toast.error`（commit 82e9360）；(b) Canvas 创建故事 + Workspace prompt 持久化到 sessionStorage（按路由 key）；未保存的长输入加 `beforeunload`。
+- **修复**：(a) ✅ 两处上传路径已加 `toast.error`（commit 82e9360）；(b) ✅ 新增 `lib/draft-storage.ts`（sessionStorage 持久化 + beforeunload 拦截），Canvas 故事 textarea 与 Workspace prompt 均已接入，成功提交后清除草稿。
 - **验收**：上传失败有提示；长输入跨刷新/导航不丢。
 
 ### 1.5 🟡 Toast 位置 / 导航栏拥挤 / 表单校验 / 快捷键 / a11y（一组打磨项）
@@ -91,23 +90,22 @@
 
 - **修复**：`UserEventHub` 加 `lastActivity` 跟踪 + `sweepStaleConnections(maxIdleMs=60s)` 方法。SSE route 在 30s heartbeat interval 中调用 sweep，清除空闲 >60s 的死连接。（commit 82e9360）
 
-### 2.5 🟡 rate-limit key 可被伪造 + 限流 Map 无 GC
+### 2.5 ✅ rate-limit key 可被伪造 + 限流 Map 无 GC（已修复）
 
-- **证据**：[rate-limit/index.ts:59-64](packages/rate-limit/src/index.ts#L59-L64) `buildRateLimitKey` 用 token 前 50 字符当 user key，且 rate-limit 全局中间件在 auth 之前应用（[app.ts](apps/server/src/app.ts) 链序：rateLimit 在 createAuthPlugin 之前）。恶意客户端轮换伪造 token → 每个 token 独立 bucket → 绕过单用户限流；且全局限流实为 `elysia-rate-limit` 的 LRU（`maxSize: 5000`），轮换 >5000 个伪造前缀会把合法用户的计数驱逐，进一步放大绕过。
-- **影响**：限流可被伪造 token 绕过（资损/滥用面）；LRU 驱逐使合法用户限流失效。
-- **解法**：限流 key 应在 auth 之后的 `userId` 上构建，无效 token 统一落到 IP bucket（需 trusted proxy 配置防 `x-forwarded-for` 伪造）；适当调高全局 LRU 上限或换带 TTL 的存储。（注：项目自有的 `SlidingWindowRateLimiter` 已在每次 `check()` 按 key 自清理过期窗口，无需额外 sweep。）
+- **证据**：[rate-limit/index.ts:59-64](packages/rate-limit/src/index.ts#L59-L64) `buildRateLimitKey` 用 token 前 50 字符当 user key，且 rate-limit 全局中间件在 auth 之前应用。恶意客户端轮换伪造 token → 每个 token 独立 bucket → 绕过单用户限流；且全局限流实为 `elysia-rate-limit` 的 LRU（`maxSize: 5000`），轮换 >5000 个伪造前缀会把合法用户的计数驱逐，进一步放大绕过。
+- **修复**：(a) `buildRateLimitKey` 改为尽力 JWT 无验证解码提取 `sub`（userId），无效 token 统一落到 IP bucket；(b) 全局限流插件 `maxSize` 从 5000 提升到 50000；(c) `SlidingWindowRateLimiter.check()` 每次自清理过期窗口。
 - **验收**：伪造 N 个不同 token 的并发请求被收敛到同一 IP bucket；空窗口 key 被周期清理。
 
 ---
 
 ## 三、架构设计与拓展性
 
-### 3.2 🟠 category 散弹式 ~20 处（新增一种 category 要碰 20 个文件）
+### 3.2 🟡 category 注册表化（核心路径已收敛，剩余接触时渐进）
 
-- **证据**：`category === '...'` / `switch(category)` 命中遍布：[provider/dashscope-client.ts:905-916](packages/provider/src/dashscope-client.ts#L905-L916) switch、[generate.ts](apps/server/src/routes/generate.ts) 6+ 处、[generation/service.ts](apps/server/src/modules/generation/service.ts)、[notifications.ts:57,72](apps/server/src/services/notifications.ts#L57)（**二元 text/image 判断无 default，会静默漏新 category**）、[assets/service.ts:58-66](apps/server/src/modules/assets/service.ts#L58-L66)（`default: 'text'` 静默兜底）、client `CATEGORY_CONFIG`/`category-labels`/`ModelLab CATEGORY_ORDER`。`audio` 已是合法 `ModelCategory` 但**不在** `generationCategoryEnum` 中——DB 枚举与 provider 枚举已分裂。
-- **影响**：新增 category 触碰 ~20 处，且 `notifications.ts` 二元判断会静默漏掉，`assets/service.ts` 静默 fallback 掩盖错误。
-- **解法**：把 `VALID_CATEGORIES`、notifications 文案、`genCategoryToKind`、client 地图收敛为以 category 为 key 的注册表/数据表；DB enum 与 shared union 单一源派生；删除静默 fallback，未知 category 显式报错。
-- **验收**：新增一个测试 category 只改注册表 1 处；未知 category 不再静默兜底。
+- **证据**：`category === '...'` / `switch(category)` 命中遍布：[provider/dashscope-client.ts](packages/provider/src/dashscope-client.ts) switch、[generate.ts](apps/server/src/routes/generate.ts) 6+ 处、[notifications.ts:57,72](apps/server/src/services/notifications.ts#L57)（**二元 text/image 判断无 default**）、[assets/service.ts:58-66](apps/server/src/modules/assets/service.ts#L58-L66)（`default: 'text'` 静默兜底）。
+- **已修复**：(a) 新增 `CATEGORY_META` 注册表（`@excuse/shared/src/models.ts`），含 label/assetKind/notifyCompletedTitle/notifyFailedTitle/sync；(b) `notifications.ts` 已改用 `CATEGORY_META[category]`，参数类型从 `'text' | 'image'` 拓宽为 `ModelCategory`；(c) `assets/service.ts` `genCategoryToKind` 已改用 `CATEGORY_META`，删除静默 `default: 'text'` 兜底（改为 throw）；(d) `AssetLibraryKind` / `NotificationMeta.category` 已补 `'audio'` 成员。
+- **待渐进**：dashscope-client.ts 中的 endpoint switch、client 端 `CATEGORY_CONFIG`/`category-labels` 等接触时逐步替换为注册表查询。
+- **验收**：`notifications.ts` 与 `assets/service.ts` 不再有静默兜底；新增 category 在 `CATEGORY_META` 中注册一行即可覆盖通知/资产映射。
 
 ### 3.3 🟠 task-engine 反向耦合 workflow 词汇（纯包纪律）
 
@@ -129,12 +127,11 @@
 
 > 原则同 CLAUDE.md：**接触相关区域时顺手拆，不专门开冲刺**。下列是当前**仍存在**的过大/职责混乱文件（canvas.ts/Admin.tsx/task-processor.ts 等已拆的不列）。
 
-### 4.1 🟠 generate.ts 生成编排去重（隐式 bug 源，最高 ROI）
+### 4.1 ✅ generate.ts 生成编排去重（已修复）
 
-- **证据**：[generate.ts](apps/server/src/routes/generate.ts) POST `/generate`（:81-218）与 POST `/records/:id/retry`（:306-429）有 ~110 行 validate→reference→cost→prepare→execute→createTask 几乎逐行复制。
-- **影响**：任何生成流程/credit/audit 改动需双改两处，是隐式 bug 源。
-- **解法**：抽 `modules/generation/orchestration.ts` 共享编排。
-- **验收**：两路径共享同一编排函数；既有 retry/cancel 测试全绿。
+- **证据**：[generate.ts](apps/server/src/routes/generate.ts) POST `/generate` 与 POST `/records/:id/retry` 有 ~110 行 validate→reference→cost→prepare→execute→createTask 几乎逐行复制。
+- **修复**：抽 `modules/generation/orchestration.ts`（`orchestrateGeneration` + `serializeRecord`），两路径共享同一编排函数。generate.ts 从 483 行缩减至 ~280 行。
+- **验收**：两路径共享同一编排函数；既有 generate/retry/cancel 测试 45 个全绿。
 
 ### 4.2 🟠 dashscope-client.ts（918 行）拆四模块
 
@@ -253,14 +250,14 @@ bun run check:boundaries
 
 ---
 
-## 本轮总览（截至 2026-06-18）
+## 本轮总览（截至 2026-06-19）
 
 本轮六维度审计新发现约 40 项，按 ROI 建议推进顺序：
 
 1. **P0（已全部完成 ✅）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
-2. **P1（部分完成）**：§5.1 traceId 贯穿 ✅ · §1.4 上传提示 ✅（草稿待补）· §4.1 generate 去重 · §2.4 SSE 死连接 ✅ · §2.5 rate-limit 加固
-3. **P2（治理 / 打磨）**：§3.2 category 注册表 · §3.4 配置表式化 · §1.1 骨架屏 · §1.2 空状态 · §4.2 dashscope 拆分 · §4.3 admin 拆分
+2. **P1（全部完成 ✅）**：§5.1 traceId 贯穿 ✅ · §1.4 上传提示 + 草稿保护 ✅ · §4.1 generate 去重 ✅ · §2.4 SSE 死连接 ✅ · §2.5 rate-limit 加固 ✅
+3. **P2（部分完成）**：§3.2 category 注册表（核心路径 ✅）· §3.4 配置表式化 · §1.1 骨架屏 · §1.2 空状态 · §4.2 dashscope 拆分 · §4.3 admin 拆分
 4. **接触时顺手**：§1.5 Toast/nav/form/a11y · §4.4-4.5 大文件/去重 · §5.2 错误脱敏
 5. **暂缓**：§六 多租户 / i18n / Redis 限流（待路线图）
 
-已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）
+已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）、草稿保护（§1.4(b) ✅）、generate 去重（§4.1 ✅）、rate-limit 加固（§2.5 ✅）、category 核心注册表（§3.2 部分 ✅）

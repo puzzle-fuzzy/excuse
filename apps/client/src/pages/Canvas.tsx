@@ -1,11 +1,12 @@
 import type { ProjectDTO } from '@excuse/shared'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCanvasModelPreferences } from '../api/client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { clearDraft, guardBeforeUnload, loadDraft, saveDraft } from '../lib/draft-storage'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 import { CANVAS_PROJECT_STATUS_TONES, statusBadgeClass } from '../lib/status-tokens'
 import { handleApiError } from '../lib/utils'
@@ -32,8 +33,19 @@ export default function Canvas() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
-  const [storyText, setStoryText] = useState('')
+  const [storyText, setStoryText] = useState(() => loadDraft('canvas_story'))
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' })
+
+  // 草稿持久化 + beforeunload 拦截
+  const storyDirtyRef = useRef(storyText.trim().length > 0)
+  useEffect(() => {
+    saveDraft('canvas_story', storyText)
+    storyDirtyRef.current = storyText.trim().length > 0
+  }, [storyText])
+
+  useEffect(() => {
+    return guardBeforeUnload(() => storyDirtyRef.current)
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -85,6 +97,7 @@ export default function Canvas() {
       }
 
       navigate(`/canvas/${projectId}`)
+      clearDraft('canvas_story')
       toast.success('项目已创建')
     }
     catch (err) {
