@@ -15,11 +15,14 @@ import {
   LayoutDashboard,
   LogOut,
   Map,
+  Moon,
   Receipt,
   ShieldCheck,
+  Sun,
   Wallet,
   XCircle,
 } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
 import {
@@ -62,6 +65,7 @@ const TYPE_META: Record<string, { icon: typeof Bell, color: string }> = {
 
 export default function Navbar() {
   const { user, logout } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -128,6 +132,8 @@ export default function Navbar() {
       navigate(target)
   }
 
+  const isDark = resolvedTheme === 'dark'
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-14 max-w-7xl items-center px-4">
@@ -155,6 +161,15 @@ export default function Navbar() {
           <div className="ml-auto flex items-center gap-3">
             {/* SSE/轮询连接状态指示器 */}
             <ConnectionIndicator />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={isDark ? '切换到浅色模式' : '切换到深色模式'}
+              title={isDark ? '切换到浅色模式' : '切换到深色模式'}
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            >
+              {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
             <div ref={dropdownRef} className="relative">
               <Button variant="ghost" size="icon" title="通知" onClick={() => setOpen(v => !v)}>
                 <Bell className="size-4" />

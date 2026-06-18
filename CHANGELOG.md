@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **前端深色模式端到端接线（TODO §1.1）**：复用已安装的 `next-themes`，新增 `ThemeProvider` 并在 client 入口以 `attribute="class"` 接管根节点 `.dark`，让现有 dark token 与 `dark:` 变体真正生效；Navbar 新增浅/深色切换按钮（带 `aria-label` / `title`），Sonner Toast 不再硬编码 light，而是跟随当前 resolved theme。验收：client typecheck 通过；相关文件 eslint 通过。
+
 - **前端品牌 token 与主 CTA 渐变（TODO §1.1）**：补充 `PRODUCT.md` 记录产品型设计上下文；将 client 全局 shadcn 默认灰度 token 改为带品牌倾向的 OKLCH 色系，`--primary` / `--accent` / `chart-*` 不再是纯灰，并新增 `--gradient-brand`、`--brand-text` / `--brand-image` / `--brand-video` 等品牌 token。新增 `.brand-cta` 与 `.brand-auth-shell`，工作台「开始生成」和登录/注册/忘记密码/重置密码主按钮统一使用品牌渐变，认证页背景加入克制的品牌氛围层。验收：client typecheck 通过；相关文件 eslint 通过。
 
 - **Canvas 成本阶段补齐 12 阶段（TODO §2.1 局部）**：`CanvasCostPhase` 从 9 阶段补齐为完整 12 阶段，新增 `dialogue` / `bgm` / `assemble`；`CostPanel` 同步补中文标签和展示顺序，避免后续成本 rollup 出现这些阶段时被类型或 UI 漏展示。`TODO §2.1` 已收窄为剩余的阶段注册表/前端 PipelineController 同源问题。验收：client typecheck 通过；相关文件 eslint 通过。

@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router'
 import { queryClient } from './api/query-client'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthProvider'
+import { ThemeProvider } from './components/theme-provider'
 import { reportWebVitals } from './lib/web-vitals'
 import './index.css'
 
@@ -16,9 +17,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ThemeProvider>
         <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     </BrowserRouter>

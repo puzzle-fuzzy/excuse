@@ -43,21 +43,14 @@
 
 > 当前前端是**未经改动的 shadcn 默认值**——功能完备但视觉上与无数 AI SaaS 雷同，缺品牌识别。多为感知层，但「给产品上色」是单文件最高杠杆改动。
 
-### 1.1 🔴 深色模式是「僵尸功能」——定义了但无法开启
-
-- **证据**：[index.css:86-118](apps/client/src/index.css#L86-L118) 定义 `.dark` 变量，但全局 grep 无 dark 切换、无 `next-themes`、无添加 `.dark` 类的逻辑；[sonner.tsx:8](apps/client/src/components/ui/sonner.tsx#L8) Toast 硬编码 `theme="light"`；组件里 `dark:` 前缀永远不激活。
-- **影响**：~35 行 CSS + 组件 dark 变体是死代码；创意工具无深色模式是明显缺失。
-- **解法**：二选一——(a) 实装（`next-themes` + Navbar 切换 + Toast `theme="system"`）；(b) 删除 `.dark` 块停止误导。推荐 (a)。
-- **验收**：要么深色模式端到端可用并切换 Toast 主题，要么 `.dark` 相关代码全部移除。
-
-### 1.2 🟠 152 处硬编码 Tailwind 颜色 + 4 份重复状态色 map
+### 1.1 🟠 152 处硬编码 Tailwind 颜色 + 4 份重复状态色 map
 
 - **证据**：grep 硬编码调色板 152 处 / 17 文件。状态色 map 有 **4 份副本**：[generation-utils.ts:26-34](apps/client/src/lib/generation-utils.ts#L26-L34) `STATUS_CONFIG`、[Canvas.tsx:27-41](apps/client/src/pages/Canvas.tsx#L27-L41) `STATUS_COLORS`、[CanvasStatusBar.tsx:22-36](apps/client/src/components/canvas/CanvasStatusBar.tsx#L22-L36) 第三份、[ShotNode.tsx:8-14](apps/client/src/components/canvas/nodes/ShotNode.tsx#L8-L14) 第四份；[Billing.tsx](apps/client/src/pages/Billing.tsx) 另有 `CATEGORY_COLORS`/`TX_TYPE_COLORS`。
-- **影响**：(a) 无单一颜色源；(b) 这些 `bg-*-100 text-*-700` 在深色模式下不可读（1.1 实装后会暴露）；(c) 「失败」在多处是红、Toast 里却是橙，不一致。
+- **影响**：(a) 无单一颜色源；(b) 这些 `bg-*-100 text-*-700` 在深色模式下不可读；(c) 「失败」在多处是红、Toast 里却是橙，不一致。
 - **解法**：建单一 `lib/status-tokens.ts`（基于 token 的类名 map，CSS 加 `--warning` 等），用 `<Badge variant="warning">` 替换内联 `rounded-full ${color}`；删 4 份重复 map。
 - **验收**：状态色单一来源；`grep "bg-(red|green|yellow|blue)-[0-9]"` 在业务组件归零（仅 token 文件保留）。
 
-### 1.3 🟡 排版 / 按钮尺寸 / 触摸目标
+### 1.2 🟡 排版 / 按钮尺寸 / 触摸目标
 
 - **证据**：[button.tsx:24](apps/client/src/components/ui/button.tsx#L24) `default` 高 `h-8`(32px)、`lg` `h-9`(36px)；核心「生成」CTA（[Workspace.tsx](apps/client/src/pages/Workspace.tsx)）`size="lg"` 仅 36px；页面标题散落 `text-lg`/`text-sm` 无统一层级。
 - **影响**：UI 局促、核心操作不显眼；按钮 <44px 在移动端难点击。
