@@ -8,7 +8,7 @@ import { Link, useSearchParams } from 'react-router'
 import { resetPasswordRequest } from '../api/client'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Input } from '../components/ui/input'
+import { PasswordInput } from '../components/PasswordInput'
 import { resetPasswordSchema } from '../lib/form-schemas'
 
 export default function ResetPassword() {
@@ -93,9 +93,8 @@ export default function ResetPassword() {
                     <label htmlFor="password" className="text-sm font-medium">
                       新密码
                     </label>
-                    <Input
+                    <PasswordInput
                       id="password"
-                      type="password"
                       placeholder="••••••"
                       disabled={isSubmitting}
                       autoComplete="new-password"
@@ -110,9 +109,8 @@ export default function ResetPassword() {
                     <label htmlFor="confirmPassword" className="text-sm font-medium">
                       确认新密码
                     </label>
-                    <Input
+                    <PasswordInput
                       id="confirmPassword"
-                      type="password"
                       placeholder="••••••"
                       disabled={isSubmitting}
                       autoComplete="new-password"

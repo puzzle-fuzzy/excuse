@@ -6,6 +6,7 @@ import { RefreshCw, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useDebounce } from 'use-debounce'
 import { fetchAdminProjects } from '@/api/admin'
+import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,7 +44,7 @@ export function AdminProjectsTab() {
   }), [debouncedSearch, statusFilter])
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['admin', 'projects', queryParams],
+    queryKey: adminQueryKeys.projects(queryParams),
     queryFn: () => fetchAdminProjects(queryParams),
   })
 

@@ -169,13 +169,6 @@
 
 ## 四、用户体验 (UX) / 可访问性
 
-### 4.1 🔴 regenerate 静默丢弃参考图（正确性 bug）
-
-- **证据**：[workspace.ts:258-263](apps/client/src/stores/workspace.ts#L258-L263) `regenerate()` 调 `generate()` 只传 `model` + `parameters`，**不传 `referenceFileIds`**（对比 `submit()` 会传）。本轮复核确认。
-- **影响**：用户用参考图生成失败后点「重新生成」，结果静默用不同输入（无参考图）→ 得到不同输出，用户无法理解。**这是静默正确性缺陷，非外观问题。**
-- **解法**：把 `record.referenceFileIds`（或从 `record.inputParams` 推导）传入 regenerate 调用；补测试。
-- **验收**：带参考图的失败记录 regenerate 后请求体含相同 referenceFileIds；单测覆盖。
-
 ### 4.2 🟠 加载态全是「菊花」/纯文本，零骨架屏
 
 - **证据**：grep `Skeleton` **零文件**。所有页面二选一：居中「加载中...」（[Canvas.tsx:131](apps/client/src/pages/Canvas.tsx#L131)、[Billing.tsx:86](apps/client/src/pages/Billing.tsx#L86)、[CanvasEditor.tsx:122](apps/client/src/components/canvas/CanvasEditor.tsx#L122)）或内联 `<Loader2 animate-spin>`。路由切换 [App.tsx:25-31](apps/client/src/App.tsx#L25-L31) 是全屏「页面加载中...」。
@@ -350,9 +343,9 @@ bun run check:boundaries
 
 ## 本轮总览（截至 2026-06-18）
 
-本轮六维度审计新发现 **运行时 🔴×2 / 架构 🔴×2 / 前端 🔴×2 / UX 🔴×1** 等共约 40 项，按 ROI 建议推进顺序：
+本轮六维度审计新发现 **运行时 🔴×2 / 架构 🔴×2 / 前端 🔴×2** 等共约 40 项，按 ROI 建议推进顺序：
 
-1. **P0（立刻，生产风险）**：§1.1 fetch 超时 · §1.3 credit 对账 · §4.1 regenerate 修复。
+1. **P0（立刻，生产风险）**：§1.1 fetch 超时 · §1.3 credit 对账。
 2. **P1（短期，drift / 体验）**：§2.1 阶段注册表 · §2.2 status union 同源 · §3.1 品牌上色 · §3.2 深色模式 · §4.2 骨架屏 · §4.4 流水线 12 阶段 · §5.1 generate 去重 · §6.1 traceId 贯穿。
 3. **P2（治理 / 打磨）**：§2.3-2.5 拓展性注册表化 · §3.3 状态色收敛 · §4.3/4.5/4.6 空状态/上传/Toast/导航/a11y · §5.2-5.5 文件拆分与去重。
 4. **暂缓**：§7 多租户 / i18n / Redis 限流（待路线图）。

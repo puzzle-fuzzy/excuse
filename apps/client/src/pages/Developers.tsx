@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Copy, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
 import { fetchGatewayUsage } from '@/api/client'
+import { gatewayQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -127,7 +128,7 @@ const CURL_STREAM_EXAMPLE = `curl ${BASE_URL}/v1/chat/completions \\
 
 function UsageSection() {
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['gateway', 'usage'],
+    queryKey: gatewayQueryKeys.usage,
     queryFn: async () => {
       return fetchGatewayUsage()
     },

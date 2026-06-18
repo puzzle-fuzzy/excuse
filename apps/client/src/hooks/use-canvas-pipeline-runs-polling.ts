@@ -60,8 +60,7 @@ export function useCanvasPipelineRunsPolling(
     if (!projectId || projectVersion === 0)
       return
     queryClient.invalidateQueries({ queryKey: canvasPipelineRunsQueryKeys.poll(projectId) })
-    // eslint-disable-next-line react/exhaustive-deps
-  }, [projectVersion])
+  }, [projectVersion, projectId, queryClient])
 
   return {
     runs: query.data,

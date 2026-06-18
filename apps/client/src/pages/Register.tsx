@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
+import { PasswordInput } from '../components/PasswordInput'
 import { registerSchema } from '../lib/form-schemas'
 
 export default function Register() {
@@ -88,9 +89,8 @@ export default function Register() {
               <label htmlFor="password" className="text-sm font-medium">
                 密码
               </label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="至少 6 个字符"
                 disabled={isSubmitting}
                 autoComplete="new-password"
@@ -105,9 +105,8 @@ export default function Register() {
               <label htmlFor="confirmPassword" className="text-sm font-medium">
                 确认密码
               </label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 placeholder="再次输入密码"
                 disabled={isSubmitting}
                 autoComplete="new-password"

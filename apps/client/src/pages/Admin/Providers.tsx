@@ -5,6 +5,7 @@ import type { AdminProviderStatsItem } from '@excuse/shared'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { fetchAdminProviderStats } from '@/api/admin'
+import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,7 +17,7 @@ export function AdminProvidersTab() {
   const [windowHours, setWindowHours] = useState(24)
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['admin', 'providers', windowHours],
+    queryKey: adminQueryKeys.providers(windowHours),
     queryFn: () => fetchAdminProviderStats({ windowHours }),
     refetchInterval: () => document.hidden ? false : 30_000,
   })

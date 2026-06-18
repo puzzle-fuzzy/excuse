@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
  * 见 docs/TODO.md §二、1
  */
 import { Heart, MapPin, Search, Trash2, User } from 'lucide-react'
+import { subjectQueryKeys } from '@/api/query-client'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { deleteSubject, listSubjects, toggleSubjectFavorite } from '@/api/client'
@@ -36,14 +37,14 @@ export default function SubjectLibrary() {
   const subjectType = typeFilter === 'all' ? undefined : typeFilter
 
   const { data, isLoading } = useQuery({
-    queryKey: ['subjects', { subjectType, search }],
+    queryKey: subjectQueryKeys.list({ subjectType, search }),
     queryFn: () => fetchSubjects({ subjectType, search: search || undefined, limit: 50 }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteSubject,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['subjects'] })
+      queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all })
       toast.success('已删除')
     },
     onError: () => toast.error('删除失败'),
@@ -53,7 +54,7 @@ export default function SubjectLibrary() {
 
   const favMutation = useMutation({
     mutationFn: toggleSubjectFavorite,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subjects'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: subjectQueryKeys.all }),
     onError: () => toast.error('操作失败'),
   })
 

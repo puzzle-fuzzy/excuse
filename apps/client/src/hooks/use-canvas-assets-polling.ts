@@ -92,8 +92,7 @@ export function useCanvasAssetsPolling(projectId: string | undefined): UseCanvas
     if (!projectId || projectVersion === 0)
       return
     queryClient.invalidateQueries({ queryKey: canvasAssetsPollingQueryKeys.poll(projectId) })
-    // eslint-disable-next-line react/exhaustive-deps
-  }, [projectVersion])
+  }, [projectVersion, projectId, queryClient])
 
   return {
     pollData: query.data ?? null,

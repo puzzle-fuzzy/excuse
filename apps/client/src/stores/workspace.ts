@@ -1,13 +1,10 @@
 import type { GenerateResponse, GenerationRecord, ModelConfig, ModelParameter } from '@/api/client'
-import type { Category } from '@/lib/generation-utils'
 import { create } from 'zustand'
 import {
   deleteRecord,
-  fetchModels,
   generate,
   uploadFile,
 } from '@/api/client'
-import { useGenerationStore } from './generation'
 import { handleApiError } from '@/lib/utils'
 
 export type WorkspaceParameterValue = string | number | boolean | string[] | null
@@ -44,30 +41,6 @@ export function checkCanGenerate(model: ModelConfig, parameters: WorkspaceParame
   return model.parameters.filter(p => p.required && !parameters[p.name]).length === 0
 }
 
-function normalizeParameterValue(param: ModelParameter, value: WorkspaceParameterValue): WorkspaceParameterValue {
-  if (param.type === 'number')
-    return typeof value === 'number' && Number.isFinite(value) ? value : getParamDefault(param)
-  if (param.type === 'boolean')
-    return typeof value === 'boolean' ? value : getParamDefault(param)
-  if (Array.isArray(value))
-    return value
-  if (value == null)
-    return ''
-  return String(value)
-}
-
-function normalizeParameters(model: ModelConfig | undefined, params: WorkspaceParameters): WorkspaceParameters {
-  if (!model)
-    return params
-
-  const next: WorkspaceParameters = {}
-  for (const param of model.parameters) {
-    const value = params[param.name] ?? getParamDefault(param)
-    next[param.name] = normalizeParameterValue(param, value)
-  }
-  return next
-}
-
 export interface ReferenceFile {
   id: string
   url: string
@@ -81,25 +54,13 @@ export interface MediaUploadEntry {
 }
 
 export interface WorkspaceState {
-  models: ModelConfig[]
-  selectedCategory: Category
-  selectedModelId: string
   parameters: WorkspaceParameters
   referenceFiles: ReferenceFile[]
   mediaUploadState: Record<string, MediaUploadEntry>
   loading: boolean
   uploadingRefs: boolean
 
-  // Derived (computed on demand)
-  categoryModels: () => ModelConfig[]
-  selectedModel: () => ModelConfig | undefined
-  canGenerate: () => boolean
-  showReferenceUpload: () => boolean
-
   // Actions
-  loadModels: () => Promise<void>
-  setCategory: (category: Category) => void
-  setModelId: (id: string) => void
   setParameter: (name: string, value: WorkspaceParameterValue) => void
   setParameters: (params: WorkspaceParameters) => void
   addReferenceFile: (file: ReferenceFile) => void
@@ -107,102 +68,30 @@ export interface WorkspaceState {
   setUploadingRefs: (v: boolean) => void
   setMediaUploadEntry: (paramName: string, entry: MediaUploadEntry) => void
   clearMediaUpload: (paramName: string) => void
+  resetForm: (model: ModelConfig) => void
 
-  submit: () => Promise<void>
-  regenerate: (record: GenerationRecord) => Promise<void>
+  submit: (model: ModelConfig) => Promise<GenerationRecord | null>
+  regenerate: (modelId: string, params: WorkspaceParameters, referenceFileIds?: string[]) => Promise<GenerationRecord | null>
   removeRecord: (id: string) => Promise<void>
   uploadReferenceFiles: (files: FileList) => Promise<void>
   uploadMediaParam: (paramName: string, accept: string) => Promise<void>
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  models: [],
-  selectedCategory: 'image',
-  selectedModelId: '',
   parameters: {},
   referenceFiles: [],
   mediaUploadState: {},
   loading: false,
   uploadingRefs: false,
 
-  categoryModels: () => {
-    const { models, selectedCategory } = get()
-    return models.filter(m => m.category === selectedCategory)
-  },
-
-  selectedModel: () => {
-    const { models, selectedModelId } = get()
-    return models.find(m => m.id === selectedModelId)
-  },
-
-  canGenerate: () => {
-    const model = get().selectedModel()
-    if (!model)
-      return false
-    return checkCanGenerate(model, get().parameters)
-  },
-
-  showReferenceUpload: () => {
-    return get().selectedModel()?.referenceMediaType != null
-  },
-
-  loadModels: async () => {
-    const data = await fetchModels()
-    const { selectedCategory, selectedModelId } = get()
-    const models = data.models
-    // 如果当前没有选中模型，自动选中当前分类的第一个模型
-    if (!selectedModelId || !models.some(m => m.id === selectedModelId)) {
-      const categoryModels = models.filter(m => m.category === selectedCategory)
-      if (categoryModels.length > 0) {
-        const model = categoryModels[0]
-        set({
-          models,
-          selectedModelId: model.id,
-          parameters: buildInitialParameters(model),
-          mediaUploadState: {},
-        })
-        return
-      }
-    }
-    set({ models })
-  },
-
-  setCategory: (category) => {
-    set({ selectedCategory: category })
-    const categoryModels = get().models.filter(m => m.category === category)
-    if (categoryModels.length > 0) {
-      const model = categoryModels[0]
-      set({
-        selectedModelId: model.id,
-        parameters: buildInitialParameters(model),
-        mediaUploadState: {},
-      })
-    }
-  },
-
-  setModelId: (id) => {
-    const model = get().models.find(m => m.id === id)
-    if (model) {
-      set({
-        selectedModelId: id,
-        parameters: buildInitialParameters(model),
-        mediaUploadState: {},
-      })
-    }
-  },
-
   setParameter: (name, value) => {
     set((state) => {
-      const model = get().selectedModel()
-      const param = model?.parameters.find(p => p.name === name)
-      if (!param)
-        return { parameters: state.parameters }
-      return { parameters: { ...state.parameters, [name]: normalizeParameterValue(param, value) } }
+      return { parameters: { ...state.parameters, [name]: value } }
     })
   },
 
   setParameters: (params) => {
-    set({ parameters: normalizeParameters(get().selectedModel(), params) })
+    set({ parameters: params })
   },
 
   addReferenceFile: (file) => {
@@ -231,11 +120,18 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     })
   },
 
-  submit: async () => {
-    const { selectedModel, parameters, referenceFiles } = get()
-    const model = selectedModel()
+  resetForm: (model) => {
+    set({
+      parameters: buildInitialParameters(model),
+      referenceFiles: [],
+      mediaUploadState: {},
+    })
+  },
+
+  submit: async (model) => {
+    const { parameters, referenceFiles } = get()
     if (!model || !checkCanGenerate(model, parameters))
-      return
+      return null
     set({ loading: true })
     try {
       const referenceFileIds = referenceFiles.map(f => f.id)
@@ -245,28 +141,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         referenceFileIds: referenceFileIds.length > 0 ? referenceFileIds : undefined,
       })
       if (result.success && result.record)
-        useGenerationStore.getState().addRecord(result.record)
+        return result.record
+      return null
     }
     catch (err) {
       handleApiError(err, '生成请求失败')
+      return null
     }
     finally {
       set({ loading: false })
     }
   },
 
-  regenerate: async (record) => {
+  regenerate: async (modelId, params, referenceFileIds) => {
     set({ loading: true })
     try {
       const result: GenerateResponse = await generate({
-        model: record.model,
-        parameters: record.inputParams,
+        model: modelId,
+        parameters: params,
+        referenceFileIds: referenceFileIds && referenceFileIds.length > 0 ? referenceFileIds : undefined,
       })
       if (result.success && result.record)
-        useGenerationStore.getState().addRecord(result.record)
+        return result.record
+      return null
     }
     catch (err) {
       handleApiError(err, '生成请求失败')
+      return null
     }
     finally {
       set({ loading: false })
@@ -276,7 +177,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   removeRecord: async (id) => {
     try {
       await deleteRecord(id)
-      useGenerationStore.getState().removeRecord(id)
     }
     catch (err) {
       handleApiError(err, '删除记录失败')

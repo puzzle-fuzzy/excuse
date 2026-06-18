@@ -25,9 +25,6 @@ function makeModel(overrides: Partial<ModelConfig> = {}): ModelConfig {
 describe('workspace store 参数', () => {
   beforeEach(() => {
     useWorkspaceStore.setState({
-      models: [],
-      selectedCategory: 'image',
-      selectedModelId: '',
       parameters: {},
       referenceFiles: [],
       mediaUploadState: {},
@@ -52,24 +49,22 @@ describe('workspace store 参数', () => {
     expect(checkCanGenerate(model, { ...buildInitialParameters(model), prompt: 'hello' })).toBe(true)
   })
 
-  it('使用选中模型参数类型规范化 setParameter 值', () => {
+  it('setParameter 直接写入值', () => {
     const model = makeModel()
     useWorkspaceStore.setState({
-      models: [model],
-      selectedModelId: model.id,
       parameters: buildInitialParameters(model),
     })
 
-    useWorkspaceStore.getState().setParameter('n', 'bad-number')
-    useWorkspaceStore.getState().setParameter('watermark', 'yes')
-    useWorkspaceStore.getState().setParameter('prompt', 123)
-    useWorkspaceStore.getState().setParameter('unknown-field', 'ignored')
+    useWorkspaceStore.getState().setParameter('n', 5)
+    useWorkspaceStore.getState().setParameter('watermark', false)
+    useWorkspaceStore.getState().setParameter('prompt', 'hello world')
+    useWorkspaceStore.getState().setParameter('size', '512*512')
 
     expect(useWorkspaceStore.getState().parameters).toEqual({
-      prompt: '123',
-      n: 2,
-      watermark: true,
-      size: '1024*1024',
+      prompt: 'hello world',
+      n: 5,
+      watermark: false,
+      size: '512*512',
     })
   })
 })

@@ -8,6 +8,7 @@ import { Ban, KeyRound, Pencil, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
+import { adminQueryKeys } from '@/api/query-client'
 import {
   adminGatewayClientsQueryKeys,
   fetchAdminGatewayClientDetail,
@@ -272,7 +273,7 @@ function AdminGatewayClientDetailDialog({ accountId, onClose }: { accountId: str
   const [pendingAction, setPendingAction] = useState<{ kind: 'reset' | 'revoke', key: AdminApiKeyItem } | null>(null)
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['admin', 'gateway-clients'] })
+    queryClient.invalidateQueries({ queryKey: adminQueryKeys.gatewayClients.all })
   }
 
   const resetMutation = useMutation({

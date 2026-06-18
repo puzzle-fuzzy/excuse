@@ -6,6 +6,7 @@ import { handleApiError } from '../lib/utils'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { toast } from 'sonner'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -50,21 +51,20 @@ export default function Canvas() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' })
 
   useEffect(() => {
-    loadProjects()
+    async function load() {
+      try {
+        const res = await listCanvasProjects()
+        setProjects(res.items)
+      }
+      catch (err) {
+        handleApiError(err, '加载项目列表失败')
+      }
+      finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
-
-  async function loadProjects() {
-    try {
-      const res = await listCanvasProjects()
-      setProjects(res.items)
-    }
-    catch (err) {
-      handleApiError(err, '加载项目列表失败')
-    }
-    finally {
-      setLoading(false)
-    }
-  }
 
   async function handleCreate() {
     if (!storyText.trim())
@@ -100,6 +100,7 @@ export default function Canvas() {
       }
 
       navigate(`/canvas/${projectId}`)
+      toast.success('项目已创建')
     }
     catch (err) {
       handleApiError(err, '创建项目失败')

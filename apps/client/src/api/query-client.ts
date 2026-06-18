@@ -23,6 +23,8 @@ export const notificationQueryKeys = {
 export const billingQueryKeys = {
   all: ['billing'] as const,
   statistics: ['billing', 'statistics'] as const,
+  balance: ['billing', 'balance'] as const,
+  transactions: (params?: { limit?: number }) => ['billing', 'transactions', params] as const,
 }
 
 export const apiKeyQueryKeys = {
@@ -35,6 +37,31 @@ export const adminQueryKeys = {
   overview: ['admin', 'overview'] as const,
   tasks: (params: { status?: string, domain?: string, search?: string, limit?: number, offset?: number }) =>
     ['admin', 'tasks', params] as const,
+  users: {
+    list: ['admin', 'users', 'list'] as const,
+    listWithParams: (params: Record<string, unknown>) => ['admin', 'users', 'list', params] as const,
+    detail: (userId: string) => ['admin', 'users', 'detail', userId] as const,
+  },
+  projects: (params?: Record<string, unknown>) => ['admin', 'projects', params] as const,
+  providers: (windowHours?: number) => ['admin', 'providers', windowHours] as const,
+  gatewayClients: {
+    list: (params?: Record<string, unknown>) => ['admin', 'gateway-clients', params] as const,
+    all: ['admin', 'gateway-clients'] as const,
+  },
+}
+
+export const assetQueryKeys = {
+  library: ['asset-library'] as const,
+  tags: ['asset-tags'] as const,
+}
+
+export const gatewayQueryKeys = {
+  usage: ['gateway', 'usage'] as const,
+}
+
+export const subjectQueryKeys = {
+  all: ['subjects'] as const,
+  list: (params?: Record<string, unknown>) => ['subjects', params] as const,
 }
 
 export const canvasAssetsPollingQueryKeys = {

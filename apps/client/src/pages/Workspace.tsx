@@ -1,5 +1,6 @@
-import type { ModelParameter } from '@/api/client'
+import type { GenerationRecord, ModelParameter } from '@/api/client'
 import type { Category } from '@/lib/generation-utils'
+import type { WorkspaceParameters } from '@/stores/workspace'
 import {
   FileText,
   Loader2,
@@ -8,7 +9,8 @@ import {
   Video,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import RecordCard from '@/components/generation/RecordCard'
 import MediaPreviewDialog from '@/components/MediaPreviewDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -20,7 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { CATEGORY_CONFIG } from '@/lib/generation-utils'
 import { useGenerationStore } from '@/stores/generation'
-import { checkCanGenerate, useWorkspaceStore } from '@/stores/workspace'
+import { useModelsStore } from '@/stores/models-store'
+import { buildInitialParameters, checkCanGenerate, useWorkspaceStore } from '@/stores/workspace'
 
 export default function Workspace() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -28,35 +31,41 @@ export default function Workspace() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean, id: string }>({ open: false, id: '' })
 
-  // Workspace store — form state, models, submission logic
-  const selectedCategory = useWorkspaceStore(s => s.selectedCategory)
-  const selectedModelId = useWorkspaceStore(s => s.selectedModelId)
+  // Models store — 模型/分类/模型选择
+  const models = useModelsStore(s => s.models)
+  const selectedCategory = useModelsStore(s => s.selectedCategory)
+  const selectedModelId = useModelsStore(s => s.selectedModelId)
+  const setCategory = useModelsStore(s => s.setCategory)
+  const setModelId = useModelsStore(s => s.setModelId)
+  const loadModels = useModelsStore(s => s.loadModels)
+
+  // Workspace store — 表单状态/文件上传/提交
   const parameters = useWorkspaceStore(s => s.parameters)
   const loading = useWorkspaceStore(s => s.loading)
   const uploadingRefs = useWorkspaceStore(s => s.uploadingRefs)
   const referenceFiles = useWorkspaceStore(s => s.referenceFiles)
   const mediaUploadState = useWorkspaceStore(s => s.mediaUploadState)
-  const models = useWorkspaceStore(s => s.models)
-
-  const setCategory = useWorkspaceStore(s => s.setCategory)
-  const setModelId = useWorkspaceStore(s => s.setModelId)
   const setParameter = useWorkspaceStore(s => s.setParameter)
-  const loadModels = useWorkspaceStore(s => s.loadModels)
-  const submit = useWorkspaceStore(s => s.submit)
-  const regenerate = useWorkspaceStore(s => s.regenerate)
-  const removeRecord = useWorkspaceStore(s => s.removeRecord)
+  const setParameters = useWorkspaceStore(s => s.setParameters)
+  const resetForm = useWorkspaceStore(s => s.resetForm)
+  const submitAction = useWorkspaceStore(s => s.submit)
+  const regenerateAction = useWorkspaceStore(s => s.regenerate)
+  const removeRecordAction = useWorkspaceStore(s => s.removeRecord)
   const uploadReferenceFiles = useWorkspaceStore(s => s.uploadReferenceFiles)
   const uploadMediaParam = useWorkspaceStore(s => s.uploadMediaParam)
   const clearMediaUpload = useWorkspaceStore(s => s.clearMediaUpload)
 
+  // Generation store — 生成记录
+  const records = useGenerationStore(s => s.records)
+  const fetchRecords = useGenerationStore(s => s.fetchRecords)
+  const addRecord = useGenerationStore(s => s.addRecord)
+  const removeRecord = useGenerationStore(s => s.removeRecord)
+
+  // 派生值
   const categoryModels = useMemo(() => models.filter(m => m.category === selectedCategory), [models, selectedCategory])
   const selectedModel = useMemo(() => models.find(m => m.id === selectedModelId), [models, selectedModelId])
   const canGenerate = useMemo(() => selectedModel ? checkCanGenerate(selectedModel, parameters) : false, [selectedModel, parameters])
   const showReferenceUpload = useMemo(() => selectedModel?.referenceMediaType != null, [selectedModel])
-
-  // Generation store — records
-  const records = useGenerationStore(s => s.records)
-  const fetchRecords = useGenerationStore(s => s.fetchRecords)
 
   useEffect(() => {
     loadModels()
@@ -64,6 +73,51 @@ export default function Workspace() {
   useEffect(() => {
     fetchRecords()
   }, [fetchRecords])
+
+  // 分类切换时同时重置表单参数
+  const handleCategoryChange = useCallback((category: Category) => {
+    setCategory(category)
+    const nextModels = models.filter(m => m.category === category)
+    if (nextModels.length > 0)
+      setParameters(buildInitialParameters(nextModels[0]))
+  }, [models, setCategory, setParameters])
+
+  // 模型切换时重置表单参数
+  const handleModelChange = useCallback((id: string) => {
+    setModelId(id)
+    const model = models.find(m => m.id === id)
+    if (model)
+      resetForm(model)
+  }, [models, setModelId, resetForm])
+
+  // 提交生成 — React 层编排
+  const handleSubmit = useCallback(async () => {
+    if (!selectedModel)
+      return
+    const record = await submitAction(selectedModel)
+    if (record) {
+      addRecord(record)
+      toast.success('生成请求已提交')
+    }
+  }, [selectedModel, submitAction, addRecord])
+
+  // 重新生成
+  const handleRegenerate = useCallback(async (record: GenerationRecord) => {
+    const refIds = Array.isArray(record.inputParams?.referenceFileIds)
+      ? record.inputParams.referenceFileIds as string[]
+      : undefined
+    const newRecord = await regenerateAction(record.model, record.inputParams as WorkspaceParameters, refIds)
+    if (newRecord) {
+      addRecord(newRecord)
+      toast.success('重新生成请求已提交')
+    }
+  }, [regenerateAction, addRecord])
+
+  // 删除记录
+  const handleRemoveRecord = useCallback(async (id: string) => {
+    await removeRecordAction(id)
+    removeRecord(id)
+  }, [removeRecordAction, removeRecord])
 
   // 渲染媒体上传控件
   function renderMediaUpload(param: ModelParameter) {
@@ -213,7 +267,7 @@ export default function Workspace() {
   }
 
   async function confirmDelete() {
-    await removeRecord(deleteConfirm.id)
+    await handleRemoveRecord(deleteConfirm.id)
     setDeleteConfirm({ open: false, id: '' })
   }
 
@@ -230,7 +284,7 @@ export default function Workspace() {
                   key={key}
                   variant={selectedCategory === key ? 'default' : 'outline'}
                   className={selectedCategory === key ? cfg.activeColor : ''}
-                  onClick={() => setCategory(key)}
+                  onClick={() => handleCategoryChange(key)}
                 >
                   <Icon className="size-4" />
                   {cfg.label}
@@ -246,7 +300,7 @@ export default function Workspace() {
             <CardContent>
               <Select
                 value={selectedModelId}
-                onValueChange={setModelId}
+                onValueChange={handleModelChange}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -334,7 +388,7 @@ export default function Workspace() {
             className="w-full"
             size="lg"
             disabled={loading || !canGenerate}
-            onClick={submit}
+            onClick={handleSubmit}
           >
             {loading
               ? (
@@ -368,12 +422,12 @@ export default function Workspace() {
                 <RecordCard
                   key={record.id}
                   record={record}
-                  models={useWorkspaceStore.getState().models}
+                  models={models}
                   expanded={expandedPrompts.has(record.id)}
                   copied={copiedId === record.id}
                   onToggleExpand={togglePrompt}
                   onCopyPrompt={copyPrompt}
-                  onRegenerate={regenerate}
+                  onRegenerate={handleRegenerate}
                   onDelete={id => setDeleteConfirm({ open: true, id })}
                   onPreview={setPreviewUrl}
                   onCopyDiagnostics={(text) => { navigator.clipboard.writeText(text).catch(() => {}) }}

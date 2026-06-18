@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
 import { adminCreditAdd, adminUserApiKeysQueryKeys, fetchAdminUserApiKeys, fetchAdminUserDetail, fetchAdminUsers } from '@/api/admin'
+import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,7 +29,7 @@ import {
 
 function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onClose: () => void }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'users', 'detail', userId],
+    queryKey: adminQueryKeys.users.detail(userId!),
     queryFn: () => fetchAdminUserDetail(userId!),
     enabled: !!userId,
   })
@@ -48,8 +49,8 @@ function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onC
       setRechargeOpen(false)
       setRechargeAmount('')
       setRechargeDesc('')
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'detail', userId] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'list'] })
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.users.detail(userId!) })
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.users.list })
     },
     onError: (err: Error) => {
       toast.error(err.message)
@@ -349,7 +350,7 @@ export function AdminUsersTab() {
   }), [debouncedSearch, isActive, page])
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['admin', 'users', 'list', queryParams],
+    queryKey: adminQueryKeys.users.listWithParams(queryParams),
     queryFn: () => fetchAdminUsers(queryParams),
     refetchInterval: () => document.hidden ? false : 30_000,
   })

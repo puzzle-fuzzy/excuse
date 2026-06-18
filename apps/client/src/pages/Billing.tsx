@@ -65,13 +65,13 @@ export default function Billing() {
   })
 
   const { data: balance, isLoading: balanceLoading } = useQuery({
-    queryKey: ['billing', 'balance'],
+    queryKey: billingQueryKeys.balance,
     queryFn: fetchBillingBalance,
     refetchInterval: () => document.hidden ? false : 30_000,
   })
 
-  const { data: txData, isLoading: txLoading } = useQuery({
-    queryKey: ['billing', 'transactions'],
+  const { data: txData, isLoading: txLoading, refetch: refetchTx, isFetching: txFetching } = useQuery({
+    queryKey: billingQueryKeys.transactions(),
     queryFn: () => fetchBillingTransactions({ limit: 50 }),
   })
 
@@ -306,12 +306,10 @@ export default function Billing() {
             variant="ghost"
             size="icon"
             className="size-7"
-            onClick={() => {
-              // invalidate and refetch
-            }}
+            onClick={() => refetchTx()}
             title="刷新"
           >
-            <RefreshCw className={`size-3.5 ${txLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-3.5 ${txFetching ? 'animate-spin' : ''}`} />
           </Button>
         </CardHeader>
         <CardContent>

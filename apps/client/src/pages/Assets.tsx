@@ -1,5 +1,6 @@
 import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, AssetTagDTO, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
+import { assetQueryKeys } from '@/api/query-client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AudioLines,
@@ -153,7 +154,7 @@ export default function Assets() {
 
   // 加载当前用户全部标签（用于标签管理 modal + 卡片打标 popover + 筛选区下拉）
   const { data: allTags = [] } = useQuery({
-    queryKey: ['asset-tags'],
+    queryKey: assetQueryKeys.tags,
     queryFn: listAssetTags,
   })
   const tagNameToId = useMemo(() => {
@@ -257,7 +258,7 @@ export default function Assets() {
         await unassignAssetTag(source, id, tagId)
       else
         await assignAssetTag(source, id, tagId)
-      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.library })
     }
     catch (err) {
       const message = err instanceof Error ? err.message : '打标签失败'
@@ -287,11 +288,11 @@ export default function Assets() {
     try {
       await toggleAssetFavorite(source, id, next)
       // 服务端权威刷新（favorite=true 过滤下，取消收藏后该项应消失）
-      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.library })
     }
     catch (err) {
       // 回滚：重新拉取覆盖乐观更新
-      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.library })
       const message = err instanceof Error ? err.message : '收藏操作失败'
       toast.error(message)
     }
@@ -1041,8 +1042,8 @@ function TagManagementModal({
     try {
       await createAssetTagApi(trimmed)
       setNewName('')
-      await queryClient.invalidateQueries({ queryKey: ['asset-tags'] })
-      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.tags })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.library })
       toast.success('已创建标签')
     }
     catch (err) {
@@ -1059,8 +1060,8 @@ function TagManagementModal({
       return
     try {
       await deleteAssetTagApi(deleteTarget.id)
-      await queryClient.invalidateQueries({ queryKey: ['asset-tags'] })
-      await queryClient.invalidateQueries({ queryKey: ['asset-library'] })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.tags })
+      await queryClient.invalidateQueries({ queryKey: assetQueryKeys.library })
       toast.success('已删除标签')
       setDeleteTarget(null)
     }

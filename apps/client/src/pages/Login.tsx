@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
+import { PasswordInput } from '../components/PasswordInput'
 import { loginSchema } from '../lib/form-schemas'
 
 export default function Login() {
@@ -74,9 +75,8 @@ export default function Login() {
                   忘记密码？
                 </Link>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="••••••"
                 disabled={isSubmitting}
                 autoComplete="current-password"
