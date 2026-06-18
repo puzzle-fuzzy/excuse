@@ -20,6 +20,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import { InternalError, NotFoundError } from '../../utils/app-errors'
 import { parseCanvasLayout } from './layout'
 import { mapCharacter, mapLocation, mapProjectDetail, mapProjectSummary, mapShot } from './mapper'
 import { reconcileProjectShots } from './service-helpers'
@@ -127,7 +128,7 @@ export async function createProject(accountId: string, input: { title?: string, 
 export async function updateProjectProperties(projectId: string, input: { title?: string, storyText?: string }) {
   const project = await getCanvasProjectById(projectId)
   if (!project)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const values: Partial<Pick<typeof project, 'title' | 'storyText'>> = {}
   if (input.title !== undefined)
@@ -137,7 +138,7 @@ export async function updateProjectProperties(projectId: string, input: { title?
 
   const updated = await updateCanvasProject(projectId, values)
   if (!updated)
-    throw new Error('更新失败')
+    throw new InternalError('更新失败')
 
   const detail = await getCanvasProjectDetail(projectId)
   return mapProjectDetail(updated, detail?.characters ?? [], detail?.locations ?? [], detail?.shots ?? [], detail?.latestContinuity ?? null)
@@ -205,7 +206,7 @@ export async function updateModelPreferences(projectId: string, prefs: CanvasMod
   await updateCanvasProject(projectId, { modelPreferencesJson: prefs })
   const detail = await getProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   return detail
 }
 
@@ -221,7 +222,7 @@ export async function updateCharacterData(characterId: string, patch: {
 }): Promise<CharacterDTO> {
   const updated = await updateCanvasCharacter(characterId, patch)
   if (!updated)
-    throw new Error('更新失败')
+    throw new InternalError('更新失败')
   return mapCharacter(updated)
 }
 
@@ -235,7 +236,7 @@ export async function updateLocationData(locationId: string, patch: {
 }): Promise<LocationDTO> {
   const updated = await updateCanvasLocation(locationId, patch)
   if (!updated)
-    throw new Error('更新失败')
+    throw new InternalError('更新失败')
   return mapLocation(updated)
 }
 
@@ -251,7 +252,7 @@ export async function updateShotData(shotId: string, patch: {
 }): Promise<ShotDTO> {
   const updated = await updateCanvasShot(shotId, patch)
   if (!updated)
-    throw new Error('更新失败')
+    throw new InternalError('更新失败')
   return mapShot(updated)
 }
 

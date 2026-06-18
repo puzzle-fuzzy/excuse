@@ -7,6 +7,7 @@
 
 import type { AssetStorage, DashScopeClient } from '@excuse/provider'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
+import { NotFoundError } from '../../utils/app-errors'
 
 export async function assembleProject(
   projectId: string,
@@ -16,7 +17,7 @@ export async function assembleProject(
 ) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const { runAssemblePhase } = await import('@excuse/canvas-runtime')
 

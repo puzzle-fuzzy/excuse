@@ -69,12 +69,10 @@
 
 > **已完成**（2026-06-18）：3 个内联 handler 挪入 `canvas-handlers.ts` 走 `markRunRunningAndNotify → execute* → markRunSucceededAndNotify` 信封，新增 `canvas-dialogue.ts`/`canvas-bgm.ts`/`canvas-assemble.ts` 三个 execute 文件。task-handler.ts 改为懒加载委派。
 
-### 2.3 🟠 server 域模块里 52 处裸 `throw new Error`
+### 2.3 🟠 server 域模块里 52 处裸 `throw new Error` — ✅ 已修复
 
-- **证据**：grep `throw new Error` 在 `modules/` + `routes/` + `services/` 恰好 **52** 处（[modules/canvas/*](apps/server/src/modules/canvas/)、[modules/generation/service.ts](apps/server/src/modules/generation/service.ts)、[openai-gateway.ts](apps/server/src/routes/openai-gateway.ts) 等）。`errorHandlerPlugin` 只特殊处理 `AppError`，其余一律扁平化成 500。
-- **影响**：「项目不存在」「镜头不存在」「只能重试失败的镜头」这种语义上 404/403/422 的业务错误，在**同步路径**上变成不透明的 500。`fireAndForget` 路径被 `.catch` 吞了无感，但同步路径（service-crud 详情、regenerate 校验、generation/service、openai-gateway 的 `throw new Error(res.error)`）是**真 API 正确性 bug**。
-- **解法**：把域模块里的 `throw new Error(msg)` 换成 [app-errors.ts](apps/server/src/utils/app-errors.ts) 的 `NotFoundError` / `ForbiddenError` / `ValidationError` 等子类。优先同步路径。
-- **验收**：请求一个不存在的 projectId，HTTP 状态为 404 而非 500；`grep "throw new Error" apps/server/src/{modules,routes,services}` 数量趋近 0（fireAndForget 内部的可保留或转 AppError）。
+> **已完成**（2026-06-18）：52 处中转换 **51 处**为 `app-errors.ts` 子类（`NotFoundError`/`ConflictError`/`ValidationError`/`BadRequestError`/`InternalError`），映射：不存在类→404、未分析/正在生成/状态前置→409 Conflict、布局与参数校验→422、未知模型/不支持音频→400、DB 更新意外失败→500 InternalError。「项目不存在或未分析」这类二义条件拆为 NotFoundError + ConflictError 两段，语义更精确。唯一保留的是 [openai-gateway.ts:229](apps/server/src/routes/openai-gateway.ts#L229) 的 `throw new Error(res.error)` —— 它被 `handleGatewayChatCompletion` 的 catch 捕获并经 `generationFailedError` 整形为 OpenAI 形态错误（非裸 500），属 §3.5（gateway 错误协议统一）范畴，故不在本项转 AppError。验收：新增 ConflictError(409)/ValidationError(422) 的 statusCode 单测；canvas-service-helpers(19)/subtitle-service(9)/canvas-layout(13) 等直接相关测试全绿；保留的消息（「项目正在生成中…」「视频文件不存在…」）断言不变。
+
 
 ### 2.4 🟠 `generate.ts` 是个厚路由（441 LOC）
 

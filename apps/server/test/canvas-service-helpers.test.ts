@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { assertNotGenerating, DEFAULT_IMAGE_MODEL, DEFAULT_TEXT_MODEL, getImageModel, getTextModel, getVideoModel } from '../src/modules/canvas/service-helpers'
+import { ConflictError } from '../src/utils/app-errors'
 
 // ── getTextModel ───────────────────────────────────────
 
@@ -77,6 +78,18 @@ describe('getVideoModel', () => {
 describe('assertNotGenerating', () => {
   it('status 为 "generating" 时抛出异常', () => {
     expect(() => assertNotGenerating('generating')).toThrow('项目正在生成中，请等待完成后再操作')
+  })
+
+  it('status 为 "generating" 时抛 ConflictError（statusCode=409）— TODO2 §2.3', () => {
+    try {
+      assertNotGenerating('generating')
+      expect.unreachable('应抛 ConflictError')
+    }
+    catch (err) {
+      expect(err).toBeInstanceOf(ConflictError)
+      expect((err as ConflictError).statusCode).toBe(409)
+      expect((err as Error).message).toBe('项目正在生成中，请等待完成后再操作')
+    }
   })
 
   it('status 为 null 时通过', () => {

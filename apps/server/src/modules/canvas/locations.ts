@@ -9,14 +9,17 @@ import {
   markPipelineRunSucceeded,
   updateCanvasProject,
 } from '@excuse/db'
+import { ConflictError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 import { tryMatchLocation } from './subject-matching'
 
 export async function generateLocations(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
-  if (!project || !project.analysisJson)
-    throw new Error('项目不存在或未分析')
+  if (!project)
+    throw new NotFoundError('项目不存在')
+  if (!project.analysisJson)
+    throw new ConflictError('项目尚未分析，请先完成分析阶段')
   assertNotGenerating(project.status)
 
   const analysis = project.analysisJson!

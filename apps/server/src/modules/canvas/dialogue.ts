@@ -7,12 +7,13 @@
 
 import type { DashScopeClient } from '@excuse/provider'
 import { getCanvasProjectDetail, updateCanvasShot } from '@excuse/db'
+import { NotFoundError } from '../../utils/app-errors'
 import { getTextModel } from './service-helpers'
 
 export async function generateDialogue(projectId: string, client: DashScopeClient) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const textModel = getTextModel(detail.project.modelPreferencesJson)
   const { runDialoguePhase } = await import('@excuse/canvas-runtime')

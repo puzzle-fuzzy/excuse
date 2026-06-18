@@ -8,6 +8,7 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import { dispatchToUser } from '../../services/sse-manager'
+import { ConflictError } from '../../utils/app-errors'
 
 export function notifyNode(accountId: string, projectId: string, nodeType: string, nodeId: string, status: 'running' | 'completed' | 'failed', data?: Record<string, unknown>, error?: string, runId?: string) {
   /**
@@ -34,7 +35,7 @@ export function getVideoModel(prefs: CanvasModelPreferences | null | undefined, 
 
 export function assertNotGenerating(status: string | null | undefined): void {
   if (status === 'generating') {
-    throw new Error('项目正在生成中，请等待完成后再操作')
+    throw new ConflictError('项目正在生成中，请等待完成后再操作')
   }
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { parseCanvasLayout } from '../src/modules/canvas/layout'
+import { ValidationError } from '../src/utils/app-errors'
 
 describe('canvas 布局解析器', () => {
   it('解析 React Flow 风格的 layout DTO', () => {
@@ -44,5 +45,16 @@ describe('canvas 布局解析器', () => {
         edges: [{ id: 'edge-1', source: 'shot-1' }],
       }),
     ).toThrow('edges[0].target')
+  })
+
+  it('校验失败抛 ValidationError（statusCode=422）— TODO2 §2.3', () => {
+    try {
+      parseCanvasLayout({ edges: [] })
+      expect.unreachable('应抛 ValidationError')
+    }
+    catch (err) {
+      expect(err).toBeInstanceOf(ValidationError)
+      expect((err as ValidationError).statusCode).toBe(422)
+    }
   })
 })

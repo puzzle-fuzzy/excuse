@@ -16,20 +16,21 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
+import { BadRequestError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getImageModel, notifyNode } from './service-helpers'
 
 export async function generateCharacterRefs(projectId: string, client: DashScopeClient, storage: AssetStorage, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   assertNotGenerating(detail.project.status)
 
   const accountId = detail.project.accountId
   const imageModel = getImageModel(detail.project.modelPreferencesJson)
   const imageModelConfig = getModelById(imageModel)
   if (!imageModelConfig)
-    throw new Error(`未知图片模型：${imageModel}`)
+    throw new BadRequestError(`未知图片模型：${imageModel}`)
 
   if (runId)
     await markPipelineRunRunning(runId)
@@ -101,14 +102,14 @@ export async function generateCharacterRefs(projectId: string, client: DashScope
 export async function generateLocationRefs(projectId: string, client: DashScopeClient, storage: AssetStorage, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   assertNotGenerating(detail.project.status)
 
   const accountId = detail.project.accountId
   const imageModel = getImageModel(detail.project.modelPreferencesJson)
   const imageModelConfig = getModelById(imageModel)
   if (!imageModelConfig)
-    throw new Error(`未知图片模型：${imageModel}`)
+    throw new BadRequestError(`未知图片模型：${imageModel}`)
 
   if (runId)
     await markPipelineRunRunning(runId)

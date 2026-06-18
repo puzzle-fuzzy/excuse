@@ -1,4 +1,5 @@
 import type { CanvasLayoutDto, CanvasLayoutEdge, CanvasLayoutNode, CanvasLayoutViewport } from '@excuse/shared'
+import { ValidationError } from '../../utils/app-errors'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -6,13 +7,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function assertString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.length === 0)
-    throw new Error(`画布布局字段 ${field} 必须是非空字符串`)
+    throw new ValidationError(`画布布局字段 ${field} 必须是非空字符串`)
   return value
 }
 
 function assertNumber(value: unknown, field: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value))
-    throw new Error(`画布布局字段 ${field} 必须是有效数字`)
+    throw new ValidationError(`画布布局字段 ${field} 必须是有效数字`)
   return value
 }
 
@@ -20,13 +21,13 @@ function parseData(value: unknown, field: string): Record<string, unknown> | und
   if (value === undefined)
     return undefined
   if (!isRecord(value))
-    throw new Error(`画布布局字段 ${field} 必须是对象`)
+    throw new ValidationError(`画布布局字段 ${field} 必须是对象`)
   return value
 }
 
 function parsePosition(value: unknown, field: string) {
   if (!isRecord(value))
-    throw new Error(`画布布局字段 ${field} 必须是对象`)
+    throw new ValidationError(`画布布局字段 ${field} 必须是对象`)
   return {
     x: assertNumber(value.x, `${field}.x`),
     y: assertNumber(value.y, `${field}.y`),
@@ -35,7 +36,7 @@ function parsePosition(value: unknown, field: string) {
 
 function parseNode(value: unknown, index: number): CanvasLayoutNode {
   if (!isRecord(value))
-    throw new Error(`画布布局节点 ${index} 必须是对象`)
+    throw new ValidationError(`画布布局节点 ${index} 必须是对象`)
 
   const node: CanvasLayoutNode = {
     id: assertString(value.id, `nodes[${index}].id`),
@@ -57,7 +58,7 @@ function parseNode(value: unknown, index: number): CanvasLayoutNode {
 
 function parseEdge(value: unknown, index: number): CanvasLayoutEdge {
   if (!isRecord(value))
-    throw new Error(`画布布局边 ${index} 必须是对象`)
+    throw new ValidationError(`画布布局边 ${index} 必须是对象`)
 
   const edge: CanvasLayoutEdge = {
     id: assertString(value.id, `edges[${index}].id`),
@@ -86,11 +87,11 @@ function parseViewport(value: unknown): CanvasLayoutViewport | undefined {
 
 export function parseCanvasLayout(value: unknown): CanvasLayoutDto {
   if (!isRecord(value))
-    throw new Error('画布布局必须是对象')
+    throw new ValidationError('画布布局必须是对象')
   if (!Array.isArray(value.nodes))
-    throw new Error('画布布局字段 nodes 必须是数组')
+    throw new ValidationError('画布布局字段 nodes 必须是数组')
   if (!Array.isArray(value.edges))
-    throw new Error('画布布局字段 edges 必须是数组')
+    throw new ValidationError('画布布局字段 edges 必须是数组')
 
   const layout: CanvasLayoutDto = {
     nodes: value.nodes.map(parseNode),

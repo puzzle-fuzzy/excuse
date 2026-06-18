@@ -14,13 +14,14 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import { NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, notifyNode } from './service-helpers'
 
 export async function checkContinuity(projectId: string, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   assertNotGenerating(detail.project.status)
 
   const accountId = detail.project.accountId
@@ -64,7 +65,7 @@ export async function checkContinuity(projectId: string, runId?: string) {
 export async function rebuildShotPrompts(projectId: string, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   assertNotGenerating(detail.project.status)
 
   const accountId = detail.project.accountId

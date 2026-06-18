@@ -15,6 +15,7 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import { decideBatchOutcome } from '@excuse/workflow-engine'
+import { ConflictError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { getVideoModel, notifyNode } from './service-helpers'
 
@@ -25,7 +26,7 @@ function getErrorMessage(error: unknown): string {
 export async function generateVideos(projectId: string, client: DashScopeClient, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const accountId = detail.project.accountId
 
@@ -104,15 +105,15 @@ export async function generateVideos(projectId: string, client: DashScopeClient,
 export async function retryShotVideo(shotId: string, client: DashScopeClient) {
   const shot = await getCanvasShotById(shotId)
   if (!shot)
-    throw new Error('镜头不存在')
+    throw new NotFoundError('镜头不存在')
   if (shot.status !== 'failed')
-    throw new Error('只能重试失败的镜头')
+    throw new ConflictError('只能重试失败的镜头')
 
   await resetCanvasShotToDraft(shotId)
 
   const detail = await getCanvasProjectDetail(shot.projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   await updateCanvasProject(shot.projectId, { status: 'generating' })
 
@@ -154,11 +155,11 @@ export async function retryShotVideo(shotId: string, client: DashScopeClient) {
 export async function retryFailedShots(projectId: string, accountId: string, client: DashScopeClient) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const failedShots = detail.shots.filter(s => s.status === 'failed')
   if (failedShots.length === 0)
-    throw new Error('没有失败的镜头可以重试')
+    throw new ConflictError('没有失败的镜头可以重试')
 
   await updateCanvasProject(projectId, { status: 'generating' })
 

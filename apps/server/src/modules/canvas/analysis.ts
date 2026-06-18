@@ -8,13 +8,14 @@ import {
   markPipelineRunRunning,
   markPipelineRunSucceeded,
 } from '@excuse/db'
+import { NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { getTextModel, notifyNode } from './service-helpers'
 
 export async function analyzeProject(projectId: string, client: DashScopeClient, runId?: string) {
   const project = await getCanvasProjectById(projectId)
   if (!project)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   if (runId)
     await markPipelineRunRunning(runId)

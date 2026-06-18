@@ -24,6 +24,7 @@ import {
 import { getDefaultStyleConfig } from '@excuse/subtitle-engine'
 import { getTaskPriority } from '@excuse/task-engine'
 import { pushNotification } from '../../services/notifications'
+import { NotFoundError } from '../../utils/app-errors'
 
 /** 字幕项目依赖的外部服务（仅供 retry 中快速重提交 ASR 使用） */
 export interface SubtitleDependencies {
@@ -47,7 +48,7 @@ export async function createAndStartProject(
   // 1. 校验视频文件存在
   const file = await getUploadedFileById(videoFileId)
   if (!file || file.accountId !== accountId) {
-    throw new Error('视频文件不存在或不属于当前用户')
+    throw new NotFoundError('视频文件不存在或不属于当前用户')
   }
 
   // 2. 创建 subtitle_project 记录

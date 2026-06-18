@@ -8,18 +8,19 @@ import {
   markPipelineRunSucceeded,
   updateCanvasProject,
 } from '@excuse/db'
+import { ConflictError, NotFoundError } from '../../utils/app-errors'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
 export async function generateStoryboard(projectId: string, client: DashScopeClient, runId?: string) {
   const detail = await getCanvasProjectDetail(projectId)
   if (!detail)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
   assertNotGenerating(detail.project.status)
 
   const project = detail.project
   if (!project.analysisJson)
-    throw new Error('项目未分析')
+    throw new ConflictError('项目未分析，请先完成分析阶段')
 
   const analysis = project.analysisJson!
   const accountId = project.accountId

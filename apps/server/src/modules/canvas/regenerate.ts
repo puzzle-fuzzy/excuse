@@ -28,6 +28,7 @@ import {
   parseLLMJsonWithSchema,
 } from '@excuse/prompt-engine'
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
+import { BadRequestError, ConflictError, InternalError, NotFoundError, ValidationError } from '../../utils/app-errors'
 import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 
 // ── 角色重新生成 ──────────────────────────────────────
@@ -35,11 +36,13 @@ import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 export async function regenerateCharacter(characterId: string, client: DashScopeClient) {
   const character = await getCanvasCharacterById(characterId)
   if (!character)
-    throw new Error('角色不存在')
+    throw new NotFoundError('角色不存在')
 
   const project = await getCanvasProjectById(character.projectId)
-  if (!project || !project.analysisJson)
-    throw new Error('项目不存在或未分析')
+  if (!project)
+    throw new NotFoundError('项目不存在')
+  if (!project.analysisJson)
+    throw new ConflictError('项目尚未分析，请先完成分析阶段')
 
   const analysis = project.analysisJson!
   const accountId = project.accountId
@@ -62,7 +65,7 @@ export async function regenerateCharacter(characterId: string, client: DashScope
         const { system, prompt: userPrompt } = buildCharacterPrompt(project.storyText, analysis, name)
         const modelConfig = getProviderModelById(textModel)
         if (!modelConfig)
-          throw new Error(`未知文本模型：${textModel}`)
+          throw new BadRequestError(`未知文本模型：${textModel}`)
 
         const rawParams: Record<string, unknown> = {
           prompt: `${system}\n\n${userPrompt}`,
@@ -72,12 +75,12 @@ export async function regenerateCharacter(characterId: string, client: DashScope
         const validationResult = validateAndMerge(modelConfig, rawParams)
         if (!validationResult.ok) {
           const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-          throw new Error(`参数校验失败：${detail}`)
+          throw new ValidationError(`参数校验失败：${detail}`)
         }
 
         const result = await client.chatCompletion(textModel, validationResult.params)
         if (result.type === 'failed')
-          throw new Error(result.error || '角色重新生成失败')
+          throw new InternalError(result.error || '角色重新生成失败')
 
         const profile = parseLLMJsonWithSchema(result.output.text as string, characterProfileSchema)
         const newCharacter = await createCanvasCharacter({
@@ -110,11 +113,13 @@ export async function regenerateCharacter(characterId: string, client: DashScope
 export async function regenerateLocation(locationId: string, client: DashScopeClient) {
   const location = await getCanvasLocationById(locationId)
   if (!location)
-    throw new Error('场景不存在')
+    throw new NotFoundError('场景不存在')
 
   const project = await getCanvasProjectById(location.projectId)
-  if (!project || !project.analysisJson)
-    throw new Error('项目不存在或未分析')
+  if (!project)
+    throw new NotFoundError('项目不存在')
+  if (!project.analysisJson)
+    throw new ConflictError('项目尚未分析，请先完成分析阶段')
 
   const analysis = project.analysisJson!
   const accountId = project.accountId
@@ -137,7 +142,7 @@ export async function regenerateLocation(locationId: string, client: DashScopeCl
         const { system, prompt: userPrompt } = buildLocationPrompt(project.storyText, analysis, name)
         const modelConfig = getProviderModelById(textModel)
         if (!modelConfig)
-          throw new Error(`未知文本模型：${textModel}`)
+          throw new BadRequestError(`未知文本模型：${textModel}`)
 
         const rawParams: Record<string, unknown> = {
           prompt: `${system}\n\n${userPrompt}`,
@@ -147,12 +152,12 @@ export async function regenerateLocation(locationId: string, client: DashScopeCl
         const validationResult = validateAndMerge(modelConfig, rawParams)
         if (!validationResult.ok) {
           const detail = validationResult.errors.map(e => `${e.field}: ${e.message}`).join('; ')
-          throw new Error(`参数校验失败：${detail}`)
+          throw new ValidationError(`参数校验失败：${detail}`)
         }
 
         const result = await client.chatCompletion(textModel, validationResult.params)
         if (result.type === 'failed')
-          throw new Error(result.error || '场景重新生成失败')
+          throw new InternalError(result.error || '场景重新生成失败')
 
         const profile = parseLLMJsonWithSchema(result.output.text as string, locationProfileSchema)
         const newLocation = await createCanvasLocation({
@@ -184,11 +189,11 @@ export async function regenerateLocation(locationId: string, client: DashScopeCl
 export async function regenerateShotVideo(shotId: string, client: DashScopeClient) {
   const shot = await getCanvasShotById(shotId)
   if (!shot)
-    throw new Error('镜头不存在')
+    throw new NotFoundError('镜头不存在')
 
   const project = await getCanvasProjectById(shot.projectId)
   if (!project)
-    throw new Error('项目不存在')
+    throw new NotFoundError('项目不存在')
 
   const accountId = project.accountId
 
@@ -226,7 +231,7 @@ export async function regenerateShotVideo(shotId: string, client: DashScopeClien
   try {
     const projectDetail = await getCanvasProjectDetail(shot.projectId)
     if (!projectDetail)
-      throw new Error('项目详情不存在')
+      throw new NotFoundError('项目详情不存在')
 
     await submitShotVideoEntity({
       projectId: shot.projectId,

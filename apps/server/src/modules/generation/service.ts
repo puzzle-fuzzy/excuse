@@ -34,6 +34,7 @@ import { extractBillingParams } from '@excuse/shared'
 import { audit } from '../../services/audit'
 import { recordGenerationStatus } from '../../services/metrics'
 import { notifyInsufficientBalance, notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
+import { BadRequestError } from '../../utils/app-errors'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
 // ===== 接口定义 =====
@@ -184,7 +185,7 @@ export async function executeGeneration(
   // generate 流程不支持 audio（fun-music-v1 为 Canvas BGM 内部模型，由 canvas.bgm 阶段驱动）；
   // 路由层已按 category 拦截，此处为类型收窄兜底，避免 audio 结果流入通用生成保存逻辑。
   if (result.type === 'audio') {
-    throw new Error('生成接口不支持音频类模型（fun-music-v1 仅限 Canvas BGM 流水线使用）')
+    throw new BadRequestError('生成接口不支持音频类模型（fun-music-v1 仅限 Canvas BGM 流水线使用）')
   }
   let outputResult: OutputResult = parseProviderOutput(result.output)
   // extractImageUrls 只在 ImageProviderOutput 上有有效值 — 按 result.type 精确 narrow
