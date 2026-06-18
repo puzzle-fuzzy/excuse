@@ -63,7 +63,7 @@
 
 - **Toast 刷屏风险 ✅**：已移 `bottom-right`（`App.tsx`），不再遮挡状态栏/标题。
 - **a11y 图标按钮 ✅**：RecordCard 复制按钮、Navbar 通知铃/退出登录按钮已补 `aria-label`。
-- **导航栏 10 项拥挤**：待后续设计（主导航 + 「更多 ▾」折叠菜单）。
+- **导航栏 10 项拥挤 ✅**：已实现主导航（6 项）+「更多 ▾」折叠菜单（4 项）。
 - **表单校验**：待后续（`mode:'onBlur'` + 字段级提示）。
 - **无快捷键 / 批量 / 撤销**：待后续。
 - **验收**：Toast 不遮挡核心内容；图标按钮屏幕阅读器可读。
@@ -137,17 +137,17 @@
 - **修复**：`routes/admin/` 目录下按 10 子域拆为独立 handler 文件（`overview`/`tasks`/`users`/`providers`/`asset-retention`/`projects`/`audit-logs`/`api-keys`/`gateway-clients`/`credit`）+ `helpers.ts`（原 `admin-helpers.ts`）+ `index.ts`（barrel 路由注册）。Admin 鉴权从 derive 块下沉为 `resolve` 守卫（非管理员直接 throw ForbiddenError），17 个 handler 手写 `if (!adminAllowed) return adminDenied()` 归零。handler 函数可独立单测。
 - **验收**：admin 路由按域分文件，手写守卫归零；typecheck + lint + build 全绿；35 个 admin 测试全绿。
 
-### 4.4 🟡 其余大组件拆分（接触时）
+### 4.4 🟡 其余大组件拆分（已完成核心文件，剩余接触时）
 
-| 文件 | 行数 | 拆分方向 |
-|---|---|---|
-| [Assets.tsx](apps/client/src/pages/Assets.tsx) | 1133 | URL 同步 + 卡片网格 + 标签管理 + 详情/删除对话框 → `AssetsGrid`/`AssetTagManager`/`AssetDetailDialog`/`AssetDeleteDialog` |
-| [ModelLab.tsx](apps/client/src/pages/ModelLab.tsx) | 919 | 表单 + 参考上传 + 多模型对比 + Canvas 默认值 + 6 面板 → 拆子组件 + 公共 `ParameterInput` |
-| [NodeDetailPanel.tsx](apps/client/src/components/canvas/NodeDetailPanel.tsx) | 565 | shot/character/location/project 四面板揉在一起 → 路由 + `{Shot,Character,Location,Project}DetailPanel` |
-| [admin-dialogs.tsx](apps/client/src/pages/admin-dialogs.tsx) | 604 | 5 个无关组件塞「dialogs」名下（含表格/状态卡）→ 按 `dialogs/` vs `components/` 正名拆 |
-| [lib/asset-library.ts](apps/client/src/lib/asset-library.ts) | 602 | Canvas deep-link（与资产无关）+ shot-reference helpers 混进 → `lib/canvas-deep-link.ts`/`lib/shot-reference-assets.ts` |
-| [PipelineController.tsx](apps/client/src/components/canvas/PipelineController.tsx) | 753 | 恢复 + auto + trigger 逻辑与渲染同处 → 抽 `usePipelineController` hook + 阶段子组件 |
-| [gateway/index.ts](packages/gateway/src/index.ts) | ✅ 已拆 | 469 行 → `errors.ts`（错误码+工厂）+ `protocol.ts`（协议映射+流）+ `usage.ts`（用量聚合），index.ts 退化为 barrel |
+| 文件 | 行数 | 拆分方向 | 状态 |
+|---|---|---|---|
+| [admin-dialogs.tsx](apps/client/src/pages/admin-dialogs.tsx) | — | 死代码，组件已迁至 shared.tsx/Overview.tsx/Users.tsx | ✅ 已删除 |
+| [lib/asset-library.ts](apps/client/src/lib/asset-library.ts) | 602→170 | Canvas deep-link + shot-reference helpers → `canvas-deep-link.ts` + `shot-reference-assets.ts` | ✅ 已拆 |
+| [NodeDetailPanel.tsx](apps/client/src/components/canvas/NodeDetailPanel.tsx) | 565→105 | 四面板 → `ShotDetailPanel` / `CharacterDetailPanel` / `LocationDetailPanel` / `ProjectDetailPanel` | ✅ 已拆 |
+| [PipelineController.tsx](apps/client/src/components/canvas/PipelineController.tsx) | 753→180 | 状态管理 + 业务逻辑 → `usePipelineController` hook（~350 行） | ✅ 已拆 |
+| [gateway/index.ts](packages/gateway/src/index.ts) | 469→barrel | `errors.ts` + `protocol.ts` + `usage.ts` | ✅ 已拆 |
+| [Assets.tsx](apps/client/src/pages/Assets.tsx) | 1133 | URL 同步 + 卡片网格 + 标签管理 + 详情/删除对话框 | 接触时 |
+| [ModelLab.tsx](apps/client/src/pages/ModelLab.tsx) | 919→810 | 表单 + 多模型对比 + Canvas 默认值 + 6 面板（ParameterInput/ReferenceImageUploader 已抽） | 接触时 |
 
 **不应误拆（大但合理）**：`client.ts`（Eden 薄封装）、`domain-types.ts`/`shared/canvas.ts`/`shared/admin.ts`（纯类型契约）、`model-configs.ts`（声明式目录）、`generation-records.repo.ts`（单表 repo）、`modules/assets/service.ts`（单一职责 query+map）、`Developers.tsx`（文档页）。这些是「内容多」非「关注点混」，保持现状。
 

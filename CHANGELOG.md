@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### §4.4 大文件拆分轮次 + §1.5 Navbar 折叠（2026-06-19）
+
+继续拆分 §4.4 中剩余大文件：
+
+- **commit `db44b176`**: 删除 `admin-dialogs.tsx`（604 行死代码，组件已迁至 shared.tsx/Overview.tsx/Users.tsx）；拆分 `lib/asset-library.ts` → `canvas-deep-link.ts`（Canvas 深链+focus解析，175 行）+ `shot-reference-assets.ts`（参考资产候选+去重+批量应用，185 行），asset-library.ts 退化为 barrel
+- **commit `ff570d18`**: §1.5 Navbar 主导航（6 项）+「更多 ▾」折叠菜单（4 项），10 项拥挤导航栏收拢
+- **commit `165c49a9`**: 拆分 `NodeDetailPanel.tsx`（565 行）→ `ShotDetailPanel`（178 行）+ `CharacterDetailPanel`（120 行）+ `LocationDetailPanel`（94 行）+ `ProjectDetailPanel`（89 行），NodeDetailPanel 退化为路由层（~105 行）
+- **commit `398347fb`**: 抽取 `usePipelineController` hook（~350 行），`PipelineController.tsx` 从 753 行收缩至 ~180 行纯渲染层
+
+验收：typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 551/551 ✅ · test:client 376/376 ✅
+
 ### 收尾轮次：代码提交 + 测试修复（2026-06-19）
 
 之前多个 TODO 条目的实现代码留存在工作树中未提交（CHANGELOG 已记录但文件未入库）。本轮将所有改动按逻辑分组提交入 Git：
