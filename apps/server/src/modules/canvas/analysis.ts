@@ -9,6 +9,7 @@ import {
   markPipelineRunSucceeded,
 } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
+import { createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { getTextModel, notifyNode } from './service-helpers'
 
@@ -24,8 +25,11 @@ export async function analyzeProject(projectId: string, client: DashScopeClient,
   const textModel = getTextModel(project.modelPreferencesJson)
   const isReanalysis = project.status !== 'draft'
 
+  const repo = createServerRepoAdapter()
+
   try {
     const analysis = await runCanvasAssetStep<NovelAnalysis>({
+      repo,
       asset: {
         accountId: project.accountId,
         projectId,
@@ -42,6 +46,7 @@ export async function analyzeProject(projectId: string, client: DashScopeClient,
           isReanalysis,
           client,
           textModel,
+          repo,
         })
         const output: CanvasAssetOutput = { type: 'json', data: { ...analysis } }
         return { result: analysis, output }

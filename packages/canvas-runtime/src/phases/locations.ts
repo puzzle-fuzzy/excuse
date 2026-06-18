@@ -1,12 +1,11 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { LocationProfile, NovelAnalysis } from '@excuse/shared'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
 import { locationProfileSchema } from '@excuse/canvas-engine'
-import { createCanvasLocation } from '@excuse/db'
 import { buildLocationPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
-type LocationRow = Awaited<ReturnType<typeof createCanvasLocation>>
+type LocationRow = Awaited<ReturnType<CanvasRuntimeRepoAdapter['createCanvasLocation']>>
 
 /**
  * 场景档案单实体核心：buildLocationPrompt → LLM → 校验 → createCanvasLocation。
@@ -17,8 +16,9 @@ export interface LocationEntityInput {
   storyText: string
   analysis: NovelAnalysis
   name: string
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   textModel: string
+  repo: CanvasRuntimeRepoAdapter
   /** 测试用注入点；host 不传则用真实 provider。 */
   textLlmDeps?: RunTextLlmOnceDeps
 }
@@ -41,7 +41,7 @@ export async function generateLocationEntity(input: LocationEntityInput): Promis
   })
 
   const profile = parseLLMJsonWithSchema(text, locationProfileSchema)
-  const location = await createCanvasLocation({
+  const location = await input.repo.createCanvasLocation({
     projectId: input.projectId,
     name: profile.name || input.name,
     type: profile.type,

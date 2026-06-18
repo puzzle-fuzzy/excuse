@@ -3,7 +3,19 @@
  *
  * 拆分为 pure/（纯逻辑，无 IO）和 io/（DB / Provider 调用），
  * 见 docs/TODO.md §一、2。
+ *
+ * 所有 IO 通过 adapter 接口注入（adapter-types.ts），phase 函数不直接 import @excuse/db / @excuse/provider。
  */
+
+// Adapter 接口
+export type {
+  CanvasRuntimeAdapters,
+  CanvasRuntimeFfmpegAdapter,
+  CanvasRuntimeLlmClient,
+  CanvasRuntimeProviderAdapter,
+  CanvasRuntimeRepoAdapter,
+  CanvasRuntimeStorageAdapter,
+} from './adapter-types'
 
 // IO 层
 export { generateCanvasImageAsset, runCanvasAssetStep } from './io/asset'
@@ -11,6 +23,7 @@ export type { GenerateCanvasImageAssetInput, GeneratedCanvasImageAsset, RunCanva
 
 export type { CanvasVideoSubmitInput, CanvasVideoSubmitResult } from './io/types'
 export { prepareCanvasVideoParams, submitCanvasShotVideo } from './io/video'
+export type { CanvasVideoSubmitFullInput } from './io/video'
 
 // 阶段实现
 export * from './llm-helpers'

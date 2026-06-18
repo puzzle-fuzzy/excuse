@@ -55,6 +55,60 @@ const imageModelConfig = {
   ],
 }
 
+const videoModelConfig = {
+  id: 'happyhorse-1.0-t2v',
+  name: 'HappyHorse T2V',
+  category: 'video' as const,
+  type: 'generation' as const,
+  description: 'test',
+  endpoint: '/test',
+  async: true,
+  pricing: { inputPriceCents: 100, unit: 'video' as const },
+  parameters: [
+    { name: 'prompt', type: 'text' as const, required: true },
+    { name: 'resolution', type: 'select' as const, required: true, options: [{ label: '720P', value: '720P' }] },
+    { name: 'duration', type: 'number' as const, required: true, min: 1, max: 10 },
+  ],
+}
+
+// ─── Fake repo / provider adapters ─────
+
+const fakeRepo = {
+  updateCanvasCharacter: updateCharacter,
+  updateCanvasLocation: updateLocation,
+  bindCanvasAssetTaskId: bindAssetTaskId,
+  updateCanvasShot: updateShot,
+  createGenerationRecord: createRecord,
+  createCanvasAsset: mock(() => Promise.resolve({ id: 'asset-1' })),
+  markCanvasAssetRunning: mock(() => Promise.resolve()),
+  markCanvasAssetSucceeded: mock(() => Promise.resolve()),
+  markCanvasAssetFailed: mock(() => Promise.resolve()),
+  setCanvasAssetActive: mock(() => Promise.resolve()),
+  createContinuityReport: mock(() => Promise.resolve()),
+  getCanvasProjectById: mock(() => Promise.resolve(null)),
+  getCanvasProjectDetail: mock(() => Promise.resolve(null)),
+  createCanvasCharacter: mock(() => Promise.resolve({ id: 'c1' })),
+  deleteCanvasCharactersByProject: mock(() => Promise.resolve()),
+  createCanvasLocation: mock(() => Promise.resolve({ id: 'l1' })),
+  deleteCanvasLocationsByProject: mock(() => Promise.resolve()),
+  batchCreateCanvasShots: mock(() => Promise.resolve([])),
+  deleteCanvasShotsByProject: mock(() => Promise.resolve()),
+  updateCanvasProject: mock(() => Promise.resolve()),
+}
+
+const fakeProvider = {
+  getModelById: (id: string) => {
+    if (id.startsWith('happyhorse-1.0'))
+      return videoModelConfig as unknown as import('@excuse/shared').ModelConfig
+    if (id.startsWith('wan2.7'))
+      return { ...videoModelConfig, id } as unknown as import('@excuse/shared').ModelConfig
+    if (id === 'qwen-image-test')
+      return imageModelConfig as unknown as import('@excuse/shared').ModelConfig
+    return undefined
+  },
+  validateAndMerge: (_config: unknown, params: Record<string, unknown>) => ({ ok: true as const, params }),
+}
+
 // refs: client stub returning a success image url
 function makeImageClient(urls: string[] = ['https://cdn.example.com/portrait.png']) {
   return {
@@ -115,6 +169,8 @@ describe('generateCharacterRefAssets', () => {
       imageModelConfig: imageModelConfig as unknown as import('@excuse/shared').ModelConfig,
       client,
       storage,
+      repo: fakeRepo as any,
+      provider: fakeProvider,
     })
 
     expect(portraitUrl).toBe('https://cdn.example.com/portrait.png')
@@ -137,6 +193,8 @@ describe('generateCharacterRefAssets', () => {
       imageModelConfig: imageModelConfig as unknown as import('@excuse/shared').ModelConfig,
       client,
       storage,
+      repo: fakeRepo as any,
+      provider: fakeProvider,
     })
 
     expect(portraitUrl).toBeUndefined()
@@ -176,6 +234,8 @@ describe('generateLocationRefAsset', () => {
       imageModelConfig: imageModelConfig as unknown as import('@excuse/shared').ModelConfig,
       client,
       storage,
+      repo: fakeRepo as any,
+      provider: fakeProvider,
     })
 
     expect(refUrl).toBe('https://cdn.example.com/loc-ref.png')
@@ -197,6 +257,8 @@ describe('generateLocationRefAsset', () => {
       imageModelConfig: imageModelConfig as unknown as import('@excuse/shared').ModelConfig,
       client,
       storage,
+      repo: fakeRepo as any,
+      provider: fakeProvider,
     })
 
     expect(refUrl).toBeUndefined()
@@ -259,7 +321,7 @@ async function submitShotVideoEntityLocal(input: {
     characters: input.characters,
     locations: input.locations,
   })
-  const recommendation = recommendCanvasVideoModel(input.modelPreferences, references)
+  const recommendation = recommendCanvasVideoModel(input.modelPreferences, references, fakeProvider)
   const referenceUrls = references.map(r => r.url)
 
   // 与生产 submitCanvasShotVideo 等价的副作用序列：

@@ -9,6 +9,7 @@ import type { DashScopeClient } from '@excuse/provider'
 import type { AssetStorage } from '@excuse/storage'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
+import { createServerProviderAdapter } from './adapter-factory'
 
 export async function generateBgm(projectId: string, client: DashScopeClient, storage: AssetStorage) {
   const detail = await getCanvasProjectDetail(projectId)
@@ -17,7 +18,9 @@ export async function generateBgm(projectId: string, client: DashScopeClient, st
 
   const { runBgmPhase } = await import('@excuse/canvas-runtime')
 
-  const result = await runBgmPhase({ projectId, detail, client, storage })
+  const provider = createServerProviderAdapter()
+
+  const result = await runBgmPhase({ projectId, detail, client, storage, provider })
 
   await updateCanvasProject(projectId, { bgmUrl: result.audioUrl })
 

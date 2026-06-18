@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test'
 import { runContinuityPhase } from '../src/phases/continuity'
 import { buildShotVideoPromptEntity } from '../src/phases/rebuild'
 
-// ─── Mock @excuse/db（continuity 只用到 createContinuityReport） ─────
+// ─── Fake repo adapter ─────
 
 const createContinuityReport = mock<(values: { projectId: string, issuesJson: unknown }) => Promise<void>>(
   () => Promise.resolve(),
 )
 
-mock.module('@excuse/db', () => ({
+const fakeRepo = {
   createContinuityReport,
-}))
+}
 
 beforeEach(() => {
   createContinuityReport.mockClear()
@@ -69,6 +69,7 @@ describe('runContinuityPhase', () => {
     const { issues } = await runContinuityPhase({
       projectId: 'p1',
       detail: makeDetail(),
+      repo: fakeRepo,
     })
 
     // 验证器对单镜头正常输入应返回 issues 数组（可能为空）
@@ -87,6 +88,7 @@ describe('runContinuityPhase', () => {
     const { issues } = await runContinuityPhase({
       projectId: 'p1',
       detail: makeDetail([forbiddenShot]),
+      repo: fakeRepo,
     })
 
     // loc-1 禁止 back 角度，应被检出

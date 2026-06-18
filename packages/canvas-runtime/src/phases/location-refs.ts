@@ -1,8 +1,6 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { ModelConfig } from '@excuse/shared'
-import type { AssetStorage } from '@excuse/storage'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeProviderAdapter, CanvasRuntimeRepoAdapter, CanvasRuntimeStorageAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
-import { updateCanvasLocation } from '@excuse/db'
 import { generateCanvasImageAsset } from '..'
 
 type LocationRow = CanvasProjectDetail['locations'][number]
@@ -24,8 +22,10 @@ export interface LocationRefAssetInput {
   refAssetId: string
   imageModel: string
   imageModelConfig: ModelConfig
-  client: DashScopeClient
-  storage: AssetStorage
+  client: CanvasRuntimeLlmClient
+  storage: CanvasRuntimeStorageAdapter
+  repo: CanvasRuntimeRepoAdapter
+  provider: CanvasRuntimeProviderAdapter
 }
 
 export interface LocationRefAssetResult {
@@ -45,11 +45,13 @@ export async function generateLocationRefAsset(input: LocationRefAssetInput): Pr
     errorMessage: '场景参考图生成失败',
     client: input.client,
     storage: input.storage,
+    provider: input.provider,
+    repo: input.repo,
   })
 
   if (!generated)
     return {}
 
-  await updateCanvasLocation(input.location.id, { referenceImageUrl: generated.publicUrl })
+  await input.repo.updateCanvasLocation(input.location.id, { referenceImageUrl: generated.publicUrl })
   return { refUrl: generated.publicUrl }
 }

@@ -5,6 +5,8 @@ export interface BoundaryRule {
   roots: string[]
   forbidden: RegExp
   message: string
+  /** 可选：排除匹配此正则的文件路径（相对于 root） */
+  exclude?: RegExp
 }
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx'])
@@ -53,6 +55,18 @@ export const DEFAULT_BOUNDARY_RULES: BoundaryRule[] = [
     forbidden: /from\s+['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]|import\s*\(\s*['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]|from\s+['"][^'"]*apps\//,
     message: 'domain packages (canvas-engine/prompt-engine) cannot import db/provider/storage/ffmpeg or apps',
   },
+  {
+    // canvas-runtime phase 文件不得直接 import IO 包（db / provider / storage / ffmpeg）。
+    // IO 通过 adapter-types.ts 注入。adapter-types.ts 本身作为翻译层暂时允许 IO import（未来内联）。
+    roots: [
+      'packages/canvas-runtime/src',
+      'packages/canvas-runtime/test',
+    ],
+    forbidden: /from\s+['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]|import\s*\(\s*['"]@excuse\/(?:db|provider|storage|ffmpeg)['"]/,
+    message: 'canvas-runtime phase files must not import db/provider/storage/ffmpeg directly — use adapter-types.ts instead',
+    // FIXME: 临时豁免 test 文件（正逐步将 mock.module 迁移为 adapter 注入）
+    exclude: /(?:adapter-types|\.test)\.ts$/,
+  },
 ]
 
 function walk(dir: string): string[] {
@@ -94,8 +108,13 @@ export function checkPackageBoundaries(
         if (!rule.forbidden.test(source))
           continue
 
+        // 允许 exclude 规则排除特定文件（临时白名单，逐步收紧）
+        const relPath = relative(cwd, file).replace(/\\/g, '/')
+        if (rule.exclude && rule.exclude.test(relPath))
+          continue
+
         // 归一化为正斜杠，保证 Windows / *nix 输出一致（与 CI / git 路径风格对齐）
-        violations.push(`${relative(cwd, file).replace(/\\/g, '/')}: ${rule.message}`)
+        violations.push(`${relPath}: ${rule.message}`)
       }
     }
   }

@@ -10,6 +10,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { ConflictError, NotFoundError } from '../../utils/app-errors'
+import { createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 import { tryMatchLocation } from './subject-matching'
@@ -32,6 +33,8 @@ export async function generateLocations(projectId: string, client: DashScopeClie
   await deleteCanvasLocationsByProject(projectId, { excludeLocked: true })
   await deleteCanvasShotsByProject(projectId)
 
+  const repo = createServerRepoAdapter()
+
   for (const name of analysis.sceneNames) {
     // ── 先尝试匹配资产库 ──────────────────────────────
     const match = await tryMatchLocation(accountId, projectId, name)
@@ -44,6 +47,7 @@ export async function generateLocations(projectId: string, client: DashScopeClie
 
     try {
       const { location, profile } = await runCanvasAssetStep({
+        repo,
         asset: {
           accountId,
           projectId,
@@ -54,7 +58,7 @@ export async function generateLocations(projectId: string, client: DashScopeClie
           model: textModel,
         },
         execute: async () => {
-          const result = await generateLocationEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel })
+          const result = await generateLocationEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel, repo })
           const output: CanvasAssetOutput = { type: 'json', data: { ...result.profile } }
           return { result, output }
         },

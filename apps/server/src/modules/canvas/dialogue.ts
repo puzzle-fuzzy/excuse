@@ -8,6 +8,7 @@
 import type { DashScopeClient } from '@excuse/provider'
 import { getCanvasProjectDetail, updateCanvasShot } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
+import { createServerProviderAdapter } from './adapter-factory'
 import { getTextModel } from './service-helpers'
 
 export async function generateDialogue(projectId: string, client: DashScopeClient) {
@@ -18,11 +19,14 @@ export async function generateDialogue(projectId: string, client: DashScopeClien
   const textModel = getTextModel(detail.project.modelPreferencesJson)
   const { runDialoguePhase } = await import('@excuse/canvas-runtime')
 
+  const provider = createServerProviderAdapter()
+
   const { results } = await runDialoguePhase({
     projectId,
     detail,
     client,
     textModel,
+    provider,
   })
 
   // 更新每个镜头的对话字段 + R2V 参考媒体预算

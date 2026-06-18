@@ -2,7 +2,7 @@
  * Canvas 视频提交类型 — io/ 层共享
  */
 
-import type { DashScopeClient } from '@excuse/provider'
+import type { CanvasRuntimeLlmClient } from '../adapter-types'
 
 export interface CanvasVideoSubmitInput {
   accountId: string
@@ -14,7 +14,7 @@ export interface CanvasVideoSubmitInput {
   negativePrompt?: string | null
   duration: number
   referenceUrls: string[]
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   estimatedCost?: boolean
   diagnostics?: {
     workerTaskId?: string

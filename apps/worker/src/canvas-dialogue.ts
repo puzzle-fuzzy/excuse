@@ -1,6 +1,7 @@
 import type { DashScopeClient } from '@excuse/provider'
 import { runDialoguePhase } from '@excuse/canvas-runtime'
 import { getCanvasProjectDetail, updateCanvasShot } from '@excuse/db'
+import { createWorkerProviderAdapter } from './canvas-adapter-factory'
 import { getTextModel } from './canvas-execution'
 
 export interface CanvasDialogueResult extends Record<string, unknown> {
@@ -24,7 +25,8 @@ export async function executeCanvasDialogue(
     throw new Error('项目不存在')
 
   const textModel = getTextModel(detail.project.modelPreferencesJson)
-  const { results } = await runDialoguePhase({ projectId, detail, client, textModel })
+  const provider = createWorkerProviderAdapter()
+  const { results } = await runDialoguePhase({ projectId, detail, client, textModel, provider })
 
   for (const result of results) {
     if (result.dialoguePrompt === null && result.dialogueJson === null && result.referenceMedia.length === 0)

@@ -7,12 +7,10 @@
  * 单次调用（项目级 BGM，非逐镜头）。音频 URL 写入 canvas_projects.bgm_url。
  */
 
-import type { DashScopeClient } from '@excuse/provider'
 import type { ShotEnvironment } from '@excuse/shared'
-import type { AssetStorage } from '@excuse/storage'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeProviderAdapter, CanvasRuntimeStorageAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
 import { buildBgmPrompt } from '@excuse/prompt-engine'
-import { getModelById, validateAndMerge } from '@excuse/provider'
 
 /** Canvas BGM 流水线使用的音频模型（邀测期唯一可选） */
 export const CANVAS_BGM_MODEL = 'fun-music-v1'
@@ -20,8 +18,9 @@ export const CANVAS_BGM_MODEL = 'fun-music-v1'
 export interface BgmPhaseInput {
   projectId: string
   detail: CanvasProjectDetail
-  client: DashScopeClient
-  storage: AssetStorage
+  client: CanvasRuntimeLlmClient
+  storage: CanvasRuntimeStorageAdapter
+  provider: CanvasRuntimeProviderAdapter
 }
 
 export interface BgmPhaseResult {
@@ -48,12 +47,12 @@ export async function runBgmPhase(input: BgmPhaseInput): Promise<BgmPhaseResult>
   const mood = pickDominantMood(input.detail.shots.map(s => s.environmentJson))
   const prompt = buildBgmPrompt({ storySummary, mood })
 
-  const modelConfig = getModelById(CANVAS_BGM_MODEL)
+  const modelConfig = input.provider.getModelById(CANVAS_BGM_MODEL)
   if (!modelConfig) {
     throw new Error(`BGM 模型 ${CANVAS_BGM_MODEL} 未在 provider 配置中声明`)
   }
 
-  const validation = validateAndMerge(modelConfig, { prompt })
+  const validation = input.provider.validateAndMerge(modelConfig, { prompt })
   if (!validation.ok) {
     const detail = validation.errors.map(e => `${e.field}: ${e.message}`).join('; ')
     throw new Error(`BGM 参数校验失败：${detail}`)
@@ -61,7 +60,7 @@ export async function runBgmPhase(input: BgmPhaseInput): Promise<BgmPhaseResult>
 
   const result = await input.client.generateAudio(CANVAS_BGM_MODEL, validation.params)
   if (result.type === 'failed') {
-    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类（TODO §1.1）
+    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类
     const err = new Error(`BGM 生成失败：${result.error}`)
     if (result.code)
       (err as Error & { cause?: { code?: string } }).cause = { code: result.code }

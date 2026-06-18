@@ -5,19 +5,10 @@
  * prepareCanvasVideoParams 涉及 provider 参数校验。
  */
 
-import type { GenerationInputParams } from '@excuse/db'
-import type { ValidatedModelParameters } from '@excuse/provider'
+import type { GenerationInputParams } from '@excuse/shared'
+import type { CanvasRuntimeProviderAdapter, CanvasRuntimeRepoAdapter, ValidatedModelParameters } from '../adapter-types'
 import type { CanvasVideoSubmitInput, CanvasVideoSubmitResult } from './types'
 import { calculateCost } from '@excuse/billing'
-import {
-  bindCanvasAssetTaskId,
-  createGenerationRecord,
-  updateCanvasShot,
-} from '@excuse/db'
-import {
-  getModelById as getProviderModelById,
-  validateAndMerge as validateProviderAndMerge,
-} from '@excuse/provider'
 import { extractBillingParams } from '@excuse/shared'
 
 type CanvasVideoResolution = '720P' | '1080P'
@@ -29,18 +20,13 @@ interface CanvasVideoParameters {
   negative_prompt?: string
 }
 
-export interface PrepareCanvasVideoParamDeps {
-  getModelById: typeof getProviderModelById
-  validateAndMerge: typeof validateProviderAndMerge
-}
-
-const providerParamDeps: PrepareCanvasVideoParamDeps = {
-  getModelById: getProviderModelById,
-  validateAndMerge: validateProviderAndMerge,
+export interface CanvasVideoSubmitFullInput extends CanvasVideoSubmitInput {
+  repo: CanvasRuntimeRepoAdapter
+  provider: CanvasRuntimeProviderAdapter
 }
 
 export async function submitCanvasShotVideo(
-  input: CanvasVideoSubmitInput,
+  input: CanvasVideoSubmitFullInput,
 ): Promise<CanvasVideoSubmitResult> {
   const firstFrameUrl = input.referenceUrls.length > 0
     ? input.referenceUrls[0]
@@ -51,7 +37,7 @@ export async function submitCanvasShotVideo(
     negativePrompt: input.negativePrompt,
     duration: input.duration,
     firstFrameUrl,
-  })
+  }, input.provider)
 
   const submitResult = await input.client.submitVideoTaskWithFallback(
     input.model,
@@ -60,20 +46,20 @@ export async function submitCanvasShotVideo(
   )
 
   if (!submitResult.success || !submitResult.taskId) {
-    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类（TODO §1.1）
+    // 透传 provider 传输层错误码（TIMEOUT/ECONNRESET）给 task-engine，进入可重试分类
     const err = new Error(submitResult.error ?? '视频提交失败')
     if (submitResult.code)
       (err as Error & { cause?: { code?: string } }).cause = { code: submitResult.code }
     throw err
   }
 
-  await bindCanvasAssetTaskId(input.assetId, submitResult.taskId)
-  await updateCanvasShot(input.shotId, {
+  await input.repo.bindCanvasAssetTaskId(input.assetId, submitResult.taskId)
+  await input.repo.updateCanvasShot(input.shotId, {
     videoTaskId: submitResult.taskId,
     status: 'generating',
   })
 
-  const usedModelConfig = getProviderModelById(submitResult.model)!
+  const usedModelConfig = input.provider.getModelById(submitResult.model)!
   const inputParams: GenerationInputParams = {
     source: 'canvas',
     projectId: input.projectId,
@@ -84,7 +70,7 @@ export async function submitCanvasShotVideo(
     ...videoParams,
   }
   const cost = calculateCost(usedModelConfig, extractBillingParams(videoParams))
-  await createGenerationRecord({
+  await input.repo.createGenerationRecord({
     accountId: input.accountId,
     taskId: submitResult.taskId,
     model: submitResult.model,
@@ -100,9 +86,9 @@ export async function submitCanvasShotVideo(
 export function prepareCanvasVideoParams(
   model: string,
   shot: { videoPrompt: string, negativePrompt?: string | null, duration: number, firstFrameUrl?: string },
-  deps: PrepareCanvasVideoParamDeps = providerParamDeps,
-): { modelConfig: ReturnType<typeof deps.getModelById>, params: ValidatedModelParameters } {
-  const modelConfig = deps.getModelById(model)
+  provider: CanvasRuntimeProviderAdapter,
+): { modelConfig: ReturnType<CanvasRuntimeProviderAdapter['getModelById']>, params: ValidatedModelParameters } {
+  const modelConfig = provider.getModelById(model)
   if (!modelConfig)
     throw new Error(`未知视频模型：${model}`)
 
@@ -118,7 +104,7 @@ export function prepareCanvasVideoParams(
   if (declaredParams.has('first_frame_url') && shot.firstFrameUrl)
     rawParams.first_frame_url = shot.firstFrameUrl
 
-  const validationResult = deps.validateAndMerge(modelConfig, rawParams)
+  const validationResult = provider.validateAndMerge(modelConfig, rawParams)
   if (!validationResult.ok) {
     const detail = validationResult.errors.map(error => `${error.field}: ${error.message}`).join('; ')
     throw new Error(`视频参数校验失败：${detail}`)

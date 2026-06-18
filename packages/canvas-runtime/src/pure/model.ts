@@ -5,7 +5,7 @@
  */
 
 import type { CanvasVideoVariant } from '@excuse/shared'
-import { getModelById as getProviderModelById } from '@excuse/provider'
+import type { CanvasRuntimeProviderAdapter } from '../adapter-types'
 import { recommendCanvasVideoVariant } from '@excuse/shared'
 
 /** 变体降级优先级：i2v → r2v → t2v；r2v → t2v；t2v 不降级 */
@@ -31,12 +31,13 @@ export interface CanvasVideoModelRecommendation {
 export function recommendCanvasVideoModel(
   prefs: { videoModel?: string | null } | null | undefined,
   references: ReadonlyArray<import('@excuse/shared').CanvasVideoReference>,
+  provider: CanvasRuntimeProviderAdapter,
 ): CanvasVideoModelRecommendation {
   const base = (prefs?.videoModel || 'happyhorse-1.0').replace(/-r2v$|-t2v$|-i2v$/, '')
   const desired = recommendCanvasVideoVariant(references)
 
   const availableVariant = VARIANT_FALLBACK[desired.variant].find(
-    variant => getProviderModelById(`${base}-${variant}`),
+    variant => provider.getModelById(`${base}-${variant}`),
   ) ?? 't2v'
 
   const downgraded = availableVariant !== desired.variant

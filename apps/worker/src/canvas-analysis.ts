@@ -3,7 +3,10 @@ import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis } from '@excuse/shared'
 import { runAnalysisPhase, runCanvasAssetStep } from '@excuse/canvas-runtime'
 import { getCanvasProjectById } from '@excuse/db'
-import { getTextModel } from './canvas-execution'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
+import {
+  getTextModel,
+} from './canvas-execution'
 
 export interface CanvasAnalysisResult extends Record<string, unknown> {
   phase: 'analyze'
@@ -21,6 +24,8 @@ export async function executeCanvasAnalysis(
     throw new Error('项目不存在')
 
   const textModel = getTextModel(project.modelPreferencesJson)
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   return runCanvasAssetStep<CanvasAnalysisResult>({
     asset: {
@@ -39,6 +44,8 @@ export async function executeCanvasAnalysis(
         isReanalysis: project.status !== 'draft',
         client,
         textModel,
+        repo,
+        textLlmDeps: provider,
       })
       const output: CanvasAssetOutput = { type: 'json', data: { ...analysis } }
       return {
@@ -46,5 +53,6 @@ export async function executeCanvasAnalysis(
         output,
       }
     },
+    repo,
   })
 }

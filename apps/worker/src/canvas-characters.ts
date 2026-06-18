@@ -7,6 +7,7 @@ import {
   getCanvasProjectById,
   updateCanvasProject,
 } from '@excuse/db'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
 import {
   assertCanvasProjectNotGenerating,
   getTextModel,
@@ -34,6 +35,8 @@ export async function executeCanvasCharacters(
   const textModel = getTextModel(project.modelPreferencesJson)
   let charactersCreated = 0
   let charactersFailed = 0
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   await deleteCanvasCharactersByProject(projectId, { excludeLocked: true })
   await deleteCanvasShotsByProject(projectId)
@@ -51,13 +54,14 @@ export async function executeCanvasCharacters(
           model: textModel,
         },
         execute: async () => {
-          const result = await generateCharacterEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel })
+          const result = await generateCharacterEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel, repo, textLlmDeps: provider })
           const output: CanvasAssetOutput = { type: 'json', data: { ...result.profile } }
           return {
             result: undefined,
             output,
           }
         },
+        repo,
       })
       charactersCreated += 1
     }

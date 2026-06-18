@@ -55,6 +55,16 @@ bun run lint:fix
 
 # 包边界检查
 bun run check:boundaries
+bun run check:assets       # 资产一致性检查（scripts/check-assets-consistency.ts）
+
+# 单独构建
+bun run build:server       # 仅构建 apps/server
+bun run build:worker       # 仅构建 apps/worker
+bun run build:client       # 仅构建 apps/client
+
+# E2E
+bun run test:e2e           # E2E 测试（Bun）
+bun run typecheck:e2e      # E2E 类型检查
 
 # 数据库（在 packages/db 下）
 cd packages/db
@@ -104,13 +114,15 @@ packages/
 
 **依赖方向**：`shared` ← 一切。纯包（`task-engine`、`workflow-engine`、`events`、`gateway`、`metrics`、`rate-limit`、`subtitle-engine`、`auth`、`error-recovery`、`provider-health`）只依赖 `shared`（与标准库）——绝不依赖 `db`、`provider`、server 路由或 worker 运行时。运行时包（`db`、`provider`、`storage`、`ffmpeg`、`billing`、`canvas-engine`、`canvas-runtime`、`prompt-engine`）可依赖 `shared` 及彼此；app 在最上层。
 
+> **已知违规（待修）**：`canvas-runtime` 当前直接 import `@excuse/db` 和 `@excuse/provider`，违反纯包纪律。需通过 `CanvasRuntimeAdapters` 接口提取 IO。详见 `TODO.md` §P0-1。
+
 ### 关键架构模式
 
-**Adapter 注入（中心模式）** — 纯包绝不触碰 IO。它们声明 `*Adapter` 接口（如 `TaskCompletionAdapter`、`CanvasPipelineTaskAdapter`、`GenerationNotifyDispatcherOptions.dispatchToUser`）与接收 adapter 的纯函数（`completeTaskWithAdapter`、`createNextCanvasPipelineTask`、`applyTaskFailureWithAdapter`）。App 用真实 DB/provider 调用实现 adapter 并注入。**黄金法则**：若你发现自己在给 `task-engine`/`workflow-engine`/`events`/`gateway`/`metrics`/`rate-limit`/`subtitle-engine`/`auth` 加 `@excuse/db` 或 `@excuse/provider` 的 import，停下 —— 规则属于纯包，IO 调用属于 app 注入的 adapter。提取路线图见 `docs/TODO.md`（§P4「基础设施和通用能力治理」）。
+**Adapter 注入（中心模式）** — 纯包绝不触碰 IO。它们声明 `*Adapter` 接口（如 `TaskCompletionAdapter`、`CanvasPipelineTaskAdapter`、`GenerationNotifyDispatcherOptions.dispatchToUser`）与接收 adapter 的纯函数（`completeTaskWithAdapter`、`createNextCanvasPipelineTask`、`applyTaskFailureWithAdapter`）。App 用真实 DB/provider 调用实现 adapter 并注入。**黄金法则**：若你发现自己在给 `task-engine`/`workflow-engine`/`events`/`gateway`/`metrics`/`rate-limit`/`subtitle-engine`/`auth` 加 `@excuse/db` 或 `@excuse/provider` 的 import，停下 —— 规则属于纯包，IO 调用属于 app 注入的 adapter。提取路线图见 `TODO.md`（§P4「基础设施和通用能力治理」）。
 
 **统一任务队列** — `tasks` 表是唯一的异步执行层（domain：`canvas`/`generate`/`subtitle`/`gateway`；type 如 `canvas.analyze`、`media.burn-subtitle`）。状态机：`queued → running → succeeded | failed | cancelled`，含重试路径 `running → retrying → queued`（由 `nextRunAt` 延迟）。Worker 经 `FOR UPDATE SKIP LOCKED`（`claimNextTask`）认领，设 `lockedBy`/`lockedUntil` 锁，经 heartbeat 续期，并清扫锁过期超 5 分钟的孤儿任务。所有生命周期决策走 `@excuse/task-engine`（分类错误 → retry vs fail → 算 backoff）。输出/计费仍在 `generation_records`；task 只管执行生命周期。
 
-> 注：统一队列当前只接管 **12 个 canvas 阶段 + 2 个 media task**（`media.extract-audio` / `media.burn-subtitle`）。**`category='video'` 整条线仍走 `generation_records` 旧轮询**（`pollPendingVideoTasks`，无 claim/锁/孤儿回收），ASR 同理 —— 这是「没做完的半成品」，迁移 vs 显式带外见 `docs/TODO2.md` §一（待决策）。
+> 注：统一队列当前只接管 **12 个 canvas 阶段 + 2 个 media task**（`media.extract-audio` / `media.burn-subtitle`）。**`category='video'` 整条线仍走 `generation_records` 旧轮询**（`pollPendingVideoTasks`，无 claim/锁/孤儿回收），ASR 同理 —— 这是「没做完的半成品」，迁移 vs 显式带外见 `TODO.md` §一（待决策）。
 
 
 **声明式模型配置** — 所有 AI 模型在 `packages/provider/src/model-configs.ts` 声明其参数、端点、输入映射与定价。共享映射片段（`TEXT_MAPPING`、`IMAGE_MAPPING`、`VIDEO_T2V_MAPPING`、`VIDEO_MEDIA_MAPPING`）减少重复。`DashScopeClient` 无任何模型特定分支 —— `applyMappings()` 依据 `InputMapping` 判别联合（`prompt | parameter | media | mediaField | ignored`）路由每个参数，再由 `buildRequestBody()` 按 `requestType`（`chat | openai-chat | image | video-t2v | video-media`）塑形最终 payload。新增模型只需编辑 model-configs.ts。
@@ -129,7 +141,7 @@ packages/
 
 **Subtitle 流水线** — 基于 ASR 的字幕生成：上传视频 → 抽音频 → 经 DashScope ASR（`ASRClient`）转写 → 解析为 `SubtitleSentence[]`（`@excuse/subtitle-engine`）→ 渲染 ASS → 经 `@excuse/ffmpeg` 烧录。路由组在 `/api/subtitle`，自有状态机。Worker 经 `subtitle-processor.ts` 处理 ASR 轮询与字幕导出。
 
-**Provider façade（待治理）** — `@excuse/provider` 仍 re-export `storage` 与 `ffmpeg`（薄 shim 文件：`provider/src/storage.ts`、`subtitle-burner.ts`、`audio-extractor.ts`、`compose.ts`）以向后兼容。**但当前 `@excuse/storage` / `@excuse/ffmpeg` 在各自包之外、provider 之外零消费者** —— 拆了两个包却没人直连。迁移 vs 合回的决策见 `docs/TODO2.md` §3.1（待决策）。
+**Provider façade（待治理）** — `@excuse/provider` 仍 re-export `storage` 与 `ffmpeg`（薄 shim 文件：`provider/src/storage.ts`、`subtitle-burner.ts`、`audio-extractor.ts`、`compose.ts`）以向后兼容。**但当前 `@excuse/storage` / `@excuse/ffmpeg` 在各自包之外、provider 之外零消费者** —— 拆了两个包却没人直连。迁移 vs 合回的决策见 `TODO.md` §3.1（待决策）。
 
 **SSE 经 PostgreSQL LISTEN/NOTIFY** — Worker 更新 DB → `pgClient.notify()` → Server 的 `startSSEListener()` 接收 → 来自 `@excuse/events` 的 dispatcher 把 NOTIFY 载荷（`generation_status`、`notification` 频道）映射为 SSE 事件 → `UserEventHub.dispatchToUser()` 推送到内存 SSE 连接 → client 收到。30 秒心跳。Client 的 `SSEClient` 类（`apps/client/src/api/sse.ts`）用 `@microsoft/fetch-event-source`（非原生 EventSource，以支持自定义 header 如 Bearer token）。经 `on<K extends keyof SSEEventMap>()` 的类型化事件 handler。错误层级：`RetriableError`（5xx，重连）、`FatalError`（4xx 非 auth）、`UnauthorizedError`（401/403，停重连 + 清 auth）。
 
@@ -159,7 +171,7 @@ Server 内部：领域逻辑在 `src/modules/{canvas,generation,subtitle}/`，�
 
 单 poll 循环（`index.ts`）每周期遍历三个 PollSource（`poll-sources.ts`）：
 1. **统一任务队列** — `claimNextTaskWithAdapter` → `handleTask`（按 `task.type` 分发，含 `canvas-handlers.ts`/`canvas-execution.ts` 中所有 `canvas.*` 阶段 handler + `media.extract-audio`/`media.burn-subtitle`）→ `completeTaskWithAdapter` → `advancePipelineAfterTaskSuccess`（workflow-engine 自动推进）。失败经 `handleTaskError` → task-engine retry/fail 决策。
-2. **遗留 video 轮询** — `pollPendingVideoTasks()` → `task-processor.ts`（DashScope 异步 video 任务，`generation_records`，4h 超时守卫 + 退款）。**无 claim/锁/孤儿回收** —— 见 TODO2 §一。
+2. **遗留 video 轮询** — `pollPendingVideoTasks()` → `task-processor.ts`（DashScope 异步 video 任务，`generation_records`，4h 超时守卫 + 退款）。**无 claim/锁/孤儿回收** —— 见 `TODO.md` §一。
 3. **ASR 字幕轮询** — `pollPendingASRProjects()` → `processASRTask`（含 `asrStaleTimeoutMs` 默认 1h 超时守卫）。
 
 > 字幕导出已迁到 `media.burn-subtitle` task（走统一队列），不再有独立的导出轮询。
@@ -206,7 +218,7 @@ Schema 文件在 `packages/db/src/schema/`，从 `index.ts` barrel 导出。Repo
 
 React Router v6 路由：`/login`、`/register`、`/`（Workspace）、`/canvas`、`/canvas/:projectId`（CanvasEditor）、`/subtitle`、`/subtitle/:id`、`/assets`、`/billing`。所有认证路由包在 `ProtectedRoute` 守卫内。token 存在时 mount 即建立 SSE 连接。
 
-用 React Compiler（`@rolldown/plugin-babel`）自动 memoize。Vite proxy 把 `/api` 转发到 `localhost:5007`。
+用 React Compiler（`@rolldown/plugin-babel`）自动 memoize。**注意**：React Compiler 在 try/finally 等模式下会 bailout（本仓库有 25+ 处），因此手动 `useMemo`/`useCallback` **不冗余**，勿删。详见 `docs/注意/手动memo调查-ReactCompiler.md`。Vite proxy 把 `/api` 转发到 `localhost:5007`。
 
 **状态管理** — Zustand store：
 - `useWorkspaceStore` — 模型选择、参数编辑、生成提交。category 变更时自动选首个模型。
@@ -218,7 +230,13 @@ React Router v6 路由：`/login`、`/register`、`/`（Workspace）、`/canvas`
 
 ### Environment
 
-必需 env：`DATABASE_URL`、`DASHSCOPE_API_KEY`、`JWT_SECRET`。可选：`OSS_*`（阿里云 OSS，回落本地文件系统）、`PORT`（默认 5007）、`FRONTEND_URL`、`WORKER_POLL_INTERVAL_MS`、`WORKER_STALE_TIMEOUT_MS`、`WORKER_HEALTH_PORT`（默认 5100）、`LOG_LEVEL`、`VITE_API_BASE_URL`、`JWT_EXPIRES_IN`、`ADMIN_USER_IDS`。完整模板见 `.env.example`。
+必需 env：`DATABASE_URL`、`DASHSCOPE_API_KEY`、`JWT_SECRET`。
+
+可选 env（常用）：`PORT`（默认 5007）、`FRONTEND_URL`、`NODE_ENV`（默认 development）、`LOG_LEVEL`、`STORAGE_ROOT`（默认 ./uploads）、`WORKER_POLL_INTERVAL_MS`（默认 5000）、`WORKER_STALE_TIMEOUT_MS`（默认 4h）、`WORKER_HEALTH_PORT`（默认 5100）、`WORKER_METRICS_URL`（跨进程延迟聚合）、`JWT_EXPIRES_IN`、`ADMIN_USER_IDS`（逗号分隔）、`VITE_API_BASE_URL`。
+
+可选 env（Provider）：`PROVIDER_HTTP_TIMEOUT_MS`（默认 60000）、`PROVIDER_STREAM_IDLE_TIMEOUT_MS`（默认 30000）。
+
+可选 env（存储/监控/邮件）：`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET`、`OSS_BUCKET`、`OSS_REGION`、`OSS_ENDPOINT`、`OSS_UPLOAD_PREFIX`、`OSS_GENERATED_PREFIX`（阿里云 OSS，缺则回落本地文件系统）。`METRICS_ACCESS_TOKEN`、`METRICS_ALLOWED_CIDRS`（Prometheus `/metrics` 端点访问控制）。`SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_FROM`（邮件发送）。完整模板见 `.env.example`。
 
 ## Conventions
 
@@ -228,7 +246,7 @@ React Router v6 路由：`/login`、`/register`、`/`（Workspace）、`/canvas`
 - **Logging**：Pino，敏感字段脱敏。用 `@excuse/shared` 的共享 logger。
 - **Client API 调用**：用 `src/api/client.ts` 的 Eden treaty 实例 —— 绝不手写 fetch。
 - **Client 组件**：shadcn/ui（Radix primitives）。Tailwind CSS v4。路径别名 `@/*` → `./src/*`。
-- **纯包纪律**：规则包不得 import `@excuse/db`/`@excuse/provider`/apps。把 IO 移到 adapter 接口后从 app 注入。提取新规则时同步 `docs/TODO.md`（活跃提取路线图在 §P4）。
+- **纯包纪律**：规则包不得 import `@excuse/db`/`@excuse/provider`/apps。把 IO 移到 adapter 接口后从 app 注入。提取新规则时同步 `TODO.md`（活跃提取路线图在 §P4）。
 - **Server test helper** — `apps/server/test/helpers/test-factory.ts` 提供 `makeAccount`、`makeRecord`、`makeFailedRecord`、`makeTestConfig`、`makeValidatedParams`（branded type 绕过）、`signTestToken`、`extractEdenError`。经 `mock.module()` mock `@excuse/db`（Bun 自动 hoist 到 import 之前）。针对最小 Elysia 实例用 `treaty<App>()` 测试。
 - **纯包测试**：无需 mock DB/IO —— 直接传 fake adapter 或内存 fixture 给被测函数。
 - **Worker 测试**：接受 `deps` override（`TaskProcessorDeps` 接口）做依赖注入。
@@ -237,10 +255,11 @@ React Router v6 路由：`/login`、`/register`、`/`（Workspace）、`/canvas`
 - **DrizzleQueryError**：Drizzle ORM 查询失败时，错误消息只显示 SQL + params。真正的 PostgreSQL 错误在 `error.cause`（如 PG 错误码 `23505` 唯一约束在 `cause.code`）。务必检查 `cause` 找真实错误。
 - **错误处理**：路由 throw `AppError` 子类（`apps/server/src/utils/app-errors.ts`：`BadRequestError`/`UnauthorizedError`/`PaymentRequiredError`/`ForbiddenError`/`NotFoundError`/`ConflictError`/`ValidationError`/`RateLimitError`/`InternalError`/`ServiceUnavailableError`），由 `errorHandlerPlugin` 的全局 `onError` 统一序列化。不要在 handler 里手写 `set.status` 响应。
 - **CI**：GitHub Actions（`.github/workflows/ci.yml`）跑 typecheck + lint + boundaries + build + test + test-db + client-test + docker 共 8 个 job。
+- **参考文档**：`docs/注意/` 含数据库索引策略、模型配置更新流程、计费与积分账本、监控指标接入、部署指南等专项笔记。DashScope API 规格在 `docs/bailian/`。
 
 ## 项目治理（TODO / CHANGELOG 约定）
 
-- `docs/TODO.md` 是后续产品迭代、技术治理与验收的唯一入口。
+- `TODO.md`（仓库根目录）是后续产品迭代、技术治理与验收的唯一入口。
 - 每完成一个独立待办：必须从 TODO.md 删除对应条目，把完成记录与 commit 写入根目录 `CHANGELOG.md`（不要写回 TODO）。不在 TODO 中保留 commit 历史。
 - 不混入多个待办到一个 commit；每个独立待办对应一个 commit。
 - 验收每轮整改后至少跑：`bun run typecheck`、`bun run lint`、`bun run build`、`bun run test`、`bun run test:client`；涉及 DB 时补 `bun run test:db`。

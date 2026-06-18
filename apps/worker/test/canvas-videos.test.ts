@@ -49,6 +49,40 @@ mock.module('@excuse/db', () => ({
   updateCanvasShot: mockUpdateCanvasShot,
 }))
 
+// Mock canvas-adapter-factory to avoid importing ALL DB functions at module level
+const fakeRepo = {
+  getCanvasProjectById: mock(async () => null),
+  getCanvasProjectDetail: mock(async () => null),
+  updateCanvasProject: mockUpdateCanvasProject,
+  createCanvasCharacter: mock(async () => ({ id: 'char-1' })),
+  updateCanvasCharacter: mock(async () => undefined),
+  deleteCanvasCharactersByProject: mock(async () => undefined),
+  createCanvasLocation: mock(async () => ({ id: 'loc-1' })),
+  updateCanvasLocation: mock(async () => undefined),
+  deleteCanvasLocationsByProject: mock(async () => undefined),
+  batchCreateCanvasShots: mock(async () => []),
+  deleteCanvasShotsByProject: mock(async () => undefined),
+  updateCanvasShot: mockUpdateCanvasShot,
+  createContinuityReport: mock(async () => undefined),
+  createCanvasAsset: mockCreateCanvasAsset,
+  markCanvasAssetRunning: mockMarkCanvasAssetRunning,
+  markCanvasAssetSucceeded: mock(async () => undefined),
+  markCanvasAssetFailed: mockMarkCanvasAssetFailed,
+  setCanvasAssetActive: mock(async () => undefined),
+  bindCanvasAssetTaskId: mock(async () => undefined),
+  createGenerationRecord: mock(async () => undefined),
+}
+const fakeProvider = {
+  getModelById: mock(() => ({ id: 'test-model', name: 'Test', category: 'text' as const, type: 'generation' as const, description: '', endpoint: '', async: false, pricing: { inputPriceCents: 0, outputPriceCents: 0, unit: 'token' as const }, parameters: [] })),
+  validateAndMerge: mock((_config, params) => ({ ok: true, params: params as Record<string, unknown> & { readonly __brand: true } })),
+}
+mock.module('../src/canvas-adapter-factory', () => ({
+  createWorkerRepoAdapter: () => fakeRepo,
+  createWorkerProviderAdapter: () => fakeProvider,
+  createWorkerFfmpegAdapter: () => ({ concatVideos: mock(async () => ({ outputPath: '/tmp/out.mp4' })), mixBgmTrack: mock(async () => ({ outputPath: '/tmp/mixed.mp4' })) }),
+  createWorkerCanvasAdapters: () => ({ repo: fakeRepo, provider: fakeProvider, ffmpeg: { concatVideos: mock(async () => ({ outputPath: '/tmp/out.mp4' })), mixBgmTrack: mock(async () => ({ outputPath: '/tmp/mixed.mp4' })) }, storage: {} }),
+}))
+
 mock.module('../src/canvas-execution', () => ({
   getVideoModel: mockGetVideoModel,
   loadRunnableCanvasProject: mockLoadRunnableCanvasProject,

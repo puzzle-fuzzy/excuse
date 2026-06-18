@@ -9,6 +9,7 @@ import type { DashScopeClient } from '@excuse/provider'
 import type { AssetStorage } from '@excuse/storage'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
+import { createServerFfmpegAdapter } from './adapter-factory'
 
 export async function assembleProject(
   projectId: string,
@@ -22,7 +23,9 @@ export async function assembleProject(
 
   const { runAssemblePhase } = await import('@excuse/canvas-runtime')
 
-  const result = await runAssemblePhase({ projectId, detail, storage, storageRoot })
+  const ffmpeg = createServerFfmpegAdapter()
+
+  const result = await runAssemblePhase({ projectId, detail, storage, storageRoot, ffmpeg })
 
   await updateCanvasProject(projectId, { finalVideoUrl: result.finalVideoUrl })
 

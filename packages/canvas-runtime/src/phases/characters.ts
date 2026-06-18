@@ -1,12 +1,11 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { CharacterProfile, NovelAnalysis } from '@excuse/shared'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
 import { characterProfileSchema } from '@excuse/canvas-engine'
-import { createCanvasCharacter } from '@excuse/db'
 import { buildCharacterPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
-type CharacterRow = Awaited<ReturnType<typeof createCanvasCharacter>>
+type CharacterRow = Awaited<ReturnType<CanvasRuntimeRepoAdapter['createCanvasCharacter']>>
 
 /**
  * 角色档案单实体核心：buildCharacterPrompt → LLM → 校验 → createCanvasCharacter。
@@ -18,8 +17,9 @@ export interface CharacterEntityInput {
   storyText: string
   analysis: NovelAnalysis
   name: string
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   textModel: string
+  repo: CanvasRuntimeRepoAdapter
   /** 测试用注入点；host 不传则用真实 provider。 */
   textLlmDeps?: RunTextLlmOnceDeps
 }
@@ -42,7 +42,7 @@ export async function generateCharacterEntity(input: CharacterEntityInput): Prom
   })
 
   const profile = parseLLMJsonWithSchema(text, characterProfileSchema)
-  const character = await createCanvasCharacter({
+  const character = await input.repo.createCanvasCharacter({
     projectId: input.projectId,
     name: profile.name || input.name,
     role: profile.role,

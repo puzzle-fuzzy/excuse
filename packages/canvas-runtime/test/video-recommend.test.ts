@@ -14,6 +14,14 @@ mock.module('@excuse/provider', () => ({
   },
 }))
 
+const fakeProvider = {
+  getModelById: (id: string) => {
+    if (id.startsWith('phantom-model-'))
+      return id === 'phantom-model-t2v' ? { id, parameters: [] } : undefined
+    return { id, parameters: [] }
+  },
+} as any
+
 // ─── resolveShotVideoReferences ─────────────────────────────
 
 describe('resolveShotVideoReferences', () => {
@@ -164,14 +172,14 @@ describe('toPromptReferenceEntries', () => {
 
 describe('recommendCanvasVideoModel', () => {
   it('无引用 → T2V（默认 base happyhorse-1.0）', () => {
-    const rec = recommendCanvasVideoModel(null, [])
+    const rec = recommendCanvasVideoModel(null, [], fakeProvider)
     expect(rec.model).toBe('happyhorse-1.0-t2v')
     expect(rec.variant).toBe('t2v')
     expect(rec.reason).toContain('T2V')
   })
 
   it('无引用 + wan2.7 prefs → wan2.7-t2v', () => {
-    const rec = recommendCanvasVideoModel({ videoModel: 'wan2.7-i2v' }, [])
+    const rec = recommendCanvasVideoModel({ videoModel: 'wan2.7-i2v' }, [], fakeProvider)
     expect(rec.model).toBe('wan2.7-t2v')
     expect(rec.variant).toBe('t2v')
   })
@@ -179,7 +187,7 @@ describe('recommendCanvasVideoModel', () => {
   it('1 张角色引用（无 firstFrame） → R2V', () => {
     const rec = recommendCanvasVideoModel(null, [
       { url: 'https://img.host/char1.jpg', role: 'character' },
-    ])
+    ], fakeProvider)
     expect(rec.model).toBe('happyhorse-1.0-r2v')
     expect(rec.variant).toBe('r2v')
     expect(rec.reason).toContain('R2V')
@@ -191,7 +199,7 @@ describe('recommendCanvasVideoModel', () => {
       { url: 'https://img.host/char1.jpg', role: 'character' },
       { url: 'https://img.host/loc1.jpg', role: 'location' },
       { url: 'https://img.host/style.jpg', role: 'style' },
-    ])
+    ], fakeProvider)
     expect(rec.model).toBe('happyhorse-1.0-r2v')
     expect(rec.variant).toBe('r2v')
     expect(rec.reason).toContain('3')
@@ -200,7 +208,7 @@ describe('recommendCanvasVideoModel', () => {
   it('firstFrame 角色 → I2V', () => {
     const rec = recommendCanvasVideoModel(null, [
       { url: 'https://img.host/firstframe.jpg', role: 'firstFrame' },
-    ])
+    ], fakeProvider)
     expect(rec.model).toBe('happyhorse-1.0-i2v')
     expect(rec.variant).toBe('i2v')
     expect(rec.reason).toContain('首帧图')
@@ -211,7 +219,7 @@ describe('recommendCanvasVideoModel', () => {
     const rec = recommendCanvasVideoModel(null, [
       { url: 'https://img.host/char1.jpg', role: 'character' },
       { url: 'https://img.host/firstframe.jpg', role: 'firstFrame' },
-    ])
+    ], fakeProvider)
     expect(rec.variant).toBe('i2v')
     expect(rec.model).toBe('happyhorse-1.0-i2v')
   })
@@ -219,7 +227,7 @@ describe('recommendCanvasVideoModel', () => {
   it('prefs 中已带 -r2v 后缀时 strip 正确', () => {
     const rec = recommendCanvasVideoModel({ videoModel: 'wan2.7-r2v' }, [
       { url: 'https://img.host/char1.jpg', role: 'character' },
-    ])
+    ], fakeProvider)
     expect(rec.model).toBe('wan2.7-r2v')
     expect(rec.variant).toBe('r2v')
   })
@@ -232,7 +240,7 @@ describe('recommendCanvasVideoModel', () => {
     // 所以我们用一个不在 registry 里的 base 来触发降级到 t2v
     const rec = recommendCanvasVideoModel({ videoModel: 'phantom-model' }, [
       { url: 'https://img.host/ff.jpg', role: 'firstFrame' },
-    ])
+    ], fakeProvider)
     // phantom-model-i2v / phantom-model-r2v 不存在 → 降级到 t2v
     expect(rec.model).toBe('phantom-model-t2v')
     expect(rec.variant).toBe('t2v')
@@ -242,7 +250,7 @@ describe('recommendCanvasVideoModel', () => {
   it('目标 r2v 但 base 无 r2v 变体 → 降级到 t2v', () => {
     const rec = recommendCanvasVideoModel({ videoModel: 'phantom-model' }, [
       { url: 'https://img.host/char.jpg', role: 'character' },
-    ])
+    ], fakeProvider)
     expect(rec.model).toBe('phantom-model-t2v')
     expect(rec.variant).toBe('t2v')
     expect(rec.reason).toContain('降级')

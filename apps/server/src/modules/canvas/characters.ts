@@ -10,6 +10,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { ConflictError, NotFoundError } from '../../utils/app-errors'
+import { createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 import { tryMatchCharacter } from './subject-matching'
@@ -34,6 +35,8 @@ export async function generateCharacters(projectId: string, client: DashScopeCli
   await deleteCanvasCharactersByProject(projectId, { excludeLocked: true })
   await deleteCanvasShotsByProject(projectId)
 
+  const repo = createServerRepoAdapter()
+
   const created: CharacterRow[] = []
   for (const name of analysis.characterNames) {
     // ── 先尝试匹配资产库 ──────────────────────────────
@@ -48,6 +51,7 @@ export async function generateCharacters(projectId: string, client: DashScopeCli
 
     try {
       const { character, profile } = await runCanvasAssetStep({
+        repo,
         asset: {
           accountId,
           projectId,
@@ -58,7 +62,7 @@ export async function generateCharacters(projectId: string, client: DashScopeCli
           model: textModel,
         },
         execute: async () => {
-          const result = await generateCharacterEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel })
+          const result = await generateCharacterEntity({ projectId, storyText: project.storyText, analysis, name, client, textModel, repo })
           const output: CanvasAssetOutput = { type: 'json', data: { ...result.profile } }
           return { result, output }
         },

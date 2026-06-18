@@ -1,12 +1,11 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis, ShotDraft } from '@excuse/shared'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
 import { shotDraftsSchema } from '@excuse/canvas-engine'
-import { batchCreateCanvasShots, deleteCanvasShotsByProject } from '@excuse/db'
 import { buildStoryboardPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
-type ShotRow = Awaited<ReturnType<typeof batchCreateCanvasShots>>[number]
+type ShotRow = Awaited<ReturnType<CanvasRuntimeRepoAdapter['batchCreateCanvasShots']>>[number]
 
 /**
  * 分镜阶段共享核心（单次批量）：buildStoryboardPrompt → LLM(max_tokens 8000) → 校验
@@ -19,8 +18,9 @@ export interface StoryboardPhaseInput {
   analysis: NovelAnalysis
   characters: Array<{ id: string, name: string, identityPrompt: string }>
   locations: Array<{ id: string, name: string, scenePrompt: string }>
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   textModel: string
+  repo: CanvasRuntimeRepoAdapter
   /** 测试用注入点；host 不传则用真实 provider。 */
   textLlmDeps?: RunTextLlmOnceDeps
 }
@@ -49,8 +49,8 @@ export async function runStoryboardPhase(input: StoryboardPhaseInput): Promise<S
 
   const shots = parseLLMJsonWithSchema(text, shotDraftsSchema)
 
-  await deleteCanvasShotsByProject(input.projectId)
-  const shotsCreated = await batchCreateCanvasShots(shots.map(shot => ({
+  await input.repo.deleteCanvasShotsByProject(input.projectId)
+  const shotsCreated = await input.repo.batchCreateCanvasShots(shots.map(shot => ({
     projectId: input.projectId,
     shotIndex: shot.shotIndex,
     duration: shot.duration,

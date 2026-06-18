@@ -4,6 +4,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import { createWorkerRepoAdapter } from './canvas-adapter-factory'
 import { loadRunnableCanvasProject } from './canvas-execution'
 
 export interface CanvasRebuildResult extends Record<string, unknown> {
@@ -16,6 +17,7 @@ export async function executeCanvasRebuild(projectId: string, runId?: string): P
   const detail = await loadRunnableCanvasProject(projectId)
 
   const accountId = detail.project.accountId
+  const repo = createWorkerRepoAdapter()
   const characterMap = new Map(detail.characters.map(character => [character.id, character]))
   const locationMap = new Map(detail.locations.map(location => [location.id, location]))
   let promptsBuilt = 0
@@ -58,6 +60,7 @@ export async function executeCanvasRebuild(projectId: string, runId?: string): P
         promptsBuilt += 1
         return { result: undefined, output: outputJson }
       },
+      repo,
     })
   }
 

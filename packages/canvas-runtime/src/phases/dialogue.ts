@@ -6,18 +6,18 @@
  */
 
 import type { DialogueInput } from '@excuse/prompt-engine'
-import type { DashScopeClient } from '@excuse/provider'
 import type { R2VReferenceMedia } from '@excuse/shared'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeProviderAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
 import { buildDialogueSystemPrompt, buildDialogueUserPrompt } from '@excuse/prompt-engine'
-import { getModelById, validateAndMerge } from '@excuse/provider'
 import { buildR2VRequest, extractSpeakingCharacterIds, resolveShotVideoReferences } from '..'
 
 export interface DialoguePhaseInput {
   projectId: string
   detail: CanvasProjectDetail
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   textModel: string
+  provider: CanvasRuntimeProviderAdapter
 }
 
 export interface ShotDialogueResult {
@@ -77,12 +77,12 @@ export async function runDialoguePhase(input: DialoguePhaseInput): Promise<Dialo
     const fullPrompt = `${system}\n\n${userPrompt}`
 
     try {
-      const modelConfig = getModelById(input.textModel)
+      const modelConfig = input.provider.getModelById(input.textModel)
       if (!modelConfig) {
         results.push({ shotId: shot.id, dialoguePrompt: null, dialogueJson: null, referenceMedia: buildR2VRequest({ references }) })
         continue
       }
-      const validation = validateAndMerge(modelConfig, { prompt: fullPrompt, max_tokens: 4096, temperature: 0.7 })
+      const validation = input.provider.validateAndMerge(modelConfig, { prompt: fullPrompt, max_tokens: 4096, temperature: 0.7 })
       if (!validation.ok) {
         results.push({ shotId: shot.id, dialoguePrompt: null, dialogueJson: null, referenceMedia: buildR2VRequest({ references }) })
         continue

@@ -2,6 +2,7 @@ import type { DashScopeClient } from '@excuse/provider'
 import type { AssetStorage } from '@excuse/storage'
 import { runBgmPhase } from '@excuse/canvas-runtime'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
+import { createWorkerProviderAdapter } from './canvas-adapter-factory'
 
 export interface CanvasBgmResult extends Record<string, unknown> {
   phase: 'bgm'
@@ -25,7 +26,8 @@ export async function executeCanvasBgm(
   if (!detail)
     throw new Error('项目不存在')
 
-  const result = await runBgmPhase({ projectId, detail, client, storage })
+  const provider = createWorkerProviderAdapter()
+  const result = await runBgmPhase({ projectId, detail, client, storage, provider })
   await updateCanvasProject(projectId, { bgmUrl: result.audioUrl })
 
   return {

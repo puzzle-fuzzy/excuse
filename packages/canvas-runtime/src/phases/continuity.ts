@@ -1,7 +1,7 @@
 import type { ContinuityIssue } from '@excuse/shared'
+import type { CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
 import { validateShotContinuity } from '@excuse/canvas-engine'
-import { createContinuityReport } from '@excuse/db'
 import { toNormalizedCharacter, toNormalizedLocation, toNormalizedShot } from '../normalize'
 
 /**
@@ -11,6 +11,7 @@ import { toNormalizedCharacter, toNormalizedLocation, toNormalizedShot } from '.
 export interface ContinuityPhaseInput {
   projectId: string
   detail: CanvasProjectDetail
+  repo: CanvasRuntimeRepoAdapter
 }
 
 export interface ContinuityPhaseResult {
@@ -24,7 +25,7 @@ export async function runContinuityPhase(input: ContinuityPhaseInput): Promise<C
     locations: input.detail.locations.map(toNormalizedLocation),
   })
 
-  await createContinuityReport({
+  await input.repo.createContinuityReport({
     projectId: input.projectId,
     issuesJson: issues,
   })

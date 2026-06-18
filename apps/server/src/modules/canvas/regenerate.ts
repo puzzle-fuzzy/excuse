@@ -30,6 +30,7 @@ import {
 import { getModelById as getProviderModelById, validateAndMerge } from '@excuse/provider'
 import { logger } from '@excuse/shared'
 import { BadRequestError, ConflictError, InternalError, NotFoundError, ValidationError } from '../../utils/app-errors'
+import { createServerProviderAdapter, createServerRepoAdapter } from './adapter-factory'
 import { getTextModel, getVideoModel, notifyNode } from './service-helpers'
 
 // ── 角色重新生成 ──────────────────────────────────────
@@ -49,11 +50,13 @@ export async function regenerateCharacter(characterId: string, client: DashScope
   const accountId = project.accountId
   const name = character.name
   const textModel = getTextModel(project.modelPreferencesJson)
+  const repo = createServerRepoAdapter()
 
   notifyNode(accountId, character.projectId, 'character', characterId, 'running')
 
   try {
     const { newCharacter, profile } = await runCanvasAssetStep({
+      repo,
       asset: {
         accountId,
         projectId: character.projectId,
@@ -126,11 +129,13 @@ export async function regenerateLocation(locationId: string, client: DashScopeCl
   const accountId = project.accountId
   const name = location.name
   const textModel = getTextModel(project.modelPreferencesJson)
+  const repo = createServerRepoAdapter()
 
   notifyNode(accountId, location.projectId, 'location', locationId, 'running')
 
   try {
     const { newLocation, profile } = await runCanvasAssetStep({
+      repo,
       asset: {
         accountId,
         projectId: location.projectId,
@@ -234,6 +239,9 @@ export async function regenerateShotVideo(shotId: string, client: DashScopeClien
     if (!projectDetail)
       throw new NotFoundError('项目详情不存在')
 
+    const repo = createServerRepoAdapter()
+    const provider = createServerProviderAdapter()
+
     await submitShotVideoEntity({
       projectId: shot.projectId,
       accountId,
@@ -244,6 +252,8 @@ export async function regenerateShotVideo(shotId: string, client: DashScopeClien
       locations: projectDetail.locations,
       modelPreferences: project.modelPreferencesJson,
       client,
+      repo,
+      provider,
     })
 
     return newShot

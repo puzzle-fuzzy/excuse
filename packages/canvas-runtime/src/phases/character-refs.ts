@@ -1,8 +1,6 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { ModelConfig } from '@excuse/shared'
-import type { AssetStorage } from '@excuse/storage'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeProviderAdapter, CanvasRuntimeRepoAdapter, CanvasRuntimeStorageAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
-import { updateCanvasCharacter } from '@excuse/db'
 import { generateCanvasImageAsset } from '..'
 
 type CharacterRow = CanvasProjectDetail['characters'][number]
@@ -33,8 +31,10 @@ export interface CharacterRefAssetsInput {
   turnaroundAssetId: string
   imageModel: string
   imageModelConfig: ModelConfig
-  client: DashScopeClient
-  storage: AssetStorage
+  client: CanvasRuntimeLlmClient
+  storage: CanvasRuntimeStorageAdapter
+  repo: CanvasRuntimeRepoAdapter
+  provider: CanvasRuntimeProviderAdapter
 }
 
 export interface CharacterRefAssetsResult {
@@ -43,7 +43,7 @@ export interface CharacterRefAssetsResult {
 }
 
 export async function generateCharacterRefAssets(input: CharacterRefAssetsInput): Promise<CharacterRefAssetsResult> {
-  const { character, portraitAssetId, turnaroundAssetId, imageModel, imageModelConfig, client, storage } = input
+  const { character, portraitAssetId, turnaroundAssetId, imageModel, imageModelConfig, client, storage, repo, provider } = input
   const subDir = `canvas/${character.id}`
 
   const portraitPrompt = buildCharacterPortraitPrompt(character.identityPrompt!)
@@ -57,9 +57,11 @@ export async function generateCharacterRefAssets(input: CharacterRefAssetsInput)
     errorMessage: '角色参考图生成失败',
     client,
     storage,
+    provider,
+    repo,
   })
   if (portrait)
-    await updateCanvasCharacter(character.id, { referenceImageUrl: portrait.publicUrl })
+    await repo.updateCanvasCharacter(character.id, { referenceImageUrl: portrait.publicUrl })
 
   const turnaroundPrompt = buildCharacterTurnaroundPrompt(character.identityPrompt!)
   const turnaround = await generateCanvasImageAsset({
@@ -72,9 +74,11 @@ export async function generateCharacterRefAssets(input: CharacterRefAssetsInput)
     errorMessage: '角色参考图生成失败',
     client,
     storage,
+    provider,
+    repo,
   })
   if (turnaround)
-    await updateCanvasCharacter(character.id, { turnaroundSheetUrl: turnaround.publicUrl })
+    await repo.updateCanvasCharacter(character.id, { turnaroundSheetUrl: turnaround.publicUrl })
 
   return {
     ...(portrait && { portraitUrl: portrait.publicUrl }),

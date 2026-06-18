@@ -8,6 +8,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
 import {
   getImageModel,
   loadRunnableCanvasProject,
@@ -40,6 +41,8 @@ export async function executeCanvasLocationRefs(
   let locationsSkipped = 0
   let locationsFailed = 0
   let refsCreated = 0
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   for (const location of detail.locations) {
     if (location.locked || !location.scenePrompt || location.referenceImageUrl) {
@@ -71,6 +74,8 @@ export async function executeCanvasLocationRefs(
         imageModelConfig,
         client,
         storage,
+        repo,
+        provider,
       })
       if (refUrl)
         refsCreated += 1

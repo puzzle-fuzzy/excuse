@@ -2,6 +2,7 @@ import type { CanvasAssetOutput } from '@excuse/db'
 import type { DashScopeClient } from '@excuse/provider'
 import { runCanvasAssetStep, runStoryboardPhase } from '@excuse/canvas-runtime'
 import { updateCanvasProject } from '@excuse/db'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
 import {
   getTextModel,
   loadRunnableCanvasProject,
@@ -25,6 +26,8 @@ export async function executeCanvasStoryboard(
 
   const textModel = getTextModel(project.modelPreferencesJson)
   const accountId = project.accountId
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   const result = await runCanvasAssetStep<CanvasStoryboardResult>({
     asset: {
@@ -53,6 +56,8 @@ export async function executeCanvasStoryboard(
         })),
         client,
         textModel,
+        repo,
+        textLlmDeps: provider,
       })
       const output: CanvasAssetOutput = { type: 'json', data: { shotsCount: shotsCreated.length, shots } }
       return {
@@ -60,6 +65,7 @@ export async function executeCanvasStoryboard(
         output,
       }
     },
+    repo,
   })
 
   await updateCanvasProject(projectId, { status: 'storyboard_ready' })

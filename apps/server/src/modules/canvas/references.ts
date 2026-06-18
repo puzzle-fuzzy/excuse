@@ -19,6 +19,7 @@ import {
 import { getModelById } from '@excuse/provider'
 import { logger } from '@excuse/shared'
 import { BadRequestError, NotFoundError } from '../../utils/app-errors'
+import { createServerProviderAdapter, createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getImageModel, notifyNode } from './service-helpers'
 
@@ -36,6 +37,9 @@ export async function generateCharacterRefs(projectId: string, client: DashScope
 
   if (runId)
     await markPipelineRunRunning(runId)
+
+  const repo = createServerRepoAdapter()
+  const provider = createServerProviderAdapter()
 
   for (const char of detail.characters) {
     if (char.locked || !char.identityPrompt || char.referenceImageUrl)
@@ -81,6 +85,8 @@ export async function generateCharacterRefs(projectId: string, client: DashScope
         imageModelConfig,
         client,
         storage,
+        repo,
+        provider,
       })
 
       notifyNode(accountId, projectId, 'character', char.id, 'completed', undefined, undefined, runId)
@@ -116,6 +122,9 @@ export async function generateLocationRefs(projectId: string, client: DashScopeC
   if (runId)
     await markPipelineRunRunning(runId)
 
+  const repo = createServerRepoAdapter()
+  const provider = createServerProviderAdapter()
+
   for (const loc of detail.locations) {
     if (loc.locked || !loc.scenePrompt || loc.referenceImageUrl)
       continue
@@ -146,6 +155,8 @@ export async function generateLocationRefs(projectId: string, client: DashScopeC
         imageModelConfig,
         client,
         storage,
+        repo,
+        provider,
       })
 
       notifyNode(accountId, projectId, 'location', loc.id, 'completed', undefined, undefined, runId)

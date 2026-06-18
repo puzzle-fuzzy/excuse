@@ -17,6 +17,7 @@ import {
 import { logger } from '@excuse/shared'
 import { decideBatchOutcome } from '@excuse/workflow-engine'
 import { ConflictError, NotFoundError } from '../../utils/app-errors'
+import { createServerProviderAdapter, createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { getVideoModel, notifyNode } from './service-helpers'
 
@@ -37,9 +38,11 @@ export async function generateVideos(projectId: string, client: DashScopeClient,
   await updateCanvasProject(projectId, { status: 'generating' })
 
   // 收集本次提交的 per-shot 结果，交给 workflow-engine 做结果分类。
-  // 注意：这里只判断“本次提交结果”，视频最终 completed/partial_failed 由 worker
+  // 注意：这里只判断”本次提交结果”，视频最终 completed/partial_failed 由 worker
   // 轮询完成后再判定（见 task-processor.checkProjectCompletion），不要把提交中的
   // shot 误判成失败终态。
+  const repo = createServerRepoAdapter()
+  const provider = createServerProviderAdapter()
   const submissionResults: BatchItemLike[] = []
 
   for (const shot of detail.shots) {
@@ -71,6 +74,8 @@ export async function generateVideos(projectId: string, client: DashScopeClient,
         locations: detail.locations,
         modelPreferences: detail.project.modelPreferencesJson,
         client,
+        repo,
+        provider,
       })
       submissionResults.push({ status: 'succeeded' })
     }
@@ -130,6 +135,9 @@ export async function retryShotVideo(shotId: string, client: DashScopeClient) {
   })
   await markCanvasAssetRunning(shotVideoAsset.id)
 
+  const repo = createServerRepoAdapter()
+  const provider = createServerProviderAdapter()
+
   try {
     await submitShotVideoEntity({
       projectId: shot.projectId,
@@ -141,6 +149,8 @@ export async function retryShotVideo(shotId: string, client: DashScopeClient) {
       locations: detail.locations,
       modelPreferences: detail.project.modelPreferencesJson,
       client,
+      repo,
+      provider,
       estimatedCost: true,
     })
   }
@@ -163,6 +173,9 @@ export async function retryFailedShots(projectId: string, accountId: string, cli
     throw new ConflictError('没有失败的镜头可以重试')
 
   await updateCanvasProject(projectId, { status: 'generating' })
+
+  const repo = createServerRepoAdapter()
+  const provider = createServerProviderAdapter()
 
   for (const shot of failedShots) {
     await resetCanvasShotToDraft(shot.id)
@@ -189,6 +202,8 @@ export async function retryFailedShots(projectId: string, accountId: string, cli
         locations: detail.locations,
         modelPreferences: detail.project.modelPreferencesJson,
         client,
+        repo,
+        provider,
         estimatedCost: true,
       })
     }

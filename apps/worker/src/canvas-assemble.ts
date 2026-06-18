@@ -1,6 +1,7 @@
 import type { AssetStorage } from '@excuse/storage'
 import { runAssemblePhase } from '@excuse/canvas-runtime'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
+import { createWorkerFfmpegAdapter } from './canvas-adapter-factory'
 import { checkTaskOwnership } from './task-ownership'
 
 export interface CanvasAssembleResult extends Record<string, unknown> {
@@ -29,11 +30,13 @@ export async function executeCanvasAssemble(
   if (!detail)
     throw new Error('项目不存在')
 
+  const ffmpeg = createWorkerFfmpegAdapter()
   const result = await runAssemblePhase({
     projectId,
     detail,
     storage,
     storageRoot,
+    ffmpeg,
     onCheckpoint: checkTaskOwnership,
   })
   await updateCanvasProject(projectId, { finalVideoUrl: result.finalVideoUrl })

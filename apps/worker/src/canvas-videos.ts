@@ -9,6 +9,7 @@ import {
   updateCanvasProject,
   updateCanvasShot,
 } from '@excuse/db'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
 import {
   getVideoModel,
   loadRunnableCanvasProject,
@@ -34,6 +35,8 @@ export async function executeCanvasVideos(
   let shotsSubmitted = 0
   let shotsSkipped = 0
   let shotsFailed = 0
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   await updateCanvasProject(projectId, { status: 'generating' })
 
@@ -81,6 +84,8 @@ export async function executeCanvasVideos(
         locations: detail.locations,
         modelPreferences: project.modelPreferencesJson,
         client,
+        repo,
+        provider,
         diagnostics: {
           workerTaskId,
           pipelineRunId: runId,

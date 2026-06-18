@@ -12,6 +12,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
+import { createWorkerProviderAdapter, createWorkerRepoAdapter } from './canvas-adapter-factory'
 import {
   getImageModel,
   loadRunnableCanvasProject,
@@ -46,6 +47,8 @@ export async function executeCanvasCharacterRefs(
   let charactersFailed = 0
   let portraitsCreated = 0
   let turnaroundsCreated = 0
+  const repo = createWorkerRepoAdapter()
+  const provider = createWorkerProviderAdapter()
 
   for (const character of detail.characters) {
     if (character.locked || !character.identityPrompt || character.referenceImageUrl) {
@@ -92,6 +95,8 @@ export async function executeCanvasCharacterRefs(
         imageModelConfig,
         client,
         storage,
+        repo,
+        provider,
       })
       if (portraitUrl)
         portraitsCreated += 1

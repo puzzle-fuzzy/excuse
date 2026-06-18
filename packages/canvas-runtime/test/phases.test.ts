@@ -33,7 +33,7 @@ const textLlmDeps: RunTextLlmOnceDeps = {
   validateAndMerge: (_config, params) => ({ ok: true, params: params as never }),
 }
 
-// ─── Mock @excuse/db（运行时调用，mock.module 拦截） ─────
+// ─── Fake repo adapter（注入到 phase 函数，替代 mock.module 的 DB 调用） ─────
 
 const deleteShots = mock(() => Promise.resolve())
 const deleteLocations = mock(() => Promise.resolve())
@@ -49,15 +49,28 @@ const batchCreateShots = mock<(values: Array<Record<string, unknown>>) => Promis
   values => Promise.resolve(values.map((v, i) => ({ id: `shot-${i}`, ...v }))),
 )
 
-mock.module('@excuse/db', () => ({
-  deleteCanvasShotsByProject: deleteShots,
-  deleteCanvasLocationsByProject: deleteLocations,
-  deleteCanvasCharactersByProject: deleteCharacters,
-  updateCanvasProject: updateProject,
+const fakeRepo = {
   createCanvasCharacter: createCharacter,
+  updateCanvasCharacter: mock(() => Promise.resolve()),
+  deleteCanvasCharactersByProject: deleteCharacters,
   createCanvasLocation: createLocation,
+  updateCanvasLocation: mock(() => Promise.resolve()),
+  deleteCanvasLocationsByProject: deleteLocations,
   batchCreateCanvasShots: batchCreateShots,
-}))
+  deleteCanvasShotsByProject: deleteShots,
+  updateCanvasProject: updateProject,
+  getCanvasProjectById: mock(() => Promise.resolve(null)),
+  getCanvasProjectDetail: mock(() => Promise.resolve(null)),
+  createCanvasAsset: mock(() => Promise.resolve({ id: 'asset-1' })),
+  markCanvasAssetRunning: mock(() => Promise.resolve()),
+  markCanvasAssetSucceeded: mock(() => Promise.resolve()),
+  markCanvasAssetFailed: mock(() => Promise.resolve()),
+  setCanvasAssetActive: mock(() => Promise.resolve()),
+  bindCanvasAssetTaskId: mock(() => Promise.resolve()),
+  createContinuityReport: mock(() => Promise.resolve()),
+  createGenerationRecord: mock(() => Promise.resolve()),
+  updateCanvasShot: mock(() => Promise.resolve()),
+}
 
 function makeClient(text: string): DashScopeClient {
   return {
@@ -80,6 +93,7 @@ describe('runAnalysisPhase', () => {
       isReanalysis: true,
       client: makeClient('{"summary":"梗概","mainConflict":"冲突"}'),
       textModel: 'qwen-test',
+      repo: fakeRepo,
       textLlmDeps,
     })
 
@@ -101,6 +115,7 @@ describe('runAnalysisPhase', () => {
       isReanalysis: false,
       client: makeClient('{"summary":"x","mainConflict":"y"}'),
       textModel: 'qwen-test',
+      repo: fakeRepo,
       textLlmDeps,
     })
 
@@ -119,6 +134,7 @@ describe('generateCharacterEntity', () => {
       name: '李雷',
       client: makeClient('{"name":"李雷","identityPrompt":"少年","negativePrompt":"畸形"}'),
       textModel: 'qwen-test',
+      repo: fakeRepo,
       textLlmDeps,
     })
 
@@ -139,6 +155,7 @@ describe('generateLocationEntity', () => {
       name: '古镇',
       client: makeClient('{"name":"古镇","type":"exterior","scenePrompt":"青石板","negativePrompt":"现代"}'),
       textModel: 'qwen-test',
+      repo: fakeRepo,
       textLlmDeps,
     })
 
@@ -162,6 +179,7 @@ describe('runStoryboardPhase', () => {
       locations: [],
       client: makeClient(llmOutput),
       textModel: 'qwen-test',
+      repo: fakeRepo,
       textLlmDeps,
     })
 

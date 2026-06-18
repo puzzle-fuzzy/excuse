@@ -1,6 +1,7 @@
 import type { CanvasAssetOutput } from '@excuse/db'
 import { runCanvasAssetStep, runContinuityPhase } from '@excuse/canvas-runtime'
 import { updateCanvasProject } from '@excuse/db'
+import { createWorkerRepoAdapter } from './canvas-adapter-factory'
 import { loadRunnableCanvasProject } from './canvas-execution'
 
 export interface CanvasContinuityResult extends Record<string, unknown> {
@@ -13,6 +14,7 @@ export async function executeCanvasContinuity(projectId: string, runId?: string)
   const detail = await loadRunnableCanvasProject(projectId)
 
   const accountId = detail.project.accountId
+  const repo = createWorkerRepoAdapter()
   const result = await runCanvasAssetStep<CanvasContinuityResult>({
     asset: {
       accountId,
@@ -23,7 +25,7 @@ export async function executeCanvasContinuity(projectId: string, runId?: string)
       pipelineRunId: runId ?? undefined,
     },
     execute: async () => {
-      const { issues } = await runContinuityPhase({ projectId, detail })
+      const { issues } = await runContinuityPhase({ projectId, detail, repo })
 
       const outputJson: CanvasAssetOutput = { type: 'json', data: { issuesCount: issues.length, issues } }
       return {
@@ -31,6 +33,7 @@ export async function executeCanvasContinuity(projectId: string, runId?: string)
         output: outputJson,
       }
     },
+    repo,
   })
 
   await updateCanvasProject(projectId, { status: 'continuity_checked' })

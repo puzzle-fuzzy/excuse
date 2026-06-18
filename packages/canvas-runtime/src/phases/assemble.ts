@@ -8,15 +8,14 @@
  * HappyHorse 视频原生含对话/音效音频，故「对话音频合成」= 拼接时保留各镜头音轨，无需独立 TTS。
  */
 
-import type { ConcatResult, MixBgmResult } from '@excuse/ffmpeg'
-import type { AssetStorage } from '@excuse/storage'
+import type { CanvasRuntimeFfmpegAdapter, CanvasRuntimeStorageAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
-import { concatVideos, mixBgmTrack } from '@excuse/ffmpeg'
 
 export interface AssemblePhaseInput {
   projectId: string
   detail: CanvasProjectDetail
-  storage: AssetStorage
+  storage: CanvasRuntimeStorageAdapter
+  ffmpeg: CanvasRuntimeFfmpegAdapter
   /** 存储根目录，用于建立临时工作目录（绝对路径） */
   storageRoot: string
   /** 中途所有权检查点 — 由 worker 注入，长任务在子操作间调用；null 则跳过 */
@@ -59,7 +58,7 @@ export async function runAssemblePhase(input: AssemblePhaseInput): Promise<Assem
 
     // 3. 拼接（重编码兜底，保留各镜头对话音频）
     input.onCheckpoint?.() // ← checkpoint: 物化完成，准备 FFmpeg concat
-    const concat: ConcatResult = await concatVideos(localPaths, tempDir)
+    const concat = await input.ffmpeg.concatVideos(localPaths, tempDir)
     let finalPath = concat.outputPath
     let bgmOverlaid = false
 
@@ -71,7 +70,7 @@ export async function runAssemblePhase(input: AssemblePhaseInput): Promise<Assem
       const bgmPath = bgmLocal !== null && await pathExists(bgmLocal)
         ? bgmLocal
         : await input.storage.downloadToFile(bgmUrl, `${tempDir}/bgm.${extFromUrl(bgmUrl) || 'mp3'}`)
-      const mixed: MixBgmResult = await mixBgmTrack(concat.outputPath, bgmPath, tempDir)
+      const mixed = await input.ffmpeg.mixBgmTrack(concat.outputPath, bgmPath, tempDir)
       finalPath = mixed.outputPath
       bgmOverlaid = true
     }

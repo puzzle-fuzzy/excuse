@@ -9,6 +9,7 @@ import {
   updateCanvasProject,
 } from '@excuse/db'
 import { ConflictError, NotFoundError } from '../../utils/app-errors'
+import { createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, getTextModel, notifyNode } from './service-helpers'
 
@@ -31,8 +32,11 @@ export async function generateStoryboard(projectId: string, client: DashScopeCli
   if (runId)
     await markPipelineRunRunning(runId)
 
+  const repo = createServerRepoAdapter()
+
   try {
     const created = await runCanvasAssetStep({
+      repo,
       asset: {
         accountId,
         projectId,
@@ -51,6 +55,7 @@ export async function generateStoryboard(projectId: string, client: DashScopeCli
           locations: detail.locations.map(l => ({ id: l.id, name: l.name, scenePrompt: l.scenePrompt || '' })),
           client,
           textModel,
+          repo,
         })
         const output: CanvasAssetOutput = { type: 'json', data: { shotsCount: shotsCreated.length, shots } }
         return { result: shotsCreated, output }

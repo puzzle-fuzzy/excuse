@@ -15,6 +15,7 @@ import {
   updateCanvasShot,
 } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
+import { createServerRepoAdapter } from './adapter-factory'
 import { getProjectDetail } from './service-crud'
 import { assertNotGenerating, notifyNode } from './service-helpers'
 
@@ -29,8 +30,11 @@ export async function checkContinuity(projectId: string, runId?: string) {
   if (runId)
     await markPipelineRunRunning(runId)
 
+  const repo = createServerRepoAdapter()
+
   try {
     const issues = await runCanvasAssetStep({
+      repo,
       asset: {
         accountId,
         projectId,
@@ -40,7 +44,7 @@ export async function checkContinuity(projectId: string, runId?: string) {
         pipelineRunId: runId ?? undefined,
       },
       execute: async () => {
-        const { issues } = await runContinuityPhase({ projectId, detail })
+        const { issues } = await runContinuityPhase({ projectId, detail, repo })
 
         const output: CanvasAssetOutput = { type: 'json', data: { issuesCount: issues.length, issues } }
         return { result: issues, output }
@@ -73,6 +77,8 @@ export async function rebuildShotPrompts(projectId: string, runId?: string) {
   if (runId)
     await markPipelineRunRunning(runId)
 
+  const repo = createServerRepoAdapter()
+
   try {
     const characterMap = new Map(detail.characters.map(c => [c.id, c]))
     const locationMap = new Map(detail.locations.map(l => [l.id, l]))
@@ -88,6 +94,7 @@ export async function rebuildShotPrompts(projectId: string, runId?: string) {
         continue
 
       await runCanvasAssetStep({
+        repo,
         asset: {
           accountId,
           projectId,

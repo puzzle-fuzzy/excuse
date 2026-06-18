@@ -1,13 +1,7 @@
-import type { DashScopeClient } from '@excuse/provider'
 import type { NovelAnalysis } from '@excuse/shared'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { RunTextLlmOnceDeps } from '../llm-helpers'
 import { novelAnalysisSchema } from '@excuse/canvas-engine'
-import {
-  deleteCanvasCharactersByProject,
-  deleteCanvasLocationsByProject,
-  deleteCanvasShotsByProject,
-  updateCanvasProject,
-} from '@excuse/db'
 import { buildAnalysisPrompt, parseLLMJsonWithSchema } from '@excuse/prompt-engine'
 import { runTextLlmOnce } from '../llm-helpers'
 
@@ -21,8 +15,9 @@ export interface AnalysisPhaseInput {
   storyText: string
   /** 重新分析（项目已分析过）时级联清理已有镜头/场景/角色，与原 server/worker 行为一致。 */
   isReanalysis: boolean
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
   textModel: string
+  repo: CanvasRuntimeRepoAdapter
   /** 测试用注入点；host 不传则用真实 provider。 */
   textLlmDeps?: RunTextLlmOnceDeps
 }
@@ -33,9 +28,9 @@ export interface AnalysisPhaseResult {
 
 export async function runAnalysisPhase(input: AnalysisPhaseInput): Promise<AnalysisPhaseResult> {
   if (input.isReanalysis) {
-    await deleteCanvasShotsByProject(input.projectId)
-    await deleteCanvasLocationsByProject(input.projectId, { excludeLocked: true })
-    await deleteCanvasCharactersByProject(input.projectId, { excludeLocked: true })
+    await input.repo.deleteCanvasShotsByProject(input.projectId)
+    await input.repo.deleteCanvasLocationsByProject(input.projectId, { excludeLocked: true })
+    await input.repo.deleteCanvasCharactersByProject(input.projectId, { excludeLocked: true })
   }
 
   const { system, prompt: userPrompt } = buildAnalysisPrompt(input.storyText)
@@ -50,7 +45,7 @@ export async function runAnalysisPhase(input: AnalysisPhaseInput): Promise<Analy
   })
 
   const analysis = parseLLMJsonWithSchema(text, novelAnalysisSchema)
-  await updateCanvasProject(input.projectId, {
+  await input.repo.updateCanvasProject(input.projectId, {
     status: 'analyzed',
     analysisJson: analysis,
   })

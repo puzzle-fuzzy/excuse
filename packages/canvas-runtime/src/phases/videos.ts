@@ -1,4 +1,4 @@
-import type { DashScopeClient } from '@excuse/provider'
+import type { CanvasRuntimeLlmClient, CanvasRuntimeProviderAdapter, CanvasRuntimeRepoAdapter } from '../adapter-types'
 import type { CanvasProjectDetail } from '../normalize'
 import { recommendCanvasVideoModel, resolveShotVideoReferences, submitCanvasShotVideo } from '..'
 
@@ -23,7 +23,9 @@ export interface ShotVideoEntityInput {
   characters: CharacterRow[]
   locations: LocationRow[]
   modelPreferences: { videoModel?: string | null } | null | undefined
-  client: DashScopeClient
+  client: CanvasRuntimeLlmClient
+  provider: CanvasRuntimeProviderAdapter
+  repo: CanvasRuntimeRepoAdapter
   estimatedCost?: boolean
   diagnostics?: {
     workerTaskId?: string
@@ -46,7 +48,7 @@ export async function submitShotVideoEntity(input: ShotVideoEntityInput): Promis
     characters: input.characters,
     locations: input.locations,
   })
-  const recommendation = recommendCanvasVideoModel(input.modelPreferences, references)
+  const recommendation = recommendCanvasVideoModel(input.modelPreferences, references, input.provider)
   // R2V 优先复用 dialogue 产出的预算参考媒体（≤9，按说话者优先排序，存 shot.reference_media）；
   // dialogue 未产出时回退到全量解析引用。T2V 不带参考图。
   const referenceUrls = recommendation.variant === 'r2v' && input.shot.referenceMedia && input.shot.referenceMedia.length > 0
@@ -66,6 +68,8 @@ export async function submitShotVideoEntity(input: ShotVideoEntityInput): Promis
     client: input.client,
     estimatedCost: input.estimatedCost,
     diagnostics: input.diagnostics,
+    repo: input.repo,
+    provider: input.provider,
   })
 
   return { taskId, model: recommendation.model, referenceUrls, recommendationReason: recommendation.reason }
