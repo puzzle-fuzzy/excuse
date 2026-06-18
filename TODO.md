@@ -74,29 +74,16 @@
 - 验收标准：
   - CI 阻止新增未使用导出、散落 console、失效 TODO 锚点。
 
-### 12. 建立架构决策记录（ADR）
-
-- 现状：很多设计背景写在代码注释里，例如 Elysia app factory、ServerContext、Worker lifecycle、metrics 访问等。
-- 问题：注释很有价值，但分散在实现文件里，后来者不容易建立全局图。
-- 解决办法：
-  - 在 `docs/注意` 或 `docs/adr` 下新增 ADR：
-    - `0001-monorepo-layering.md`
-    - `0002-task-queue-and-worker-lifecycle.md`
-    - `0003-canvas-runtime-adapters.md`
-    - `0004-provider-health-and-timeout.md`
-  - 代码注释只保留必要上下文，详细背景链接 ADR。
-- 验收标准：
-  - README 的架构约定链接到 ADR。
-  - 新增跨包设计变更必须先更新对应 ADR。
-
 ## 建议执行顺序
 
 1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅（`15df5506`）
 2. ~~P0-2 配置解析抽取~~ ✅（`71d1cdbe`）
 3. ~~P0-3 provider observer/guard 副作用隔离~~ ✅（`12a2a0de`）
 4. ~~P1-6 补齐 package 脚本 + P1-7 清理 TODO 引用~~ ✅（`dcaa6861`）
-5. 做 P1-4 拆分前端大页面 ModelLab.tsx
-6. 继续 P1-5、P2、P3 等项目。
+5. ~~P2-9 输入限制常量~~ ✅（`991d6a9c`）
+6. ~~P3-12 ADR 文档~~ ✅（`2f65d8cd`）
+7. 做 P1-4 拆分前端大页面 ModelLab.tsx
+8. 继续 P1-5、P2-8、P2-10、P3-11 等项目。
 
 ## 本次审计已运行的检查
 

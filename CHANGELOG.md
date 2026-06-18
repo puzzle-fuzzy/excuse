@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P3-12: 建立架构决策记录 ADR（2026-06-19）
+
+- **commit `2f65d8cd`**: 新增 `docs/adr/0001-monorepo-layering.md`（两层架构规则）和 `0002-canvas-runtime-adapters.md`（Canvas adapter 注入模式）。
+
 ### P2-9: 强化用户输入和资源边界（2026-06-19）
 
 - **commit `991d6a9c`**: 新增 `@excuse/shared input-limits.ts`，集中声明 `PROMPT_LENGTH_LIMITS`、`MAX_STORY_TEXT_LENGTH`、`MAX_CANVAS_SHOTS`、`MAX_REFERENCE_FILES`、`ALLOWED_UPLOAD_MIMES`、温度/Token 范围等限制常量 + `isAllowedMime()`/`checkPromptLengthLimit()` 辅助函数。server `prompt-limits.ts` 改为引用 shared 常量，前后端可引用同一来源。
