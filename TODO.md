@@ -6,19 +6,7 @@
 
 ## P0：先处理会影响生产稳定性或架构边界的事项
 
-### 1. 抽出 server/worker 共享运行时配置解析
-
-- 现状：`apps/server/src/config.ts` 和 `apps/worker/src/config.ts` 重复解析 DashScope、OSS、metrics、provider timeout 等环境变量。
-- 问题：默认值、校验规则和生产安全策略容易漂移。例如 metrics CIDR、provider timeout、OSS 配置已经在两个进程重复维护。
-- 解决办法：
-  - 在 `packages/shared` 或新增 `packages/config` 中提供纯函数：`parseProviderConfig`、`parseMetricsConfig`、`parseOssConfig`、`parsePositiveIntEnv`。
-  - server/worker 只保留各自特有字段，如 port、JWT、SMTP、worker stale timeout。
-  - 环境变量解析不要直接 `Number(env.X) || default`，改成可区分缺省、非法值、0/负数的 helper。
-- 验收标准：
-  - server/worker 配置测试覆盖非法数字、空字符串、生产缺失变量、公网 metrics CIDR 无 token。
-  - 配置错误消息包含变量名，启动失败可定位。
-
-### 2. 把 provider observer/guard 注册从入口副作用中隔离
+### 1. 把 provider observer/guard 注册从入口副作用中隔离
 
 - 现状：`apps/server/src/index.ts` 和 `apps/worker/src/index.ts` 都在模块顶层注册 provider observer/guard、warm health cache，并启动监听/健康服务。
 - 问题：入口已经比以前可测试，但仍存在 module-level 副作用；测试 import 入口时可能启动真实监听或污染全局 observer registry。
@@ -152,9 +140,9 @@
 
 ## 建议执行顺序
 
-1. ~~先做 P0-1 `canvas-runtime` adapter 化和边界规则~~ ✅ 已完成（commit `15df5506`）
-2. 做 P0-1 配置解析抽取，减少 server/worker 漂移。
-3. 再做 P0-2 provider observer/guard 副作用隔离。
+1. ~~P0-1 `canvas-runtime` adapter 化~~ ✅ 已完成（commit `15df5506`）
+2. ~~P0-2 配置解析抽取~~ ✅ 已完成（commit `71d1cdbe`）
+3. 做 P0-3 provider observer/guard 副作用隔离。
 4. 再拆 P1-4 前端大页面，把 ModelLab 的状态逻辑从 UI 中拿出来。
 5. 最后补 P2/P3：测试分层、输入限制常量、日志口径、脚本和文档治理。
 

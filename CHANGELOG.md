@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P0-2: 抽出 server/worker 共享运行时配置解析（2026-06-19）
+
+- **commit `71d1cdbe`**: 新增 `@excuse/shared` env-helpers.ts，提供 `parseProviderConfig()` / `parseMetricsConfig()` / `parseProviderTimeoutConfig()` / `parseStorageConfig()` / `parsePositiveIntEnv()` / `validateProductionBase()` 六个共享 helper。server/worker 的 `loadConfig()` 改用共享 helper，消除 DashScope/OSS/metrics/timeout 配置的重复解析逻辑。`parsePositiveIntEnv()` 可区分缺省/非法值/零负数，错误消息包含变量名。
+  - 验收: typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 551/0 ✅ · test:client 376/0 ✅ · boundaries ✅
+
 ### P0-1: canvas-runtime adapter 化 — 拆出 IO Adapter（2026-06-19）
 
 - **commit `15df5506`**: 定义 `CanvasRuntimeAdapters` 接口（`adapter-types.ts`），含 `llm` / `provider` / `repo` / `storage` / `ffmpeg` 五个适配器。所有 12 个 phase 函数 + `io/` 层不再直接 import `@excuse/db` / `@excuse/provider` / `@excuse/storage` / `@excuse/ffmpeg`，改为通过适配器参数注入 IO 依赖。
