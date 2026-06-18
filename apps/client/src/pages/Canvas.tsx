@@ -1,13 +1,13 @@
 import type { ProjectDTO } from '@excuse/shared'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 import { createCanvasProject, deleteCanvasProject, listCanvasProjects, updateCanvasModelPreferences } from '../api/client'
-import { handleApiError } from '../lib/utils'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { toast } from 'sonner'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
+import { handleApiError } from '../lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: '草稿',

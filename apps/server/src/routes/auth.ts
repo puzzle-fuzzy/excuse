@@ -2,13 +2,13 @@ import type { AccountRow } from '@excuse/db'
 import type { AuthCurrentUserResponse, AuthResponse, AuthUser, ForgotPasswordResponse, MutationOkResponse, ResetPasswordResponse } from '@excuse/shared'
 import type { ServerConfig } from '../config'
 import { consumePasswordResetToken, createAccount, createPasswordResetToken, creditBalance, getAccountByEmail, getAccountById, getAccountByUsername, getOrCreateCreditAccount, updateLastLoginAt } from '@excuse/db'
+import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 import { logger } from '@excuse/shared'
 import { Elysia, t } from 'elysia'
 import { AUTH_COOKIE_NAME, createAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
 import { sendPasswordResetEmail } from '../services/email'
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitError, UnauthorizedError, ValidationError } from '../utils/app-errors'
-import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
 
 /**
  * 从账户行中剥离密码哈希并序列化 Date→string，返回 AuthUser DTO
@@ -300,7 +300,19 @@ export function createAuthRoutes(config: ServerConfig) {
     })
 
     // ── 重置密码 ────────────────────────────────────────────────────────────
-    .post('/reset-password', async ({ body }) => {
+    .post('/reset-password', async ({ body, request }) => {
+      // 专项限流 — per-IP 10 次/小时（防止 token 爆破 + DoS）
+      const clientIP = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? ''
+      const ipDecision = passwordResetIPLimiter.check({
+        userId: `ip:${clientIP}`,
+        category: 'reset-password',
+        maxRequests: PASSWORD_RESET_IP_MAX,
+        windowMs: PASSWORD_RESET_IP_WINDOW_MS,
+      })
+      if (!ipDecision.allowed) {
+        throw new RateLimitError(`密码重置请求过于频繁，请 ${ipDecision.retryAfterSec} 秒后重试`, ipDecision.retryAfterSec)
+      }
+
       const { token, password } = body
 
       if (password.length < 6) {

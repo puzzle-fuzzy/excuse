@@ -252,9 +252,9 @@ function CanvasFlowInner(props: {
       if (timer)
         clearTimeout(timer)
     }
-    // 依赖 nodes：第一 useEffect 设 nodes 后会重跑，有机会捕获测量值
-    // eslint-disable-next-line react/exhaustive-deps
-  }, [nodes, getNodes, getEdges])
+    // 依赖 nodes：第一 useEffect 设 nodes 后会重跑，有机会捕获测量值。
+    // setNodes / fitView / getNodes / getEdges 均来自 ReactFlow，引用稳定。
+  }, [nodes, getNodes, getEdges, setNodes, fitView])
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     onNodeClick?.(node.id, node.type ?? '')

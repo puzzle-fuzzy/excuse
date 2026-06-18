@@ -1,6 +1,5 @@
 import type { AssetLibraryItem, AssetLibraryKind, AssetLibrarySort, AssetLibrarySource, AssetLibraryStatusFilter, AssetTagDTO, ProjectDTO } from '@excuse/shared'
 import type { AssetLibraryFilters } from '@/lib/asset-library'
-import { assetQueryKeys } from '@/api/query-client'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AudioLines,
@@ -42,6 +41,7 @@ import {
   unassignAssetTag,
 } from '@/api/asset-library'
 import { deleteUploadedFile, listCanvasProjects, updateUploadedFile } from '@/api/client'
+import { assetQueryKeys } from '@/api/query-client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

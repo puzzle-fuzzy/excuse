@@ -6,10 +6,10 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { PasswordInput } from '../components/PasswordInput'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { PasswordInput } from '../components/PasswordInput'
 import { registerSchema } from '../lib/form-schemas'
 
 export default function Register() {

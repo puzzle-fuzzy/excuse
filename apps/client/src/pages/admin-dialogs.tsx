@@ -4,6 +4,7 @@ import { Ban, Coins, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { adminCreditAdd, adminTasksQueryKeys, adminUserApiKeysQueryKeys, fetchAdminTaskDetail, fetchAdminUserApiKeys, fetchAdminUserDetail } from '@/api/admin'
+import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -414,7 +415,7 @@ export function AdminUserApiKeysSection({ userId }: { userId: string | null }) {
 
 export function AdminUserDetailDialog({ userId, onClose }: { userId: string | null, onClose: () => void }) {
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'users', 'detail', userId],
+    queryKey: adminQueryKeys.users.detail(userId!),
     queryFn: () => fetchAdminUserDetail(userId!),
     enabled: !!userId,
   })
@@ -434,8 +435,8 @@ export function AdminUserDetailDialog({ userId, onClose }: { userId: string | nu
       setRechargeOpen(false)
       setRechargeAmount('')
       setRechargeDesc('')
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'detail', userId] })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'list'] })
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.users.detail(userId!) })
+      queryClient.invalidateQueries({ queryKey: adminQueryKeys.users.list })
     },
     onError: (err: Error) => {
       toast.error(err.message)

@@ -65,11 +65,11 @@ export const api = treaty<App>(resolveApiBaseUrl())
 
 // ===== 导出共享类型 =====
 
-export type { ModelConfig, ModelParameter } from '@excuse/shared'
-export type { AcceptedResponse, GenerateResponse, GenerationRecord } from '@excuse/shared'
-export type { AdminOverview, AdminTaskItem, AdminTaskListQuery } from '@excuse/shared'
-export type { AssetLibraryItem, AssetLibraryKind, AssetLibraryListResponse, AssetLibraryQuery, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
-export type { BillingStatistics } from '@excuse/shared'
+export * from './admin'
+export * from './api-keys'
+export * from './asset-api'
+export * from './auth-api'
+export * from './canvas-api'
 export type CostDetail = GenerationRecord['cost']
 
 /**
@@ -161,10 +161,10 @@ export async function fetchGatewayUsage(params?: { days?: number, limit?: number
 
 // ===== Re-export 领域 API（向后兼容） =====
 
-export * from './admin'
-export * from './api-keys'
-export * from './asset-api'
-export * from './auth-api'
-export * from './canvas-api'
 export * from './generation-api'
 export * from './subtitle-api'
+export type { ModelConfig, ModelParameter } from '@excuse/shared'
+export type { AcceptedResponse, GenerateResponse, GenerationRecord } from '@excuse/shared'
+export type { AdminOverview, AdminTaskItem, AdminTaskListQuery } from '@excuse/shared'
+export type { AssetLibraryItem, AssetLibraryKind, AssetLibraryListResponse, AssetLibraryQuery, AssetLibrarySource, AssetLibraryStatusFilter } from '@excuse/shared'
+export type { BillingStatistics } from '@excuse/shared'

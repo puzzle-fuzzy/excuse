@@ -403,8 +403,8 @@ export default function PipelineController({
 
     setFailedPhaseIdx(-1)
     advanceAfterPhase(currentPhase)
-    // eslint-disable-next-line react/exhaustive-deps
-  }, [polledRuns, running, currentPhase])
+    // setXxx 为 useState setter（稳定）；advanceAfterPhase 已 useCallback；onPhaseComplete/onPhaseChange 为 props
+  }, [polledRuns, running, currentPhase, advanceAfterPhase, onPhaseComplete, onPhaseChange])
 
   // 暂停阶段确认 — 用户点击"确认继续"触发 PAUSE_BEFORE 阶段
   function handleConfirmPausePhase() {

@@ -27,7 +27,6 @@ import {
 } from '@excuse/gateway'
 import { getModelById, getModelsByCategory, validateAndMerge } from '@excuse/provider'
 import { Elysia, t } from 'elysia'
-import { assertGatewayMessagesWithinLimit } from '../utils/prompt-limits'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import {
   handleGatewayChatCompletion,
@@ -35,6 +34,7 @@ import {
 } from '../services/gateway-service'
 import { notifyApiKeyQuota } from '../services/notifications'
 import { throwOpenAIGatewayError } from '../utils/openai-gateway-error'
+import { assertGatewayMessagesWithinLimit } from '../utils/prompt-limits'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
 

@@ -6,9 +6,9 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useSearchParams } from 'react-router'
 import { resetPasswordRequest } from '../api/client'
+import { PasswordInput } from '../components/PasswordInput'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { PasswordInput } from '../components/PasswordInput'
 import { resetPasswordSchema } from '../lib/form-schemas'
 
 export default function ResetPassword() {

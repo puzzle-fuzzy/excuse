@@ -16,9 +16,9 @@ import {
   Users,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { adminQueryKeys } from '@/api/query-client'
-import { fetchAdminTasks } from '@/api/client'
 import { adminTasksQueryKeys, fetchAdminTaskDetail } from '@/api/admin'
+import { fetchAdminTasks } from '@/api/client'
+import { adminQueryKeys } from '@/api/query-client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'

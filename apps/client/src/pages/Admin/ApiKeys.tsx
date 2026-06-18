@@ -8,7 +8,6 @@ import { Ban, KeyRound, Pencil, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useDebounce } from 'use-debounce'
-import { adminQueryKeys } from '@/api/query-client'
 import {
   adminGatewayClientsQueryKeys,
   fetchAdminGatewayClientDetail,
@@ -17,6 +16,7 @@ import {
   resetApiKeyQuota,
   revokeApiKeyAdmin,
 } from '@/api/admin'
+import { adminQueryKeys } from '@/api/query-client'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
