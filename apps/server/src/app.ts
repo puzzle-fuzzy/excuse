@@ -23,6 +23,7 @@ import { errorHandlerPlugin } from './plugins/error-handler'
 import { loggerPlugin } from './plugins/logger'
 import { rateLimitPlugin } from './plugins/rate-limit'
 import { requestIdPlugin } from './plugins/request-id'
+import { securityHeadersPlugin } from './plugins/security-headers'
 import { createAdminRoutes } from './routes/admin'
 import { createApiKeyRoutes } from './routes/api-keys'
 import { createAssetTagRoutes } from './routes/asset-tags'
@@ -108,6 +109,7 @@ export function createElysiaApp(config: ServerConfig, ctx: ServerContext) {
       : new Elysia())
     .use(loggerPlugin)
     .use(requestIdPlugin)
+    .use(securityHeadersPlugin)
     .use(rateLimitPlugin)
     .use(cors({
       // 生产环境收敛到仅允许配置的前端域名，避免开发地址（localhost:8007）
