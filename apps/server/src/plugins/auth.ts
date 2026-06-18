@@ -13,7 +13,9 @@ import { UnauthorizedError } from '../utils/app-errors'
 import { errorHandlerPlugin } from './error-handler'
 
 /** httpOnly cookie 名称 */
-export const AUTH_COOKIE_NAME = 'auth_token'
+export const AUTH_COOKIE_NAME = process.env.NODE_ENV === 'production'
+  ? '__Host-auth_token'
+  : 'auth_token'
 
 /** API Key 元数据，供下游路由进行 scope/quota/rate-limit 检查 */
 export interface ApiKeyMeta {

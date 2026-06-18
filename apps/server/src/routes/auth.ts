@@ -27,7 +27,8 @@ const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
-  path: '/api',
+  // __Host- 前缀要求 Path: /；生产环境必须为 /，开发环境 /api 即可
+  path: process.env.NODE_ENV === 'production' ? '/' : '/api',
   maxAge: 7 * 24 * 3600,
 }
 
