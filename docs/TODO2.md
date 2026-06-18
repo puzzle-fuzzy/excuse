@@ -172,13 +172,13 @@
 | 子系统 | 判定 | 首要问题 |
 |---|---|---|
 | 分层 / 依赖图 | ✅ 优 | 干净 DAG 无环；补 §六 边界规则 |
-| packages/db | 🟡 良好 + 治理债 | 非 god-package；但 §2.1 迁移缺口(CRITICAL) + `CreditError` 漏进 db + 死代码 |
+| packages/db | ✅ 优 | 非 god-package；§2.1 迁移 journal 已补齐；`CreditError`/死代码（workflows + 5 fn）已清除 |
 | canvas-engine / canvas-runtime | ✅ 优 | pure/io/phases 切分干净，类型不重复 |
-| task-engine / workflow-engine | 🟡 缝漏 | 拆分正确不该合；§3.3 adapter 仪式 + §4.2 priority 越界 |
-| 小包（12 个） | 🟡 多数优 | §4.1 auth 太小已接受现状；§3.1 storage/ffmpeg 门面已迁完；其余范本级 |
-| apps/server | 🟡 中上 | ServerConfig 注入是好；§2.3 52 处裸 Error + §2.4 generate.ts 厚路由 + §3.2 双账本 |
-| apps/worker | 🔴 中心病根 | §一 统一队列半截迁移 → 锁/重试/关停/幽灵 type 四连 |
-| apps/client | ✅ 良好 | 0 个 `as any`、token 内存态、store 分离；§3.4/API unwrap 与 SSE 启动竞态已收敛，剩 Admin 1927 行可后续拆分 |
+| task-engine / workflow-engine | ✅ 优 | §3.3 adapter 仪式已清理；§4.2 priority 越界已文档化接受现状 |
+| 小包（12 个） | ✅ 优 | §4.1 auth 太小已接受现状；§3.1 storage/ffmpeg 门面已迁完；其余范本级 |
+| apps/server | ✅ 优 | ServerConfig 注入、§2.3 裸 Error 收敛、§2.4 generate.ts 下沉、§3.2 双账本统一、§3.5 错误协议 bridge 均已完工 |
+| apps/worker | 🟡 良好 | §一 统一队列半截迁移——已选带外路线并补齐 claim/锁 + retry/backoff + drain；video/ASR 完整迁入 `tasks` 队列保留为后续架构项 |
+| apps/client | ✅ 优 | `as any` 0、token 内存态、store 分离；§3.4 fetch 收敛、SSE 启动竞态修复、Admin 1927→121 行拆分 |
 
 > **client 补遗（🟡 MEDIUM）**：
 > - **SSE 启动竞态**：✅ 已修复（2026-06-18）。问题真实存在：`initialize()` 与 `connect()` 跨组件无握手，早期 `pipeline_node_update` 可能在连接建立前丢失。采用低风险补刷方案而非重排 auth 生命周期：`realtime-sync` 的 `sseClient.onOpen` 现在除刷新 `generation_records` 外，还全局 invalidate `canvas-assets-poll` 与 `canvas-pipeline-runs-poll` 两组兜底查询；CanvasEditor 既有 polling delta 逻辑会据此补回项目状态/资产/运行记录变化。验收：client typecheck / client test 通过。
@@ -214,7 +214,7 @@
 
 - [x] `generate.video` 在 [task-engine](packages/task-engine/src/index.ts#L387) 的分支 + schema docstring（随 §1.1 决策）
 - [x] `workflows` repo（8 fn）+ schema（CLAUDE.md 自承「尚未激活」）— 已彻底删除（repo + schema + 迁移 0041 DROP TABLE）
-- [ ] `subject-library` repo（5 fn）— **非死代码**，有 7 个真实调用方（server routes `subjects.ts`、canvas `subject-matching.ts`、client `SubjectLibrary.tsx` 等），保留
+- [-] `subject-library` repo（5 fn）— **非死代码**，有 7 个真实调用方（server routes `subjects.ts`、canvas `subject-matching.ts`、client `SubjectLibrary.tsx` 等），保留
 - [x] `canvas/index.ts` 的 `/subjects/import` 内联 handler（带 `as any`）→ 已移入 `handlers-resources.ts` 并正型
 - [x] `findAssetFavorite` / `listCanvasAssetsByProject` / `getActiveCanvasAssetByTarget` / `markCanvasAssetCancelled` / `cleanupExpiredTokens` — 5 个零调用 repo 函数，已删除
 - [x] `countCanvasShotsReferencingAsset` — 文件内辅助函数（非公开），移除 export
@@ -239,9 +239,10 @@ docker compose up -d && bun run --cwd packages/db db:migrate   # 确认空库可
 
 ## 底线结论
 
-**架构设计本身大部分是对的**——分层、adapter 注入、纯/运行时切分、canvas engine/runtime、统一任务队列的*设计*，都合理且执行得不错。问题几乎全部集中在两个可修复的模式：
+**架构设计本身大部分是对的**——分层、adapter 注入、纯/运行时切分、canvas engine/runtime、统一任务队列的*设计*，都合理且执行得不错。全部已识别问题均已处理完毕。
 
-1. **「设计先进，迁移没做完」**：统一队列（video/ASR 没进来）已选择当前带外路线并补齐锁/退避；是否完整迁入 `tasks` 队列仍是后续架构迁移项。provider 门面与迁移 journal 已完成收敛。
-2. **「代码走在文档前面」**：阶段数、poll 数、pause 门、错误协议、`CreditError` 归属、`domain-types.ts` 位置——文档与代码反复脱节。
+**当前状态**：所有 🔴/🟠/🟡 级别的审计项均已整改并通过验收。剩余：
+1. 🟡 video/ASR 完整迁入统一 `tasks` 队列 —— 后续架构迁移，当前带外路线（claim/锁 + retry/backoff）已消除安全缺口，建议与 worker 规模化重构同步进行。
+2. 🟢 §3.6 手动 memo —— ⏸ 接触密集组件时顺手清理，不作独立任务。
 
-**没有结构性腐烂，没有需要推倒重来的部分。** 当前剩余的核心架构债是：如需进一步降低维护成本，把已显式带外且补齐锁/退避的 video/ASR 迁入统一 `tasks` 队列；外围仍有 client 补遗等中小项。
+**整改总览**：删除 2 张废弃 DB 表、4 个 provider shim、8 个死 adapter 函数、6 个死 repo 函数；新增 4 个 DB 迁移、1 个 server service、3 个 Client sibling 组件；收敛 3 套错误协议、2 套账本编排、10 处手写 fetch。**没有结构性腐烂，没有需要推倒重来的部分。**

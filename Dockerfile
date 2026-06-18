@@ -17,13 +17,13 @@ FROM oven/bun:1.3 AS runtime-deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY tsconfig.json bunfig.toml ./
-# Copy only package.json from each workspace — sufficient for bun install
-COPY apps/*/package.json apps/
-COPY packages/*/package.json packages/
-# 注意：不传 --frozen-lockfile，因为 --production 模式下依赖解析树与完整 lockfile
-# 不同（只装 dependencies，跳过 devDependencies），加该 flag 会误报变更。
-# CI 其他 job（typecheck / build / test）已验证 lockfile 有效性。
-RUN bun install --production --no-frozen-lockfile
+# Copy package.json for EACH workspace preserving directory structure.
+# 不能写 COPY apps/*/package.json apps/ —— Docker 会把通配符匹配的文件
+# 平铺到目标目录（apps/server/package.json → apps/package.json），
+# 导致 bun 找不到 workspace 子包（@excuse/shared 等）的 package.json。
+COPY apps apps/
+COPY packages packages/
+RUN bun install --frozen-lockfile && rm -rf node_modules && rm bun.lock && bun install --production
 
 # ==========================================
 # Stage 3: Server runtime
