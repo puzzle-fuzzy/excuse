@@ -7,13 +7,13 @@
     ".": "./src/index.ts"
   },
   "module": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "@excuse/error-recovery": "workspace:*",
     "@excuse/shared": "workspace:*",
     "zod": "^4.4.3"
-  },
-  "scripts": {
-    "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

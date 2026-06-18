@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Skeleton } from '../components/ui/skeleton'
+import { clientLogger } from '../lib/client-logger'
 import { clearDraft, guardBeforeUnload, loadDraft, saveDraft } from '../lib/draft-storage'
 import { loadCanvasModelDefaults } from '../lib/model-lab-presets'
 import { CANVAS_PROJECT_STATUS_TONES, statusBadgeClass } from '../lib/status-tokens'
@@ -94,7 +95,7 @@ export default function Canvas() {
         }
       }
       catch (err) {
-        console.warn('Failed to apply Model Lab defaults to new canvas project:', err)
+        clientLogger.warn(`Failed to apply Model Lab defaults to new canvas project: ${String(err)}`, { route: 'Canvas', action: 'createProject' })
       }
 
       navigate(`/canvas/${projectId}`)

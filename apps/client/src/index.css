@@ -173,10 +173,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    text-rendering: geometricPrecision;
   }
   html {
     @apply font-sans;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary), transparent 78%);
   }
 }
 
@@ -199,6 +203,27 @@
 
   .brand-auth-shell {
     background-image: var(--gradient-brand-soft);
+  }
+
+  .product-page {
+    @apply mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8;
+  }
+
+  .product-panel {
+    @apply rounded-xl border bg-card;
+  }
+
+  .product-panel-muted {
+    @apply rounded-xl border bg-muted/35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

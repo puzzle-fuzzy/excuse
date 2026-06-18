@@ -29,7 +29,7 @@ export interface BootstrapServerResult {
  *
  * @param app — Elysia 实例（接受具体泛型，避免与 createElysiaApp 返回类型不兼容）
  */
-// eslint-disable-next-line ts/no-unsafe-function-type
+
 export function bootstrapServer(
   config: ServerConfig,
   app: { listen: (port: number, cb?: () => void) => unknown, stop: () => Promise<unknown>, server?: { hostname?: string, port?: number } | null },

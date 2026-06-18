@@ -7,12 +7,12 @@
     ".": "./src/index.ts"
   },
   "module": "src/index.ts",
-  "dependencies": {
-    "@excuse/shared": "workspace:*",
-    "zod": "^4.4.3"
-  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@excuse/shared": "workspace:*",
+    "zod": "^4.4.3"
   }
 }

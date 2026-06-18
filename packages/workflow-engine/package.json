@@ -7,12 +7,12 @@
     ".": "./src/index.ts"
   },
   "module": "src/index.ts",
-  "dependencies": {
-    "@excuse/shared": "workspace:*",
-    "@excuse/task-engine": "workspace:*"
-  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@excuse/shared": "workspace:*",
+    "@excuse/task-engine": "workspace:*"
   }
 }

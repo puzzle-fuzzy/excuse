@@ -7,6 +7,10 @@
     ".": "./src/index.ts"
   },
   "module": "src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
   "dependencies": {
     "@excuse/billing": "workspace:*",
     "@excuse/canvas-engine": "workspace:*",
@@ -16,9 +20,5 @@
     "@excuse/provider": "workspace:*",
     "@excuse/shared": "workspace:*",
     "@excuse/storage": "workspace:*"
-  },
-  "scripts": {
-    "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

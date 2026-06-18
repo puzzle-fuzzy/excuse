@@ -7,6 +7,7 @@ import {
   generate,
   uploadFile,
 } from '@/api/client'
+import { clientLogger } from '@/lib/client-logger'
 import { buildInitialParameters, checkCanGenerate } from '@/lib/generation-form-utils'
 import { handleApiError } from '@/lib/utils'
 
@@ -153,7 +154,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
     catch (err) {
       toast.error('参考文件上传失败，请重试')
-      console.error('uploadReferenceFiles failed:', err)
+      clientLogger.error(`uploadReferenceFiles failed: ${String(err)}`, { route: 'Workspace', action: 'upload' })
     }
     finally {
       set({ uploadingRefs: false })
@@ -186,7 +187,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       }
       catch (err) {
         toast.error('媒体文件上传失败，请重试')
-        console.error('uploadMediaParam failed:', err)
+        clientLogger.error(`uploadMediaParam failed: ${String(err)}`, { route: 'Workspace', action: 'upload' })
         get().setMediaUploadEntry(paramName, { uploading: false })
       }
     }

@@ -8,7 +8,7 @@
  * 可通过环境变量 RUN_DB_TESTS=1 启用 DB 测试。
  */
 
-import { readdirSync, existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 默认跳过的包（需外部服务） */

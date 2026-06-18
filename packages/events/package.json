@@ -7,11 +7,11 @@
     ".": "./src/index.ts"
   },
   "module": "src/index.ts",
-  "dependencies": {
-    "@excuse/shared": "workspace:*"
-  },
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@excuse/shared": "workspace:*"
   }
 }

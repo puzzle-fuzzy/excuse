@@ -1,6 +1,7 @@
 import type { SSEGenerationStatusEvent, SSENotificationEvent, SSEPipelineNodeEvent } from '@excuse/shared'
 import { parseSSEGenerationStatusEvent, parseSSENotificationEvent, parseSSEPipelineNodeEvent } from '@excuse/shared'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { clientLogger } from '../lib/client-logger'
 import { getAuthToken, resolveApiBaseUrl, setAuthToken } from './client'
 
 /**
@@ -99,7 +100,7 @@ class SSEClient {
           this.cleanupConnection()
           // 401/403: 清理登录态，防止后续请求继续使用失效 token
           setAuthToken(null)
-          console.warn('[SSE] Authentication failed, clearing auth state and stopping reconnect')
+          clientLogger.warn('Authentication failed, clearing auth state and stopping reconnect', { route: 'SSE', action: 'connect' })
           throw err
         }
 
@@ -120,7 +121,7 @@ class SSEClient {
               cb()
             }
             catch (e) {
-              console.error('[SSE] onClose callback error:', e)
+              clientLogger.error(`onClose callback error: ${(e as Error).message}`, { route: 'SSE', action: 'close' })
             }
           }
           throw new FatalError('Max SSE reconnect attempts reached')
@@ -137,7 +138,7 @@ class SSEClient {
     }).catch((err) => {
       this.cleanupConnection()
       if (!this.intentionallyClosed && !(err instanceof UnauthorizedError) && !(err instanceof FatalError && err.message === 'Max SSE reconnect attempts reached')) {
-        console.warn('[SSE] Connection closed:', err)
+        clientLogger.warn(`Connection closed: ${err}`, { route: 'SSE', action: 'close' })
         this.scheduleReconnect()
       }
     }).finally(() => {
@@ -186,7 +187,7 @@ class SSEClient {
         cb()
       }
       catch (err) {
-        console.error('[SSE] onOpen callback error:', err)
+        clientLogger.error(`onOpen callback error: ${(err as Error).message}`, { route: 'SSE', action: 'open' })
       }
     }
   }
@@ -222,7 +223,7 @@ class SSEClient {
       parsed = JSON.parse(data)
     }
     catch {
-      console.error(`[SSE] Invalid JSON for ${event} event`)
+      clientLogger.error(`Invalid JSON for ${event} event`, { route: 'SSE', action: 'parse' })
       return
     }
 
@@ -232,7 +233,7 @@ class SSEClient {
         if (evt)
           this.emit('generation_status', evt)
         else
-          console.warn('[SSE] Discarded malformed generation_status event:', parsed)
+          clientLogger.warn('Discarded malformed generation_status event', { route: 'SSE', action: 'parse', extra: { event: 'generation_status' } })
         break
       }
       case 'pipeline_node_update': {
@@ -240,7 +241,7 @@ class SSEClient {
         if (evt)
           this.emit('pipeline_node_update', evt)
         else
-          console.warn('[SSE] Discarded malformed pipeline_node_update event:', parsed)
+          clientLogger.warn('Discarded malformed pipeline_node_update event', { route: 'SSE', action: 'parse', extra: { event: 'pipeline_node_update' } })
         break
       }
       case 'notification': {
@@ -248,7 +249,7 @@ class SSEClient {
         if (evt)
           this.emit('notification', evt)
         else
-          console.warn('[SSE] Discarded malformed notification event:', parsed)
+          clientLogger.warn('Discarded malformed notification event', { route: 'SSE', action: 'parse', extra: { event: 'notification' } })
         break
       }
       case 'heartbeat':
@@ -273,7 +274,7 @@ class SSEClient {
         handler(data)
       }
       catch (err) {
-        console.error(`[SSE] Handler error for event "${event}":`, err)
+        clientLogger.error(`Handler error for event "${event}": ${(err as Error).message}`, { route: 'SSE', action: 'handler' })
       }
     }
   }
@@ -290,14 +291,14 @@ class SSEClient {
 
     // 超过最大重连次数 → 通知上层切换到 polling mode
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.warn(`[SSE] Max reconnect attempts (${this.maxReconnectAttempts}) reached, switching to polling mode`)
+      clientLogger.warn(`Max reconnect attempts (${this.maxReconnectAttempts}) reached, switching to polling mode`, { route: 'SSE', action: 'reconnect' })
       this.reconnectAttempts = 0
       for (const cb of this.closeCallbacks) {
         try {
           cb()
         }
         catch (err) {
-          console.error('[SSE] onClose callback error:', err)
+          clientLogger.error(`onClose callback error: ${(err as Error).message}`, { route: 'SSE', action: 'close' })
         }
       }
       return

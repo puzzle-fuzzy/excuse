@@ -1,4 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
+import { clientLogger } from '../lib/client-logger'
 import { reportClientError } from '../lib/error-report'
 import { handleApiError } from '../lib/utils'
 
@@ -8,8 +9,7 @@ export const queryClient = new QueryClient({
     // 不弹 toast——避免后台 refetch 抖动时刷屏。401/403 由 unwrapEden 接管。
     onError: (error, query) => {
       reportClientError(error)
-      // 仅记录非手动 invalidate 触发的失败，附 query key 便于定位
-      console.warn('[query error]', query.queryKey, error)
+      clientLogger.warn('Query error', { route: 'API', action: 'query', extra: { queryKey: String(query.queryKey), error: String(error) } })
     },
   }),
   mutationCache: new MutationCache({
