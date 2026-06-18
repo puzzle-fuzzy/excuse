@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### 收尾轮次：代码提交 + 测试修复（2026-06-19）
+
+之前多个 TODO 条目的实现代码留存在工作树中未提交（CHANGELOG 已记录但文件未入库）。本轮将所有改动按逻辑分组提交入 Git：
+
+- **commit `b23cbad0`**: 修复 2 个测试失败 — audit-routes.test.ts 的 `mockResetToPending` 返回空值导致 retry 路由 early return 跳过 audit 调用；assets-page.test.tsx 星标按钮 CSS 变量适配（`fill-yellow-400` → `status-warning-fg`）
+- **commit `505c83fb`**: §1.1 骨架屏 + §1.2 空状态 + §4.5 ParameterInput/ReferenceImageUploader/Admin 分页去重（5 个新文件 + 11 个修改文件）
+- **commit `6908297b`**: §4.2 dashscope 拆四模块 + §4.4 gateway 拆分 + §3.3 task-engine 去耦 + §3.4 配置表式化 + §5.2 错误脱敏 + §4.5 状态集合收敛（6 个新文件 + 12 个修改文件）
+- **commit `cafd093e`**: 归档删除 `docs/TODO2.md`（全部架构审计项已完成）
+- 验收通过：typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 551/551 ✅ · test:client 376/376 ✅
+
 ### P2 治理 + 去重轮次 #4（2026-06-19）
 
 #### 大文件拆分（§4.3）

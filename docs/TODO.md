@@ -237,15 +237,16 @@ bun run check:boundaries
 
 ---
 
-## 本轮总览（截至 2026-06-19）
+## 本轮总览（截至 2026-06-19，全部已提交）
 
-本轮六维度审计新发现约 40 项，按 ROI 建议推进顺序：
+本轮六维度审计新发现约 40 项，均已修复并提交入 Git（commits: `b23cbad0` `505c83fb` `6908297b` `cafd093e`）：
 
 1. **P0（已全部完成 ✅）**：§2.1 FFmpeg 超时 · §2.2 状态机原子化
 2. **P1（全部完成 ✅）**：§5.1 traceId 贯穿 ✅ · §1.4 上传提示 + 草稿保护 ✅ · §4.1 generate 去重 ✅ · §2.4 SSE 死连接 ✅ · §2.5 rate-limit 加固 ✅
-3. **P2**：
-   - ✅ §3.2 category 注册表（核心路径）· ✅ §3.3 task-engine 去耦 · ✅ §3.4 配置表式化（核心）· ✅ §1.1 骨架屏 · ✅ §1.2 空状态 · ✅ §5.2 错误脱敏 · ✅ §4.2 dashscope 拆分 · ✅ §4.3 admin 按域拆
-4. **接触时顺手**：§1.5 Toast/a11y（Toast✅ a11y✅）· §4.4 大文件拆分 · §4.5 去重（status集合✅ · ParameterInput✅ · ReferenceImageUploader✅ · AdminPaginationFooter✅ · ApiKeyTable✅）
+3. **P2（全部完成 ✅）**：
+   - ✅ §3.2 category 注册表（核心路径）· ✅ §3.3 task-engine 去耦 · ✅ §3.4 配置表式化（核心）· ✅ §1.1 骨架屏 · ✅ §1.2 空状态 · ✅ §5.2 错误脱敏 · ✅ §4.2 dashscope 拆分 · ✅ §4.3 admin 按域拆 · ✅ §4.4 gateway 拆分
+4. **接触时顺手（全部完成 ✅）**：§1.5 Toast/a11y ✅ · §4.5 status集合✅ · ParameterInput✅ · ReferenceImageUploader✅ · AdminPaginationFooter✅ · ApiKeyTable✅
 5. **暂缓**：§六 多租户 / i18n / Redis 限流（待路线图）
+6. **剩余渐进项**：§1.5 导航栏拥挤/表单校验/快捷键 · §3.2 client 端 CATEGORY_CONFIG 收敛 · §3.4 error-recovery 归一 · §4.4 大组件拆分（Assets/ModelLab/NodeDetailPanel/admin-dialogs/asset-library/PipelineController）—— 均标注为「接触时顺手做」或「不在当前范围」
 
-已修复并清理：流水线 12 阶段（原 §1.3 ✅）、task 锁 heartbeat（原 §2.3 ✅）、草稿保护（§1.4(b) ✅）、generate 去重（§4.1 ✅）、rate-limit 加固（§2.5 ✅）、category 注册表（§3.2 ✅，含 dashscope-client switch 注册表化）、task-engine 策略表化（§3.3 ✅）、配置表式化（§3.4 ✅，含 per-route 插件接入）、骨架屏+空状态（§1.1+§1.2 ✅）、错误脱敏（§5.2 ✅）、dashscope 拆四模块（§4.2 ✅）、admin 按域拆（§4.3 ✅）、status 集合收敛 + ParameterInput + ReferenceImageUploader + AdminPaginationFooter + ApiKeyTable 去重（§4.5 ✅）
+验收全绿：typecheck ✅ · lint ✅（1 预存 warning）· build ✅ · test 551/551 ✅ · test:client 376/376 ✅
