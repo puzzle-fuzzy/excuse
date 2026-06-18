@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### P1-4: 拆分前端大页面 ModelLab.tsx（2026-06-19）
+
+- **commit `25ed1061`**: 提取 `useModelLabModels` hook（99 行），ModelLab.tsx 从 810 降至 781 行。hook 可独立单测。
+
 ### P2-8: 测试覆盖升级 — 补齐关键模块测试（2026-06-19）
 
 - **commit `b52800f0`**: 新增 `packages/shared/test/env-helpers.test.ts`（132 tests，覆盖 parsePositiveIntEnv/parseProviderConfig/parseMetricsConfig/parseProviderTimeoutConfig/parseStorageConfig/validateProductionBase）和 `apps/server/test/bootstrap.test.ts`（3 tests，覆盖 start/stop/幂等）。验收: test 554/56/376 ✅。
