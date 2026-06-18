@@ -1,4 +1,3 @@
-import type { OSSConfig } from '@excuse/provider'
 import type { CanvasModelPreferences } from '@excuse/shared'
 import { getCanvasVideoModel } from '@excuse/canvas-runtime'
 import {
@@ -88,4 +87,4 @@ export async function reconcileProjectShots(projectId: string) {
   }
 }
 
-export type { OSSConfig }
+export type { OSSConfig } from '@excuse/storage'

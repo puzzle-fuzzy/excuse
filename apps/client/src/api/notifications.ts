@@ -1,7 +1,12 @@
-import type { NotificationDTO } from '@excuse/shared'
-import { api } from './client'
+import type {
+  MutationOkResponse,
+  NotificationDTO,
+  NotificationListResponse,
+  NotificationReadAllResponse,
+  NotificationUnreadCountResponse,
+} from '@excuse/shared'
+import { api, unwrapEden } from './client'
 
-/** NotificationDTO 去掉 accountId — SSE 事件不下发 accountId，展示也不需要 */
 export type NotificationItem = Omit<NotificationDTO, 'accountId'>
 
 function toNotificationItem(row: NotificationDTO): NotificationItem {
@@ -10,31 +15,18 @@ function toNotificationItem(row: NotificationDTO): NotificationItem {
 }
 
 export async function fetchNotifications(): Promise<NotificationItem[]> {
-  const res = await api.api.notifications.get()
-  const data = res.data as { success: true, items: NotificationDTO[], total: number } | { success: false, error: string } | undefined
-  if (!data?.success)
-    throw new Error('获取通知列表失败')
+  const data = unwrapEden<NotificationListResponse>(await api.api.notifications.get())
   return data.items.map(toNotificationItem)
 }
 
 export async function fetchNotificationUnreadCount(): Promise<number> {
-  const res = await api.api.notifications.unread.get()
-  const data = res.data as { success: true, data: { count: number } } | { success: false, error: string } | undefined
-  if (!data?.success)
-    throw new Error('获取未读数失败')
-  return data.data.count
+  return unwrapEden<NotificationUnreadCountResponse>(await api.api.notifications.unread.get()).data.count
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  const res = await api.api.notifications({ id }).read.patch()
-  const data = res.data
-  if (!data?.success)
-    throw new Error('标记通知已读失败')
+  unwrapEden<MutationOkResponse>(await api.api.notifications({ id }).read.patch())
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  const res = await api.api.notifications['read-all'].post()
-  const data = res.data
-  if (!data?.success)
-    throw new Error('全部标记已读失败')
+  unwrapEden<NotificationReadAllResponse>(await api.api.notifications['read-all'].post())
 }

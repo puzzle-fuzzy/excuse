@@ -1,3 +1,4 @@
+import type { OpenAIGatewayError } from '@excuse/gateway'
 import type { ValidatedModelParameters } from '@excuse/provider'
 import type { ModelConfig, OpenAIChatRequest } from '@excuse/shared'
 import type { ServerConfig } from '../config'
@@ -32,6 +33,7 @@ import {
   handleGatewayStreamChatCompletion,
 } from '../services/gateway-service'
 import { notifyApiKeyQuota } from '../services/notifications'
+import { throwOpenAIGatewayError } from '../utils/openai-gateway-error'
 
 const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
 
@@ -39,10 +41,9 @@ const ALLOWED_API_KEY_SCOPES = ['all', 'gateway']
  * 检查 API Key 是否有权限访问 Gateway。
  * 返回错误响应对象（含 status + response）或 null（允许通过）。
  */
-function checkApiKeyGatewayAccess(apiKeyMeta: ApiKeyMeta): { status: number, response: Record<string, unknown> } | null {
+function checkApiKeyGatewayAccess(apiKeyMeta: ApiKeyMeta): OpenAIGatewayError | null {
   if (!ALLOWED_API_KEY_SCOPES.includes(apiKeyMeta.scope)) {
-    const err = apiKeyScopeNotAllowedError()
-    return { status: err.status, response: err.response as unknown as Record<string, unknown> }
+    return apiKeyScopeNotAllowedError()
   }
   return null
 }
@@ -51,15 +52,14 @@ function checkApiKeyGatewayAccess(apiKeyMeta: ApiKeyMeta): { status: number, res
  * 检查 API Key 是否超出额度。
  * 返回错误响应对象或 null（允许通过）。
  */
-async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<{ status: number, response: Record<string, unknown> } | null> {
+async function checkApiKeyQuota(apiKeyMeta: ApiKeyMeta): Promise<OpenAIGatewayError | null> {
   if (apiKeyMeta.quotaMaxCents === null)
     return null
   // 先尝试重置到期额度
   await checkAndResetApiKeyQuota(apiKeyMeta.id)
   const exceeded = await isApiKeyQuotaExceeded(apiKeyMeta.id)
   if (exceeded) {
-    const err = apiKeyQuotaExceededError()
-    return { status: err.status, response: err.response as unknown as Record<string, unknown> }
+    return apiKeyQuotaExceededError()
   }
   return null
 }
@@ -153,15 +153,14 @@ export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerConte
 
   return new Elysia({ prefix: '/v1' })
     .use(createRequireAuthPlugin(config))
-    .post('/chat/completions', async ({ body, userId, set, authMethod, apiKeyMeta }) => {
+    .post('/chat/completions', async ({ body, userId, authMethod, apiKeyMeta }) => {
       const request = body as OpenAIChatRequest
 
       // API Key scope 检查
       if (authMethod === 'api_key' && apiKeyMeta) {
         const accessErr = checkApiKeyGatewayAccess(apiKeyMeta)
         if (accessErr) {
-          set.status = accessErr.status
-          return accessErr.response
+          throwOpenAIGatewayError(accessErr)
         }
         const quotaErr = await checkApiKeyQuota(apiKeyMeta)
         if (quotaErr) {
@@ -171,38 +170,30 @@ export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerConte
             totalSpendCents: apiKeyMeta.totalSpendCents,
             quotaMaxCents: apiKeyMeta.quotaMaxCents,
           }).catch(() => {})
-          set.status = quotaErr.status
-          return quotaErr.response
+          throwOpenAIGatewayError(quotaErr)
         }
       }
 
       const normalized = normalizeOpenAIChatRequest(request)
       if (isOpenAIGatewayError(normalized)) {
-        set.status = normalized.status
-        return normalized.response
+        throwOpenAIGatewayError(normalized)
       }
 
       // 模型名解析（别名 → 内部 ID）
       const modelConfig = getModelById(normalized.internalModelId)
       if (!modelConfig) {
-        const err = modelNotFoundError(request.model)
-        set.status = err.status
-        return err.response
+        throwOpenAIGatewayError(modelNotFoundError(request.model))
       }
 
       // 仅支持文本模型
       if (modelConfig.category !== 'text') {
-        const err = invalidModelError(request.model)
-        set.status = err.status
-        return err.response
+        throwOpenAIGatewayError(invalidModelError(request.model))
       }
 
       // 参数校验 + 合并默认值
       const validationResult = validateAndMerge(modelConfig, normalized.parameters)
       if (!validationResult.ok) {
-        const err = invalidParametersError(validationResult.errors)
-        set.status = err.status
-        return err.response
+        throwOpenAIGatewayError(invalidParametersError(validationResult.errors))
       }
       const validatedParams = validationResult.params
 
@@ -234,8 +225,10 @@ export function createOpenAIGatewayRoutes(config: ServerConfig, ctx: ServerConte
       })
 
       if (!result.success) {
-        set.status = result.status
-        return result.response
+        throwOpenAIGatewayError({
+          status: result.status,
+          response: result.response as unknown as OpenAIGatewayError['response'],
+        })
       }
 
       return createOpenAIChatResponse({

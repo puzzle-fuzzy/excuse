@@ -5,8 +5,9 @@
  */
 
 import type { CanvasAssetOutput } from '@excuse/db'
-import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { DashScopeClient } from '@excuse/provider'
 import type { ModelConfig } from '@excuse/shared'
+import type { AssetStorage } from '@excuse/storage'
 import {
   createCanvasAsset,
   markCanvasAssetFailed,

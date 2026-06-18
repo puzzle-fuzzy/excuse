@@ -50,7 +50,7 @@ export const tasks = pgTable('tasks', {
   accountId: uuid('account_id').references(() => accounts.id).notNull(),
 
   // ── 任务定义 ──────────────────────────────────────
-  /** 任务类型标识（如 'canvas.analyze', 'generate.video'） */
+  /** 任务类型标识（如 'canvas.analyze', 'media.extract-audio'） */
   type: varchar('type', { length: 100 }).notNull(),
   /** 业务域 */
   domain: taskDomainEnum('domain').notNull(),

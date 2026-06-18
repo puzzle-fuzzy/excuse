@@ -1,5 +1,6 @@
 import type { CanvasEntityPatch, SSEGenerationStatusEvent, SSENotificationEvent, SSEPipelineNodeEvent } from '@excuse/shared'
 import { create } from 'zustand'
+import { canvasAssetsPollingQueryKeys, canvasPipelineRunsQueryKeys, queryClient } from '@/api/query-client'
 import { sseClient } from '@/api/sse'
 import { handleNotificationSSEEvent } from '@/stores/notifications'
 import { useGenerationStore } from './generation'
@@ -107,8 +108,10 @@ export const useRealtimeSync = create<RealtimeSyncState>((set, get) => ({
     const unsubOpen = sseClient.onOpen(() => {
       // SSE 连接成功 → 恢复 sse 模式
       set({ connectionMode: 'sse' })
-      // 重连后刷新数据，补偿断连期间丢失的事件
+      // 首次连接/重连后刷新兜底快照，补偿连接建立前或断连期间丢失的事件。
       useGenerationStore.getState().fetchRecords()
+      queryClient.invalidateQueries({ queryKey: canvasAssetsPollingQueryKeys.all })
+      queryClient.invalidateQueries({ queryKey: canvasPipelineRunsQueryKeys.all })
     })
 
     const unsubClose = sseClient.onClose(() => {

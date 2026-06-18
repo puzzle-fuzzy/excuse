@@ -14,10 +14,12 @@
     "@excuse/billing": "workspace:*",
     "@excuse/canvas-runtime": "workspace:*",
     "@excuse/db": "workspace:*",
+    "@excuse/ffmpeg": "workspace:*",
     "@excuse/metrics": "workspace:*",
     "@excuse/provider": "workspace:*",
     "@excuse/provider-health": "workspace:*",
     "@excuse/shared": "workspace:*",
+    "@excuse/storage": "workspace:*",
     "@excuse/subtitle-engine": "workspace:*",
     "@excuse/task-engine": "workspace:*",
     "@excuse/workflow-engine": "workspace:*"

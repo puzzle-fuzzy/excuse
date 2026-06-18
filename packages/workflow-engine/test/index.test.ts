@@ -42,7 +42,7 @@ describe('@excuse/workflow-engine', () => {
     expect(phaseToTaskType('characters')).toBe('canvas.characters')
     expect(getCanvasPhaseFromTaskType('canvas.characters')).toBe('characters')
     expect(getCanvasPhaseFromTaskType('canvas.unknown')).toBeNull()
-    expect(getCanvasPhaseFromTaskType('generate.video')).toBeNull()
+    expect(getCanvasPhaseFromTaskType('media.extract-audio')).toBeNull()
   })
 
   it('存在下一阶段时返回下一阶段', () => {

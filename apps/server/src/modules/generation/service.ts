@@ -13,14 +13,13 @@
  *   4. 取消任务（cancelGeneration）— best-effort provider 取消 + DB 取消
  */
 import type { GenerationCategory, GenerationInputParams, GenerationRecordRow, OutputResult } from '@excuse/db'
-import type { AssetStorage, DashScopeClient, ValidatedModelParameters } from '@excuse/provider'
+import type { DashScopeClient, ValidatedModelParameters } from '@excuse/provider'
 import type { CostDetail, ModelConfig } from '@excuse/shared'
+import type { AssetStorage } from '@excuse/storage'
 import { calculateCost } from '@excuse/billing'
 import {
   cancelGenerationRecord,
   createGenerationRecord,
-  CreditError,
-  debitCredit,
   findGenerationByDedupeKeyForAccount,
   getGenerationRecordById,
   getUploadedFilesByIdsForAccount,
@@ -28,13 +27,11 @@ import {
   markGenerationProcessing,
   markGenerationSucceeded,
   notifyGenerationStatus,
-  refundCredit,
-  reserveCredit,
 } from '@excuse/db'
 import { extractBillingParams } from '@excuse/shared'
-import { audit } from '../../services/audit'
+import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from '../../services/billing-ledger'
 import { recordGenerationStatus } from '../../services/metrics'
-import { notifyInsufficientBalance, notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
+import { notifySyncTaskCompleted, notifySyncTaskFailed } from '../../services/notifications'
 import { BadRequestError } from '../../utils/app-errors'
 import { extractImageUrls, parseProviderOutput } from './output-parser'
 
@@ -61,6 +58,7 @@ export interface GenerationContext {
   inputParams: GenerationInputParams
   dedupeKey?: string
   estimatedCost: CostDetail
+  creditSource: 'generate' | 'retry'
 }
 
 /** 去重检查结果 */
@@ -143,6 +141,7 @@ export async function executeGeneration(
       recordId,
       estimatedCost: ctx.estimatedCost,
       description: `生成失败退款：${model}`,
+      source: ctx.creditSource,
     })
     await notifyGenerationStatus({
       accountId,
@@ -206,6 +205,7 @@ export async function executeGeneration(
     recordId,
     actualCost,
     description: `生成成功扣款：${model}`,
+    source: ctx.creditSource,
   })
   await notifyGenerationStatus({
     accountId,
@@ -261,6 +261,7 @@ export async function cancelGeneration(
     recordId,
     estimatedCost: record.cost,
     description: `生成取消退款：${record.model}`,
+    source: 'generate',
   })
   await notifyGenerationStatus({
     accountId,
@@ -307,34 +308,18 @@ export async function reserveGenerationCredit(opts: {
   if (opts.estimatedCost.totalPriceCents <= 0)
     return { ok: true }
 
-  try {
-    await reserveCredit({
-      accountId: opts.accountId,
-      generationRecordId: opts.recordId,
-      amountCents: opts.estimatedCost.totalPriceCents,
-      description: opts.description,
-    })
-    audit('credit_reserve', {
-      accountId: opts.accountId,
-      targetId: opts.recordId,
-      detail: {
-        accountId: opts.accountId,
-        generationRecordId: opts.recordId,
-        amountCents: opts.estimatedCost.totalPriceCents,
-        description: opts.description,
-        source: opts.source,
-      },
-    })
-    return { ok: true }
+  const reservation = await reserveAndTrack({
+    accountId: opts.accountId,
+    recordId: opts.recordId,
+    amountCents: opts.estimatedCost.totalPriceCents,
+    description: opts.description,
+    source: opts.source as 'generate' | 'retry',
+  })
+  if (!reservation.ok) {
+    await markGenerationFailed(opts.recordId, reservation.message)
+    return reservation
   }
-  catch (error) {
-    const message = error instanceof Error ? error.message : '余额不足，无法发起生成'
-    if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-      await notifyInsufficientBalance(opts.accountId).catch(() => {})
-    }
-    await markGenerationFailed(opts.recordId, message)
-    return { ok: false, reason: 'insufficient_balance', message }
-  }
+  return { ok: true }
 }
 
 /**
@@ -426,6 +411,7 @@ export async function prepareGeneration(input: {
       inputParams: input.inputParams,
       dedupeKey: input.dedupeKey,
       estimatedCost: input.estimatedCost,
+      creditSource: input.creditSource,
     },
   }
 }
@@ -435,14 +421,14 @@ async function debitReservedCredit(opts: {
   recordId: string
   actualCost: CostDetail
   description: string
+  source: 'generate' | 'retry'
 }) {
-  if (opts.actualCost.totalPriceCents <= 0)
-    return
-  await debitCredit({
+  await debitReservedAndTrack({
     accountId: opts.accountId,
-    generationRecordId: opts.recordId,
-    actualCents: opts.actualCost.totalPriceCents,
+    recordId: opts.recordId,
+    amountCents: opts.actualCost.totalPriceCents,
     description: opts.description,
+    source: opts.source,
   })
 }
 
@@ -451,12 +437,15 @@ async function refundReservedCredit(opts: {
   recordId: string
   estimatedCost: CostDetail | null
   description: string
+  source: 'generate' | 'retry'
 }) {
-  if (!opts.estimatedCost || opts.estimatedCost.totalPriceCents <= 0)
+  if (!opts.estimatedCost)
     return
-  await refundCredit({
+  await refundReservedAndTrack({
     accountId: opts.accountId,
-    generationRecordId: opts.recordId,
+    recordId: opts.recordId,
+    amountCents: opts.estimatedCost.totalPriceCents,
     description: opts.description,
+    source: opts.source,
   })
 }

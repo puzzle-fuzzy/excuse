@@ -11,7 +11,8 @@
  */
 
 import type { WorkerConfig } from './config'
-import { ASRClient, AssetStorage, DashScopeClient } from '@excuse/provider'
+import { ASRClient, DashScopeClient } from '@excuse/provider'
+import { AssetStorage } from '@excuse/storage'
 
 export interface WorkerContext {
   /** worker 配置（轮询参数、存储根目录、metrics 等） */

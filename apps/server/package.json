@@ -23,6 +23,7 @@
     "@excuse/db": "workspace:*",
     "@excuse/error-recovery": "workspace:*",
     "@excuse/events": "workspace:*",
+    "@excuse/ffmpeg": "workspace:*",
     "@excuse/gateway": "workspace:*",
     "@excuse/metrics": "workspace:*",
     "@excuse/prompt-engine": "workspace:*",
@@ -30,10 +31,11 @@
     "@excuse/provider-health": "workspace:*",
     "@excuse/rate-limit": "workspace:*",
     "@excuse/shared": "workspace:*",
+    "@excuse/storage": "workspace:*",
     "@excuse/subtitle-engine": "workspace:*",
     "@excuse/task-engine": "workspace:*",
     "@excuse/workflow-engine": "workspace:*",
-    "elysia": "latest",
+    "elysia": "catalog:",
     "pino-http": "^11.0.0"
   },
   "devDependencies": {

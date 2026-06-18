@@ -19,6 +19,7 @@ mock.module('@excuse/db', () => ({
   notifyNotification: async () => {},
   debitCredit: async () => {},
   refundCredit: async () => {},
+  scheduleVideoTaskProviderRetry: async () => {},
   updateCanvasProject: async () => {},
   updateCanvasShot: async () => {},
   listCanvasShotsByProject: listCanvasShotsByProjectMock,
@@ -47,6 +48,7 @@ function createMockDeps(overrides: Partial<TaskProcessorDeps> = {}): TaskProcess
     notifyNotification: async () => {},
     debitCredit: async () => {},
     refundCredit: async () => {},
+    scheduleVideoTaskProviderRetry: async () => {},
     ...overrides,
   }
 }
@@ -77,6 +79,7 @@ function createRecord(overrides: Record<string, unknown> = {}) {
     createdAt: new Date(), // 刚创建，不会超时
     inputParams: { prompt: 'test', duration: 5 },
     cost: null,
+    providerFailureCount: 0,
     ...overrides,
   }
 }
@@ -256,6 +259,39 @@ describe('processTask', () => {
     await processTask(createRecord())
 
     expect(failed[0]!.msg).toBe('DashScope task failed')
+  })
+
+  it('FAILED 为可重试 provider 错误时仅排下次轮询，不退款不终态失败', async () => {
+    const failed: Array<{ id: string, msg: string }> = []
+    const refunds: Array<{ generationRecordId: string }> = []
+    const scheduled: Array<{ id: string, msg: string, nextPollAt: Date }> = []
+    const deps = createMockDeps({
+      queryTask: async () => ({
+        status: 'FAILED',
+        errorCode: 'Throttling',
+        errorMessage: 'provider throttled',
+      }),
+      markGenerationFailed: async (id, msg) => {
+        failed.push({ id, msg })
+      },
+      refundCredit: async (opts) => {
+        refunds.push({ generationRecordId: opts.generationRecordId })
+      },
+      scheduleVideoTaskProviderRetry: async (id, msg, nextPollAt) => {
+        scheduled.push({ id, msg, nextPollAt })
+      },
+    })
+
+    const { processTask } = createTestProcessor(deps)
+    const result = await processTask(createRecord({ cost: { unit: 'video', totalPriceCents: 1, totalPrice: 0.01 } }))
+
+    expect(result.action).toBe('skipped')
+    expect(failed).toEqual([])
+    expect(refunds).toEqual([])
+    expect(scheduled).toHaveLength(1)
+    expect(scheduled[0]!.id).toBe('rec-001')
+    expect(scheduled[0]!.msg).toBe('provider throttled')
+    expect(scheduled[0]!.nextPollAt.getTime()).toBeGreaterThan(Date.now())
   })
 
   // ── PENDING / RUNNING ─────────────────────────────

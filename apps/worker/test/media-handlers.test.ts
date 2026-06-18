@@ -70,7 +70,11 @@ mock.module('@excuse/db', () => ({
   },
 }))
 
-// Mock ALL exports that media-handlers.ts statically imports from @excuse/provider
+// Mock ALL exports that media-handlers.ts statically imports.
+// Symbols are split across their real sources after the provider-shim removal:
+//   - burnSubtitlesToVideo / extractAudioFromVideo / getMediaDurationMs → @excuse/ffmpeg
+//   - AssetStorage                                          → @excuse/storage
+//   - ASRClient / DashScopeClient / getModelById            → @excuse/provider
 const MockAssetStorage = class {
   constructor(_config: unknown) {}
   async uploadGenerated(_buffer: Buffer, key: string) {
@@ -78,13 +82,17 @@ const MockAssetStorage = class {
     return `https://cdn/${key}`
   }
 }
-mock.module('@excuse/provider', () => ({
+mock.module('@excuse/ffmpeg', () => ({
   burnSubtitlesToVideo: async () => ({ outputPath: '/tmp/test-export.mp4', fileSize: 1024 }),
-  AssetStorage: MockAssetStorage,
-  ASRClient: class {},
-  DashScopeClient: class {},
   extractAudioFromVideo: async () => ({ audioPath: '/tmp/test.wav', durationMs: 30000 }),
   getMediaDurationMs: async () => 30000,
+}))
+mock.module('@excuse/storage', () => ({
+  AssetStorage: MockAssetStorage,
+}))
+mock.module('@excuse/provider', () => ({
+  ASRClient: class {},
+  DashScopeClient: class {},
   getModelById: () => undefined,
 }))
 

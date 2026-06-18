@@ -85,10 +85,12 @@ const mockSaveUploadedFile = mock(() =>
   Promise.resolve({ storagePath: '/uploads/ref_test.png', publicUrl: '/uploads/ref_test.png' }),
 )
 
-mock.module('@excuse/provider', () => ({
+mock.module('@excuse/storage', () => ({
   AssetStorage: class {
     saveUploadedFile = mockSaveUploadedFile
   },
+}))
+mock.module('@excuse/provider', () => ({
   DashScopeClient: class {},
   getModelById: () => undefined,
   mergeWithDefaults: (_modelConfig: unknown, params: Record<string, unknown>) => params,

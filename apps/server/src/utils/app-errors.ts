@@ -1,4 +1,4 @@
-import type { ApiErrorResponse, RateLimitErrorResponse } from '@excuse/shared'
+import type { RateLimitErrorResponse } from '@excuse/shared'
 
 /**
  * 应用层错误基类 — 所有业务错误的根类型
@@ -17,7 +17,7 @@ export class AppError extends Error {
   }
 
   /** 序列化为 API 错误响应体 */
-  toResponse(): ApiErrorResponse {
+  toResponse(): unknown {
     return { success: false, error: this.message }
   }
 }

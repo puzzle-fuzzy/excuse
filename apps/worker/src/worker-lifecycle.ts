@@ -121,6 +121,6 @@ export function startOrphanSweep(
  * 启动前环境检查（FFmpeg），返回警告列表。
  */
 export async function checkWorkerEnvironment(): Promise<string[]> {
-  const { checkFFmpegAsync } = await import('@excuse/provider')
+  const { checkFFmpegAsync } = await import('@excuse/ffmpeg')
   return checkFFmpegAsync()
 }

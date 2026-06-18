@@ -1,5 +1,6 @@
-import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { DashScopeClient } from '@excuse/provider'
 import type { ModelConfig } from '@excuse/shared'
+import type { AssetStorage } from '@excuse/storage'
 import type { CanvasProjectDetail } from '../normalize'
 import { updateCanvasCharacter } from '@excuse/db'
 import { generateCanvasImageAsset } from '..'

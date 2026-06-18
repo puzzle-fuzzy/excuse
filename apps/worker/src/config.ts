@@ -1,4 +1,4 @@
-import type { OSSConfig } from '@excuse/provider'
+import type { OSSConfig } from '@excuse/storage'
 import { isPublicMetricsCidrs, loadOSSConfig } from '@excuse/shared'
 
 export interface WorkerConfig {

@@ -17,16 +17,13 @@
 
 > `tasks` 表 + `task-engine` + `workflow-engine` 这套统一队列**设计是对的**，但只接管了 14 个 task type（12 个 canvas 阶段 + 2 个 media）。**最贵、最易失败的 `category='video'` 整条线永远停在旧的 `generation_records` 轮询上**。下列 5 个问题同根同源，要么一起迁完，要么一起显式声明带外处理——现状是「沉默的矛盾」，不能继续。
 
-### 1.1 🔴 `generate.video` 是个「幽灵 type」——生产路径从不产生它
+### 1.1 🔴 `generate.video` 是个「幽灵 type」——生产路径从不产生它 — ✅ 已修复（显式带外）
 
-- **证据**：[generate.ts](apps/server/src/routes/generate.ts) 提交视频时**从不调用 `createTask`**（grep `createTask` 在 `modules/generation/` 与 `routes/generate.ts` 为 **0**）。`generate.video` 只活在 3 处：[task-engine computeRetryDelay 分支](packages/task-engine/src/index.ts#L387)、[tasks.ts docstring 举例](packages/db/src/schema/tasks.ts#L53)、测试 fixture。CLAUDE.md 把它写成队列公民，实际运行时不存在。
-- **影响**：文档与代码矛盾；新贡献者会以为视频走统一队列（带重试/退避/孤儿回收），实则不然——直接连到下面 1.2/1.3 的安全缺口。
-- **解法（二选一，必须在 §一 整体决策时定）**：
-  - **A. 迁移**：让 `/api/generate`（`category==='video'`）写一条 `generate.video` 的 `tasks` 行，DashScope 轮询改走统一队列的 retry/heartbeat/orphan-sweep 信封；删除 `pollPendingVideoTasks` 与 `createVideoPollSource`。
-  - **B. 显式带外**：在 CLAUDE.md 声明 video 故意走 `generation_records` 旧路径；删除 [task-engine](packages/task-engine/src/index.ts#L387) 的 `generate.video` 分支与 [tasks.ts](packages/db/src/schema/tasks.ts#L53) 的误导性 docstring，让测试不再为一个不存在的 type 断言。
-- **验收**：代码与 CLAUDE.md 对「视频走哪条队列」的描述一致；`grep generate.video` 仅剩真实使用点。
+> **已完成**（2026-06-18）：采用 §1.1-B「显式带外」。生产路径确认仍不创建 `generate.video` task，因此删除 `task-engine.computeRetryDelay` 的 `generate.video` 分支、`tasks.ts` schema docstring 的误导示例，并把 task-engine / workflow-engine / admin 测试 fixture 改成真实存在的 task type（`canvas.videos` / `media.extract-audio`）。验收：`rg "generate\\.video" apps packages -g '!CLAUDE.md'` 不再命中生产代码或测试 fixture；仅 TODO2 自身保留历史说明。完整迁入统一 `tasks` 队列仍可作为后续大迁移，但不再让代码假装已有 `generate.video`。
 
-### 1.2 🔴 旧的视频 / ASR 轮询**没有任何 claim / 锁 / 重试 / 孤儿回收**
+### 1.2 🔴 旧的视频 / ASR 轮询**没有任何 claim / 锁 / 重试 / 孤儿回收** — ✅ 已部分修复（claim/锁 + retry/backoff）
+
+> **已完成**（2026-06-18）：采用 §1.1-B 的带外修复切口。`generation_records` 与 `subtitle_projects` 增加 `locked_by` / `locked_until` 列和索引（迁移 `0039_awesome_silver_sable`），`pollPendingVideoTasks` / `pollPendingASRProjects` 改为原子 `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)` claim，再返回已 claim 行。Worker 传入真实 `workerId` 与 `claimTtlMs`；每条 legacy video / ASR 处理结束后释放自己持有的 active 行锁，若 worker 崩溃，锁过期后其他 worker 可接手。随后补 §1.4：`generation_records` 与 `subtitle_projects` 增加 `provider_failure_count` / `next_poll_at`（迁移 `0040_cute_wallow`），legacy poll claim 会跳过未到 `next_poll_at` 的行，provider FAILED 为限流/超时/连接类可重试错误时按 `task-engine.decideTaskFailureAction` 退避后再轮询，预算耗尽或永久错误才走失败收尾。claim/release 不再刷新 ASR 的 `updatedAt`，避免破坏 ASR 超时锚点。验收：DB repository claim-release 测试、worker video/ASR retry 单测、task-engine/workflow-engine 测试通过。**仍未完成**：video/ASR 尚未迁入统一 `tasks` 队列；孤儿恢复依赖 legacy 锁过期，而非统一队列 sweep。
 
 - **证据**：[pollPendingVideoTasks](packages/db/src/repositories/generation-records.repo.ts#L185) 与 `pollPendingASRProjects` 是裸 `SELECT … WHERE status IN (…) LIMIT 50`——**无 `FOR UPDATE SKIP LOCKED`、无 `lockedBy`、无 orphan sweep**（grep 验证为 0）。统一队列的 `claimNextTask` / `extendTaskLock` / `sweepOrphanTasks` 完全不覆盖它们。
 - **影响**：**一旦部署第二个 worker 副本**（`docs/部署指南.md` / TODO 已规划多实例），两副本会捞到同一行 → 重复调 DashScope → 抢着 `debitCredit` / 改资产，且崩溃中途无回滚。这是埋好的正确性雷。
@@ -40,18 +37,15 @@
 > **已完成**（2026-06-18）：`createTaskPollSource` 现在也把 in-flight promise 写入共享 `currentTaskPromiseRef`（与视频轮询源共用），`setupGracefulShutdown` 关停时 await 它，drain **所有** poll source 的在途任务（含数分钟的 `canvas.assemble`），而非只 drain 视频。`currentTaskPromiseRef` 类型从 `Promise<TaskResult>` 放宽为 `Promise<unknown>`（统一队列与视频两源 promise 形状不同），视频源改用本地 typed 变量保留 `TaskResult` 推断。新增 `poll-sources.test.ts` 验证任务在途时 ref 被设置、完成后清空（+ 无任务时不触碰）。顺带把 `apps/worker` 的 `test` 脚本加 `--isolate`（与 root `bun run test` 的 worker 调用 + server 一致，worker 套件含 `mock.module` 需隔离）。验收：worker typecheck/lint/test(108, +2 drain 用例) 全绿。**§1.1/§1.2/§1.4 仍待 §一 A/B 决策。**
 
 
-### 1.4 🟠 错误处理裂成三套方言
+### 1.4 🟠 错误处理裂成三套方言 — ✅ 已修复（legacy 回填 task-engine 决策）
 
-- **证据**：统一队列走 `task-engine`（`classifyTaskError` → retry/fail → 指数退避）；视频 [task-processor.ts](apps/worker/src/task-processor.ts) 的 FAILED 分支直接退费 + 永久失败（**无重试**）；ASR [subtitle-processor.ts](apps/worker/src/subtitle-processor.ts) 同样手搓。同一个 DashScope 限流：落 canvas 阶段会重试，落视频上直接退费给用户。
-- **影响**：对**最贵的品类（视频）反而最不友好**；三套重试语义，维护成本高。
-- **解法**：随 §一 决策——迁移则自动统一；带外则把 `classifyTaskError` 的决策回填到 video/ASR 的 FAILED 分支（区分 retriable vs permanent）。
-- **验收**：构造一次 DashScope Throttling，确认 video 与 canvas 阶段**行为一致**（都按 backoff 重试）。
+> **已完成**（2026-06-18）：在保持 legacy 带外路线的前提下，把统一队列的 `task-engine.decideTaskFailureAction` 回填到 video/ASR 的 provider FAILED 分支。视频 `queryTask` 返回 `errorCode` 时直接按 code 分类；无 code 时只对明确的限流/超时/连接类关键词做保守推断，避免把普通业务失败误判为可重试。可重试时仅写 `provider_failure_count + 1` 与 `next_poll_at`，不退款、不发失败通知、不标终态；不可重试或 3 次预算耗尽时沿用原失败收尾。ASR 同步补 `scheduleASRProjectProviderRetry`，语义一致。验收：新增 worker 单测覆盖 video/ASR 可重试 FAILED；既有永久 FAILED、退款、通知断言保持通过。
 
 ### 1.5 🟡 CLAUDE.md「4 个 workload」已过时 — ✅ 已修复
 
 > **已完成**：`pollExportingProjects` 死函数已删（§八 死代码清理 commit）；CLAUDE.md「Worker Structure」已改为 **3 个 PollSource** 并注明字幕导出已迁 `media.burn-subtitle` task（§五 文档同步）。
 
-> **§一 决策点（需用户拍板）**：video/ASR 是迁进统一队列（推荐，一次性消灭 1.1/1.2/1.3/1.4 四个问题）还是显式带外保留？这决定后续 4 项的解法走向。
+> **§一 当前状态**：已选择并落实「显式带外」作为当前最小风险路线：§1.1 幽灵 type 清理完成，§1.2 claim/锁完成，§1.4 provider FAILED retry/backoff 完成，§1.3 drain 已完成。剩余的大项不是 bug 修补，而是是否把 video/ASR 完整迁入统一 `tasks` 队列；若后续迁移，可删除本轮 legacy claim/retry 逻辑。
 
 ---
 
@@ -84,7 +78,9 @@
 
 ## §三、冗余（Redundancy）
 
-### 3.1 🟡 provider 门面「零迁移」——storage/ffmpeg 包的唯一消费者就是 provider 自己
+### 3.1 🟡 provider 门面「零迁移」——storage/ffmpeg 包的唯一消费者就是 provider 自己 — ✅ 已修复
+
+> **已完成**（2026-06-18）：采用解法 A「迁完」。`apps/server`、`apps/worker`、`packages/canvas-runtime` 中所有 storage/ffmpeg 消费点改为直连 `@excuse/storage` / `@excuse/ffmpeg`，`@excuse/provider` 不再依赖或 re-export storage/ffmpeg。删除 4 个 provider shim（`storage.ts` / `subtitle-burner.ts` / `audio-extractor.ts` / `compose.ts`）以及迁移后的 provider storage 测试，相关 mock 改为按真实来源拆分。顺带修复 `packages/storage` 的 Windows 路径断言（使用平台路径期望），并用 Bun catalog 将 `apps/server` 的 `elysia` 从 `latest` 固定为 `catalog:` → root `catalog.elysia=1.4.28`，避免安装时 lockfile 漂移到 1.4.29；本地 stale `node_modules/.bun/elysia@1.4.29...` 已清理。验收：`typecheck` / `lint` / `build` / `test` / `test:client` / `check:boundaries` 全绿；`bun.lock` 与 `node_modules` 仅解析到 `elysia@1.4.28`。
 
 - **证据**：CLAUDE.md 说「新代码应直接 import `@excuse/storage` / `@excuse/ffmpeg`」，但已验证：**`@excuse/storage` 与 `@excuse/ffmpeg` 在各自包之外、provider 之外零消费者**。4 个 shim 文件（[storage.ts](packages/provider/src/storage.ts)、[subtitle-burner.ts](packages/provider/src/subtitle-burner.ts)、[audio-extractor.ts](packages/provider/src/audio-extractor.ts)、[compose.ts](packages/provider/src/compose.ts)）共 13 行，纯 `export … from`，零附加逻辑。`canvas-runtime`（最该直连的运行时包）仍走门面。
 - **影响**：拆了两个包却没人用；文档承诺的迁移从未开始；门面是「向后兼容的惯性」而非「正在迁移的过渡」。
@@ -93,12 +89,9 @@
   - **B. 合回**：若短期无意迁移，把 `storage` + `ffmpeg` 合回 `provider`，删掉这两个包 + CLAUDE.md 的迁移承诺。
 - **验收**：`grep -rl "@excuse/storage\|@excuse/ffmpeg" packages apps | grep -v provider | grep -v storage | grep -v ffmpeg` 与所选方案一致（A：出现真实直连；B：包消失）。
 
-### 3.2 🟡 双套积分账本编排
+### 3.2 🟡 双套积分账本编排 — ✅ 已修复
 
-- **证据**：[generation/service.ts](apps/server/src/modules/generation/service.ts) 的 `reserveGenerationCredit`/`debitReservedCredit`/`refundReservedCredit` 与 [gateway-service.ts](apps/server/src/services/gateway-service.ts) 的 `setupGatewayCall`/`settleGatewaySuccess`/`settleGatewayFailure` 各自实现 reserve→debit→refund + 各自的 audit 调用，无共享原语。
-- **影响**：同一计费生命周期两份实现，漂移风险（一边漏处理某个 refund 边界）。
-- **解法**：抽 `services/billing-ledger.ts`（或下沉到 `@excuse/billing`）的 `reserveAndTrack` / `settleOrRefund`，两处共用。
-- **验收**：generation 与 gateway 的账本编排走同一函数；新增 audit 事件只改一处。
+> **已完成**（2026-06-18）：采用最小边界方案，新增 [billing-ledger.ts](apps/server/src/services/billing-ledger.ts) 作为 server 内部账本原语，而不是贸然下沉到 `@excuse/billing`（会把 server audit/notification/DB 副作用带进纯计费包）。`reserveAndTrack` 统一 reserve + `credit_reserve` audit + 余额不足通知；`debitReservedAndTrack` 统一 debit + `credit_debit` audit；`refundReservedAndTrack` 统一 refund + `credit_refund` audit。`generation/service.ts` 继续保留 HTTP 无关的 result-style 包装，负责 `markGenerationFailed` 等业务收尾；`gateway-service.ts` 继续负责 OpenAI 错误响应与 `gateway_call` audit。验收：generate/gateway/audit 路由测试通过；后续新增 credit audit 字段只需改 `billing-ledger.ts` 一处。
 
 ### 3.3 🟢 adapter 仪式——8 个接口里 2 个全死、3 个零逻辑透传 — ✅ 已修复
 
@@ -117,12 +110,9 @@
 - **解法**：10 处全部改写为 `api.api.…` treaty 调用 + `unwrapEden<T>`；删 `parseError` helper；为 SubjectLibrary 补 typed `subjectApi`。
 - **验收**：`grep -rnE "fetch\(" apps/client/src | grep -v fetchEventSource | grep -v refetch` 仅剩 [Developers.tsx](apps/client/src/pages/Developers.tsx) 的示例代码字符串。
 
-### 3.5 🟡 server 三种错误协议并存
+### 3.5 🟡 server 三种错误协议并存 — ✅ 已修复
 
-- **证据**：AppError throw（绝大多数）/ gateway 的 `{status,response}` 手搓（[openai-gateway.ts](apps/server/src/routes/openai-gateway.ts) + `@excuse/gateway` 的 `*Error()` 工厂）/ auth 的 `status(401, …)`（[plugins/auth.ts:175](apps/server/src/plugins/auth.ts#L175)）。
-- **影响**：一个 server 三种造错方式；gateway 错误不走统一 `onError`（日志/Retry-After/序列化路径不一致）。
-- **解法**：让 `@excuse/gateway` 抛 AppError 子类（首选，统一契约）；auth 的 resolve 守卫改抛 `UnauthorizedError`。
-- **验收**：`set.status =` / `status(…, …)` 业务错误造法收敛到「仅 errorHandlerPlugin」一处。
+> **已完成**（2026-06-18）：问题真实存在，但实现上没有让纯规则包 `@excuse/gateway` 反向依赖 server 的 `AppError`。采用 server 侧 bridge：新增 `OpenAIGatewayAppError` / `throwOpenAIGatewayError`，把 `@excuse/gateway` 产出的 `OpenAIGatewayError` 包装进统一 `AppError`/`onError` 管线，同时保留 OpenAI 兼容的 `{ error: { message, type, code, hint } }` 响应体。`openai-gateway.ts` 的 scope/quota/normalize/model/validation/non-stream failure 错误点不再手写 `set.status`，统一抛 bridge error；auth 的 `createRequireAuthPlugin.resolve` 从 `status(401, ...)` 改为抛 `UnauthorizedError`。保留 gateway service 的 result-style 返回，因为它仍是 HTTP 无关的编排层契约，真正 HTTP 状态码由 route 抛给 `errorHandlerPlugin`。验收：`apps/server` typecheck 通过；`openai-gateway`/`auth`/`api-keys` 相关路由测试通过；`@excuse/gateway` 包测试通过；`apps/server/src/routes/openai-gateway.ts` 与 `plugins/auth.ts` 不再有业务错误的手写 `set.status` / `status(...)`。
 
 ### 3.6 🟢 client 78 处手动 useMemo/useCallback（React Compiler 已开） — ⏸ 暂不批量处理（需 profiling）
 
@@ -142,7 +132,7 @@
 
 ### 4.3 🟢 19 个包整体偏多但多数站得住
 
-- 结论：纯规则包（rate-limit、events、gateway、metrics、provider-health、error-recovery、subtitle-engine、task-engine、workflow-engine）通过 adapter 注入各自可独立测试，多个有 4–10 个跨 app 消费方。范本：**metrics**（真子系统 + spec 正确的 Prometheus 序列化 + 5 消费方）、**events**（真 NOTIFY→SSE 整形，非透传）、**provider-health**、**subtitle-engine**、**billing**。砍掉 4.1（auth）+ §3.1（storage/ffmpeg）≈ 16–17 包，与实际耦合更匹配。**不建议大动包结构。**
+- 结论：纯规则包（rate-limit、events、gateway、metrics、provider-health、error-recovery、subtitle-engine、task-engine、workflow-engine）通过 adapter 注入各自可独立测试，多个有 4–10 个跨 app 消费方。范本：**metrics**（真子系统 + spec 正确的 Prometheus 序列化 + 5 消费方）、**events**（真 NOTIFY→SSE 整形，非透传）、**provider-health**、**subtitle-engine**、**billing**。§4.1（auth）已接受现状，§3.1（storage/ffmpeg）已迁完直连，当前包结构与实际耦合更匹配。**不建议大动包结构。**
 
 ---
 
@@ -150,7 +140,7 @@
 
 > **已完成**（2026-06-18）：① 「9 阶段」→ **12 阶段**（`analyze→characters→locations→characterRefs→locationRefs→storyboard→continuity→rebuild→dialogue→videos→bgm→assemble`）；② pause-before 门槛 → **3 个**（`storyboard`/`videos`/`assemble`，同步修 `workflow-engine` 的 `isPauseBeforePhase` 注释）；③ Worker 「4 个 workload」→ **3 个 PollSource**（字幕导出已迁 `media.burn-subtitle` task）；④ domain-types 真身指向 `packages/shared/src/domain-types.ts`（db 下为 re-export shim）；⑤ `generate.video` 幽灵 type 改为「video 仍走 generation_records 旧轮询」的说明并指向 §一决策。顺带在 e2e fixture 补 `asrStaleTimeoutMs`（§2.5 新增 config 的遗漏）。
 >
-> **随决策项（未改，已在 CLAUDE.md 注明指向 TODO2）**：「storage/ffmpeg 新代码优先直连」（零消费者，随 §3.1 决策）；「generate.video 队列公民」（随 §1.1 决策）。
+> **随决策项（未改，已在 CLAUDE.md 注明指向 TODO2）**：「generate.video 队列公民」（随 §1.1 决策）。
 
 ---
 
@@ -169,14 +159,14 @@
 | packages/db | 🟡 良好 + 治理债 | 非 god-package；但 §2.1 迁移缺口(CRITICAL) + `CreditError` 漏进 db + 死代码 |
 | canvas-engine / canvas-runtime | ✅ 优 | pure/io/phases 切分干净，类型不重复 |
 | task-engine / workflow-engine | 🟡 缝漏 | 拆分正确不该合；§3.3 adapter 仪式 + §4.2 priority 越界 |
-| 小包（12 个） | 🟡 多数优 | §4.1 auth 太小、§3.1 storage/ffmpeg 门面零迁移；其余范本级 |
+| 小包（12 个） | 🟡 多数优 | §4.1 auth 太小已接受现状；§3.1 storage/ffmpeg 门面已迁完；其余范本级 |
 | apps/server | 🟡 中上 | ServerConfig 注入是好；§2.3 52 处裸 Error + §2.4 generate.ts 厚路由 + §3.2 双账本 |
 | apps/worker | 🔴 中心病根 | §一 统一队列半截迁移 → 锁/重试/关停/幽灵 type 四连 |
-| apps/client | ✅ 良好 | 0 个 `as any`、token 内存态、store 分离；§3.4 手写 fetch + SSE 启动竞态 + Admin 1927 行 |
+| apps/client | ✅ 良好 | 0 个 `as any`、token 内存态、store 分离；§3.4/API unwrap 与 SSE 启动竞态已收敛，剩 Admin 1927 行可后续拆分 |
 
 > **client 补遗（🟡 MEDIUM）**：
-> - **SSE 启动竞态**：[App.tsx:47](apps/client/src/App.tsx#L47) 的 `initialize()` 与 [AuthProvider.tsx:26](apps/client/src/auth/AuthProvider.tsx#L26) 的 `connect()` 跨组件无握手，连上后若有早期 `pipeline_node_update` 会丢（仅 `generation_status` 在 onOpen 补刷）。解法：connect 改在 initialize 之后；或 onOpen 时也补刷 Canvas 项目。
-> - **4 个 api 文件绕过 unwrapEden**：[api-keys.ts](apps/client/src/api/api-keys.ts)、[notifications.ts](apps/client/src/api/notifications.ts)、[admin.ts](apps/client/src/api/admin.ts) 手搓 `.data/.error` 映射，[api-keys.ts:7](apps/client/src/api/api-keys.ts#L7) 还丢了服务端错误信息。解法：统一走 `unwrapEden<T>`。
+> - **SSE 启动竞态**：✅ 已修复（2026-06-18）。问题真实存在：`initialize()` 与 `connect()` 跨组件无握手，早期 `pipeline_node_update` 可能在连接建立前丢失。采用低风险补刷方案而非重排 auth 生命周期：`realtime-sync` 的 `sseClient.onOpen` 现在除刷新 `generation_records` 外，还全局 invalidate `canvas-assets-poll` 与 `canvas-pipeline-runs-poll` 两组兜底查询；CanvasEditor 既有 polling delta 逻辑会据此补回项目状态/资产/运行记录变化。验收：client typecheck / client test 通过。
+> - **4 个 api 文件绕过 unwrapEden**：✅ 已修复（2026-06-18）。`api-keys.ts`、`notifications.ts`、`admin.ts` 已统一复用 `client.ts` 的 `unwrapEden<T>`，删除 admin 本地复制的 `unwrap` 与各处手搓 `.data/.error` 分支；`billing.ts` 保持对已解包业务响应的 `response.data` 访问，不属于 Eden 错误处理绕过。验收：client typecheck / client test 通过；`apps/client/src/api` 中直接处理 Eden `.error` 的位置只剩 `client.ts` 的 `unwrapEden`。
 > - **Admin/index.tsx 1927 行巨组件**：拆出 Overview/Tasks/Users 子页（作者已会拆，见 sibling 文件）。
 
 ---
@@ -186,24 +176,21 @@
 | 优先级 | 待办 | 条目 | 预估 |
 |---|---|---|---|
 | P0 立刻 | 补迁移 journal 0034–0037 | §2.1 | 小（生成 + 核对） |
-| P0 本周 | 定 §一 video/ASR 去留（迁 or 带外） | §1.1–1.4 决策点 | 中–大 |
+| P2 接触时 | 评估 video/ASR 是否完整迁入统一 `tasks` 队列 | §一 后续架构迁移 | 中–大 |
 | P0 本周 | dialogue/bgm/assemble 走统一信封 | §2.2 | 小 |
 | P1 短期 | 52 处裸 Error → AppError（同步路径优先） | §2.3 | 中 |
 | P1 短期 | generate.ts 编排下沉 service | §2.4 | 中 |
 | P1 短期 | ASR 超时 + 重试 | §2.5 | 小 |
 | P1 短期 | client 10 处 fetch → Eden | §3.4 | 小 |
-| P2 接触时 | provider 门面二选一 | §3.1 | 中 |
-
-
-| P2 接触时 | 双账本编排收敛 | §3.2 | 中 |
+| P2 已完成 | 双账本编排收敛 | §3.2 | 中 |
 | P2 接触时 | adapter 仪式清理 | §3.3 | 小 |
-| P2 接触时 | 三种错误协议统一 | §3.5 | 小 |
+| P2 已完成 | 三种错误协议统一 | §3.5 | 小 |
 | P3 清理 | 文档同步（§五）+ 边界检查器（§六）+ 死代码 | §五/§六 | 小 |
 | P3 清理 | auth 包 / priority 越界 / 手动 memo | §4.1/§4.2/§3.6 | 小 |
 
 ### 死代码清理清单（P3，可批量）
 
-- [ ] `generate.video` 在 [task-engine](packages/task-engine/src/index.ts#L387) 的分支 + schema docstring（随 §1.1 决策）
+- [x] `generate.video` 在 [task-engine](packages/task-engine/src/index.ts#L387) 的分支 + schema docstring（随 §1.1 决策）
 - [ ] `workflows` repo（8 fn）+ schema（CLAUDE.md 自承「尚未激活」）— 零非测试调用方
 - [ ] `subject-library` repo（5 fn）— 若近期不接 UI 则一并清
 - [ ] `canvas/index.ts` 的 `/subjects/import` 内联 handler（带 `as any`）→ 移入 handlers-resources 并正型（§2.4 顺带）
@@ -230,7 +217,7 @@ docker compose up -d && bun run --cwd packages/db db:migrate   # 确认空库可
 
 **架构设计本身大部分是对的**——分层、adapter 注入、纯/运行时切分、canvas engine/runtime、统一任务队列的*设计*，都合理且执行得不错。问题几乎全部集中在两个可修复的模式：
 
-1. **「设计先进，迁移没做完」**：统一队列（video/ASR 没进来）、provider 门面（拆了没人用）、迁移 journal（4 个没登记）。
+1. **「设计先进，迁移没做完」**：统一队列（video/ASR 没进来）已选择当前带外路线并补齐锁/退避；是否完整迁入 `tasks` 队列仍是后续架构迁移项。provider 门面与迁移 journal 已完成收敛。
 2. **「代码走在文档前面」**：阶段数、poll 数、pause 门、错误协议、`CreditError` 归属、`domain-types.ts` 位置——文档与代码反复脱节。
 
-**没有结构性腐烂，没有需要推倒重来的部分。** 把 §一（统一队列决策）+ §2.1（journal）+ §五（文档同步）三件做完，这个架构就名副其实了。
+**没有结构性腐烂，没有需要推倒重来的部分。** 当前剩余的核心架构债是：如需进一步降低维护成本，把已显式带外且补齐锁/退避的 video/ASR 迁入统一 `tasks` 队列；外围仍有 client 补遗等中小项。

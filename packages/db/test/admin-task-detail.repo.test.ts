@@ -84,12 +84,12 @@ describe('getAdminTaskDetail', () => {
   })
 
   it('无关联 pipeline run 时返回空 pipelineRuns', async () => {
-    const task = await seedTask({ type: 'generate.video', domain: 'generate' })
+    const task = await seedTask({ type: 'media.extract-audio', domain: 'subtitle' })
     const detail = await getAdminTaskDetail(task.id)
 
     expect(detail).not.toBeNull()
     expect(detail!.task.id).toBe(task.id)
-    expect(detail!.task.type).toBe('generate.video')
+    expect(detail!.task.type).toBe('media.extract-audio')
     expect(detail!.pipelineRuns).toEqual([])
   })
 

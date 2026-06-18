@@ -1,4 +1,5 @@
-import { checkFFmpegAsync, registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
+import { checkFFmpegAsync } from '@excuse/ffmpeg'
+import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { isPgTableNotFoundError, logger } from '@excuse/shared'
 import { createElysiaApp } from './app'
 import { loadConfig } from './config'

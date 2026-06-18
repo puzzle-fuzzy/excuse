@@ -7,8 +7,9 @@
  * 单次调用（项目级 BGM，非逐镜头）。音频 URL 写入 canvas_projects.bgm_url。
  */
 
-import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { DashScopeClient } from '@excuse/provider'
 import type { ShotEnvironment } from '@excuse/shared'
+import type { AssetStorage } from '@excuse/storage'
 import type { CanvasProjectDetail } from '../normalize'
 import { buildBgmPrompt } from '@excuse/prompt-engine'
 import { getModelById, validateAndMerge } from '@excuse/provider'

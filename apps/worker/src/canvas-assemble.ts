@@ -1,4 +1,4 @@
-import type { AssetStorage } from '@excuse/provider'
+import type { AssetStorage } from '@excuse/storage'
 import { runAssemblePhase } from '@excuse/canvas-runtime'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
 

@@ -345,7 +345,7 @@ export function decideTaskFailureAction(task: TaskRetryCandidate, error: unknown
  * 故保留此策略表，新增「慢阶段」时在此一处登记即可（无需改机制）。
  */
 export function computeRetryDelay(taskType: string, attempts: number): number {
-  if (taskType.includes('video') || taskType === 'canvas.videos' || taskType === 'generate.video') {
+  if (taskType.includes('video') || taskType === 'canvas.videos') {
     return 60_000 * 2 ** Math.min(attempts - 1, 3)
   }
   return 30_000

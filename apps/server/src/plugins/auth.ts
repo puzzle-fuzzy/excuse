@@ -1,4 +1,3 @@
-import type { ApiErrorResponse } from '@excuse/shared'
 import type { Elysia } from 'elysia'
 import type { ServerConfig } from '../config'
 import { bearer } from '@elysia/bearer'
@@ -7,8 +6,9 @@ import { cookie } from '@elysiajs/cookie'
 import { hashApiKey, isApiKeySecret } from '@excuse/auth'
 import { findApiKeyByHash, touchApiKeyLastUsed } from '@excuse/db'
 import { SlidingWindowRateLimiter } from '@excuse/rate-limit'
-import { status, t } from 'elysia'
+import { t } from 'elysia'
 import { notifyApiKeyRevoked } from '../services/notifications'
+import { UnauthorizedError } from '../utils/app-errors'
 import { errorHandlerPlugin } from './error-handler'
 
 /** httpOnly cookie 名称 */
@@ -172,7 +172,7 @@ export function createRequireAuthPlugin(config: ServerConfig) {
       .use(errorHandlerPlugin)
       .resolve(({ userId }) => {
         if (!userId) {
-          return status(401, { success: false, error: '请先登录' } satisfies ApiErrorResponse)
+          throw new UnauthorizedError()
         }
         return { userId }
       })

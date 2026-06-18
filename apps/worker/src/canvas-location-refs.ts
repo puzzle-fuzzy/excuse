@@ -1,4 +1,5 @@
-import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { DashScopeClient } from '@excuse/provider'
+import type { AssetStorage } from '@excuse/storage'
 import { buildLocationRefPrompt, generateLocationRefAsset } from '@excuse/canvas-runtime'
 import {
   createCanvasAsset,

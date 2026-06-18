@@ -5,7 +5,8 @@
  * 转存 OSS 并写入 canvas_projects.bgm_url。
  */
 
-import type { AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { DashScopeClient } from '@excuse/provider'
+import type { AssetStorage } from '@excuse/storage'
 import { getCanvasProjectDetail, updateCanvasProject } from '@excuse/db'
 import { NotFoundError } from '../../utils/app-errors'
 

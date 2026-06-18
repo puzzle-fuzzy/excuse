@@ -76,7 +76,7 @@ function makeVideoClient() {
 // Minimal AssetStorage stub — downloadAndMap 返回不变
 const storage = {
   downloadAndMap: async (urls: string[], _subDir: string, _prefix: string) => urls,
-} as unknown as import('@excuse/provider').AssetStorage
+} as unknown as import('@excuse/storage').AssetStorage
 
 beforeEach(() => {
   [updateCharacter, updateLocation, bindAssetTaskId, updateShot, createRecord].forEach(m => m.mockClear())

@@ -1,4 +1,5 @@
 import type { StorageConfig } from '../src/types'
+import path from 'node:path'
 import { beforeEach, describe, expect, it } from 'bun:test'
 import { AssetStorage } from '../src/storage'
 
@@ -228,13 +229,13 @@ describe('AssetStorage 实例方法', () => {
 describe('AssetStorage.localCopyPath', () => {
   it('本地 web 路径解析到 storageRoot 下', () => {
     const storage = new AssetStorage({ storageRoot: '/data/storage' })
-    expect(storage.localCopyPath('/api/uploads/canvas/proj/shot_0.mp4')).toBe('/data/storage/canvas/proj/shot_0.mp4')
-    expect(storage.localCopyPath('/api/uploads/subtitle/audio_x.wav')).toBe('/data/storage/subtitle/audio_x.wav')
+    expect(storage.localCopyPath('/api/uploads/canvas/proj/shot_0.mp4')).toBe(path.join('/data/storage', 'canvas/proj/shot_0.mp4'))
+    expect(storage.localCopyPath('/api/uploads/subtitle/audio_x.wav')).toBe(path.join('/data/storage', 'subtitle/audio_x.wav'))
   })
 
   it('自定义 publicBasePath 也能解析', () => {
     const storage = new AssetStorage({ storageRoot: '/data', publicBasePath: '/static' })
-    expect(storage.localCopyPath('/static/assemble/p1/final.mp4')).toBe('/data/assemble/p1/final.mp4')
+    expect(storage.localCopyPath('/static/assemble/p1/final.mp4')).toBe(path.join('/data', 'assemble/p1/final.mp4'))
   })
 
   it('OSS URL 解析到本地副本（剥 bucket host + generated/uploads 前缀）', () => {
@@ -252,9 +253,9 @@ describe('AssetStorage.localCopyPath', () => {
       })
       if (storage.isOSSEnabled) {
         expect(storage.localCopyPath('https://my-bucket.oss-cn-hangzhou.aliyuncs.com/generated/canvas/p1/shot_0.mp4'))
-          .toBe('/data/storage/canvas/p1/shot_0.mp4')
+          .toBe(path.join('/data/storage', 'canvas/p1/shot_0.mp4'))
         expect(storage.localCopyPath('https://my-bucket.oss-cn-hangzhou.aliyuncs.com/uploads/img.png'))
-          .toBe('/data/storage/img.png')
+          .toBe(path.join('/data/storage', 'img.png'))
       }
     }
     catch {

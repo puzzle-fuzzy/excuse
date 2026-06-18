@@ -5,13 +5,9 @@ import type { ApiKeyMeta } from '../plugins/auth'
 import { calculateCost, getBillingPolicy } from '@excuse/billing'
 import {
   createGenerationRecord,
-  CreditError,
-  debitCredit,
   incrementApiKeySpend,
   markGenerationFailed,
   markGenerationSucceeded,
-  refundCredit,
-  reserveCredit,
 } from '@excuse/db'
 import {
   generationFailedError,
@@ -20,8 +16,9 @@ import {
 import { extractBillingParams } from '@excuse/shared'
 import { createDedupeKey } from '../utils/dedupe-key'
 import { audit } from './audit'
+import { debitReservedAndTrack, refundReservedAndTrack, reserveAndTrack } from './billing-ledger'
 import { recordGenerationStatus } from './metrics'
-import { notifyApiKeyQuota, notifyInsufficientBalance, notifyProviderFailure } from './notifications'
+import { notifyApiKeyQuota, notifyProviderFailure } from './notifications'
 
 export interface ProviderCallResult {
   text: string
@@ -114,25 +111,15 @@ export async function setupGatewayCall(opts: {
   })
 
   if (estimatedCost.totalPriceCents > 0) {
-    try {
-      await reserveCredit({
-        accountId: userId,
-        generationRecordId: record.id,
-        amountCents: estimatedCost.totalPriceCents,
-        description: `OpenAI 网关预留：${modelConfig.id}`,
-      })
-      audit('credit_reserve', {
-        accountId: userId,
-        targetId: record.id,
-        detail: { accountId: userId, generationRecordId: record.id, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关预留：${modelConfig.id}`, source: 'gateway' },
-      })
-    }
-    catch (error) {
-      const message = error instanceof Error ? error.message : 'Insufficient balance'
-      if (error instanceof CreditError && error.code === 'INSUFFICIENT_BALANCE') {
-        await notifyInsufficientBalance(userId).catch(() => {})
-      }
-      await markGenerationFailed(record.id, message)
+    const reservation = await reserveAndTrack({
+      accountId: userId,
+      recordId: record.id,
+      amountCents: estimatedCost.totalPriceCents,
+      description: `OpenAI 网关预留：${modelConfig.id}`,
+      source: 'gateway',
+    })
+    if (!reservation.ok) {
+      await markGenerationFailed(record.id, reservation.message)
       recordGenerationStatus('failed')
       const err = insufficientBalanceError()
       return { ok: false, status: err.status, response: err.response as unknown as Record<string, unknown> }
@@ -160,16 +147,12 @@ export async function settleGatewaySuccess(opts: GatewaySuccessInput): Promise<v
   recordGenerationStatus('succeeded')
 
   if (actualCost.totalPriceCents > 0) {
-    await debitCredit({
+    await debitReservedAndTrack({
       accountId: userId,
-      generationRecordId: recordId,
-      actualCents: actualCost.totalPriceCents,
+      recordId,
+      amountCents: actualCost.totalPriceCents,
       description: `OpenAI 网关扣款：${modelConfig.id}`,
-    })
-    audit('credit_debit', {
-      accountId: userId,
-      targetId: recordId,
-      detail: { accountId: userId, generationRecordId: recordId, amountCents: actualCost.totalPriceCents, description: `OpenAI 网关扣款：${modelConfig.id}`, source: 'gateway' },
+      source: 'gateway',
     })
   }
 
@@ -215,15 +198,12 @@ export async function settleGatewayFailure(opts: GatewayFailureInput): Promise<v
   notifyProviderFailure(userId, modelConfig.id).catch(() => {})
 
   if (estimatedCost.totalPriceCents > 0) {
-    await refundCredit({
+    await refundReservedAndTrack({
       accountId: userId,
-      generationRecordId: recordId,
+      recordId,
+      amountCents: estimatedCost.totalPriceCents,
       description: `OpenAI 网关失败退款：${modelConfig.id}`,
-    })
-    audit('credit_refund', {
-      accountId: userId,
-      targetId: recordId,
-      detail: { accountId: userId, generationRecordId: recordId, amountCents: estimatedCost.totalPriceCents, description: `OpenAI 网关失败退款：${modelConfig.id}`, source: 'gateway' },
+      source: 'gateway',
     })
   }
 

@@ -13,10 +13,12 @@ import {
   notifyGenerationStatus,
   notifyNotification,
   refundCredit,
+  scheduleVideoTaskProviderRetry,
   setCanvasAssetActive,
 } from '@excuse/db'
 import { getModelById } from '@excuse/provider'
 import { createLogger, extractBillingParams, parseGenerationInputParamsMeta } from '@excuse/shared'
+import { decideTaskFailureAction } from '@excuse/task-engine'
 import { audit } from './services/audit'
 import { extractVideoDuration, extractVideoUrl, refundReservedCredit, updateCanvasShotAndProject } from './task-processor-utils'
 
@@ -37,6 +39,7 @@ export interface TaskProcessorDeps {
   queryTask: (taskId: string) => Promise<{
     status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'UNKNOWN'
     output?: DashScopeTaskOutput
+    errorCode?: string
     errorMessage?: string
   }>
   downloadAndMap: (urls: string[], subDir: string, prefix: string) => Promise<string[]>
@@ -47,6 +50,7 @@ export interface TaskProcessorDeps {
   notifyNotification: (opts: NotifyNotificationOpts) => Promise<unknown>
   debitCredit: (opts: { accountId: string, generationRecordId: string, actualCents: number, description?: string }) => Promise<unknown>
   refundCredit: (opts: { accountId: string, generationRecordId: string, description?: string }) => Promise<unknown>
+  scheduleVideoTaskProviderRetry: (id: string, errorMessage: string, nextPollAt: Date) => Promise<unknown>
 }
 
 /**
@@ -67,6 +71,7 @@ export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProce
   const notifyUser = deps?.notifyNotification ?? notifyNotification
   const debit = deps?.debitCredit ?? debitCredit
   const refund = deps?.refundCredit ?? refundCredit
+  const scheduleRetry = deps?.scheduleVideoTaskProviderRetry ?? scheduleVideoTaskProviderRetry
 
   return { processTask }
 
@@ -84,6 +89,7 @@ export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProce
     createdAt: Date
     inputParams: GenerationInputParams | null
     cost: CostDetail | null
+    providerFailureCount?: number
   }): Promise<TaskResult> {
     const inputParams = record.inputParams ?? {}
     // 安全提取 inputParams 元字段（source/projectId/shotId），避免 String(undefined)
@@ -270,6 +276,25 @@ export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProce
       // ── 失败 ────────────────────────────────────────
       case 'FAILED': {
         const errMsg = taskStatus.errorMessage || 'DashScope task failed'
+        const failureAction = decideTaskFailureAction({
+          type: 'canvas.videos',
+          attempts: (record.providerFailureCount ?? 0) + 1,
+          maxAttempts: 3,
+        }, toProviderTaskError(errMsg, taskStatus.errorCode))
+
+        if (failureAction.action === 'retry') {
+          const nextPollAt = new Date(Date.now() + failureAction.delayMs)
+          await scheduleRetry(record.id, errMsg, nextPollAt)
+          logger.warn({
+            recordId: record.id,
+            taskId,
+            errorCode: taskStatus.errorCode,
+            attempts: (record.providerFailureCount ?? 0) + 1,
+            nextPollAt,
+          }, 'Video provider failure is retriable; scheduled legacy poll retry')
+          return { action: 'skipped', taskId, reason: `retry scheduled: ${errMsg}` }
+        }
+
         await fail(record.id, errMsg)
         await refundReservedCredit(record, refund, `视频生成失败退款：${record.model}`)
         if (record.cost?.totalPriceCents && record.cost.totalPriceCents > 0) {
@@ -338,4 +363,24 @@ export function createTaskProcessor(ctx: WorkerContext, deps?: Partial<TaskProce
         return { action: 'ignored', taskId, status: taskStatus.status }
     }
   }
+}
+
+function toProviderTaskError(message: string, code?: string): Error {
+  if (code)
+    return new Error(message, { cause: { code } })
+
+  const inferredCode = inferRetriableProviderCode(message)
+  return inferredCode
+    ? new Error(message, { cause: { code: inferredCode } })
+    : new Error(message)
+}
+
+function inferRetriableProviderCode(message: string): string | undefined {
+  if (/\b(?:Throttling|TooManyRequests|RateLimit)\b/i.test(message) || /限流|频率|稍后重试/.test(message))
+    return 'Throttling'
+  if (/\b(?:ETIMEDOUT|timeout|timed out)\b/i.test(message) || /超时/.test(message))
+    return 'ETIMEDOUT'
+  if (/\b(?:InternalError|ECONNRESET|ECONNREFUSED)\b/i.test(message))
+    return 'InternalError'
+  return undefined
 }

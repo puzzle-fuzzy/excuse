@@ -10,9 +10,11 @@
  *     挂载 fake provider 预留的注入口。
  */
 
-import type { ASRClient, AssetStorage, DashScopeClient } from '@excuse/provider'
+import type { ASRClient, DashScopeClient } from '@excuse/provider'
+import type { AssetStorage } from '@excuse/storage'
 import type { ServerConfig } from './config'
-import { ASRClient as ASRClientImpl, AssetStorage as AssetStorageImpl, DashScopeClient as DashScopeClientImpl } from '@excuse/provider'
+import { ASRClient as ASRClientImpl, DashScopeClient as DashScopeClientImpl } from '@excuse/provider'
+import { AssetStorage as AssetStorageImpl } from '@excuse/storage'
 
 export interface ServerContext {
   /** server 配置 */

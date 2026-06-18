@@ -8,6 +8,7 @@ import {
   markGenerationProcessing,
   markGenerationSucceeded,
   pollPendingVideoTasks,
+  releaseVideoTaskClaims,
 } from '../src/repositories/generation-records.repo'
 import {
   beginTestTransaction,
@@ -202,16 +203,23 @@ describe('generation-records repository', () => {
   // ─── pollPendingVideoTasks ─────────────────────────────
 
   describe('pollPendingVideoTasks', () => {
-    it('仅返回 pending 和 processing 的视频任务', async () => {
+    it('claim 视频任务并跳过已锁行，释放后可再次 claim', async () => {
       await createGenerationRecord(validInsert({ category: 'video', status: 'pending' }))
       await createGenerationRecord(validInsert({ category: 'video', status: 'processing' }))
       // 非视频任务，不应返回
       await createGenerationRecord(validInsert({ category: 'text', status: 'pending' }))
 
-      const tasks = await pollPendingVideoTasks()
-      expect(tasks.length).toBe(2)
+      const tasks = await pollPendingVideoTasks('worker-a', 30_000)
+      expect(tasks).toHaveLength(2)
       expect(tasks.every(t => t.category === 'video')).toBe(true)
       expect(tasks.every(t => ['pending', 'processing'].includes(t.status))).toBe(true)
+
+      const secondClaim = await pollPendingVideoTasks('worker-b', 30_000)
+      expect(secondClaim).toHaveLength(0)
+
+      await releaseVideoTaskClaims(tasks.map(task => task.id), 'worker-a')
+      const afterRelease = await pollPendingVideoTasks('worker-b', 30_000)
+      expect(afterRelease).toHaveLength(2)
     })
 
     it('无视频任务时返回空数组', async () => {

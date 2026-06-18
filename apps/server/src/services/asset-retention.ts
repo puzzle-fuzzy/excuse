@@ -11,8 +11,8 @@ import {
   listGenerationRecordRetentionCandidates,
   listUploadedFileRetentionCandidates,
 } from '@excuse/db'
-import { AssetStorage } from '@excuse/provider'
 import { createLogger } from '@excuse/shared'
+import { AssetStorage } from '@excuse/storage'
 import { audit } from './audit'
 
 const logger = createLogger('asset-retention')

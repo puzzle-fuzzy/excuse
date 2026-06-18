@@ -8,9 +8,10 @@
  * HappyHorse 视频原生含对话/音效音频，故「对话音频合成」= 拼接时保留各镜头音轨，无需独立 TTS。
  */
 
-import type { AssetStorage, ConcatResult, MixBgmResult } from '@excuse/provider'
+import type { ConcatResult, MixBgmResult } from '@excuse/ffmpeg'
+import type { AssetStorage } from '@excuse/storage'
 import type { CanvasProjectDetail } from '../normalize'
-import { concatVideos, mixBgmTrack } from '@excuse/provider'
+import { concatVideos, mixBgmTrack } from '@excuse/ffmpeg'
 
 export interface AssemblePhaseInput {
   projectId: string

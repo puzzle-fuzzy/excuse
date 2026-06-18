@@ -30,6 +30,8 @@ mock.module('@excuse/db', () => ({
   notifyTaskStatusChange: async () => undefined,
   pollPendingASRProjects: async () => [],
   pollPendingVideoTasks: async () => [],
+  releaseASRProjectClaims: async () => undefined,
+  releaseVideoTaskClaims: async () => undefined,
 }))
 
 mock.module('../src/task-handler', () => ({

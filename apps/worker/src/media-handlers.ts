@@ -21,7 +21,7 @@ import {
   updateSubtitleExport,
   updateSubtitleProjectStatus,
 } from '@excuse/db'
-import { burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/provider'
+import { burnSubtitlesToVideo, extractAudioFromVideo, getMediaDurationMs } from '@excuse/ffmpeg'
 import { createLogger, parseMediaBurnSubtitleInput, parseMediaExtractAudioInput } from '@excuse/shared'
 import { getDefaultStyleConfig, sentencesToAss } from '@excuse/subtitle-engine'
 import { TaskInputError } from '@excuse/task-engine'

@@ -38,6 +38,9 @@ mock.module('@excuse/db', () => ({
   markGenerationFailed: async (id: string, msg: string) => {
     dbState.failedRecords.push({ id, msg })
   },
+  scheduleASRProjectProviderRetry: async (id: string, msg: string, nextPollAt: Date) => {
+    dbState.updatedProjects.push({ id, status: 'asr_processing', extra: { errorMessage: msg, nextPollAt } })
+  },
   notifyGenerationStatus: async (payload: Record<string, unknown>) => {
     dbState.notifications.push(payload)
   },
@@ -88,6 +91,10 @@ function makeProject(overrides: Partial<SubtitleProjectRow> = {}): SubtitleProje
     exportRecordId: null,
     exportedVideoUrl: null,
     errorMessage: null,
+    lockedBy: '',
+    lockedUntil: null,
+    providerFailureCount: 0,
+    nextPollAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -106,6 +113,10 @@ function makeRecord(overrides: Partial<GenerationRecordRow> = {}): GenerationRec
     outputResult: null,
     cost: { unit: 'audio', totalPriceCents: 0.24, totalPrice: 0.0024, duration: 30, unitPriceCents: 0.008, unitPrice: 0.00008 },
     errorMessage: null,
+    lockedBy: '',
+    lockedUntil: null,
+    providerFailureCount: 0,
+    nextPollAt: null,
     dedupeKey: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -259,6 +270,25 @@ describe('processASRTask', () => {
     await processASRTask(project, asrClient)
 
     expect(dbState.failedRecords[0]!.msg).toBe('ASR 任务失败')
+  })
+
+  it('ASR FAILED 为可重试 provider 错误时仅排下次轮询，不终态失败', async () => {
+    resetState()
+    const project = makeProject()
+    dbState.records.push(makeRecord())
+
+    const asrClient = makeMockASRClient(
+      { taskId: 'task-asr-001', status: 'FAILED', errorMessage: 'Throttling: please retry later' },
+    )
+
+    await processASRTask(project, asrClient)
+
+    expect(dbState.failedRecords).toHaveLength(0)
+    expect(dbState.notifications).toHaveLength(0)
+    const retryUpdate = dbState.updatedProjects.find(u => u.status === 'asr_processing')
+    expect(retryUpdate).toBeDefined()
+    expect(retryUpdate!.extra?.errorMessage).toBe('Throttling: please retry later')
+    expect(retryUpdate!.extra?.nextPollAt).toBeInstanceOf(Date)
   })
 
   it('ASR PENDING → 不做任何更新，等待下一轮', async () => {

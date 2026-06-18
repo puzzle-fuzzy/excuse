@@ -79,8 +79,8 @@ const mockRequeueAdminTask = mock(async (id: string) => ({
 const mockCancelAdminTask = mock(async (id: string) => ({
   id,
   accountId: 'admin-1',
-  type: 'generate.video',
-  domain: 'generate',
+  type: 'canvas.videos',
+  domain: 'canvas',
   status: 'cancelled',
   priority: 5,
   attempts: 1,

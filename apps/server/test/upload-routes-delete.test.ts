@@ -58,11 +58,13 @@ const mockSaveUploadedFile = mock(() =>
 )
 const mockDeleteFile = mock(() => Promise.resolve(undefined))
 
-mock.module('@excuse/provider', () => ({
+mock.module('@excuse/storage', () => ({
   AssetStorage: class {
     saveUploadedFile = mockSaveUploadedFile
     deleteFile = mockDeleteFile
   },
+}))
+mock.module('@excuse/provider', () => ({
   DashScopeClient: class {},
   getModelById: () => undefined,
   mergeWithDefaults: (_modelConfig: unknown, params: Record<string, unknown>) => params,

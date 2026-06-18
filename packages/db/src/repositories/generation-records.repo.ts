@@ -182,17 +182,67 @@ export async function markGenerationSucceeded(
  *   - submitting: provider 已调用但尚未返回 taskId → Worker 可扫描超时记录并标记 failed
  *   - saving_output: Worker 正在下载视频 → Worker 可扫描超时记录并恢复或标记 failed
  */
-export async function pollPendingVideoTasks() {
+export async function pollPendingVideoTasks(workerId = 'test-worker', claimTtlMs = 30_000, limit = 50) {
+  const claimedIds = await claimPendingVideoTaskIds(workerId, claimTtlMs, limit)
+  if (claimedIds.length === 0)
+    return []
+
   return getDb()
     .select()
     .from(generationRecords)
-    .where(
-      and(
-        inArray(generationRecords.status, ['pending', 'submitting', 'processing', 'saving_output']),
-        eq(generationRecords.category, 'video'),
-      ),
+    .where(inArray(generationRecords.id, claimedIds))
+}
+
+async function claimPendingVideoTaskIds(workerId: string, claimTtlMs: number, limit: number): Promise<string[]> {
+  const result = await getDb().execute(sql`
+    UPDATE generation_records
+    SET locked_by = ${workerId},
+        locked_until = now() + (${claimTtlMs} || ' milliseconds')::interval
+    WHERE id IN (
+      SELECT id FROM generation_records
+      WHERE status IN ('pending', 'submitting', 'processing', 'saving_output')
+        AND category = 'video'
+        AND (locked_until IS NULL OR locked_until < now())
+        AND (next_poll_at IS NULL OR next_poll_at <= now())
+      ORDER BY updated_at ASC, created_at ASC
+      FOR UPDATE SKIP LOCKED
+      LIMIT ${limit}
     )
-    .limit(50)
+    RETURNING id
+  `)
+  const rows = result as unknown as Array<{ id: string }>
+  return rows.map(row => row.id)
+}
+
+/** 释放遗留视频轮询 claim 锁；只释放当前 worker 自己持有的 active 行。 */
+export async function releaseVideoTaskClaims(ids: string[], workerId: string) {
+  if (ids.length === 0)
+    return
+
+  await getDb()
+    .update(generationRecords)
+    .set({ lockedBy: '', lockedUntil: null })
+    .where(and(
+      inArray(generationRecords.id, ids),
+      eq(generationRecords.lockedBy, workerId),
+      inArray(generationRecords.status, ['pending', 'submitting', 'processing', 'saving_output']),
+    ))
+}
+
+/** 遗留视频 provider FAILED 后重新排队轮询，不做退款/终态失败。 */
+export async function scheduleVideoTaskProviderRetry(id: string, errorMessage: string, nextPollAt: Date) {
+  await getDb()
+    .update(generationRecords)
+    .set({
+      status: 'processing',
+      errorMessage,
+      providerFailureCount: sql`${generationRecords.providerFailureCount} + 1`,
+      nextPollAt,
+      lockedBy: '',
+      lockedUntil: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(generationRecords.id, id))
 }
 
 /**

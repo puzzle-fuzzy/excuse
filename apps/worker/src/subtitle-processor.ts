@@ -14,10 +14,12 @@ import {
   markGenerationSucceeded,
   notifyGenerationStatus,
   notifyNotification,
+  scheduleASRProjectProviderRetry,
   updateSubtitleProjectStatus,
   updateSubtitleSentences,
 } from '@excuse/db'
 import { createLogger } from '@excuse/shared'
+import { decideTaskFailureAction } from '@excuse/task-engine'
 
 const logger = createLogger('subtitle-processor')
 
@@ -148,6 +150,23 @@ export async function processASRTask(
 
     case 'FAILED': {
       const errMsg = taskStatus.errorMessage || 'ASR 任务失败'
+      const failureAction = decideTaskFailureAction({
+        type: 'media.extract-audio',
+        attempts: project.providerFailureCount + 1,
+        maxAttempts: 3,
+      }, toProviderTaskError(errMsg))
+
+      if (failureAction.action === 'retry') {
+        const nextPollAt = new Date(Date.now() + failureAction.delayMs)
+        await scheduleASRProjectProviderRetry(project.id, errMsg, nextPollAt)
+        logger.warn({
+          projectId: project.id,
+          attempts: project.providerFailureCount + 1,
+          nextPollAt,
+        }, 'ASR provider failure is retriable; scheduled legacy poll retry')
+        break
+      }
+
       await failAsrTask(project, record, errMsg)
       break
     }
@@ -163,4 +182,21 @@ export async function processASRTask(
       break
     }
   }
+}
+
+function toProviderTaskError(message: string): Error {
+  const inferredCode = inferRetriableProviderCode(message)
+  return inferredCode
+    ? new Error(message, { cause: { code: inferredCode } })
+    : new Error(message)
+}
+
+function inferRetriableProviderCode(message: string): string | undefined {
+  if (/\b(?:Throttling|TooManyRequests|RateLimit)\b/i.test(message) || /限流|频率|稍后重试/.test(message))
+    return 'Throttling'
+  if (/\b(?:ETIMEDOUT|timeout|timed out)\b/i.test(message) || /超时/.test(message))
+    return 'ETIMEDOUT'
+  if (/\b(?:InternalError|ECONNRESET|ECONNREFUSED)\b/i.test(message))
+    return 'InternalError'
+  return undefined
 }

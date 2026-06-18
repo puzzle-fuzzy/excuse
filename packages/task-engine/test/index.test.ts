@@ -18,12 +18,12 @@ import {
 
 describe('@excuse/task-engine', () => {
   it('未实现任务分类为 validation 且不可重试', () => {
-    const decision = classifyTaskError(new TaskNotImplementedError('generate.video'))
+    const decision = classifyTaskError(new TaskNotImplementedError('missing.task'))
 
     expect(decision).toEqual({
       category: 'validation',
       retriable: false,
-      message: 'Task handler not implemented: generate.video',
+      message: 'Task handler not implemented: missing.task',
     })
   })
 
@@ -83,7 +83,7 @@ describe('@excuse/task-engine', () => {
 
   it('视频任务使用更长的指数延迟', () => {
     expect(computeRetryDelay('canvas.videos', 1)).toBe(60_000)
-    expect(computeRetryDelay('generate.video', 3)).toBe(240_000)
+    expect(computeRetryDelay('canvas.videos', 3)).toBe(240_000)
     expect(computeRetryDelay('canvas.analyze', 3)).toBe(30_000)
   })
 
@@ -132,7 +132,7 @@ describe('@excuse/task-engine', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 
     expect(decideTaskFailureAction({
-      type: 'generate.video',
+      type: 'canvas.videos',
       attempts: 2,
       maxAttempts: 3,
     }, error)).toEqual({
@@ -151,7 +151,7 @@ describe('@excuse/task-engine', () => {
     const error = new Error('timeout', { cause: { code: 'ETIMEDOUT' } })
 
     expect(decideTaskFailureAction({
-      type: 'generate.video',
+      type: 'canvas.videos',
       attempts: 3,
       maxAttempts: 3,
     }, error)).toEqual({
