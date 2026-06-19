@@ -42,6 +42,11 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # 上传目录
 uploads
 
+# 误以 apps/server/src 为工作目录运行时遗留的本地产物
+# （相对化的 $TMPDIR 骨架 / 上传骨架）。正常上传目录在 apps/server/uploads。
+apps/server/src/var/
+apps/server/src/uploads/
+
 # 系统文件
 .DS_Store
 .git-commit-msg
