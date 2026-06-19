@@ -6,7 +6,7 @@
 
 import type { WorkerConfig } from './config'
 import type { WorkerHealthState } from './health'
-import { findStaleReservedCredits, refundCredit, sweepOrphanTasks } from '@excuse/db'
+import { findStaleReservedCredits, markGenerationFailed, refundCredit, sweepOrphanTasks } from '@excuse/db'
 import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse/provider'
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
@@ -213,6 +213,10 @@ async function reconcileStaleReservedCredits(): Promise<number> {
   let reconciled = 0
   for (const orphan of orphans) {
     try {
+      if (orphan.status !== 'failed' && orphan.status !== 'cancelled') {
+        await markGenerationFailed(orphan.generationRecordId, '任务长时间未更新，系统已自动释放冻结余额')
+      }
+
       await refundCredit({
         accountId: orphan.accountId,
         generationRecordId: orphan.generationRecordId,

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test'
 import { eq, inArray, like } from 'drizzle-orm'
 import { getDb } from '../src/db'
-import { creditBalance, CreditError, debitCredit, getCreditAccount, getOrCreateCreditAccount, refundCredit, reserveCredit } from '../src/repositories/credit.repo'
+import { creditBalance, CreditError, debitCredit, findStaleReservedCredits, getCreditAccount, getOrCreateCreditAccount, refundCredit, reserveCredit } from '../src/repositories/credit.repo'
 import { createGenerationRecord } from '../src/repositories/generation-records.repo'
 import { accounts, creditAccounts, creditTransactions, generationRecords, usageEvents } from '../src/schema'
 import { teardownTestDb, useMigratedTestDb } from './helpers/test-db'
@@ -56,6 +56,15 @@ async function createLedgerSubject(initialBalanceCents = 1000) {
   })
 
   return { accountId, recordId: record.id }
+}
+
+async function ageReservedCredit(generationRecordId: string, minutesAgo: number) {
+  const staleAt = new Date(Date.now() - minutesAgo * 60 * 1000)
+  await getDb()
+    .update(creditTransactions)
+    .set({ createdAt: staleAt })
+    .where(eq(creditTransactions.generationRecordId, generationRecordId))
+  return staleAt
 }
 
 async function listGenerationCreditTransactions(generationRecordId: string) {
@@ -133,5 +142,40 @@ describe('credit ledger repository', () => {
     const txs = await listGenerationCreditTransactions(recordId)
     expect(txs.filter(tx => tx.type === 'refund')).toHaveLength(1)
     expect(txs.filter(tx => tx.type === 'debit')).toHaveLength(0)
+  })
+
+  it('只找出已终态或长时间无更新的孤立 reserve', async () => {
+    const failed = await createLedgerSubject()
+    await reserveCredit({ accountId: failed.accountId, generationRecordId: failed.recordId, amountCents: 300 })
+    await ageReservedCredit(failed.recordId, 90)
+    await getDb()
+      .update(generationRecords)
+      .set({ status: 'failed', updatedAt: new Date() })
+      .where(eq(generationRecords.id, failed.recordId))
+
+    const activeFresh = await createLedgerSubject()
+    await reserveCredit({ accountId: activeFresh.accountId, generationRecordId: activeFresh.recordId, amountCents: 300 })
+    await ageReservedCredit(activeFresh.recordId, 90)
+    await getDb()
+      .update(generationRecords)
+      .set({ status: 'processing', updatedAt: new Date() })
+      .where(eq(generationRecords.id, activeFresh.recordId))
+
+    const activeStale = await createLedgerSubject()
+    await reserveCredit({ accountId: activeStale.accountId, generationRecordId: activeStale.recordId, amountCents: 300 })
+    await ageReservedCredit(activeStale.recordId, 420)
+    await getDb()
+      .update(generationRecords)
+      .set({ status: 'processing', updatedAt: new Date(Date.now() - 420 * 60 * 1000) })
+      .where(eq(generationRecords.id, activeStale.recordId))
+
+    const stale = await findStaleReservedCredits(60)
+    const ids = stale.map(item => item.generationRecordId)
+
+    expect(ids).toContain(failed.recordId)
+    expect(ids).toContain(activeStale.recordId)
+    expect(ids).not.toContain(activeFresh.recordId)
+    expect(stale.find(item => item.generationRecordId === failed.recordId)!.status).toBe('failed')
+    expect(stale.find(item => item.generationRecordId === activeStale.recordId)!.status).toBe('processing')
   })
 })

@@ -1,8 +1,8 @@
-import type { CreditAccountRow, CreditTransactionRow } from '../types'
+import type { CreditAccountRow, CreditTransactionRow, GenerationStatus } from '../types'
 import { getPgErrorCode } from '@excuse/shared'
-import { and, desc, eq, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, or, sql } from 'drizzle-orm'
 import { getDb } from '../db'
-import { creditAccounts, creditTransactions, usageEvents } from '../schema'
+import { creditAccounts, creditTransactions, generationRecords, usageEvents } from '../schema'
 
 // ===== Credit Account =====
 
@@ -355,10 +355,15 @@ export async function findStaleReservedCredits(thresholdMinutes = 60): Promise<A
   reserveTxId: string
   accountId: string
   generationRecordId: string
+  status: GenerationStatus
   reservedCents: number
   createdAt: Date
+  recordUpdatedAt: Date
 }>> {
-  const cutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000)
+  const reserveCutoff = new Date(Date.now() - thresholdMinutes * 60 * 1000)
+  const activeRecordCutoff = new Date(Date.now() - Math.max(thresholdMinutes * 6, 360) * 60 * 1000)
+  const terminalStatuses = ['failed', 'cancelled'] as const
+  const activeStatuses = ['pending', 'submitting', 'processing', 'saving_output'] as const
 
   // 子查询：查找有 reserve 但无 debit 也无 refund 的 generationRecordId
   const recordsWithDebitOrRefund = getDb()
@@ -380,15 +385,25 @@ export async function findStaleReservedCredits(thresholdMinutes = 60): Promise<A
       reserveTxId: creditTransactions.id,
       accountId: creditTransactions.accountId,
       generationRecordId: creditTransactions.generationRecordId,
+      status: generationRecords.status,
       reservedCents: creditTransactions.amountCents,
       createdAt: creditTransactions.createdAt,
+      recordUpdatedAt: generationRecords.updatedAt,
     })
     .from(creditTransactions)
+    .innerJoin(generationRecords, eq(generationRecords.id, creditTransactions.generationRecordId))
     .where(and(
       eq(creditTransactions.type, 'reserve'),
-      lte(creditTransactions.createdAt, cutoff),
+      lte(creditTransactions.createdAt, reserveCutoff),
       sql`${creditTransactions.generationRecordId} IS NOT NULL`,
       sql`${creditTransactions.generationRecordId} NOT IN (SELECT ${recordsWithDebitOrRefund.generationRecordId} FROM ${recordsWithDebitOrRefund})`,
+      or(
+        inArray(generationRecords.status, [...terminalStatuses]),
+        and(
+          inArray(generationRecords.status, [...activeStatuses]),
+          lte(generationRecords.updatedAt, activeRecordCutoff),
+        ),
+      ),
     ))
 
   return rows
@@ -397,8 +412,10 @@ export async function findStaleReservedCredits(thresholdMinutes = 60): Promise<A
       reserveTxId: r.reserveTxId,
       accountId: r.accountId,
       generationRecordId: r.generationRecordId,
+      status: r.status,
       reservedCents: Number(r.reservedCents),
       createdAt: r.createdAt,
+      recordUpdatedAt: r.recordUpdatedAt,
     }))
 }
 
