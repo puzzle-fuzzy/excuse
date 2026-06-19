@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { updateCanvasProject } from '../../api/client'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
 
 interface ProjectDetailPanelProps {
   project: ProjectDTO
@@ -68,10 +69,10 @@ export function ProjectDetailPanel({ project, onUpdate }: ProjectDetailPanelProp
             字符)
           </span>
         </label>
-        <textarea
+        <Textarea
           value={editStoryText}
           onChange={e => setEditStoryText(e.target.value)}
-          className="flex min-h-30 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-30 bg-background shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="在此粘贴故事文本..."
           rows={6}
         />

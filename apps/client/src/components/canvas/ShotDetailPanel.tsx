@@ -13,6 +13,7 @@ import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Input } from '../ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { Textarea } from '../ui/textarea'
 import AssetHistory from './AssetHistory'
 import { PromptEditor } from './PromptEditor'
 import { ShotReferenceAssets } from './ShotReferenceAssets'
@@ -87,11 +88,11 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">叙事描述</label>
-        <textarea
+        <Textarea
           value={editShotNarrative}
           onChange={e => setEditShotNarrative(e.target.value)}
           onBlur={() => handleShotFieldUpdate({ narrative: editShotNarrative })}
-          className="flex min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-16 bg-background text-xs shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
           rows={3}
         />
       </div>
@@ -112,14 +113,14 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">场景</label>
           <Select
-            value={shot.locationId || ''}
-            onValueChange={v => handleShotFieldUpdate({ locationId: v || undefined })}
+            value={shot.locationId || '__none__'}
+            onValueChange={v => handleShotFieldUpdate({ locationId: v === '__none__' ? undefined : v })}
           >
             <SelectTrigger size="sm" className="h-7 w-full gap-1 px-2 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">无场景</SelectItem>
+              <SelectItem value="__none__">无场景</SelectItem>
               {project.locations.map(loc => (
                 <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
               ))}

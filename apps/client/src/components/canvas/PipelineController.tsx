@@ -244,12 +244,12 @@ function ModelSelect({ label, models, value, onChange, disabled }: {
   return (
     <label className="flex items-center gap-1.5 text-muted-foreground">
       <span>{label}</span>
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <Select value={value || '__default__'} onValueChange={v => onChange(v === '__default__' ? '' : v)} disabled={disabled}>
         <SelectTrigger size="sm" className="h-7 max-w-45 gap-1 border-border px-2 text-xs text-foreground">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">默认</SelectItem>
+          <SelectItem value="__default__">默认</SelectItem>
           {models.map(m => (
             <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
           ))}

@@ -7,6 +7,7 @@ import { Ban, Pencil, RotateCcw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TASK_CATEGORY_LABELS } from '@/lib/category-labels'
 import { formatCents } from '@/lib/generation-utils'
 
@@ -252,106 +253,104 @@ export function ApiKeyTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="py-1.5 font-medium">前缀</th>
-            {showName && <th className="py-1.5 font-medium">名称</th>}
-            <th className="py-1.5 font-medium">Scope</th>
-            <th className="py-1.5 font-medium">限流</th>
-            <th className="py-1.5 font-medium">额度消耗</th>
-            <th className="py-1.5 font-medium">状态</th>
-            <th className="py-1.5 font-medium">最近使用</th>
-            {showCreatedAt && <th className="py-1.5 font-medium">创建时间</th>}
-            {showActions && <th className="py-1.5 text-right font-medium">操作</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {keys.map(key => (
-            <tr key={key.id} className="border-b last:border-b-0">
-              <td className="py-1.5 font-mono text-xs">
-                {key.prefix}
-                ...
-              </td>
-              {showName && <td className="py-1.5 text-xs">{key.name ?? '-'}</td>}
-              <td className="py-1.5">
-                <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
-                  {key.scope === 'gateway' ? 'Gateway' : 'All'}
-                </Badge>
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">
-                {key.rateLimitPerMinute ? `${key.rateLimitPerMinute}次/分` : '-'}
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">
-                {key.quotaMaxCents
-                  ? (
-                      <span>
-                        ¥
-                        {formatCents(key.totalSpendCents)}
-                        /
-                        ¥
-                        {formatCents(key.quotaMaxCents)}
-                      </span>
-                    )
+    <Table className="text-sm">
+      <TableHeader>
+        <TableRow className="border-b text-left text-muted-foreground">
+          <TableHead className="h-auto py-1.5">前缀</TableHead>
+          {showName && <TableHead className="h-auto py-1.5">名称</TableHead>}
+          <TableHead className="h-auto py-1.5">Scope</TableHead>
+          <TableHead className="h-auto py-1.5">限流</TableHead>
+          <TableHead className="h-auto py-1.5">额度消耗</TableHead>
+          <TableHead className="h-auto py-1.5">状态</TableHead>
+          <TableHead className="h-auto py-1.5">最近使用</TableHead>
+          {showCreatedAt && <TableHead className="h-auto py-1.5">创建时间</TableHead>}
+          {showActions && <TableHead className="h-auto py-1.5 text-right">操作</TableHead>}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {keys.map(key => (
+          <TableRow key={key.id}>
+            <TableCell className="py-1.5 font-mono text-xs">
+              {key.prefix}
+              ...
+            </TableCell>
+            {showName && <TableCell className="py-1.5 text-xs">{key.name ?? '-'}</TableCell>}
+            <TableCell className="py-1.5">
+              <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
+                {key.scope === 'gateway' ? 'Gateway' : 'All'}
+              </Badge>
+            </TableCell>
+            <TableCell className="py-1.5 text-xs text-muted-foreground">
+              {key.rateLimitPerMinute ? `${key.rateLimitPerMinute}次/分` : '-'}
+            </TableCell>
+            <TableCell className="py-1.5 text-xs text-muted-foreground">
+              {key.quotaMaxCents
+                ? (
+                    <span>
+                      ¥
+                      {formatCents(key.totalSpendCents)}
+                      /
+                      ¥
+                      {formatCents(key.quotaMaxCents)}
+                    </span>
+                  )
+                : (
+                    <span>
+                      ¥
+                      {formatCents(key.totalSpendCents)}
+                    </span>
+                  )}
+            </TableCell>
+            <TableCell className="py-1.5">
+              <Badge variant={key.revokedAt ? 'outline' : 'default'}>
+                {key.revokedAt ? '已撤销' : '启用'}
+              </Badge>
+            </TableCell>
+            <TableCell className="py-1.5 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</TableCell>
+            {showCreatedAt && <TableCell className="py-1.5 text-xs text-muted-foreground">{formatDate(key.createdAt)}</TableCell>}
+            {showActions && (
+              <TableCell className="py-1.5 text-right">
+                {key.revokedAt
+                  ? <span className="text-xs text-muted-foreground">-</span>
                   : (
-                      <span>
-                        ¥
-                        {formatCents(key.totalSpendCents)}
-                      </span>
+                      <div className="flex items-center justify-end gap-1">
+                        {onEdit && (
+                          <Button variant="ghost" size="sm" onClick={() => onEdit(key)}>
+                            <Pencil className="size-3.5" />
+                            配置
+                          </Button>
+                        )}
+                        {onReset && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isMutating}
+                            onClick={() => onReset(key)}
+                          >
+                            <RotateCcw className="size-3.5" />
+                            重置额度
+                          </Button>
+                        )}
+                        {onRevoke && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={isMutating}
+                            onClick={() => onRevoke(key)}
+                          >
+                            <Ban className="size-3.5" />
+                            撤销
+                          </Button>
+                        )}
+                      </div>
                     )}
-              </td>
-              <td className="py-1.5">
-                <Badge variant={key.revokedAt ? 'outline' : 'default'}>
-                  {key.revokedAt ? '已撤销' : '启用'}
-                </Badge>
-              </td>
-              <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.lastUsedAt)}</td>
-              {showCreatedAt && <td className="py-1.5 text-xs text-muted-foreground">{formatDate(key.createdAt)}</td>}
-              {showActions && (
-                <td className="py-1.5 text-right">
-                  {key.revokedAt
-                    ? <span className="text-xs text-muted-foreground">-</span>
-                    : (
-                        <div className="flex items-center justify-end gap-1">
-                          {onEdit && (
-                            <Button variant="ghost" size="sm" onClick={() => onEdit(key)}>
-                              <Pencil className="size-3.5" />
-                              配置
-                            </Button>
-                          )}
-                          {onReset && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={isMutating}
-                              onClick={() => onReset(key)}
-                            >
-                              <RotateCcw className="size-3.5" />
-                              重置额度
-                            </Button>
-                          )}
-                          {onRevoke && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              disabled={isMutating}
-                              onClick={() => onRevoke(key)}
-                            >
-                              <Ban className="size-3.5" />
-                              撤销
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              </TableCell>
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }
 
@@ -369,69 +368,67 @@ export function TaskTable({ tasks, isLoading, isMutating, onRequeue, onCancel, o
     return <div className="py-10 text-center text-sm text-muted-foreground">没有匹配的任务</div>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-265 text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="py-2 font-medium">任务</th>
-            <th className="py-2 font-medium">状态</th>
-            <th className="py-2 font-medium">尝试</th>
-            <th className="py-2 font-medium">关联</th>
-            <th className="py-2 font-medium">锁</th>
-            <th className="py-2 font-medium">下次执行</th>
-            <th className="py-2 font-medium">错误</th>
-            <th className="py-2 text-right font-medium">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map(task => (
-            <tr key={task.id} className="border-b last:border-b-0">
-              <td className="py-2">
-                <div className="font-medium">{task.type}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{task.domain}</span>
-                  <span>{shortId(task.id)}</span>
-                </div>
-              </td>
-              <td className="py-2"><Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge></td>
-              <td className="py-2 text-muted-foreground">
-                {task.attempts}
-                /
-                {task.maxAttempts}
-              </td>
-              <td className="py-2 text-xs text-muted-foreground">
-                <div>
-                  project:
-                  {shortId(task.projectId)}
-                </div>
-                <div>
-                  record:
-                  {shortId(task.generationRecordId)}
-                </div>
-              </td>
-              <td className="py-2 text-xs text-muted-foreground">
-                <div>{task.lockedBy || '-'}</div>
-                <div>{formatDate(task.lockedUntil)}</div>
-              </td>
-              <td className="py-2 text-muted-foreground">{formatDate(task.nextRunAt)}</td>
-              <td className="max-w-72 truncate py-2 text-destructive">{task.errorMessage || '-'}</td>
-              <td className="py-2">
-                <div className="flex justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => onOpenDetail(task.id)}>详情</Button>
-                  <Button size="sm" variant="outline" disabled={!task.canRequeue || isMutating} onClick={() => onRequeue(task.id)}>
-                    <RotateCcw className="size-4" />
-                    重排
-                  </Button>
-                  <Button size="sm" variant="outline" disabled={!task.canCancel || isMutating} onClick={() => onCancel(task.id)}>
-                    <Ban className="size-4" />
-                    取消
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table className="min-w-265 text-sm">
+      <TableHeader>
+        <TableRow className="border-b text-left text-muted-foreground">
+          <TableHead className="h-auto py-2">任务</TableHead>
+          <TableHead className="h-auto py-2">状态</TableHead>
+          <TableHead className="h-auto py-2">尝试</TableHead>
+          <TableHead className="h-auto py-2">关联</TableHead>
+          <TableHead className="h-auto py-2">锁</TableHead>
+          <TableHead className="h-auto py-2">下次执行</TableHead>
+          <TableHead className="h-auto py-2">错误</TableHead>
+          <TableHead className="h-auto py-2 text-right">操作</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {tasks.map(task => (
+          <TableRow key={task.id}>
+            <TableCell className="py-2">
+              <div className="font-medium">{task.type}</div>
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{task.domain}</span>
+                <span>{shortId(task.id)}</span>
+              </div>
+            </TableCell>
+            <TableCell className="py-2"><Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge></TableCell>
+            <TableCell className="py-2 text-muted-foreground">
+              {task.attempts}
+              /
+              {task.maxAttempts}
+            </TableCell>
+            <TableCell className="py-2 text-xs text-muted-foreground">
+              <div>
+                project:
+                {shortId(task.projectId)}
+              </div>
+              <div>
+                record:
+                {shortId(task.generationRecordId)}
+              </div>
+            </TableCell>
+            <TableCell className="py-2 text-xs text-muted-foreground">
+              <div>{task.lockedBy || '-'}</div>
+              <div>{formatDate(task.lockedUntil)}</div>
+            </TableCell>
+            <TableCell className="py-2 text-muted-foreground">{formatDate(task.nextRunAt)}</TableCell>
+            <TableCell className="max-w-72 truncate py-2 text-destructive">{task.errorMessage || '-'}</TableCell>
+            <TableCell className="py-2">
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => onOpenDetail(task.id)}>详情</Button>
+                <Button size="sm" variant="outline" disabled={!task.canRequeue || isMutating} onClick={() => onRequeue(task.id)}>
+                  <RotateCcw className="size-4" />
+                  重排
+                </Button>
+                <Button size="sm" variant="outline" disabled={!task.canCancel || isMutating} onClick={() => onCancel(task.id)}>
+                  <Ban className="size-4" />
+                  取消
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

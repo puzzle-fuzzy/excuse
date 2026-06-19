@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { deleteCanvasCharacter, regenerateCanvasCharacter, updateCanvasCharacter, uploadFile } from '../../api/client'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
 import AssetHistory from './AssetHistory'
 import { ReferenceUploadZone } from './ReferenceUploadZone'
 
@@ -73,11 +74,11 @@ export function CharacterDetailPanel({ character, onUpdate, confirm }: Character
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-muted-foreground">描述</label>
-        <textarea
+        <Textarea
           value={editCharDesc}
           onChange={e => setEditCharDesc(e.target.value)}
           onBlur={() => handleCharacterFieldUpdate({ description: editCharDesc })}
-          className="flex min-h-16 w-full rounded-lg border border-input bg-background px-3 py-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-16 bg-background text-xs shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
           placeholder="角色描述"
           rows={3}
         />
