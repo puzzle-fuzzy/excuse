@@ -85,6 +85,12 @@ export const subjectQueryKeys = {
   list: (params?: Record<string, unknown>) => ['subjects', params] as const,
 }
 
+export const taskQueryKeys = {
+  all: ['tasks'] as const,
+  list: (params?: Record<string, unknown>) => ['tasks', 'list', params] as const,
+  detail: (id: string) => ['tasks', 'detail', id] as const,
+}
+
 export const canvasAssetsPollingQueryKeys = {
   /** 单个项目的资产轮询 query key；refetchInterval 由 hook 动态计算 */
   poll: (projectId: string) => ['canvas-assets-poll', projectId] as const,
