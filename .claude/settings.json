@@ -82,7 +82,9 @@
       "Bash(echo \"PUSH_EXIT:$?\")",
       "Bash(awk 'NR==1{m=$0} NR==2{print \\($0==m\\) ? \"master == feat tip: YES \\(merged\\)\" : \"NO — divergent\"}')",
       "Bash(git log *)",
-      "Bash(echo \"master tip: $\\(git log --master -1 --oneline || git log master -1 --oneline\\)\")"
+      "Bash(echo \"master tip: $\\(git log --master -1 --oneline || git log master -1 --oneline\\)\")",
+      "Bash(awk '{print \"origin/master behind:\",$1,\"| local master ahead:\",$2}')",
+      "Bash(echo \"DELETE_EXIT:$?\")"
     ]
   }
 }
