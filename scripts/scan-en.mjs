@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const dirs = ['apps/server/test', 'apps/worker/test', 'apps/web-business/test', 'packages']
+const dirs = ['apps/server/test', 'apps/worker/test', 'apps/client/test', 'packages']
 const exts = ['.test.ts', '.test.tsx']
 const results = []
 

@@ -13,7 +13,7 @@ import { loadConfig } from './config'
 import { createWorkerContext } from './context'
 import { createTaskPollSource } from './poll-sources'
 import { reconcileTaskRunDrift } from './reconcile'
-import { checkWorkerEnvironment, setupLifecycle } from './worker-lifecycle'
+import { checkWorkerEnvironment, setupHealthServer, setupLifecycle } from './worker-lifecycle'
 
 const config = loadConfig()
 const logger = createLogger('worker')

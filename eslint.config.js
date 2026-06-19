@@ -1,6 +1,6 @@
 import antfu, { react } from '@antfu/eslint-config'
 
-// 这是一个混合技术栈 monorepo：apps/web-business 是 React，apps/server、apps/worker
+// 这是一个混合技术栈 monorepo：apps/client 是 React，apps/server、apps/worker
 // 以及 packages/* 全是纯 Node/Bun 后端代码。
 // antfu 的 `react: true` 会给整套 React 规则设定 `**/*.?([cm])[jt]s?(x)` 这么宽的
 // files 范围（覆盖所有 .ts/.js 而不只是 .tsx/.jsx），导致后端测试文件也被套上
@@ -8,7 +8,7 @@ import antfu, { react } from '@antfu/eslint-config'
 //
 // 治本做法：不使用 `react: true` 全局开关，改为手动引入 react() 子配置，
 // 把它的 files 收窄到真正写 React 的前端目录，再用 composer append 回去。
-const reactFiles = ['apps/web-business/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}']
+const reactFiles = ['apps/client/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}']
 
 // react() 返回 [plugins 注册项, ...带 rules 的规则项]。
 // 只改写「带 rules 的项」的 files；plugins 注册项保持无 files（全局可用），
@@ -35,7 +35,7 @@ export default antfu({
     '**/dist',
     // Drizzle 迁移文件由工具自动生成，无需 lint
     '**/drizzle',
-    'apps/web-business/src/components/ui/**',
+    'apps/client/src/components/ui/**',
   ],
 })
   // Server/worker: console 必须走 logger，直接 console 为 error
@@ -48,7 +48,7 @@ export default antfu({
   })
   // Client: 允许 console.warn/error（开发调试保留），禁止 console.log
   .append({
-    files: ['apps/web-business/**/*.{ts,tsx}'],
+    files: ['apps/client/**/*.{ts,tsx}'],
     rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },

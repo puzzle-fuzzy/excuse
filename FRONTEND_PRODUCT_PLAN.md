@@ -2,7 +2,7 @@
 
 > 日期：2026-06-19  
 > 目标：把当前“功能 demo 型前端”升级为可投放、可信任、高端且舒适的 AI 创意生产产品。  
-> 适用范围：`apps/web-business`（To B 端）全部认证后页面、登录注册、导航、设计系统、核心工作流与前端产品体验。
+> 适用范围：`apps/client` 全部认证后页面、登录注册、导航、设计系统、核心工作流与前端产品体验。
 
 ## 1. 产品判断
 
@@ -918,7 +918,7 @@ SSE 正常时：
 ## 12. 建议文件与组件结构
 
 ```text
-apps/web-business/src/
+apps/client/src/
   app/
     AppShell.tsx
     Sidebar.tsx

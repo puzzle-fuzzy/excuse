@@ -1,4 +1,4 @@
-// 防回退检查：禁止在 apps/web-business 中混用原生表单控件
+// 防回退检查：禁止在 apps/client 中混用原生表单控件
 //
 // 业务页面/组件必须使用 shadcn/ui 组件（components/ui/*），而非裸的
 //   - <select> ... </select>          → 用 ui/select.tsx
@@ -20,23 +20,23 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const SCAN_ROOT = path.join(ROOT, 'apps/web-business/src')
+const SCAN_ROOT = path.join(ROOT, 'apps/client/src')
 
 // 需要拦截的原生控件模式（JSX 中的裸标签用法）
 // 注意：排除 Input 组件（大写 <Input）— 那是 shadcn 封装
 const FORBIDDEN = [
   // 裸 <select>（小写，原生；shadcn 是 <Select>）
-  { re: /(<select(?:\s|>))/g, tag: '<select>', fix: '使用 ui/select.tsx 的 <Select>' },
+  { re: /(<select\b)/g, tag: '<select>', fix: '使用 ui/select.tsx 的 <Select>' },
   // <input type="checkbox">（注意排除 <Input type="checkbox">，但 Input 通常不会传 checkbox）
-  { re: /(<input[^>]*type=["']checkbox["'])/g, tag: '<input type="checkbox">', fix: '使用 ui/checkbox.tsx 的 <Checkbox>' },
+  { re: /(<input\b[^>]*\btype=["']checkbox["'])/g, tag: '<input type="checkbox">', fix: '使用 ui/checkbox.tsx 的 <Checkbox>' },
   // <input type="range">
-  { re: /(<input[^>]*type=["']range["'])/g, tag: '<input type="range">', fix: '使用 ui/slider.tsx 的 <Slider>' },
+  { re: /(<input\b[^>]*\btype=["']range["'])/g, tag: '<input type="range">', fix: '使用 ui/slider.tsx 的 <Slider>' },
   // <input type="date">
-  { re: /(<input[^>]*type=["']date["'])/g, tag: '<input type="date">', fix: '使用预设区间或封装的日期组件' },
+  { re: /(<input\b[^>]*\btype=["']date["'])/g, tag: '<input type="date">', fix: '使用预设区间或封装的日期组件' },
   // <input type="datetime-local">
-  { re: /(<input[^>]*type=["']datetime-local["'])/g, tag: '<input type="datetime-local">', fix: '使用封装的日期组件' },
+  { re: /(<input\b[^>]*\btype=["']datetime-local["'])/g, tag: '<input type="datetime-local">', fix: '使用封装的日期组件' },
   // <input type="time">
-  { re: /(<input[^>]*type=["']time["'])/g, tag: '<input type="time">', fix: '使用封装的时间组件' },
+  { re: /(<input\b[^>]*\btype=["']time["'])/g, tag: '<input type="time">', fix: '使用封装的时间组件' },
 ]
 
 // 允许例外的小写 type（通过 shadcn <Input> 传入是规范的）

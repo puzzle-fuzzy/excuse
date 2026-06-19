@@ -23,8 +23,7 @@
 ```
 excuse/
 ├── apps/
-│   ├── web-business/     To B 前端 SPA（Vite + shadcn/ui，端口 8007）
-│   ├── web-consumer/     To C 前端 SPA（Vite + React，端口 8008）
+│   ├── client/     React 前端 SPA（Vite + shadcn/ui，端口 8007）
 │   ├── server/     ElysiaJS 后端 API（端口 5007）
 │   └── worker/     后台任务 Worker — 统一任务队列 + Canvas 流水线推进 + 视频/字幕轮询
 ├── packages/
@@ -104,8 +103,8 @@ bun test --cwd apps/worker
 # 跑单个测试文件
 bun test apps/server/test/auth-routes.test.ts
 
-# 跑单个前端测试（在 apps/web-business 下）
-cd apps/web-business && bun vitest src/__tests__/some.test.tsx
+# 跑单个前端测试（在 apps/client 下）
+cd apps/client && bun vitest src/__tests__/some.test.tsx
 ```
 
 ### 数据库命令（在 `packages/db` 目录下）

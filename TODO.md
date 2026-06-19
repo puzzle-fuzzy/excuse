@@ -1,7 +1,7 @@
 # TODO
 
 > 审计日期：2026-06-19  
-> 审计范围：`apps/web-business`、`apps/server`、`apps/worker`、`packages/*`、根配置、脚本与现有测试。
+> 审计范围：`apps/client`、`apps/server`、`apps/worker`、`packages/*`、根配置、脚本与现有测试。  
 > 当前总体判断：项目已经具备清晰的 Bun + Elysia + React monorepo 形态，领域包、任务队列、SSE、计费、Provider、Canvas 流水线和测试体系都有基础。但随着功能增长，部分包边界、前端页面职责、运行时配置和测试结构开始出现“可维护性债务”。本次审计列出的治理项已按风险和收益排序执行完毕（见「执行状态」）。
 
 ## 执行状态
@@ -28,4 +28,4 @@
 
 - `check:boundaries` ✅ · `typecheck` ✅（server/client/worker/e2e 全 0）· `lint` ✅（0 error，20 预存 warning 均在 `scripts/`）· `build` ✅ · `test` ✅（server 554/0、worker/packages 全绿）· `test:client` ✅（376/0）
 
-> ⚠️ 复核附记：`apps/web-business` 的 `tsc -b` 增量 buildinfo（`node_modules/.tmp/tsconfig.app.tsbuildinfo`）曾处于损坏状态，会逐文件抛出 **虚假的** `TS6133/TS6192 unused` 报错且每次报错文件不同（如一度误报 `Workspace.tsx` 的 `ScrollArea`、`Canvas.tsx` 的 `Video`，实际二者均在用 / 不存在该 import）。删除 buildinfo 全量重建后恢复正常。属本地一次性缓存故障（文件在 `.gitignore` 内），非代码缺陷；若再遇 web-business typecheck 报单文件 unused 错误，先删该 buildinfo 再重建。
+> ⚠️ 复核附记：`apps/client` 的 `tsc -b` 增量 buildinfo（`node_modules/.tmp/tsconfig.app.tsbuildinfo`）曾处于损坏状态，会逐文件抛出 **虚假的** `TS6133/TS6192 unused` 报错且每次报错文件不同（如一度误报 `Workspace.tsx` 的 `ScrollArea`、`Canvas.tsx` 的 `Video`，实际二者均在用 / 不存在该 import）。删除 buildinfo 全量重建后恢复正常。属本地一次性缓存故障（文件在 `.gitignore` 内），非代码缺陷；若再遇 client typecheck 报单文件 unused 错误，先删该 buildinfo 再重建。

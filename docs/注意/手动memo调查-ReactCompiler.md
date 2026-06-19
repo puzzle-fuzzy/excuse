@@ -10,7 +10,7 @@
 
 ## 背景
 
-来源是架构审计 `TODO2.md` §3.6「client 78 处手动 `useMemo`/`useCallback`（React Compiler 已开）」。表面逻辑很顺：RC 在 `apps/web-business/vite.config.ts` 经 `babel-plugin-react-compiler@1.0.0` + `reactCompilerPreset()` 开启了 → 自动 memoize → 手动 memo 应该是冗余 → 可以删。处置也要求「先开 compiler eslint 插件校验」再删。
+来源是架构审计 `TODO2.md` §3.6「client 78 处手动 `useMemo`/`useCallback`（React Compiler 已开）」。表面逻辑很顺：RC 在 `apps/client/vite.config.ts` 经 `babel-plugin-react-compiler@1.0.0` + `reactCompilerPreset()` 开启了 → 自动 memoize → 手动 memo 应该是冗余 → 可以删。处置也要求「先开 compiler eslint 插件校验」再删。
 
 **实际跑下来发现这个推理在本仓库不成立。**
 
@@ -45,7 +45,7 @@
 
 调查过程中踩到的执行细节，记下来省得下次再摸索：
 
-- **依赖要装在 root，不是 `apps/web-business`。** `eslint.config.js` 和 `bun run lint`（`eslint .`）都在仓库根运行，import 从 root `node_modules` 解析。装到 `apps/web-business` 会报 `Cannot find package 'eslint-plugin-react-compiler'`。其它 eslint 工具（`@antfu/eslint-config`、`eslint`、`eslint-plugin-react-refresh`）也都已在 root devDeps。
+- **依赖要装在 root，不是 `apps/client`。** `eslint.config.js` 和 `bun run lint`（`eslint .`）都在仓库根运行，import 从 root `node_modules` 解析。装到 `apps/client` 会报 `Cannot find package 'eslint-plugin-react-compiler'`。其它 eslint 工具（`@antfu/eslint-config`、`eslint`、`eslint-plugin-react-refresh`）也都已在 root devDeps。
 - **eslint 配置是「收窄 scope 的 react 子配置」模式**（见 `eslint.config.js` 顶部注释 + `reactFiles`）。新规则必须挂进同一 `reactFiles` scope，否则后端文件会反向报 `Definition for rule 'react/...' was not found`。
 - **VSCode 里跑 eslint 会触发「editor 模式」**，antfu 会禁用部分规则。要拿到确定结果，先剥掉编辑器环境变量：`env -u VSCODE_PID -u VSCODE_CWD bunx eslint …`（antfu 的判定见 `isInEditorEnv()`：`VSCODE_PID || VSCODE_CWD || …`）。
 - **`@babel/core` 不在普通 node 解析路径上**，只在 bun 内部的 `.bun/node_modules/@babel` hoist 里。想用 `@babel/core` + `babel-plugin-react-compiler` 直接 transform 一个文件做 ground-truth 验证，**plain node require 找不到**，bun 的 ESM import 也找不到。别在这条路上耗时间——build 用的是 `@rolldown/plugin-babel`（oxc），本来就不走 `@babel/core`。
@@ -79,7 +79,7 @@ bun add -d eslint-plugin-react-compiler@19.1.0-rc.2
 #    })
 
 # 3) 跑全量（剥掉 VSCode editor 检测）
-env -u VSCODE_PID -u VSCODE_CWD bunx eslint 'apps/web-business/src/**/*.{ts,tsx}' \
+env -u VSCODE_PID -u VSCODE_CWD bunx eslint 'apps/client/src/**/*.{ts,tsx}' \
   | grep "ReactCompilerBailout"
 
 # 4) 看每个文件的 bailout 数 + 原因
