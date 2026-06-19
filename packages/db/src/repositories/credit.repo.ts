@@ -1,4 +1,5 @@
 import type { CreditAccountRow, CreditTransactionRow } from '../types'
+import { getPgErrorCode } from '@excuse/shared'
 import { and, desc, eq, lte, or, sql } from 'drizzle-orm'
 import { getDb } from '../db'
 import { creditAccounts, creditTransactions, usageEvents } from '../schema'
@@ -52,48 +53,63 @@ export async function reserveCredit(opts: {
   if (existing)
     return existing
 
-  // 原子扣减：只有 availableCents >= amountCents 时才更新
-  const [updated] = await getDb()
-    .update(creditAccounts)
-    .set({
-      availableCents: sql`${creditAccounts.availableCents} - ${amountCents}`,
-      frozenCents: sql`${creditAccounts.frozenCents} + ${amountCents}`,
-      updatedAt: new Date(),
+  try {
+    return await getDb().transaction(async (txDb) => {
+      // 原子扣减：只有 availableCents >= amountCents 时才更新
+      const [updated] = await txDb
+        .update(creditAccounts)
+        .set({
+          availableCents: sql`${creditAccounts.availableCents} - ${amountCents}`,
+          frozenCents: sql`${creditAccounts.frozenCents} + ${amountCents}`,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(creditAccounts.accountId, accountId),
+          sql`${creditAccounts.availableCents} >= ${amountCents}`,
+        ))
+        .returning()
+
+      if (!updated) {
+        const [account] = await txDb
+          .select()
+          .from(creditAccounts)
+          .where(eq(creditAccounts.accountId, accountId))
+          .limit(1)
+        throw new CreditError(
+          'INSUFFICIENT_BALANCE',
+          `余额不足：需要 ${amountCents} 分，可用 ${account?.availableCents ?? 0} 分`,
+        )
+      }
+
+      // 写交易流水。若并发重复预留触发唯一索引，事务会回滚上面的余额更新。
+      const [txRow] = await txDb.insert(creditTransactions).values({
+        accountId,
+        type: 'reserve',
+        amountCents,
+        balanceAfterCents: updated.availableCents,
+        frozenAfterCents: updated.frozenCents,
+        generationRecordId,
+        description: description ?? '生成任务预留',
+      }).returning()
+
+      await txDb.insert(usageEvents).values({
+        accountId,
+        generationRecordId,
+        reserveTxId: txRow!.id,
+        reservedCents: amountCents,
+      }).onConflictDoNothing()
+
+      return txRow!
     })
-    .where(and(
-      eq(creditAccounts.accountId, accountId),
-      sql`${creditAccounts.availableCents} >= ${amountCents}`,
-    ))
-    .returning()
-
-  if (!updated) {
-    const account = await getCreditAccount(accountId)
-    throw new CreditError(
-      'INSUFFICIENT_BALANCE',
-      `余额不足：需要 ${amountCents} 分，可用 ${account?.availableCents ?? 0} 分`,
-    )
   }
-
-  // 写交易流水
-  const [tx] = await getDb().insert(creditTransactions).values({
-    accountId,
-    type: 'reserve',
-    amountCents,
-    balanceAfterCents: updated.availableCents,
-    frozenAfterCents: updated.frozenCents,
-    generationRecordId,
-    description: description ?? '生成任务预留',
-  }).returning()
-
-  // 写使用事件
-  await getDb().insert(usageEvents).values({
-    accountId,
-    generationRecordId,
-    reserveTxId: tx!.id,
-    reservedCents: amountCents,
-  }).onConflictDoNothing()
-
-  return tx!
+  catch (error) {
+    if (getPgErrorCode(error) === '23505') {
+      const duplicated = await getCreditTransactionByRecordAndType(generationRecordId, 'reserve')
+      if (duplicated)
+        return duplicated
+    }
+    throw error
+  }
 }
 
 /**
@@ -115,56 +131,73 @@ export async function debitCredit(opts: {
   if (existing)
     return existing
 
-  // 查找 usage event 获取预留金额
-  const [event] = await getDb()
-    .select()
-    .from(usageEvents)
-    .where(eq(usageEvents.generationRecordId, generationRecordId))
-    .limit(1)
+  try {
+    return await getDb().transaction(async (txDb) => {
+      const [event] = await txDb
+        .select()
+        .from(usageEvents)
+        .where(eq(usageEvents.generationRecordId, generationRecordId))
+        .for('update')
+        .limit(1)
 
-  const reservedCents = event?.reservedCents ?? 0
-  const refundCents = Math.max(0, reservedCents - actualCents)
-  const extraDebitCents = Math.max(0, actualCents - reservedCents)
+      const settled = await getSettledGenerationTransaction(generationRecordId, txDb)
+      if (settled) {
+        if (settled.type === 'debit')
+          return settled
+        throw new CreditError('ALREADY_SETTLED', `生成记录已退款，不能再次扣款: ${generationRecordId}`)
+      }
 
-  // 原子更新：冻结减少预留金额；实际费用低于预留时退差额，高于预留时从可用余额补扣差额。
-  const [updated] = await getDb()
-    .update(creditAccounts)
-    .set({
-      frozenCents: sql`${creditAccounts.frozenCents} - ${reservedCents}`,
-      availableCents: sql`${creditAccounts.availableCents} + ${refundCents} - ${extraDebitCents}`,
-      updatedAt: new Date(),
+      const reservedCents = event?.reservedCents ?? 0
+      const refundCents = Math.max(0, reservedCents - actualCents)
+      const extraDebitCents = Math.max(0, actualCents - reservedCents)
+
+      // 原子更新：冻结减少预留金额；实际费用低于预留时退差额，高于预留时从可用余额补扣差额。
+      const [updated] = await txDb
+        .update(creditAccounts)
+        .set({
+          frozenCents: sql`${creditAccounts.frozenCents} - ${reservedCents}`,
+          availableCents: sql`${creditAccounts.availableCents} + ${refundCents} - ${extraDebitCents}`,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(creditAccounts.accountId, accountId),
+          sql`${creditAccounts.frozenCents} >= ${reservedCents}`,
+          sql`${creditAccounts.availableCents} >= ${extraDebitCents}`,
+        ))
+        .returning()
+
+      if (!updated) {
+        throw new CreditError('INSUFFICIENT_BALANCE', `余额不足，无法完成实际扣款: ${accountId}`)
+      }
+
+      const [txRow] = await txDb.insert(creditTransactions).values({
+        accountId,
+        type: 'debit',
+        amountCents: actualCents,
+        balanceAfterCents: updated.availableCents,
+        frozenAfterCents: updated.frozenCents,
+        generationRecordId,
+        description: description ?? '生成完成扣款',
+      }).returning()
+
+      if (event) {
+        await txDb
+          .update(usageEvents)
+          .set({ debitTxId: txRow!.id, debitedCents: actualCents, updatedAt: new Date() })
+          .where(eq(usageEvents.id, event.id))
+      }
+
+      return txRow!
     })
-    .where(and(
-      eq(creditAccounts.accountId, accountId),
-      sql`${creditAccounts.frozenCents} >= ${reservedCents}`,
-      sql`${creditAccounts.availableCents} >= ${extraDebitCents}`,
-    ))
-    .returning()
-
-  if (!updated) {
-    throw new CreditError('INSUFFICIENT_BALANCE', `余额不足，无法完成实际扣款: ${accountId}`)
   }
-
-  // 写交易流水（幂等：唯一索引防止重复）
-  const [tx] = await getDb().insert(creditTransactions).values({
-    accountId,
-    type: 'debit',
-    amountCents: actualCents,
-    balanceAfterCents: updated.availableCents,
-    frozenAfterCents: updated.frozenCents,
-    generationRecordId,
-    description: description ?? '生成完成扣款',
-  }).returning()
-
-  // 更新 usage event
-  if (event) {
-    await getDb()
-      .update(usageEvents)
-      .set({ debitTxId: tx!.id, debitedCents: actualCents, updatedAt: new Date() })
-      .where(eq(usageEvents.id, event.id))
+  catch (error) {
+    if (getPgErrorCode(error) === '23505') {
+      const duplicated = await getCreditTransactionByRecordAndType(generationRecordId, 'debit')
+      if (duplicated)
+        return duplicated
+    }
+    throw error
   }
-
-  return tx!
 }
 
 /**
@@ -183,56 +216,73 @@ export async function refundCredit(opts: {
   if (existing)
     return existing
 
-  // 查找 usage event 获取预留金额
-  const [event] = await getDb()
-    .select()
-    .from(usageEvents)
-    .where(eq(usageEvents.generationRecordId, generationRecordId))
-    .limit(1)
+  try {
+    return await getDb().transaction(async (txDb) => {
+      const [event] = await txDb
+        .select()
+        .from(usageEvents)
+        .where(eq(usageEvents.generationRecordId, generationRecordId))
+        .for('update')
+        .limit(1)
 
-  const reservedCents = event?.reservedCents ?? 0
-  if (reservedCents <= 0) {
-    throw new CreditError('NO_RESERVED_CREDIT', `生成记录没有可退还的冻结金额: ${generationRecordId}`)
-  }
+      const settled = await getSettledGenerationTransaction(generationRecordId, txDb)
+      if (settled) {
+        if (settled.type === 'refund')
+          return settled
+        throw new CreditError('ALREADY_SETTLED', `生成记录已扣款，不能再次退款: ${generationRecordId}`)
+      }
 
-  // 原子更新：冻结减少，可用增加
-  const [updated] = await getDb()
-    .update(creditAccounts)
-    .set({
-      frozenCents: sql`${creditAccounts.frozenCents} - ${reservedCents}`,
-      availableCents: sql`${creditAccounts.availableCents} + ${reservedCents}`,
-      updatedAt: new Date(),
+      const reservedCents = event?.reservedCents ?? 0
+      if (reservedCents <= 0) {
+        throw new CreditError('NO_RESERVED_CREDIT', `生成记录没有可退还的冻结金额: ${generationRecordId}`)
+      }
+
+      // 原子更新：冻结减少，可用增加
+      const [updated] = await txDb
+        .update(creditAccounts)
+        .set({
+          frozenCents: sql`${creditAccounts.frozenCents} - ${reservedCents}`,
+          availableCents: sql`${creditAccounts.availableCents} + ${reservedCents}`,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(creditAccounts.accountId, accountId),
+          sql`${creditAccounts.frozenCents} >= ${reservedCents}`,
+        ))
+        .returning()
+
+      if (!updated) {
+        throw new CreditError('ACCOUNT_NOT_FOUND', `账户不存在或冻结金额不足: ${accountId}`)
+      }
+
+      const [txRow] = await txDb.insert(creditTransactions).values({
+        accountId,
+        type: 'refund',
+        amountCents: reservedCents,
+        balanceAfterCents: updated.availableCents,
+        frozenAfterCents: updated.frozenCents,
+        generationRecordId,
+        description: description ?? '生成失败退还',
+      }).returning()
+
+      if (event) {
+        await txDb
+          .update(usageEvents)
+          .set({ refundTxId: txRow!.id, updatedAt: new Date() })
+          .where(eq(usageEvents.id, event.id))
+      }
+
+      return txRow!
     })
-    .where(and(
-      eq(creditAccounts.accountId, accountId),
-      sql`${creditAccounts.frozenCents} >= ${reservedCents}`,
-    ))
-    .returning()
-
-  if (!updated) {
-    throw new CreditError('ACCOUNT_NOT_FOUND', `账户不存在或冻结金额不足: ${accountId}`)
   }
-
-  // 写交易流水（幂等）
-  const [tx] = await getDb().insert(creditTransactions).values({
-    accountId,
-    type: 'refund',
-    amountCents: reservedCents,
-    balanceAfterCents: updated.availableCents,
-    frozenAfterCents: updated.frozenCents,
-    generationRecordId,
-    description: description ?? '生成失败退还',
-  }).returning()
-
-  // 更新 usage event
-  if (event) {
-    await getDb()
-      .update(usageEvents)
-      .set({ refundTxId: tx!.id, updatedAt: new Date() })
-      .where(eq(usageEvents.id, event.id))
+  catch (error) {
+    if (getPgErrorCode(error) === '23505') {
+      const duplicated = await getCreditTransactionByRecordAndType(generationRecordId, 'refund')
+      if (duplicated)
+        return duplicated
+    }
+    throw error
   }
-
-  return tx!
 }
 
 // ===== Credit (充值) =====
@@ -370,6 +420,7 @@ export type CreditErrorCode
   = | 'INSUFFICIENT_BALANCE'
     | 'ACCOUNT_NOT_FOUND'
     | 'ALREADY_RESERVED'
+    | 'ALREADY_SETTLED'
     | 'INVALID_AMOUNT'
     | 'NO_RESERVED_CREDIT'
 
@@ -394,6 +445,24 @@ async function getCreditTransactionByRecordAndType(
       eq(creditTransactions.generationRecordId, generationRecordId),
       eq(creditTransactions.type, type),
     ))
+    .limit(1)
+  return row ?? null
+}
+
+type DbClient = ReturnType<typeof getDb>
+
+async function getSettledGenerationTransaction(
+  generationRecordId: string,
+  db: Pick<DbClient, 'select'> = getDb(),
+): Promise<CreditTransactionRow | null> {
+  const [row] = await db
+    .select()
+    .from(creditTransactions)
+    .where(and(
+      eq(creditTransactions.generationRecordId, generationRecordId),
+      or(eq(creditTransactions.type, 'debit'), eq(creditTransactions.type, 'refund')),
+    ))
+    .for('update')
     .limit(1)
   return row ?? null
 }
