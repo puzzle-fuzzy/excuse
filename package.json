@@ -16,7 +16,37 @@
     "packages/*"
   ],
   "catalog": {
-    "elysia": "1.4.28"
+    "@elysia/bearer": "1.4.4",
+    "@elysia/cors": "1.4.2",
+    "@elysia/eden": "1.4.10",
+    "@elysia/jwt": "1.4.2",
+    "@elysia/static": "1.4.11",
+    "@elysiajs/cookie": "0.8.0",
+    "@elysiajs/openapi": "1.4.15",
+    "@fontsource-variable/geist": "5.2.9",
+    "@tailwindcss/vite": "4.3.0",
+    "@tanstack/react-query": "5.101.0",
+    "@tanstack/react-query-devtools": "5.101.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "24.13.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitest/coverage-v8": "4.1.8",
+    "babel-plugin-react-compiler": "1.0.0",
+    "currency.js": "2.0.4",
+    "elysia": "1.4.28",
+    "jsdom": "29.1.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-router": "7.17.0",
+    "tailwindcss": "4.3.0",
+    "typescript": "6.0.3",
+    "vite": "8.0.16",
+    "vitest": "4.1.8",
+    "zod": "4.4.3"
   },
   "scripts": {
     "lint": "eslint .",
@@ -47,7 +77,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "currency.js": "^2.0.4",
+    "currency.js": "catalog:",
     "nodemailer": "^9.0.0",
     "p-limit": "^7.3.0",
     "pg": "^8.21.0"

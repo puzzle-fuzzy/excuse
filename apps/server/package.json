@@ -10,12 +10,12 @@
     "build": "tsc -p tsconfig.json --noEmit && echo '✅ server typecheck passed'"
   },
   "dependencies": {
-    "@elysia/bearer": "^1.4.4",
-    "@elysia/cors": "^1.4.2",
-    "@elysia/jwt": "^1.4.2",
-    "@elysia/static": "^1.3.1",
-    "@elysiajs/cookie": "^0.8.0",
-    "@elysiajs/openapi": "^1.4.15",
+    "@elysia/bearer": "catalog:",
+    "@elysia/cors": "catalog:",
+    "@elysia/jwt": "catalog:",
+    "@elysia/static": "catalog:",
+    "@elysiajs/cookie": "catalog:",
+    "@elysiajs/openapi": "catalog:",
     "@excuse/auth": "workspace:*",
     "@excuse/billing": "workspace:*",
     "@excuse/canvas-engine": "workspace:*",
@@ -39,7 +39,7 @@
     "pino-http": "^11.0.0"
   },
   "devDependencies": {
-    "@elysia/eden": "^1.4.10",
+    "@elysia/eden": "catalog:",
     "bun-types": "latest"
   }
 }

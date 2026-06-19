@@ -13,6 +13,6 @@
   },
   "dependencies": {
     "@excuse/shared": "workspace:*",
-    "currency.js": "^2.0.4"
+    "currency.js": "catalog:"
   }
 }
