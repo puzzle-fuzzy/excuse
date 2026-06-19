@@ -28,15 +28,15 @@ const FORBIDDEN = [
   // 裸 <select>（小写，原生；shadcn 是 <Select>）
   { re: /(<select\b)/g, tag: '<select>', fix: '使用 ui/select.tsx 的 <Select>' },
   // <input type="checkbox">（注意排除 <Input type="checkbox">，但 Input 通常不会传 checkbox）
-  { re: /(<input\b[^>]*\btype=["']checkbox["'])/g, tag: '<input type="checkbox">', fix: '使用 ui/checkbox.tsx 的 <Checkbox>' },
+  { re: /(<input\b[^>]+\btype=["']checkbox["'])/g, tag: '<input type="checkbox">', fix: '使用 ui/checkbox.tsx 的 <Checkbox>' },
   // <input type="range">
-  { re: /(<input\b[^>]*\btype=["']range["'])/g, tag: '<input type="range">', fix: '使用 ui/slider.tsx 的 <Slider>' },
+  { re: /(<input\b[^>]+\btype=["']range["'])/g, tag: '<input type="range">', fix: '使用 ui/slider.tsx 的 <Slider>' },
   // <input type="date">
-  { re: /(<input\b[^>]*\btype=["']date["'])/g, tag: '<input type="date">', fix: '使用预设区间或封装的日期组件' },
+  { re: /(<input\b[^>]+\btype=["']date["'])/g, tag: '<input type="date">', fix: '使用预设区间或封装的日期组件' },
   // <input type="datetime-local">
-  { re: /(<input\b[^>]*\btype=["']datetime-local["'])/g, tag: '<input type="datetime-local">', fix: '使用封装的日期组件' },
+  { re: /(<input\b[^>]+\btype=["']datetime-local["'])/g, tag: '<input type="datetime-local">', fix: '使用封装的日期组件' },
   // <input type="time">
-  { re: /(<input\b[^>]*\btype=["']time["'])/g, tag: '<input type="time">', fix: '使用封装的时间组件' },
+  { re: /(<input\b[^>]+\btype=["']time["'])/g, tag: '<input type="time">', fix: '使用封装的时间组件' },
 ]
 
 // 允许例外的小写 type（通过 shadcn <Input> 传入是规范的）

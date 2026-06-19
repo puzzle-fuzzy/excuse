@@ -12,7 +12,7 @@ export interface GenerationRequestHashInput {
 }
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 128
-const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._~:-]+$/
+const IDEMPOTENCY_KEY_PATTERN = /^[\w.~:-]+$/
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object'
@@ -50,7 +50,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 export function normalizeIdempotencyKey(value: string | null | undefined): string | null {
   const normalized = value?.trim()
-  return normalized ? normalized : null
+  return normalized || null
 }
 
 export function isValidIdempotencyKey(value: string): boolean {
