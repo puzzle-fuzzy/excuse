@@ -2,7 +2,7 @@ import type { SQL } from 'drizzle-orm'
 import type { TaskRow } from '../../types'
 import { and, asc, between, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
 import { getDb } from '../../db'
-import { canvasPipelineRuns, generationRecords, tasks } from '../../schema'
+import { auditLogs, canvasPipelineRuns, generationRecords, tasks } from '../../schema'
 import { cancelGenerationRecordIfActive, requeueGenerationRecordIfRequeueable } from '../generation-records.repo'
 import { iso, numberValue } from './internal'
 
@@ -170,6 +170,16 @@ export interface AdminTaskDetailRow {
   task: AdminTaskItem
   pipelineRuns: AdminPipelineRunRow[]
   generationRecords: AdminTaskGenerationRecordRow[]
+  auditLogs: AdminTaskAuditLogRow[]
+}
+
+export interface AdminTaskAuditLogRow {
+  id: string
+  accountId: string | null
+  action: string
+  targetId: string | null
+  detail: Record<string, unknown> | null
+  createdAt: string
 }
 
 /**
@@ -236,11 +246,16 @@ export async function getAdminTaskDetail(
   })
 
   const generationRecords = await fetchTaskGenerationRecords(taskRow)
+  const auditLogs = await fetchTaskAuditLogs(
+    taskRow,
+    generationRecords.map(record => record.id),
+  )
 
   return {
     task: serializeAdminTask(taskRow),
     pipelineRuns,
     generationRecords,
+    auditLogs,
   }
 }
 
@@ -248,6 +263,39 @@ export async function getAdminTaskDetail(
 const GEN_RECORD_WINDOW_PAD_MS = 2 * 60 * 1000
 /** 时间窗口候选返回上限，避免长任务窗口拉回过多并发记录 */
 const GEN_RECORD_CANDIDATE_LIMIT = 10
+const TASK_AUDIT_LOG_LIMIT = 30
+
+async function fetchTaskAuditLogs(task: TaskRow, generationRecordIds: string[]): Promise<AdminTaskAuditLogRow[]> {
+  const targetIds = [...new Set([task.id, ...generationRecordIds])]
+  if (targetIds.length === 0)
+    return []
+
+  const rows = await getDb()
+    .select({
+      id: auditLogs.id,
+      accountId: auditLogs.accountId,
+      action: auditLogs.action,
+      targetId: auditLogs.targetId,
+      detail: auditLogs.detail,
+      createdAt: auditLogs.createdAt,
+    })
+    .from(auditLogs)
+    .where(and(
+      eq(auditLogs.accountId, task.accountId),
+      inArray(auditLogs.targetId, targetIds),
+    ))
+    .orderBy(asc(auditLogs.createdAt))
+    .limit(TASK_AUDIT_LOG_LIMIT)
+
+  return rows.map(row => ({
+    id: row.id,
+    accountId: row.accountId,
+    action: row.action,
+    targetId: row.targetId,
+    detail: (row.detail as unknown as Record<string, unknown> | null) ?? null,
+    createdAt: iso(row.createdAt)!,
+  }))
+}
 
 /**
  * 取任务关联的生成记录（诊断用）。

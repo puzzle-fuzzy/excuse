@@ -250,6 +250,8 @@ export interface AdminTaskDetail {
    * - matchReason='time-window'：无直接关联时，按 accountId + 任务执行时间窗口返回候选。
    */
   generationRecords: AdminTaskGenerationRecord[]
+  /** 与 task / generationRecord 直接相关的审计事件，按 createdAt asc 形成诊断时间线 */
+  auditLogs: AdminTaskAuditLog[]
 }
 
 export interface AdminTaskGenerationRecord {
@@ -263,6 +265,15 @@ export interface AdminTaskGenerationRecord {
   errorMessage: string | null
   /** direct / worker-task / pipeline-run 为精确命中；time-window = accountId+时间窗口候选 */
   matchReason: 'direct' | 'worker-task' | 'pipeline-run' | 'time-window'
+}
+
+export interface AdminTaskAuditLog {
+  id: string
+  accountId: string | null
+  action: string
+  targetId: string | null
+  detail: Record<string, unknown> | null
+  createdAt: string
 }
 
 export interface AdminTaskDetailResponse {

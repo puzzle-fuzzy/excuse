@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { getDb } from '../src/db'
 import { getAdminTaskDetail } from '../src/repositories/admin.repo'
+import { createAuditLog } from '../src/repositories/audit-logs.repo'
 import { createCanvasProject } from '../src/repositories/canvas-projects.repo'
 import { createGenerationRecord } from '../src/repositories/generation-records.repo'
 import { createTask } from '../src/repositories/tasks.repo'
@@ -192,6 +193,43 @@ describe('getAdminTaskDetail', () => {
     expect(detail!.generationRecords[0]!.matchReason).toBe('direct')
     expect(detail!.generationRecords[0]!.model).toBe('ffmpeg-burn')
     expect(detail!.generationRecords[0]!.costCents).toBe(80)
+  })
+
+  it('任务详情返回关联 generation record 的审计时间线', async () => {
+    const record = await createGenerationRecord({
+      accountId,
+      model: 'wanx2.1-t2v',
+      category: 'video' as const,
+      inputParams: { prompt: 'audit trail' },
+      totalPriceCents: 120,
+    })
+    const task = await seedTask({
+      type: 'generate.video',
+      domain: 'generate',
+      generationRecordId: record.id,
+    })
+    await createAuditLog({
+      accountId,
+      action: 'credit_refund',
+      targetId: record.id,
+      detail: {
+        accountId,
+        generationRecordId: record.id,
+        amountCents: 120,
+        description: '信用对账：孤立 reserve 自动退款',
+        source: 'worker_video',
+      },
+    })
+
+    const detail = await getAdminTaskDetail(task.id)
+
+    expect(detail!.auditLogs.length).toBe(1)
+    expect(detail!.auditLogs[0]!.action).toBe('credit_refund')
+    expect(detail!.auditLogs[0]!.targetId).toBe(record.id)
+    expect(detail!.auditLogs[0]!.detail).toMatchObject({
+      source: 'worker_video',
+      amountCents: 120,
+    })
   })
 
   it('generationRecordId 指向已删除记录时返回空数组（不报错）', async () => {
