@@ -3,6 +3,13 @@ import { api, unwrapEden } from './client'
 
 // ===== 生成 & 记录 API =====
 
+function createGenerationIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    return `gen:${crypto.randomUUID()}`
+
+  return `gen:${Date.now()}:${Math.random().toString(36).slice(2)}`
+}
+
 export async function fetchModels(): Promise<{ models: ModelConfig[] }> {
   return unwrapEden<{ models: ModelConfig[] }>(
     await api.api.models.get(),
@@ -14,9 +21,16 @@ export async function generate(params: {
   model: string
   parameters: Record<string, unknown>
   referenceFileIds?: string[]
+  idempotencyKey?: string
 }): Promise<GenerateResponse> {
+  const { idempotencyKey, ...body } = params
+
   return unwrapEden<GenerateResponse>(
-    await api.api.generate.post(params),
+    await api.api.generate.post(body, {
+      headers: {
+        'Idempotency-Key': idempotencyKey ?? createGenerationIdempotencyKey(),
+      },
+    }),
   )
 }
 
