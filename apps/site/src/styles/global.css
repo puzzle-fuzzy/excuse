@@ -1,29 +1,90 @@
 @import 'tailwindcss';
 
+/* 暗色由 <html class="dark"> 触发（ThemeToggle + no-FOUC 脚本控制） */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
-   品牌设计 token —— 基础品牌视觉，等待后续设计稿可整体替换。
-   色阶采用 indigo，与用户端工作台（apps/client）品牌色一致。
+   设计 token —— 参考 docs/DESIGN-2.md（Monolith Creative / Gallery Light）。
+   采用 @theme inline 让工具类引用 CSS 变量，从而在 .dark 下整体切换。
    ============================================================ */
-@theme {
-  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  --color-brand-50: oklch(0.962 0.018 272);
-  --color-brand-100: oklch(0.93 0.034 272);
-  --color-brand-200: oklch(0.87 0.065 274);
-  --color-brand-300: oklch(0.795 0.103 274);
-  --color-brand-400: oklch(0.71 0.14 275);
-  --color-brand-500: oklch(0.62 0.17 268);
-  --color-brand-600: oklch(0.54 0.18 267);
-  --color-brand-700: oklch(0.47 0.165 267);
-  --color-brand-800: oklch(0.39 0.14 268);
-  --color-brand-900: oklch(0.32 0.11 269);
-  --color-brand-950: oklch(0.22 0.07 268);
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-elevated: var(--c-elevated);
+  --color-ink: var(--c-ink);
+  --color-ink-soft: var(--c-ink-soft);
+  --color-line: var(--c-line);
 
-  --color-ink: oklch(0.18 0.02 260);
-  --color-ink-soft: oklch(0.46 0.03 258);
+  --color-brand-50: var(--c-brand-50);
+  --color-brand-100: var(--c-brand-100);
+  --color-brand-200: var(--c-brand-200);
+  --color-brand-300: var(--c-brand-300);
+  --color-brand-400: var(--c-brand-400);
+  --color-brand-500: var(--c-brand-500);
+  --color-brand-600: var(--c-brand-600);
+  --color-brand-700: var(--c-brand-700);
+  --color-brand-800: var(--c-brand-800);
+  --color-brand-900: var(--c-brand-900);
+  --color-brand-950: var(--c-brand-950);
 
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
+}
+
+/* ---------- 亮色：Gallery Light（暖白纸感 + 紫罗兰主色） ---------- */
+:root {
+  --c-canvas: #fbf8ff;
+  --c-surface: #ffffff;
+  --c-elevated: #ffffff;
+  --c-ink: #1b1b24;
+  --c-ink-soft: #56566a;
+  --c-line: #e5e2f0;
+
+  --c-brand-50: #f5f2ff;
+  --c-brand-100: #e9e4fa;
+  --c-brand-200: #d7cafe;
+  --c-brand-300: #bfaeff;
+  --c-brand-400: #9f86f0;
+  --c-brand-500: #7e5fd6;
+  --c-brand-600: #6349c2;
+  --c-brand-700: #4b2da8;
+  --c-brand-800: #3a1f87;
+  --c-brand-900: #281460;
+  --c-brand-950: #1a0c40;
+
+  --aurora-bg:
+    radial-gradient(60% 55% at 50% 0%, color-mix(in oklab, var(--c-brand-500) 14%, transparent) 0%, transparent 70%),
+    linear-gradient(to bottom, color-mix(in oklab, var(--c-brand-50) 55%, var(--c-canvas)) 0%, var(--c-canvas) 72%);
+  color-scheme: light;
+}
+
+/* ---------- 暗色：由亮色调导出（深紫黑底 + 高对比浅紫文字） ---------- */
+.dark {
+  --c-canvas: #121218;
+  --c-surface: #1b1b24;
+  --c-elevated: #262631;
+  --c-ink: #f1eef9;
+  --c-ink-soft: #b3b3c6;
+  --c-line: #30303c;
+
+  --c-brand-50: #221c3a;
+  --c-brand-100: #2b2452;
+  --c-brand-200: #352d6a;
+  --c-brand-300: #4a3b8c;
+  --c-brand-400: #a594f2;
+  --c-brand-500: #9482ec;
+  --c-brand-600: #8570e8;
+  --c-brand-700: #c0aeff;
+  --c-brand-800: #d3c3ff;
+  --c-brand-900: #e4daff;
+  --c-brand-950: #f2ecff;
+
+  --aurora-bg:
+    radial-gradient(60% 55% at 50% 0%, color-mix(in oklab, var(--c-brand-500) 22%, transparent) 0%, transparent 70%),
+    linear-gradient(to bottom, #1a1430 0%, var(--c-canvas) 72%);
+  color-scheme: dark;
 }
 
 /* ============================================================
@@ -36,28 +97,32 @@
   }
 
   body {
-    @apply bg-white text-ink antialiased;
+    @apply bg-canvas text-ink antialiased;
     font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';
   }
 
   ::selection {
-    background-color: var(--color-brand-200);
-    color: var(--color-brand-900);
+    background-color: var(--c-brand-200);
+    color: var(--c-brand-900);
+  }
+  .dark ::selection {
+    background-color: var(--c-brand-700);
+    color: #14141c;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-brand-500);
+    outline: 2px solid var(--c-brand-500);
     outline-offset: 2px;
     border-radius: 4px;
   }
 }
 
 /* ============================================================
-   组件层 —— 常用片段，便于页面复用。
+   组件层
    ============================================================ */
 
-/* 按钮基类：注册为 utility，便于 .btn-primary 等用 @apply 复用 */
+/* 按钮基类：注册为 utility，便于 .btn-* 用 @apply 复用 */
 @utility btn {
   @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors;
 }
@@ -67,37 +132,49 @@
     @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
   }
 
-  /* 主 CTA 按钮 */
+  /* 主按钮：实心紫罗兰，白字 */
   .btn-primary {
     @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
+  /* 次按钮：描边 + 主题感知底色 */
   .btn-secondary {
-    @apply btn border border-brand-200 bg-white text-brand-700 hover:border-brand-300 hover:bg-brand-50;
+    @apply btn border border-brand-200 bg-surface text-brand-700 hover:border-brand-300 hover:bg-brand-50;
   }
   .btn-ghost {
     @apply btn text-ink hover:bg-brand-50;
   }
+  /* CTA 渐变区上的白按钮：两套主题下都保持白底深紫字 */
+  .btn-on-cta {
+    background-color: #ffffff;
+    color: #4b2da8;
+  }
+  .btn-on-cta:hover {
+    background-color: #efe7fd;
+  }
 
-  /* 区块标题 eyebrow */
+  /* eyebrow：大写小标签（DESIGN-2 label-caps） */
   .eyebrow {
-    @apply text-sm font-semibold tracking-wide text-brand-600 uppercase;
+    @apply text-xs font-semibold tracking-[0.14em] text-brand-600 uppercase;
   }
 
-  /* 卡片 */
+  /* 卡片：1px 描边 + 主题感知底色 */
   .card {
-    @apply rounded-2xl border border-black/5 bg-white p-6 shadow-sm transition-shadow hover:shadow-md;
+    @apply rounded-2xl border border-line bg-surface p-6 shadow-sm transition-shadow hover:shadow-md;
   }
 
-  /* 渐变背景区（hero 用） */
+  /* CTA 区固定深紫渐变（白字始终高对比，不受主题影响） */
+  .cta-gradient {
+    background-image: linear-gradient(135deg, #6349c2 0%, #3a1f87 100%);
+  }
+
+  /* hero / 顶部光晕背景，随主题切换 */
   .bg-aurora {
-    background:
-      radial-gradient(60% 60% at 50% 0%, color-mix(in oklch, var(--color-brand-200) 65%, transparent) 0%, transparent 70%),
-      linear-gradient(to bottom, color-mix(in oklch, var(--color-brand-50) 70%, white), white);
+    background: var(--aurora-bg);
   }
 }
 
 /* ============================================================
-   文章排版（博客 / 文档共用）—— 不引入额外 typography 插件，手写一套精简 prose。
+   文章排版（博客 / 文档共用）
    ============================================================ */
 @layer components {
   .prose {
@@ -133,14 +210,18 @@
   .prose code {
     @apply rounded bg-brand-50 px-1.5 py-0.5 text-[0.875em] font-medium text-brand-800;
   }
+  /* 代码块两套主题都用深色，专业感 + 高对比 */
   .prose pre {
-    @apply overflow-x-auto rounded-xl bg-ink p-4 text-sm leading-6 text-white;
+    @apply overflow-x-auto rounded-xl p-4 text-sm leading-6;
+    background-color: #0d0d12;
+    color: #e8e8f2;
   }
   .prose pre code {
     @apply bg-transparent p-0 text-inherit;
   }
   .prose blockquote {
-    @apply border-l-4 border-brand-300 bg-brand-50/60 px-5 py-2 italic text-ink;
+    @apply border-l-4 border-brand-300 px-5 py-2 italic text-ink;
+    background: color-mix(in oklab, var(--c-brand-50) 55%, transparent);
   }
   .prose img {
     @apply rounded-xl;
@@ -150,13 +231,13 @@
   }
   .prose th,
   .prose td {
-    @apply border border-black/10 px-3 py-2;
+    @apply border border-line px-3 py-2;
   }
   .prose th {
     @apply bg-brand-50 font-semibold;
   }
   .prose hr {
-    @apply border-black/10;
+    @apply border-line;
   }
 }
 

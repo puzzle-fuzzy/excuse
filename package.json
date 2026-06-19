@@ -24,6 +24,7 @@
     "@elysiajs/cookie": "0.8.0",
     "@elysiajs/openapi": "1.4.15",
     "@fontsource-variable/geist": "5.2.9",
+    "@fontsource-variable/inter": "5.2.8",
     "@tailwindcss/vite": "4.3.0",
     "@tanstack/react-query": "5.101.0",
     "@tanstack/react-query-devtools": "5.101.0",

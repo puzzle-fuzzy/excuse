@@ -24,15 +24,15 @@ const [featured, ...rest] = posts
   <div class="container-page py-12">
     <!-- 分类筛选 -->
     <div class="flex flex-wrap justify-center gap-2">
-      <a href="/blog" class="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">全部</a>
+      <a href="/blog" class="rounded-full border border-brand-200 bg-surface px-4 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">全部</a>
       {BLOG_CATEGORIES.map(cat => (
-        <a href={`/blog/category/${cat.slug}`} class="rounded-full border border-black/5 bg-white px-4 py-1.5 text-sm text-ink-soft hover:border-brand-200 hover:text-brand-700">{cat.label}</a>
+        <a href={`/blog/category/${cat.slug}`} class="rounded-full border border-line bg-surface px-4 py-1.5 text-sm text-ink-soft hover:border-brand-200 hover:text-brand-700">{cat.label}</a>
       ))}
     </div>
 
     <!-- 精选文章 -->
     {featured && (
-      <a href={`/blog/${featured.id}/`} class="mt-12 grid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition-shadow hover:shadow-md md:grid-cols-2">
+      <a href={`/blog/${featured.id}/`} class="mt-12 grid overflow-hidden rounded-2xl border border-line bg-surface shadow-sm transition-shadow hover:shadow-md md:grid-cols-2">
         {featured.data.heroImage && (
           <Image src={featured.data.heroImage} alt={featured.data.title} width={960} height={540} class="aspect-[16/10] w-full object-cover" />
         )}

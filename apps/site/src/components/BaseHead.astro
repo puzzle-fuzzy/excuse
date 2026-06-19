@@ -1,10 +1,10 @@
 ---
 // 全站 <head>：SEO meta、canonical、OG、Twitter、JSON-LD 结构化数据。
 import '../styles/global.css'
+import '@fontsource-variable/inter'
 import type { ImageMetadata } from 'astro'
 import FallbackImage from '../assets/blog-placeholder-1.jpg'
 import { SITE } from '../consts'
-import { Font } from 'astro:assets'
 
 interface Props {
   title: string
@@ -59,6 +59,19 @@ const articleSchema =
     : null
 ---
 
+<!-- 主题无闪脚本：在首屏渲染前根据 localStorage / 系统偏好设置 .dark -->
+<script is:inline>
+  (function () {
+    try {
+      var t = localStorage.getItem('theme');
+      if (t !== 'dark' && t !== 'light') {
+        t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.classList.toggle('dark', t === 'dark');
+    } catch (e) {}
+  })();
+</script>
+
 <!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -68,8 +81,6 @@ const articleSchema =
 <link rel="alternate" type="application/rss+xml" title={SITE.title} href={new URL('rss.xml', Astro.site)} />
 <meta name="generator" content={Astro.generator} />
 {noindex && <meta name="robots" content="noindex, nofollow" />}
-
-<Font cssVariable="--font-atkinson" preload />
 
 <!-- Canonical URL -->
 <link rel="canonical" href={canonicalURL} />

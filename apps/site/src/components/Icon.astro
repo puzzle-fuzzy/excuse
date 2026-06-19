@@ -1,28 +1,33 @@
 ---
-/** 轻量内联图标：传入 24x24 viewBox 的 SVG path d 即可渲染线性图标。 */
+// 统一图标组件：底层用 @lucide/astro。consts.ts 里的 icon 字段填 registry 的 key。
+// name 接受 string（数据源是 string），运行时查表，未命中回落到 Sparkles。
+import { Boxes, Captions, Clapperboard, Code, Coins, Film, Image, LayoutGrid, Megaphone, Palette, RefreshCw, Sparkles, Video, Workflow } from '@lucide/astro'
+
+const registry = {
+  megaphone: Megaphone,
+  clapperboard: Clapperboard,
+  captions: Captions,
+  film: Film,
+  workflow: Workflow,
+  'layout-grid': LayoutGrid,
+  coins: Coins,
+  'refresh-cw': RefreshCw,
+  code: Code,
+  boxes: Boxes,
+  image: Image,
+  video: Video,
+  palette: Palette,
+} as const
+
 interface Props {
-  path: string
-  size?: number
+  name: string
+  size?: number | string
   class?: string
-  /** 无障碍标签；不传则视为装饰图（aria-hidden） */
-  label?: string
+  strokeWidth?: number
 }
-const { path, size = 24, class: className, label } = Astro.props
+
+const { name, size = 24, class: className, strokeWidth = 1.75 } = Astro.props
+const Cmp = (registry as Record<string, typeof Sparkles>)[name] ?? Sparkles
 ---
 
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 24 24"
-  width={size}
-  height={size}
-  fill="none"
-  stroke="currentColor"
-  stroke-width="1.75"
-  stroke-linecap="round"
-  stroke-linejoin="round"
-  class={className}
-  role={label ? 'img' : undefined}
-  aria-label={label}
-  aria-hidden={label ? undefined : 'true'}
-  set:html={`<path d="${path}" />`}
-/>
+<Cmp size={size} class={className} stroke-width={strokeWidth} aria-hidden="true" />

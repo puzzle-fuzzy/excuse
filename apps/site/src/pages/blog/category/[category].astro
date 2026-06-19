@@ -39,7 +39,7 @@ const posts = (await getCollection('blog', post => !post.data.draft && post.data
         </a>
       ))}
       {posts.length === 0 && (
-        <p class="col-span-full rounded-2xl border border-dashed border-black/10 p-10 text-center text-ink-soft">该栏目暂无文章。</p>
+        <p class="col-span-full rounded-2xl border border-dashed border-line p-10 text-center text-ink-soft">该栏目暂无文章。</p>
       )}
     </div>
   </div>

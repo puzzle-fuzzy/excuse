@@ -10,7 +10,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
   <!-- Hero -->
   <section class="bg-aurora">
     <div class="container-page py-20 text-center sm:py-28">
-      <span class="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/70 px-4 py-1.5 text-sm font-medium text-brand-700">
+      <span class="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-surface/70 px-4 py-1.5 text-sm font-medium text-brand-700">
         <span class="size-1.5 rounded-full bg-brand-500" /> AI 内容生产平台 · Canvas 流水线已上线
       </span>
       <h1 class="mx-auto mt-6 max-w-4xl text-4xl font-bold tracking-tight text-ink sm:text-6xl">
@@ -38,7 +38,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
       {USE_CASES.map(uc => (
         <a href={`/use-cases/${uc.slug}`} class="card group flex flex-col gap-4">
           <span class="flex size-12 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-            <Icon path={uc.icon} size={24} />
+            <Icon name={uc.icon} size={24} />
           </span>
           <div>
             <h3 class="font-semibold text-ink group-hover:text-brand-700">{uc.title}</h3>
@@ -51,7 +51,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
   </section>
 
   <!-- 产品流程 -->
-  <section class="border-y border-black/5 bg-brand-50/40">
+  <section class="border-y border-line bg-brand-50/40">
     <div class="container-page py-20">
       <div class="mx-auto max-w-2xl text-center">
         <p class="eyebrow">产品流程</p>
@@ -59,7 +59,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
       </div>
       <ol class="mt-12 grid gap-6 md:grid-cols-4">
         {PROCESS_STEPS.map((step, i) => (
-          <li class="relative rounded-2xl bg-white p-6 shadow-sm">
+          <li class="relative rounded-2xl bg-surface p-6 shadow-sm">
             <span class="text-sm font-bold text-brand-500">0{i + 1}</span>
             <h3 class="mt-2 font-semibold text-ink">{step.title}</h3>
             <p class="mt-2 text-sm leading-6 text-ink-soft">{step.description}</p>
@@ -79,7 +79,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
       {CAPABILITIES.map(cap => (
         <div class="card flex gap-4">
           <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-            <Icon path={cap.icon} size={22} />
+            <Icon name={cap.icon} size={22} />
           </span>
           <div>
             <h3 class="font-semibold text-ink">{cap.title}</h3>
@@ -91,7 +91,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
   </section>
 
   <!-- 信任模块 -->
-  <section class="border-y border-black/5 bg-brand-50/40">
+  <section class="border-y border-line bg-brand-50/40">
     <div class="container-page py-20">
       <div class="mx-auto max-w-2xl text-center">
         <p class="eyebrow">为什么信任我们</p>
@@ -99,7 +99,7 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
       </div>
       <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {TRUST_ITEMS.map(t => (
-          <div class="rounded-2xl bg-white p-6 shadow-sm">
+          <div class="rounded-2xl bg-surface p-6 shadow-sm">
             <h3 class="font-semibold text-ink">{t.title}</h3>
             <p class="mt-2 text-sm leading-6 text-ink-soft">{t.description}</p>
           </div>
@@ -135,13 +135,13 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
   </section>
 
   <!-- FAQ -->
-  <section class="border-t border-black/5 bg-brand-50/40">
+  <section class="border-t border-line bg-brand-50/40">
     <div class="container-page py-20">
       <div class="mx-auto max-w-2xl text-center">
         <p class="eyebrow">常见问题</p>
         <h2 class="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">你可能想问的</h2>
       </div>
-      <div class="mx-auto mt-10 max-w-3xl divide-y divide-black/5 overflow-hidden rounded-2xl bg-white shadow-sm">
+      <div class="mx-auto mt-10 max-w-3xl divide-y divide-line overflow-hidden rounded-2xl bg-surface shadow-sm">
         {FAQ_ITEMS.map(item => (
           <details class="group p-6">
             <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-ink [&::-webkit-details-marker]:hidden">
@@ -157,12 +157,12 @@ const previewPlans = PRICING_PLANS.slice(0, 4)
 
   <!-- CTA -->
   <section class="container-page py-20">
-    <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-14 text-center text-white sm:px-16">
+    <div class="overflow-hidden rounded-3xl cta-gradient px-8 py-14 text-center text-white sm:px-16">
       <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">现在就开始，把想法变成作品</h2>
       <p class="mx-auto mt-4 max-w-xl text-brand-100">注册即获免费额度，几分钟完成第一次生成。</p>
       <div class="mt-8 flex flex-wrap justify-center gap-3">
-        <a href={APP_URL} class="btn bg-white text-brand-700 hover:bg-brand-50">免费开始</a>
-        <a href="/contact" class="btn border border-white/30 text-white hover:bg-white/10">联系销售</a>
+        <a href={APP_URL} class="btn btn-on-cta">免费开始</a>
+        <a href="/contact" class="btn border border-white/30 text-white hover:bg-surface/10">联系销售</a>
       </div>
     </div>
   </section>

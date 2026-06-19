@@ -35,12 +35,12 @@ const pillars = [
     </div>
   </section>
 
-  <section class="border-y border-black/5 bg-brand-50/40">
+  <section class="border-y border-line bg-brand-50/40">
     <div class="container-page py-20">
       <h2 class="text-center text-3xl font-bold tracking-tight text-ink">工作流程</h2>
       <ol class="mt-12 grid gap-6 md:grid-cols-4">
         {PROCESS_STEPS.map((step, i) => (
-          <li class="rounded-2xl bg-white p-6 shadow-sm">
+          <li class="rounded-2xl bg-surface p-6 shadow-sm">
             <span class="text-sm font-bold text-brand-500">0{i + 1}</span>
             <h3 class="mt-2 font-semibold text-ink">{step.title}</h3>
             <p class="mt-2 text-sm leading-6 text-ink-soft">{step.description}</p>
@@ -56,7 +56,7 @@ const pillars = [
       {CAPABILITIES.map(cap => (
         <div class="card flex gap-4">
           <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-            <Icon path={cap.icon} size={22} />
+            <Icon name={cap.icon} size={22} />
           </span>
           <div>
             <h3 class="font-semibold text-ink">{cap.title}</h3>
@@ -68,10 +68,10 @@ const pillars = [
   </section>
 
   <section class="container-page pb-20">
-    <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-14 text-center text-white sm:px-16">
+    <div class="overflow-hidden rounded-3xl cta-gradient px-8 py-14 text-center text-white sm:px-16">
       <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">亲自试试</h2>
       <p class="mx-auto mt-4 max-w-xl text-brand-100">从一次文本或图片生成开始，几分钟看到结果。</p>
-      <a href={APP_URL} class="btn mt-8 bg-white text-brand-700 hover:bg-brand-50">免费开始</a>
+      <a href={APP_URL} class="btn mt-8 btn-on-cta">免费开始</a>
     </div>
   </section>
 </BaseLayout>

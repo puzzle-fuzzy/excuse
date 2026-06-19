@@ -5,14 +5,14 @@ import { APP_URL, SITE } from '../consts'
 
 const categories = ['全部', '广告商品图', '短视频', '字幕', '故事成片', '品牌视觉']
 const templates = [
-  { name: '电商商品场景图', category: '广告商品图', desc: '把白底商品放进真实使用场景，自然光近景。', icon: 'M3 3h18v4H3V3zm0 7h11v11H3V10zm13 0h5v11h-5V10z' },
-  { name: '信息流广告创意', category: '广告商品图', desc: '高点击率的社媒广告图，多尺寸批量出图。', icon: 'M4 5h16v14H4V5z' },
-  { name: '口播短视频脚本', category: '短视频', desc: '从主题到分镜到成片的全流程模板。', icon: 'M4 4h16v16H4V4zm10 7l-6-4v8l6-4z' },
-  { name: '产品介绍短片', category: '短视频', desc: '图生视频，展示产品卖点与使用场景。', icon: 'M4 4h16v16H4V4z' },
-  { name: '视频自动字幕', category: '字幕', desc: '上传视频，一键生成并烧录双语字幕。', icon: 'M4 4h16v16H4V4zm3 9h6v2H7v-2zm0-4h10v2H7V9z' },
-  { name: '故事成片（短篇）', category: '故事成片', desc: '一段故事文本，跑通 Canvas 12 阶段成片。', icon: 'M4 4h12l4 4v12H4V4z' },
-  { name: '品牌主视觉', category: '品牌视觉', desc: '统一品牌调性的主视觉与延展素材。', icon: 'M12 2l9 5v10l-9 5-9-5V7z' },
-  { name: '社媒日常配图', category: '品牌视觉', desc: '保持品牌风格的日常内容配图。', icon: 'M3 3h18v18H3V3z' },
+  { name: '电商商品场景图', category: '广告商品图', desc: '把白底商品放进真实使用场景，自然光近景。', icon: 'image' },
+  { name: '信息流广告创意', category: '广告商品图', desc: '高点击率的社媒广告图，多尺寸批量出图。', icon: 'megaphone' },
+  { name: '口播短视频脚本', category: '短视频', desc: '从主题到分镜到成片的全流程模板。', icon: 'video' },
+  { name: '产品介绍短片', category: '短视频', desc: '图生视频，展示产品卖点与使用场景。', icon: 'clapperboard' },
+  { name: '视频自动字幕', category: '字幕', desc: '上传视频，一键生成并烧录双语字幕。', icon: 'captions' },
+  { name: '故事成片（短篇）', category: '故事成片', desc: '一段故事文本，跑通 Canvas 12 阶段成片。', icon: 'film' },
+  { name: '品牌主视觉', category: '品牌视觉', desc: '统一品牌调性的主视觉与延展素材。', icon: 'palette' },
+  { name: '社媒日常配图', category: '品牌视觉', desc: '保持品牌风格的日常内容配图。', icon: 'image' },
 ]
 ---
 
@@ -28,7 +28,7 @@ const templates = [
   <section class="container-page py-14">
     <div class="flex flex-wrap justify-center gap-2">
       {categories.map((c, i) => (
-        <button class:list={['rounded-full border px-4 py-1.5 text-sm font-medium', i === 0 ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-black/5 bg-white text-ink-soft hover:border-brand-200']}>{c}</button>
+        <button class:list={['rounded-full border px-4 py-1.5 text-sm font-medium', i === 0 ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-line bg-surface text-ink-soft hover:border-brand-200']}>{c}</button>
       ))}
     </div>
 
@@ -36,7 +36,7 @@ const templates = [
       {templates.map(t => (
         <div class="card flex flex-col gap-4">
           <span class="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand-100 to-brand-200 text-brand-700">
-            <Icon path={t.icon} size={24} />
+            <Icon name={t.icon} size={24} />
           </span>
           <div>
             <span class="text-xs font-medium text-brand-600">{t.category}</span>

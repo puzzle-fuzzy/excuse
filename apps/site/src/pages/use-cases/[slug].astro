@@ -17,7 +17,7 @@ const others = USE_CASES.filter(o => o.slug !== uc.slug)
       <a href="/use-cases" class="text-sm text-ink-soft hover:text-brand-700">← 全部场景</a>
       <div class="mt-6 flex items-start gap-5">
         <span class="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
-          <Icon path={uc.icon} size={28} />
+          <Icon name={uc.icon} size={28} />
         </span>
         <div>
           <p class="eyebrow">应用场景</p>
@@ -52,20 +52,20 @@ const others = USE_CASES.filter(o => o.slug !== uc.slug)
         <p class="text-sm text-ink-soft">注册即享免费额度，几分钟跑通第一个结果。</p>
         <a href={APP_URL} class="btn-primary w-full">免费开始</a>
         <a href="/docs/getting-started" class="btn-secondary w-full">查看快速开始</a>
-        <hr class="border-black/5" />
+        <hr class="border-line" />
         <p class="text-sm text-ink-soft">需要团队或企业方案？</p>
         <a href="/contact" class="text-sm font-medium text-brand-700 hover:text-brand-800">联系销售 →</a>
       </aside>
     </div>
   </section>
 
-  <section class="border-t border-black/5 bg-brand-50/40">
+  <section class="border-t border-line bg-brand-50/40">
     <div class="container-page py-14">
       <h2 class="text-xl font-bold text-ink">其他场景</h2>
       <div class="mt-6 grid gap-4 sm:grid-cols-3">
         {others.map(o => (
           <a href={`/use-cases/${o.slug}`} class="card group flex items-center gap-3">
-            <span class="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon path={o.icon} size={20} /></span>
+            <span class="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon name={o.icon} size={20} /></span>
             <span class="font-medium text-ink group-hover:text-brand-700">{o.title}</span>
           </a>
         ))}

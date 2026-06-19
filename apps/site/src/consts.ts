@@ -42,7 +42,7 @@ export const NAV_LINKS: NavLink[] = [
 export interface SocialLink {
   label: string
   href: string
-  /** 内联 SVG 路径（24x24 viewBox 的 fill） */
+  /** 内联 SVG path（24x24 viewBox，fill）—— 品牌图标 lucide 已移除，故内联 */
   icon: string
 }
 
@@ -71,6 +71,7 @@ export interface UseCase {
   description: string
   /** 场景解决的痛点（3 条） */
   points: string[]
+  /** @lucide/astro 图标名（见 components/Icon.astro registry） */
   icon: string
 }
 
@@ -83,7 +84,7 @@ export const USE_CASES: UseCase[] = [
     description:
       '批量生成商品图、广告创意、营销 banner。统一品牌风格，输出可直接商用的高质量图片，降低拍摄与设计成本。',
     points: ['商品图换背景 / 场景化', '多尺寸批量出图', '品牌视觉一致性'],
-    icon: 'M3 3h18v4H3V3zm0 7h11v11H3V10zm13 0h5v11h-5V10z',
+    icon: 'megaphone',
   },
   {
     slug: 'short-video',
@@ -92,7 +93,7 @@ export const USE_CASES: UseCase[] = [
     description:
       '文生视频、图生视频，结合 Canvas 流水线把脚本拆成镜头、补全角色与场景一致性，快速产出可发布的短视频。',
     points: ['文/图生视频', '镜头连贯性控制', '一键成片'],
-    icon: 'M4 5h16v14H4V5zm10 7l-6-4v8l6-4z',
+    icon: 'clapperboard',
   },
   {
     slug: 'subtitle',
@@ -101,7 +102,7 @@ export const USE_CASES: UseCase[] = [
     description:
       '上传视频自动抽音频、ASR 转写、生成带样式的字幕并烧录，支持自定义样式预设，省去人工打轴。',
     points: ['自动语音转写', 'ASS 样式预设', '一键烧录导出'],
-    icon: 'M4 4h16v16H4V4zm3 9h6v2H7v-2zm0-4h10v2H7V9z',
+    icon: 'captions',
   },
   {
     slug: 'story-to-video',
@@ -110,7 +111,7 @@ export const USE_CASES: UseCase[] = [
     description:
       'Canvas 流水线：故事分析 → 抽取角色 / 场景 → 镜头分镜 → 一致性校验 → 对白 → 视频 → 配乐 → 合成。全流程任务可恢复。',
     points: ['12 阶段自动化', '角色 / 场景一致性', '失败可恢复、可重试'],
-    icon: 'M4 4h12l4 4v12H4V4zm2 12h12v2H6v-2zm0-4h12v2H6v-2z',
+    icon: 'film',
   },
 ]
 
@@ -130,17 +131,18 @@ export const PROCESS_STEPS: ProcessStep[] = [
 export interface Capability {
   title: string
   description: string
+  /** @lucide/astro 图标名 */
   icon: string
 }
 
 /** §5.3 首页「核心能力」 */
 export const CAPABILITIES: Capability[] = [
-  { title: 'Canvas 流水线', description: '故事到成片的 12 阶段自动化，角色与场景一致性，阶段可暂停确认。', icon: 'M4 4h16v16H4V4z' },
-  { title: '统一资产库', description: '图片、视频、文本、字幕、参考素材统一管理，可复用与二次创作。', icon: 'M3 3h18v18H3V3z' },
-  { title: '成本可见', description: '生成前预估积分消耗，生成后写入流水，失败按原因退款。', icon: 'M12 1v22M5 8h14M5 16h14' },
-  { title: '任务可恢复', description: '统一任务队列、心跳锁、孤儿回收，失败任务可重试可取消。', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
-  { title: '开发者 API', description: 'OpenAI 兼容网关、API Key、用量统计、Webhook，方便程序化接入。', icon: 'M8 4l-6 8 6 8M16 4l6 8-6 8' },
-  { title: '多模型支持', description: '集成 Qwen 文本 / 图像、Wan / HappyHorse 视频，统一计费与路由。', icon: 'M12 2l9 5v10l-9 5-9-5V7z' },
+  { title: 'Canvas 流水线', description: '故事到成片的 12 阶段自动化，角色与场景一致性，阶段可暂停确认。', icon: 'workflow' },
+  { title: '统一资产库', description: '图片、视频、文本、字幕、参考素材统一管理，可复用与二次创作。', icon: 'layout-grid' },
+  { title: '成本可见', description: '生成前预估积分消耗，生成后写入流水，失败按原因退款。', icon: 'coins' },
+  { title: '任务可恢复', description: '统一任务队列、心跳锁、孤儿回收，失败任务可重试可取消。', icon: 'refresh-cw' },
+  { title: '开发者 API', description: 'OpenAI 兼容网关、API Key、用量统计、Webhook，方便程序化接入。', icon: 'code' },
+  { title: '多模型支持', description: '集成 Qwen 文本 / 图像、Wan / HappyHorse 视频，统一计费与路由。', icon: 'boxes' },
 ]
 
 export interface TrustItem {

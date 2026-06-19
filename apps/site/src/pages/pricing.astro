@@ -53,20 +53,20 @@ const headers = PRICING_PLANS.map(p => p.name)
   </section>
 
   <!-- 功能对比 -->
-  <section class="border-t border-black/5 bg-brand-50/40">
+  <section class="border-t border-line bg-brand-50/40">
     <div class="container-page py-16">
       <h2 class="text-center text-3xl font-bold tracking-tight text-ink">功能对比</h2>
       <div class="mt-10 overflow-x-auto">
-        <table class="w-full min-w-[640px] border-collapse rounded-2xl bg-white text-left text-sm shadow-sm">
+        <table class="w-full min-w-[640px] border-collapse rounded-2xl bg-surface text-left text-sm shadow-sm">
           <thead>
-            <tr class="border-b border-black/5">
+            <tr class="border-b border-line">
               <th class="p-4 font-semibold text-ink">功能</th>
               {headers.map(h => <th class="p-4 text-center font-semibold text-ink">{h}</th>)}
             </tr>
           </thead>
           <tbody>
             {comparison.map(row => (
-              <tr class="border-b border-black/5 last:border-0">
+              <tr class="border-b border-line last:border-0">
                 <td class="p-4 text-ink">{row.feature}</td>
                 {row.values.map(v => <td class="p-4 text-center text-ink-soft" set:html={v} />)}
               </tr>
