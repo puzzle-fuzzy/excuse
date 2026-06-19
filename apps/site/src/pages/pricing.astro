@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { APP_URL, PRICING_PLANS, SITE } from '../consts'
+
+const comparison = [
+  { feature: '免费额度', values: ['✓ 有限', '✓', '✓ 较高', '团队共享', '定制'] },
+  { feature: '文本 / 图片生成', values: ['✓', '✓', '✓', '✓', '✓'] },
+  { feature: '视频生成', values: ['—', '✓', '✓ 优先', '✓', '✓'] },
+  { feature: '字幕烧录', values: ['—', '✓', '✓', '✓', '✓'] },
+  { feature: 'Canvas 完整流水线', values: ['—', '基础', '✓', '✓', '✓'] },
+  { feature: 'API 访问', values: ['—', '—', '✓', '✓', '✓'] },
+  { feature: '任务恢复与重试', values: ['—', '✓', '✓ 优先', '✓', '✓'] },
+  { feature: '团队空间 / 共享资产', values: ['—', '—', '—', '✓', '✓'] },
+  { feature: '增值税发票', values: ['—', '—', '—', '✓', '✓'] },
+  { feature: 'SLA / 专属支持', values: ['—', '—', '—', '—', '✓'] },
+]
+const headers = PRICING_PLANS.map(p => p.name)
+---
+
+<BaseLayout title={`定价 — ${SITE.name}`} description={`${SITE.name} 定价：免费开始，按需成长。统一积分体系，套餐、积分包与企业方案。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">定价</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">从免费开始，按需成长</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">统一积分体系，覆盖个人创作者到企业团队。</p>
+    </div>
+  </section>
+
+  <section class="container-page py-16">
+    <div class="grid gap-6 lg:grid-cols-5">
+      {PRICING_PLANS.map(plan => (
+        <div class:list={['card flex flex-col', plan.highlighted && 'ring-2 ring-brand-500 lg:-mt-4 lg:mb-4']}>
+          {plan.highlighted && <span class="mb-2 w-fit rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-medium text-white">最受欢迎</span>}
+          <h3 class="font-semibold text-ink">{plan.name}</h3>
+          <div class="mt-3 flex items-baseline gap-1">
+            {plan.price === null
+              ? <span class="text-2xl font-bold text-ink">定制</span>
+              : <><span class="text-3xl font-bold text-ink">{plan.price === 0 ? '免费' : `¥${plan.price}`}</span><span class="text-sm text-ink-soft">{plan.price === 0 ? '' : plan.period}</span></>}
+          </div>
+          <p class="mt-2 text-sm text-ink-soft">{plan.description}</p>
+          <ul class="mt-5 flex-1 space-y-2.5 text-sm">
+            {plan.features.map(f => (
+              <li class="flex gap-2 text-ink-soft">
+                <span class="mt-0.5 text-brand-500">✓</span><span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          <a href={plan.price === null ? '/contact' : APP_URL} class:list={['mt-6', plan.highlighted ? 'btn-primary' : 'btn-secondary']}>{plan.cta}</a>
+        </div>
+      ))}
+    </div>
+    <p class="mt-8 text-center text-sm text-ink-soft">所有套餐均按积分计费，失败任务不扣费。详见<a href="/docs/billing" class="text-brand-700 hover:text-brand-800">计费说明</a>。</p>
+  </section>
+
+  <!-- 功能对比 -->
+  <section class="border-t border-black/5 bg-brand-50/40">
+    <div class="container-page py-16">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-ink">功能对比</h2>
+      <div class="mt-10 overflow-x-auto">
+        <table class="w-full min-w-[640px] border-collapse rounded-2xl bg-white text-left text-sm shadow-sm">
+          <thead>
+            <tr class="border-b border-black/5">
+              <th class="p-4 font-semibold text-ink">功能</th>
+              {headers.map(h => <th class="p-4 text-center font-semibold text-ink">{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {comparison.map(row => (
+              <tr class="border-b border-black/5 last:border-0">
+                <td class="p-4 text-ink">{row.feature}</td>
+                {row.values.map(v => <td class="p-4 text-center text-ink-soft" set:html={v} />)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="container-page py-16">
+    <div class="overflow-hidden rounded-3xl border border-brand-100 bg-brand-50/50 px-8 py-10 text-center">
+      <h2 class="text-2xl font-bold tracking-tight text-ink">需要企业方案？</h2>
+      <p class="mx-auto mt-3 max-w-xl text-ink-soft">私有模型、发票、SLA、专属支持，联系我们定制。</p>
+      <a href="/contact" class="btn-primary mt-6">联系销售</a>
+    </div>
+  </section>
+</BaseLayout>

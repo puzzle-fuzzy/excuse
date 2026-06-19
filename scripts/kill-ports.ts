@@ -27,6 +27,7 @@ const ports = [
   Number(process.env.PORT) || 5007,
   Number(process.env.VITE_PORT) || 8007,
   Number(process.env.WORKER_HEALTH_PORT) || 5100,
+  Number(process.env.SITE_PORT) || 4317,
 ]
 
 for (const port of new Set(ports)) {

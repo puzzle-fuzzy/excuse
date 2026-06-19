@@ -1,0 +1,66 @@
+---
+import { Image } from 'astro:assets'
+import type { CollectionEntry } from 'astro:content'
+import BaseLayout from './BaseLayout.astro'
+import FormattedDate from '../components/FormattedDate.astro'
+import { APP_URL, BLOG_CATEGORIES } from '../consts'
+
+type Props = CollectionEntry<'blog'>['data']
+
+const { title, description, pubDate, updatedDate, heroImage, category, tags } = Astro.props
+const cat = BLOG_CATEGORIES.find(c => c.slug === category)
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  image={heroImage}
+  type="article"
+  publishedTime={pubDate}
+  modifiedTime={updatedDate}
+  mainClass="pb-24"
+>
+  <article>
+    <div class="container-page max-w-3xl pt-12">
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        {cat && (
+          <a href={`/blog/category/${cat.slug}`} class="rounded-full bg-brand-50 px-3 py-1 font-medium text-brand-700 hover:bg-brand-100">
+            {cat.label}
+          </a>
+        )}
+        <span class="text-ink-soft"><FormattedDate date={pubDate} /></span>
+      </div>
+      <h1 class="mt-4 text-4xl font-bold tracking-tight text-ink">{title}</h1>
+      <p class="mt-3 text-lg leading-8 text-ink-soft">{description}</p>
+      {updatedDate && (
+        <p class="mt-2 text-sm italic text-ink-soft">最后更新于 <FormattedDate date={updatedDate} /></p>
+      )}
+    </div>
+
+    {heroImage && (
+      <div class="container-page max-w-4xl">
+        <Image width={1200} height={600} src={heroImage} alt={title} class="mt-8 aspect-[2/1] w-full rounded-2xl object-cover shadow-sm" />
+      </div>
+    )}
+
+    <div class="prose container-page max-w-3xl mt-10">
+      <slot />
+    </div>
+
+    <div class="container-page max-w-3xl mt-10">
+      {tags && tags.length > 0 && (
+        <div class="flex flex-wrap gap-2">
+          {tags.map(t => <span class="rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-700">#{t}</span>)}
+        </div>
+      )}
+      <hr class="my-8 border-black/10" />
+      <div class="flex flex-col gap-4 rounded-2xl border border-brand-100 bg-brand-50/50 p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="font-semibold text-ink">想自己试试？</p>
+          <p class="text-sm text-ink-soft">注册即可获得免费额度，几分钟完成第一次生成。</p>
+        </div>
+        <a href={APP_URL} class="btn-primary shrink-0">免费开始</a>
+      </div>
+    </div>
+  </article>
+</BaseLayout>

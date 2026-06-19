@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { APP_URL, SITE } from '../consts'
+
+const values = [
+  { title: '生产力优先', desc: '我们不为炫技做功能，而为真正节省你的时间与成本。' },
+  { title: '成本透明', desc: '每一次消耗都可见、可追溯，失败不乱扣，是我们对用户的承诺。' },
+  { title: '工程化思维', desc: '生成只是起点；可恢复、可编排、可沉淀，才是生产线。' },
+  { title: '开放与可信赖', desc: '提供 API、尊重数据、稳定可用，让创作者与企业都放心。' },
+]
+---
+
+<BaseLayout title={`关于我们 — ${SITE.name}`} description={`${SITE.name} 的使命、价值观与我们正在构建的东西。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">关于我们</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">让想象力拥有生产力</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">我们相信，AI 不该只是「能生成」，而应该成为可信赖的创作生产线。</p>
+    </div>
+  </section>
+
+  <section class="container-page py-14">
+    <div class="prose mx-auto max-w-3xl">
+      <p>
+        {SITE.name} 诞生于一个简单的观察：今天的 AI 模型已经足够强大，能把文字变成图片、把故事变成视频；
+        但把它们真正用起来，却仍然充满摩擦——角色不一致、失败要重来、成本不可控、结果散落各处。
+      </p>
+      <p>
+        我们想把这些摩擦一点点抹平。于是有了统一任务队列、Canvas 流水线、统一资产库、透明的积分计费，
+        以及面向开发者的 API。我们的目标，是让个人创作者和小团队，也能拥有大公司级别的创意生产能力。
+      </p>
+      <h2>我们在构建什么</h2>
+      <ul>
+        <li>一个从「想法」到「成片」的完整、可恢复的生产流水线。</li>
+        <li>一套成本透明、运营友好的商业化与计费系统。</li>
+        <li>一个对开发者开放、可被二次集成的 API 产品。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="border-y border-black/5 bg-brand-50/40">
+    <div class="container-page py-16">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-ink">我们的价值观</h2>
+      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {values.map(v => (
+          <div class="rounded-2xl bg-white p-6 shadow-sm">
+            <h3 class="font-semibold text-ink">{v.title}</h3>
+            <p class="mt-2 text-sm leading-6 text-ink-soft">{v.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="container-page py-16">
+    <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-12 text-center text-white">
+      <h2 class="text-2xl font-bold tracking-tight">和我们一起，把想法变成作品</h2>
+      <div class="mt-6 flex flex-wrap justify-center gap-3">
+        <a href={APP_URL} class="btn bg-white text-brand-700 hover:bg-brand-50">免费开始</a>
+        <a href="/contact" class="btn border border-white/30 text-white hover:bg-white/10">联系我们</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

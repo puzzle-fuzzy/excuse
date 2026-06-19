@@ -1,0 +1,52 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import { SITE } from '../../consts'
+
+const updated = '2026-06-19'
+---
+
+<BaseLayout title={`隐私政策 — ${SITE.name}`} description={`${SITE.name} 隐私政策：我们如何收集、使用与保护你的数据。`} type="article">
+  <div class="container-page max-w-3xl py-14">
+    <p class="eyebrow">法律</p>
+    <h1 class="mt-2 text-4xl font-bold tracking-tight text-ink">隐私政策</h1>
+    <p class="mt-2 text-sm text-ink-soft">最后更新：{updated}</p>
+
+    <div class="prose mt-10">
+      <p>本政策说明 {SITE.name}（以下简称「我们」）如何收集、使用、存储与保护你的信息。使用我们的服务即视为你同意本政策。</p>
+
+      <h2>我们收集的信息</h2>
+      <ul>
+        <li><strong>账户信息</strong>：用户名、邮箱、加密后的密码。</li>
+        <li><strong>使用数据</strong>：你提交的提示词、上传的素材、生成结果、任务记录与计费流水。</li>
+        <li><strong>技术日志</strong>：请求日志、错误日志、设备与浏览器等基本信息，敏感字段会脱敏。</li>
+      </ul>
+
+      <h2>我们如何使用</h2>
+      <ul>
+        <li>提供生成、资产管理与计费等核心服务。</li>
+        <li>排查故障、保障稳定性与安全。</li>
+        <li>改进产品体验（聚合分析，不针对个人画像出售）。</li>
+      </ul>
+
+      <h2>数据存储与安全</h2>
+      <p>数据存储于受控的服务器，传输加密，访问受限。API Key 仅保存哈希。我们不会出售你的个人数据。</p>
+
+      <h2>第三方服务</h2>
+      <p>我们使用阿里云 DashScope 等供应商提供模型能力；上传与生成内容会经过这些供应商以完成请求。供应商按其各自条款处理数据。</p>
+
+      <h2>数据留存</h2>
+      <p>上传素材与生成资产默认长期保留，你可在资产库随时删除。企业版可配置自定义留存与自动清理策略。</p>
+
+      <h2>你的权利</h2>
+      <p>你可访问、导出或要求删除你的个人数据。如有需要，请通过<a href="/contact">联系方式</a>告知我们。</p>
+
+      <h2>儿童隐私</h2>
+      <p>本服务不面向未成年人。如发现未成年人未经授权使用，请联系我们处理。</p>
+
+      <h2>政策变更</h2>
+      <p>我们可能更新本政策，重大变更时会通过站内通知或邮件告知。</p>
+
+      <p class="text-sm text-ink-soft">本政策为模板示例，正式上线前请由专业法务审阅。</p>
+    </div>
+  </div>
+</BaseLayout>

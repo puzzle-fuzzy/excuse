@@ -1,0 +1,28 @@
+---
+/** 轻量内联图标：传入 24x24 viewBox 的 SVG path d 即可渲染线性图标。 */
+interface Props {
+  path: string
+  size?: number
+  class?: string
+  /** 无障碍标签；不传则视为装饰图（aria-hidden） */
+  label?: string
+}
+const { path, size = 24, class: className, label } = Astro.props
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  width={size}
+  height={size}
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.75"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class={className}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : 'true'}
+  set:html={`<path d="${path}" />`}
+/>

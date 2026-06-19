@@ -1,0 +1,43 @@
+---
+import type { ImageMetadata } from 'astro'
+import BaseHead from '../components/BaseHead.astro'
+import Footer from '../components/Footer.astro'
+import Header from '../components/Header.astro'
+import { SITE } from '../consts'
+
+interface Props {
+  title: string
+  description: string
+  image?: ImageMetadata
+  type?: 'website' | 'article'
+  publishedTime?: Date
+  modifiedTime?: Date
+  noindex?: boolean
+  /** 主内容容器额外 class */
+  mainClass?: string
+}
+
+const { title, description, image, type, publishedTime, modifiedTime, noindex, mainClass } = Astro.props
+---
+
+<!doctype html>
+<html lang={SITE.lang}>
+  <head>
+    <BaseHead
+      title={title}
+      description={description}
+      image={image}
+      type={type}
+      publishedTime={publishedTime}
+      modifiedTime={modifiedTime}
+      noindex={noindex}
+    />
+  </head>
+  <body class="flex min-h-screen flex-col">
+    <Header />
+    <main class:list={['flex-1', mainClass]}>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

@@ -1,0 +1,75 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import Icon from '../../components/Icon.astro'
+import { APP_URL, SITE, USE_CASES } from '../../consts'
+
+export async function getStaticPaths() {
+  return USE_CASES.map(uc => ({ params: { slug: uc.slug }, props: { uc } }))
+}
+
+const { uc } = Astro.props
+const others = USE_CASES.filter(o => o.slug !== uc.slug)
+---
+
+<BaseLayout title={`${uc.title} — ${SITE.name}`} description={uc.description}>
+  <section class="bg-aurora">
+    <div class="container-page py-16">
+      <a href="/use-cases" class="text-sm text-ink-soft hover:text-brand-700">← 全部场景</a>
+      <div class="mt-6 flex items-start gap-5">
+        <span class="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-100 text-brand-700">
+          <Icon path={uc.icon} size={28} />
+        </span>
+        <div>
+          <p class="eyebrow">应用场景</p>
+          <h1 class="mt-2 text-4xl font-bold tracking-tight text-ink">{uc.title}</h1>
+          <p class="mt-2 text-lg text-ink-soft">{uc.tagline}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container-page py-14">
+    <div class="grid gap-10 lg:grid-cols-[1.6fr_1fr]">
+      <div class="prose">
+        <p class="text-lg">{uc.description}</p>
+        <h2>它能帮你解决</h2>
+        <ul>
+          {uc.points.map(p => <li>{p}</li>)}
+        </ul>
+        <h2>典型流程</h2>
+        <ol>
+          <li>描述你的需求或上传参考素材。</li>
+          <li>选择对应能力（图片 / 视频 / 字幕 / Canvas）。</li>
+          <li>生成、迭代，结果自动沉淀到资产库。</li>
+          <li>下载、复用，或继续二次创作。</li>
+        </ol>
+        <h2>商用与合规</h2>
+        <p>生成结果可用于商业用途，但你需对实际使用场景负责。详见 <a href="/docs/legal/commercial-use">商用说明</a> 与 <a href="/legal/content-policy">内容政策</a>。</p>
+      </div>
+
+      <aside class="h-fit space-y-4 rounded-2xl border border-brand-100 bg-brand-50/50 p-6">
+        <h3 class="font-semibold text-ink">开始这个场景</h3>
+        <p class="text-sm text-ink-soft">注册即享免费额度，几分钟跑通第一个结果。</p>
+        <a href={APP_URL} class="btn-primary w-full">免费开始</a>
+        <a href="/docs/getting-started" class="btn-secondary w-full">查看快速开始</a>
+        <hr class="border-black/5" />
+        <p class="text-sm text-ink-soft">需要团队或企业方案？</p>
+        <a href="/contact" class="text-sm font-medium text-brand-700 hover:text-brand-800">联系销售 →</a>
+      </aside>
+    </div>
+  </section>
+
+  <section class="border-t border-black/5 bg-brand-50/40">
+    <div class="container-page py-14">
+      <h2 class="text-xl font-bold text-ink">其他场景</h2>
+      <div class="mt-6 grid gap-4 sm:grid-cols-3">
+        {others.map(o => (
+          <a href={`/use-cases/${o.slug}`} class="card group flex items-center gap-3">
+            <span class="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700"><Icon path={o.icon} size={20} /></span>
+            <span class="font-medium text-ink group-hover:text-brand-700">{o.title}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,174 @@
+@import 'tailwindcss';
+
+/* ============================================================
+   品牌设计 token —— 基础品牌视觉，等待后续设计稿可整体替换。
+   色阶采用 indigo，与用户端工作台（apps/client）品牌色一致。
+   ============================================================ */
+@theme {
+  --font-sans: var(--font-atkinson), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-brand-50: oklch(0.962 0.018 272);
+  --color-brand-100: oklch(0.93 0.034 272);
+  --color-brand-200: oklch(0.87 0.065 274);
+  --color-brand-300: oklch(0.795 0.103 274);
+  --color-brand-400: oklch(0.71 0.14 275);
+  --color-brand-500: oklch(0.62 0.17 268);
+  --color-brand-600: oklch(0.54 0.18 267);
+  --color-brand-700: oklch(0.47 0.165 267);
+  --color-brand-800: oklch(0.39 0.14 268);
+  --color-brand-900: oklch(0.32 0.11 269);
+  --color-brand-950: oklch(0.22 0.07 268);
+
+  --color-ink: oklch(0.18 0.02 260);
+  --color-ink-soft: oklch(0.46 0.03 258);
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+/* ============================================================
+   基础层
+   ============================================================ */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white text-ink antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+    color: var(--color-brand-900);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ============================================================
+   组件层 —— 常用片段，便于页面复用。
+   ============================================================ */
+
+/* 按钮基类：注册为 utility，便于 .btn-primary 等用 @apply 复用 */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  /* 主 CTA 按钮 */
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-secondary {
+    @apply btn border border-brand-200 bg-white text-brand-700 hover:border-brand-300 hover:bg-brand-50;
+  }
+  .btn-ghost {
+    @apply btn text-ink hover:bg-brand-50;
+  }
+
+  /* 区块标题 eyebrow */
+  .eyebrow {
+    @apply text-sm font-semibold tracking-wide text-brand-600 uppercase;
+  }
+
+  /* 卡片 */
+  .card {
+    @apply rounded-2xl border border-black/5 bg-white p-6 shadow-sm transition-shadow hover:shadow-md;
+  }
+
+  /* 渐变背景区（hero 用） */
+  .bg-aurora {
+    background:
+      radial-gradient(60% 60% at 50% 0%, color-mix(in oklch, var(--color-brand-200) 65%, transparent) 0%, transparent 70%),
+      linear-gradient(to bottom, color-mix(in oklch, var(--color-brand-50) 70%, white), white);
+  }
+}
+
+/* ============================================================
+   文章排版（博客 / 文档共用）—— 不引入额外 typography 插件，手写一套精简 prose。
+   ============================================================ */
+@layer components {
+  .prose {
+    @apply text-[1.0625rem] leading-8 text-ink;
+  }
+  .prose > * + * {
+    margin-top: 1.25em;
+  }
+  .prose h1 {
+    @apply mb-2 text-4xl font-bold tracking-tight text-ink;
+  }
+  .prose h2 {
+    @apply mt-10 mb-3 text-2xl font-bold tracking-tight text-ink;
+  }
+  .prose h3 {
+    @apply mt-8 mb-2 text-xl font-semibold text-ink;
+  }
+  .prose h4 {
+    @apply mt-6 mb-2 text-lg font-semibold text-ink;
+  }
+  .prose a {
+    @apply font-medium text-brand-700 underline decoration-brand-300 underline-offset-2 hover:text-brand-800;
+  }
+  .prose strong {
+    @apply font-semibold text-ink;
+  }
+  .prose ul {
+    @apply list-disc space-y-1.5 pl-6;
+  }
+  .prose ol {
+    @apply list-decimal space-y-1.5 pl-6;
+  }
+  .prose code {
+    @apply rounded bg-brand-50 px-1.5 py-0.5 text-[0.875em] font-medium text-brand-800;
+  }
+  .prose pre {
+    @apply overflow-x-auto rounded-xl bg-ink p-4 text-sm leading-6 text-white;
+  }
+  .prose pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+  .prose blockquote {
+    @apply border-l-4 border-brand-300 bg-brand-50/60 px-5 py-2 italic text-ink;
+  }
+  .prose img {
+    @apply rounded-xl;
+  }
+  .prose table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .prose th,
+  .prose td {
+    @apply border border-black/10 px-3 py-2;
+  }
+  .prose th {
+    @apply bg-brand-50 font-semibold;
+  }
+  .prose hr {
+    @apply border-black/10;
+  }
+}
+
+/* 无障碍：屏幕阅读器专用文本 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,61 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { SITE } from '../consts'
+
+const channels = [
+  { title: '销售咨询', desc: '团队版、企业方案、私有部署、发票与 SLA。', email: SITE.salesEmail },
+  { title: '产品支持', desc: '使用问题、任务失败、计费疑问。', email: SITE.contactEmail },
+  { title: '合作与媒体', desc: '商务合作、媒体采访、内容共创。', email: SITE.contactEmail },
+]
+---
+
+<BaseLayout title={`联系我们 — ${SITE.name}`} description={`联系 ${SITE.name}：销售咨询、产品支持与合作。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">联系我们</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">和我们聊聊</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">无论是售前、支持还是合作，我们都会尽快回复。</p>
+    </div>
+  </section>
+
+  <section class="container-page py-14">
+    <div class="grid gap-10 lg:grid-cols-2">
+      <!-- 联系方式 -->
+      <div class="space-y-6">
+        {channels.map(ch => (
+          <div class="card">
+            <h3 class="font-semibold text-ink">{ch.title}</h3>
+            <p class="mt-1.5 text-sm leading-6 text-ink-soft">{ch.desc}</p>
+            <a href={`mailto:${ch.email}`} class="mt-3 inline-block font-medium text-brand-700 hover:text-brand-800">{ch.email}</a>
+          </div>
+        ))}
+      </div>
+
+      <!-- 留言表单（mailto，无后端依赖） -->
+      <div class="card">
+        <h3 class="text-lg font-semibold text-ink">发送消息</h3>
+        <p class="mt-1 text-sm text-ink-soft">填写后将通过邮件客户端发送给我们。</p>
+        <form
+          class="mt-5 space-y-4"
+          action={`mailto:${SITE.salesEmail}`}
+          method="post"
+          enctype="text/plain"
+        >
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-ink" for="name">姓名</label>
+            <input id="name" name="name" type="text" required class="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-brand-400" placeholder="你的称呼" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-ink" for="email">邮箱</label>
+            <input id="email" name="email" type="email" required class="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-brand-400" placeholder="name@company.com" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-ink" for="message">消息</label>
+            <textarea id="message" name="message" rows="5" required class="w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-brand-400" placeholder="说说你的需求或问题…"></textarea>
+          </div>
+          <button type="submit" class="btn-primary w-full">发送</button>
+        </form>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

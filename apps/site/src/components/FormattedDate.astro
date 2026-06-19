@@ -1,0 +1,13 @@
+---
+interface Props {
+  date: Date
+  /** 是否显示相对年份等附加信息（预留） */
+  class?: string
+}
+
+const { date, class: className } = Astro.props
+---
+
+<time datetime={date.toISOString()} class={className}>
+  {date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+</time>

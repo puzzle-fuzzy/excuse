@@ -1,0 +1,44 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import { SITE } from '../../consts'
+
+const updated = '2026-06-19'
+---
+
+<BaseLayout title={`服务条款 — ${SITE.name}`} description={`${SITE.name} 服务条款：使用我们的服务需遵守的规则与责任边界。`} type="article">
+  <div class="container-page max-w-3xl py-14">
+    <p class="eyebrow">法律</p>
+    <h1 class="mt-2 text-4xl font-bold tracking-tight text-ink">服务条款</h1>
+    <p class="mt-2 text-sm text-ink-soft">最后更新：{updated}</p>
+
+    <div class="prose mt-10">
+      <p>欢迎使用 {SITE.name}（以下简称「本服务」）。使用本服务即表示你同意以下条款。请仔细阅读。</p>
+
+      <h2>1. 账户与责任</h2>
+      <p>你需对账户安全负责，并对账户下的活动负责。如发现未经授权使用，请立即通知我们。</p>
+
+      <h2>2. 可接受的使用</h2>
+      <p>你承诺不利用本服务从事违法或侵权行为，包括但不限于生成违反 <a href="/legal/content-policy">内容政策</a> 的内容、侵犯他人知识产权、传播恶意内容、尝试破坏系统安全等。</p>
+
+      <h2>3. 生成内容与授权</h2>
+      <p>在遵守法律与本条款的前提下，生成内容可用于商业用途。详见 <a href="/docs/legal/commercial-use">商用说明</a>。你对自己使用生成内容的方式与后果负责。</p>
+
+      <h2>4. 计费与退款</h2>
+      <p>本服务采用积分计费。失败任务的处理规则见 <a href="/docs/billing">计费说明</a>。除法律另有规定外，已充值或已消耗的积分一般不予退款，因平台原因导致的错误扣费我们将补偿。</p>
+
+      <h2>5. 服务的提供与变更</h2>
+      <p>我们努力保障服务稳定，但不保证服务不间断或无错误。我们可能随时新增、调整或下线功能、模型或定价，重大变更会提前通知。</p>
+
+      <h2>6. 知识产权</h2>
+      <p>本服务的品牌、界面、代码与文档的知识产权归我们或其权利人所有。未经授权不得复制或商用。</p>
+
+      <h2>7. 免责</h2>
+      <p>本服务按「现状」提供。在法律允许的最大范围内，我们对因使用本服务或生成内容而产生的间接损失不承担责任。</p>
+
+      <h2>8. 条款变更</h2>
+      <p>我们可能更新本条款，继续使用服务即视为接受更新。</p>
+
+      <p class="text-sm text-ink-soft">本条款为模板示例，正式上线前请由专业法务审阅。</p>
+    </div>
+  </div>
+</BaseLayout>

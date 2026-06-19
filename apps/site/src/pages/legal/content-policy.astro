@@ -1,0 +1,43 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import { SITE } from '../../consts'
+
+const updated = '2026-06-19'
+---
+
+<BaseLayout title={`内容政策 — ${SITE.name}`} description={`${SITE.name} 内容政策：允许与禁止的生成内容边界。`} type="article">
+  <div class="container-page max-w-3xl py-14">
+    <p class="eyebrow">法律</p>
+    <h1 class="mt-2 text-4xl font-bold tracking-tight text-ink">内容政策</h1>
+    <p class="mt-2 text-sm text-ink-soft">最后更新：{updated}</p>
+
+    <div class="prose mt-10">
+      <p>为保障 {SITE.name} 生态健康、合法、可信，我们对生成内容设定如下边界。违反本政策的内容可能被拒绝生成、隐藏或删除，情节严重者将限制或终止账户。</p>
+
+      <h2>禁止生成的内容</h2>
+      <ul>
+        <li>违法、侵权、欺诈或误导性内容。</li>
+        <li>色情、未成年涉性内容。</li>
+        <li>暴力、恐怖主义、仇恨与歧视。</li>
+        <li>骚扰、诽谤、侵犯他人隐私或名誉。</li>
+        <li>未经授权使用真人形象、受版权 / 商标保护的内容。</li>
+        <li>意图干扰选举、金融欺诈、恶意软件等高风险内容。</li>
+        <li>试图绕过模型安全机制的内容。</li>
+      </ul>
+
+      <h2>高风险但可能允许（需使用者自担责任）</h2>
+      <p>某些内容（如涉及医疗、法律、金融的专业建议，或具有争议性的社会议题）可能被生成，但你需对准确性、合规性与实际使用负责，不得用于误导他人。</p>
+
+      <h2>内容审核</h2>
+      <p>我们结合供应商的内置安全机制与平台策略进行检测。被判定违规的请求将被拒绝，且通常不扣费。部分内容可能进入人工复核。</p>
+
+      <h2>你的责任</h2>
+      <p>你需对生成内容的实际使用场景负责。涉及商业宣传时，须遵守广告法等相关法规。详见 <a href="/docs/legal/commercial-use">商用说明</a> 与 <a href="/legal/terms">服务条款</a>。</p>
+
+      <h2>举报</h2>
+      <p>如发现违规内容或行为，请通过<a href="/contact">联系方式</a>举报，我们会及时处理。</p>
+
+      <p class="text-sm text-ink-soft">本政策为模板示例，正式上线前请由专业法务审阅。</p>
+    </div>
+  </div>
+</BaseLayout>

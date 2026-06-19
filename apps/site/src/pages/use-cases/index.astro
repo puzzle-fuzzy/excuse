@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import Icon from '../../components/Icon.astro'
+import { APP_URL, SITE, USE_CASES } from '../../consts'
+---
+
+<BaseLayout title={`应用场景 — ${SITE.name}`} description={`${SITE.name} 应用场景：广告与商品图、短视频、字幕、故事成片等 AI 创意生产场景。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">应用场景</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">为真实创作场景而生</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">选择你的场景，看看 Excuse 如何帮你提效。</p>
+    </div>
+  </section>
+
+  <section class="container-page py-16">
+    <div class="grid gap-6 md:grid-cols-2">
+      {USE_CASES.map(uc => (
+        <a href={`/use-cases/${uc.slug}`} class="card group flex gap-5">
+          <span class="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
+            <Icon path={uc.icon} size={28} />
+          </span>
+          <div>
+            <h3 class="text-lg font-semibold text-ink group-hover:text-brand-700">{uc.title}</h3>
+            <p class="mt-1 text-sm text-ink-soft">{uc.description}</p>
+            <span class="mt-3 inline-block text-sm font-medium text-brand-600">查看玩法 →</span>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div class="mt-12 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-10 text-center text-white">
+      <h2 class="text-2xl font-bold tracking-tight">不确定哪个场景适合你？</h2>
+      <p class="mx-auto mt-3 max-w-xl text-brand-100">注册后即可体验全部能力，从最简单的开始。</p>
+      <a href={APP_URL} class="btn mt-6 bg-white text-brand-700 hover:bg-brand-50">免费开始</a>
+    </div>
+  </section>
+</BaseLayout>

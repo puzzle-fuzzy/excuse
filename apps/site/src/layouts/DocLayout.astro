@@ -1,0 +1,53 @@
+---
+import BaseLayout from './BaseLayout.astro'
+import { DOC_SECTIONS } from '../consts'
+
+interface Props {
+  title: string
+  description: string
+  /** 所属文档栏目 slug，用于高亮与面包屑 */
+  section?: string
+  /** 发布 / 更新时间（可选） */
+  updatedDate?: Date
+}
+
+const { title, description, section, updatedDate } = Astro.props
+const sec = DOC_SECTIONS.find(s => s.slug === section)
+---
+
+<BaseLayout title={`${title} — Excuse 文档`} description={description} type="article" modifiedTime={updatedDate} mainClass="pb-24">
+  <div class="container-page grid gap-10 py-12 lg:grid-cols-[220px_1fr]">
+    <!-- 文档侧边导航 -->
+    <aside class="hidden lg:block">
+      <nav class="sticky top-24 space-y-1">
+        <p class="px-3 pb-2 text-xs font-semibold tracking-wide text-ink-soft uppercase">文档导航</p>
+        {DOC_SECTIONS.map(s => (
+          <a
+            href={`/docs/${s.slug}`}
+            class:list={[
+              'block rounded-lg px-3 py-1.5 text-sm transition-colors',
+              section === s.slug ? 'bg-brand-50 font-medium text-brand-700' : 'text-ink-soft hover:bg-brand-50 hover:text-ink',
+            ]}
+          >
+            {s.label}
+          </a>
+        ))}
+      </nav>
+    </aside>
+
+    <article class="min-w-0">
+      <div class="flex items-center gap-2 text-sm text-ink-soft">
+        <a href="/docs" class="hover:text-brand-700">文档</a>
+        <span>/</span>
+        {sec && <span class="text-ink">{sec.label}</span>}
+      </div>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink">{title}</h1>
+      <p class="mt-3 text-lg leading-8 text-ink-soft">{description}</p>
+      {updatedDate && <p class="mt-2 text-sm text-ink-soft">最后更新：<time datetime={updatedDate.toISOString()}>{updatedDate.toLocaleDateString('zh-CN')}</time></p>}
+
+      <div class="prose mt-10">
+        <slot />
+      </div>
+    </article>
+  </div>
+</BaseLayout>

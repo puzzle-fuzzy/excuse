@@ -36,6 +36,8 @@ export default antfu({
     // Drizzle 迁移文件由工具自动生成，无需 lint
     '**/drizzle',
     'apps/client/src/components/ui/**',
+    // Astro 站点（apps/site）使用 astro check / 自身工具链，不经 antfu lint
+    'apps/site/**',
   ],
 })
   // Server/worker: console 必须走 logger，直接 console 为 error

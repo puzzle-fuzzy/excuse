@@ -1,0 +1,77 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import Icon from '../components/Icon.astro'
+import { APP_URL, CAPABILITIES, PROCESS_STEPS, SITE } from '../consts'
+
+const pillars = [
+  { title: '生成', desc: '文本、图片、视频、字幕，多模型统一调用，参数清晰。' },
+  { title: '编排', desc: 'Canvas 流水线把多步骤串成可控、可恢复的自动化产线。' },
+  { title: '沉淀', desc: '统一资产库让每一次产出都成为可复用的创作资产。' },
+  { title: '开放', desc: 'OpenAI 兼容 API、Webhook 与用量统计，方便程序化接入。' },
+]
+---
+
+<BaseLayout title={`产品 — ${SITE.name}`} description={`${SITE.name} 是一站式 AI 创意生产平台：生成、编排、沉淀与开放 API 四位一体。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-20 text-center">
+      <p class="eyebrow">产品</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">不止生成工具，而是创意生产线</h1>
+      <p class="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">{SITE.description}</p>
+      <div class="mt-8 flex justify-center gap-3">
+        <a href={APP_URL} class="btn-primary">免费开始</a>
+        <a href="/docs" class="btn-secondary">查看文档</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="container-page py-20">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {pillars.map(p => (
+        <div class="card">
+          <h3 class="font-semibold text-ink">{p.title}</h3>
+          <p class="mt-2 text-sm leading-6 text-ink-soft">{p.desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="border-y border-black/5 bg-brand-50/40">
+    <div class="container-page py-20">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-ink">工作流程</h2>
+      <ol class="mt-12 grid gap-6 md:grid-cols-4">
+        {PROCESS_STEPS.map((step, i) => (
+          <li class="rounded-2xl bg-white p-6 shadow-sm">
+            <span class="text-sm font-bold text-brand-500">0{i + 1}</span>
+            <h3 class="mt-2 font-semibold text-ink">{step.title}</h3>
+            <p class="mt-2 text-sm leading-6 text-ink-soft">{step.description}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="container-page py-20">
+    <h2 class="text-center text-3xl font-bold tracking-tight text-ink">核心能力</h2>
+    <div class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {CAPABILITIES.map(cap => (
+        <div class="card flex gap-4">
+          <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+            <Icon path={cap.icon} size={22} />
+          </span>
+          <div>
+            <h3 class="font-semibold text-ink">{cap.title}</h3>
+            <p class="mt-1.5 text-sm leading-6 text-ink-soft">{cap.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="container-page pb-20">
+    <div class="overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-14 text-center text-white sm:px-16">
+      <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">亲自试试</h2>
+      <p class="mx-auto mt-4 max-w-xl text-brand-100">从一次文本或图片生成开始，几分钟看到结果。</p>
+      <a href={APP_URL} class="btn mt-8 bg-white text-brand-700 hover:bg-brand-50">免费开始</a>
+    </div>
+  </section>
+</BaseLayout>

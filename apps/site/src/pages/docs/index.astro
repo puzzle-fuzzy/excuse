@@ -1,0 +1,64 @@
+---
+import { getCollection } from 'astro:content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import { DOC_SECTIONS, SITE } from '../../consts'
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order)
+
+// 按 section 分组，保留 DOC_SECTIONS 顺序
+const grouped = DOC_SECTIONS.map(sec => ({
+  section: sec,
+  items: docs.filter(d => d.data.section === sec.slug),
+}))
+// 未归入已知栏目（如 legal）的文档单独一组
+const uncategorized = docs.filter(d => !DOC_SECTIONS.some(s => s.slug === d.data.section))
+---
+
+<BaseLayout title={`文档中心 — ${SITE.name}`} description={`${SITE.name} 文档中心：快速开始、工作台、Canvas、资产库、字幕、计费、模型与 API。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">文档中心</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">用得明白，才能用得好</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">从第一次生成到 API 接入，所有你需要的说明都在这里。</p>
+      <div class="mt-6 flex justify-center gap-3">
+        <a href="/docs/getting-started" class="btn-primary">快速开始</a>
+        <a href="/docs/api/authentication" class="btn-secondary">API 鉴权</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="container-page py-14">
+    <div class="space-y-12">
+      {grouped.map(group => (
+        <section>
+          <h2 class="text-xl font-bold text-ink">{group.section.label}</h2>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {group.items.map(doc => (
+              <a href={`/docs/${doc.id}`} class="card group">
+                <h3 class="font-semibold text-ink group-hover:text-brand-700">{doc.data.title}</h3>
+                <p class="mt-1.5 text-sm text-ink-soft">{doc.data.description}</p>
+              </a>
+            ))}
+            {group.items.length === 0 && (
+              <p class="text-sm text-ink-soft">即将上线…</p>
+            )}
+          </div>
+        </section>
+      ))}
+
+      {uncategorized.length > 0 && (
+        <section>
+          <h2 class="text-xl font-bold text-ink">合规与说明</h2>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {uncategorized.map(doc => (
+              <a href={`/docs/${doc.id}`} class="card group">
+                <h3 class="font-semibold text-ink group-hover:text-brand-700">{doc.data.title}</h3>
+                <p class="mt-1.5 text-sm text-ink-soft">{doc.data.description}</p>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  </div>
+</BaseLayout>

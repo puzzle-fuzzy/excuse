@@ -1,0 +1,60 @@
+---
+import { getCollection } from 'astro:content'
+import BaseLayout from '../layouts/BaseLayout.astro'
+import { SITE } from '../consts'
+
+const stories = (await getCollection('blog', post => !post.data.draft && post.data.category === 'customer-stories')).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+)
+
+const stats = [
+  { value: '4×', label: '平均产能提升' },
+  { value: '40%', label: '单条成本下降' },
+  { value: '3 天 → 半天', label: '成片周期缩短' },
+  { value: '12', label: 'Canvas 自动化阶段' },
+]
+---
+
+<BaseLayout title={`客户案例 — ${SITE.name}`} description={`${SITE.name} 客户案例：短视频工作室、电商团队等如何用 AI 提升创意生产效率。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">客户案例</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">真实团队，真实提效</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">看看不同团队如何用 Excuse 优化创意生产流程。</p>
+    </div>
+  </section>
+
+  <section class="container-page py-12">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {stats.map(s => (
+        <div class="rounded-2xl border border-brand-100 bg-brand-50/50 p-6 text-center">
+          <div class="text-2xl font-bold text-brand-700">{s.value}</div>
+          <div class="mt-1 text-sm text-ink-soft">{s.label}</div>
+        </div>
+      ))}
+    </div>
+    <p class="mt-4 text-center text-xs text-ink-soft">数据来自示意案例，用于说明典型收益方向，实际因团队而异。</p>
+  </section>
+
+  <section class="container-page pb-20">
+    <div class="grid gap-6 md:grid-cols-2">
+      {stories.map(story => (
+        <a href={`/blog/${story.id}`} class="card group flex flex-col gap-3">
+          <span class="text-xs font-medium text-brand-600">客户案例</span>
+          <h3 class="text-lg font-semibold leading-snug text-ink group-hover:text-brand-700">{story.data.title}</h3>
+          <p class="text-sm leading-6 text-ink-soft">{story.data.description}</p>
+          <span class="mt-auto text-sm font-medium text-brand-600">阅读全文 →</span>
+        </a>
+      ))}
+      {stories.length === 0 && (
+        <p class="col-span-full rounded-2xl border border-dashed border-black/10 p-10 text-center text-ink-soft">案例持续更新中。</p>
+      )}
+    </div>
+
+    <div class="mt-12 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 px-8 py-10 text-center text-white">
+      <h2 class="text-2xl font-bold tracking-tight">想成为下一个案例？</h2>
+      <p class="mx-auto mt-3 max-w-xl text-brand-100">告诉我们你的场景，我们一起设计提效方案。</p>
+      <a href="/contact" class="btn mt-6 bg-white text-brand-700 hover:bg-brand-50">联系销售</a>
+    </div>
+  </section>
+</BaseLayout>

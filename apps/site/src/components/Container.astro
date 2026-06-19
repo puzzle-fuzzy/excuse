@@ -1,0 +1,12 @@
+---
+/** 页面通用容器：居中 + 响应式内边距。 */
+interface Props {
+  class?: string
+  as?: keyof HTMLElementTagNameMap
+}
+const { class: className, as: Tag = 'div' }: Props = Astro.props
+---
+
+<Tag class:list={['container-page', className]}>
+  <slot />
+</Tag>

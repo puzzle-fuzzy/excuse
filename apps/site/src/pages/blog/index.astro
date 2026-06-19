@@ -1,0 +1,67 @@
+---
+import { Image } from 'astro:assets'
+import { getCollection } from 'astro:content'
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import FormattedDate from '../../components/FormattedDate.astro'
+import { BLOG_CATEGORIES, SITE } from '../../consts'
+
+const posts = (await getCollection('blog', post => !post.data.draft)).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
+)
+
+const [featured, ...rest] = posts
+---
+
+<BaseLayout title={`博客 — ${SITE.name}`} description={`${SITE.name} 团队博客：教程、应用场景、产品更新、AI 生产指南与客户案例。`}>
+  <section class="bg-aurora">
+    <div class="container-page py-16 text-center">
+      <p class="eyebrow">博客</p>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">让创造力持续生长</h1>
+      <p class="mx-auto mt-4 max-w-2xl text-lg text-ink-soft">教程、应用场景、产品更新、AI 生产指南与真实客户案例。</p>
+    </div>
+  </section>
+
+  <div class="container-page py-12">
+    <!-- 分类筛选 -->
+    <div class="flex flex-wrap justify-center gap-2">
+      <a href="/blog" class="rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">全部</a>
+      {BLOG_CATEGORIES.map(cat => (
+        <a href={`/blog/category/${cat.slug}`} class="rounded-full border border-black/5 bg-white px-4 py-1.5 text-sm text-ink-soft hover:border-brand-200 hover:text-brand-700">{cat.label}</a>
+      ))}
+    </div>
+
+    <!-- 精选文章 -->
+    {featured && (
+      <a href={`/blog/${featured.id}/`} class="mt-12 grid overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition-shadow hover:shadow-md md:grid-cols-2">
+        {featured.data.heroImage && (
+          <Image src={featured.data.heroImage} alt={featured.data.title} width={960} height={540} class="aspect-[16/10] w-full object-cover" />
+        )}
+        <div class="flex flex-col justify-center gap-3 p-8">
+          <span class="text-sm font-semibold text-brand-600">精选</span>
+          <h2 class="text-2xl font-bold tracking-tight text-ink">{featured.data.title}</h2>
+          <p class="text-ink-soft">{featured.data.description}</p>
+          <span class="text-sm text-ink-soft"><FormattedDate date={featured.data.pubDate} /></span>
+        </div>
+      </a>
+    )}
+
+    <!-- 文章网格 -->
+    <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {rest.map(post => (
+        <a href={`/blog/${post.id}/`} class="card group flex flex-col gap-3">
+          {post.data.heroImage && (
+            <Image src={post.data.heroImage} alt={post.data.title} width={640} height={360} class="aspect-[16/9] w-full rounded-xl object-cover" />
+          )}
+          <div class="flex items-center gap-2 text-xs">
+            {BLOG_CATEGORIES.find(c => c.slug === post.data.category) && (
+              <span class="rounded-full bg-brand-50 px-2.5 py-0.5 font-medium text-brand-700">{BLOG_CATEGORIES.find(c => c.slug === post.data.category)?.label}</span>
+            )}
+            <span class="text-ink-soft"><FormattedDate date={post.data.pubDate} /></span>
+          </div>
+          <h3 class="text-lg font-semibold leading-snug text-ink group-hover:text-brand-700">{post.data.title}</h3>
+          <p class="line-clamp-2 text-sm text-ink-soft">{post.data.description}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
