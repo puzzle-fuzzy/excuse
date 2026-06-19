@@ -186,14 +186,14 @@ export default function Developers() {
           <div className="max-w-2xl">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-muted/45 px-3 py-1 text-xs text-muted-foreground">
               <Code2 className="size-3.5 text-primary" />
-              OpenAI compatible gateway
+              OpenAI 兼容网关
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">开发者接入</h1>
               <Badge variant="secondary">内测</Badge>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              使用 API Key 调用 OpenAI 兼容文本生成接口。这里集中放置 Base URL、鉴权方式、示例代码、模型别名和稳定错误码。
+              使用 API Key 调用 OpenAI 兼容文本生成接口。这里集中放置 接入地址、鉴权方式、示例代码、模型别名和稳定错误码。
             </p>
           </div>
           <Button asChild className="brand-cta">
@@ -229,7 +229,7 @@ export default function Developers() {
           <div>
             <span className="font-medium">2.</span>
             {' '}
-            设置 Base URL：
+            设置 接入地址：
             {' '}
             <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{BASE_URL}</code>
           </div>
@@ -246,7 +246,7 @@ export default function Developers() {
       {/* Endpoint 卡片 */}
       <Card className="bg-card">
         <CardHeader>
-          <CardTitle className="text-sm">Endpoint</CardTitle>
+          <CardTitle className="text-sm">接口</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div>
@@ -254,7 +254,7 @@ export default function Developers() {
             <code className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs">POST /v1/chat/completions</code>
           </div>
           <div>
-            <span className="font-medium text-muted-foreground">Base URL</span>
+            <span className="font-medium text-muted-foreground">接入地址</span>
             <code className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs">{BASE_URL}</code>
           </div>
           <div>
@@ -374,11 +374,11 @@ export default function Developers() {
                   <td className="py-2 text-xs">{name}</td>
                   <td className="py-2 text-right font-mono text-xs">
                     {inputCents}
-                    ¢ / M
+                    ¢ / 百万
                   </td>
                   <td className="py-2 text-right font-mono text-xs">
                     {outputCents}
-                    ¢ / M
+                    ¢ / 百万
                   </td>
                 </tr>
               ))}
@@ -415,7 +415,7 @@ export default function Developers() {
               <thead>
                 <tr className="border-b">
                   <th className="py-2 text-left font-medium text-muted-foreground">错误码</th>
-                  <th className="py-2 text-left font-medium text-muted-foreground">HTTP</th>
+                  <th className="py-2 text-left font-medium text-muted-foreground">状态码</th>
                   <th className="py-2 text-left font-medium text-muted-foreground">含义</th>
                   <th className="py-2 text-left font-medium text-muted-foreground">处理建议</th>
                 </tr>

@@ -36,6 +36,11 @@ interface Props {
   onComparingChange?: (comparing: boolean) => void
 }
 
+const COMPARE_STATUS_LABELS: Record<string, string> = {
+  succeeded: '成功',
+  failed: '失败',
+}
+
 function defaultValue(value: unknown, type: string): string | number | boolean {
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
     return value
@@ -240,7 +245,7 @@ export default function ModelComparisonSection({
                     <div className="truncate text-xs text-muted-foreground">{item.modelId}</div>
                   </div>
                   <Badge variant={item.status === 'failed' ? 'destructive' : 'secondary'}>
-                    {item.record?.status || item.status}
+                    {COMPARE_STATUS_LABELS[item.record?.status ?? item.status] ?? (item.record?.status ?? item.status)}
                   </Badge>
                 </div>
 

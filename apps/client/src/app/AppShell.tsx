@@ -80,7 +80,7 @@ function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-semibold tracking-tight">Excuse</span>
-          <span className="block truncate text-xs text-muted-foreground">Creative production</span>
+          <span className="block truncate text-xs text-muted-foreground">创意生产工作台</span>
         </span>
       </Link>
 
@@ -287,8 +287,8 @@ function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
             {user?.username?.slice(0, 1).toUpperCase() ?? 'U'}
           </div>
           <div className="hidden min-w-0 xl:block">
-            <div className="truncate text-xs font-medium">{user?.username ?? 'User'}</div>
-            <div className="truncate text-[11px] text-muted-foreground">{user?.email ?? 'Signed in'}</div>
+            <div className="truncate text-xs font-medium">{user?.username ?? '用户'}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{user?.email ?? '已登录'}</div>
           </div>
         </div>
         <Button variant="ghost" size="icon-sm" onClick={logout} aria-label="退出登录">

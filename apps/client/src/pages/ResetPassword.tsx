@@ -36,7 +36,7 @@ export default function ResetPassword() {
   if (!token) {
     return (
       <AuthPageShell
-        eyebrow="Link expired"
+        eyebrow="链接已失效"
         title="无效的链接"
         description="密码重置链接无效或已过期，请重新申请。"
       >
@@ -56,7 +56,7 @@ export default function ResetPassword() {
 
   return (
     <AuthPageShell
-      eyebrow="Secure reset"
+      eyebrow="安全重置"
       title="重置密码"
       description={success ? '密码已成功重置。' : '设置一个新密码，继续回到你的创意生产空间。'}
     >

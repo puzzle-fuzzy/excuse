@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Sparkles } from 'lucide-react'
 import { Link } from 'react-router'
 
 interface AuthPageShellProps {
@@ -8,83 +9,76 @@ interface AuthPageShellProps {
   children: ReactNode
 }
 
-const authHighlights = [
-  { label: 'Canvas pipeline', value: 'story → assets' },
-  { label: 'Task recovery', value: 'retry safely' },
-  { label: 'Cost ledger', value: 'visible spend' },
+const valuePoints = [
+  { dot: 'bg-primary', text: '创作流水线：从故事到成片，阶段连贯、可追溯' },
+  { dot: 'bg-[color:var(--brand-image)]', text: '成本透明：每一次生成的用量与花费都看得见' },
+  { dot: 'bg-[color:var(--brand-video)]', text: '失败可恢复：任务自动重试，进度不丢失' },
 ]
 
 export function AuthPageShell({ eyebrow, title, description, children }: AuthPageShellProps) {
   return (
-    <main className="brand-auth-shell relative min-h-dvh overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.32] [background-image:linear-gradient(color-mix(in_oklch,var(--primary)_8%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklch,var(--primary)_8%,transparent)_1px,transparent_1px)] [background-size:42px_42px]" />
+    <main className="brand-auth-shell relative min-h-dvh overflow-hidden bg-background text-foreground">
+      {/* 极淡网格底纹 */}
+      <div className="pointer-events-none absolute inset-0 opacity-[0.26] [background-image:linear-gradient(color-mix(in_oklch,var(--primary)_7%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklch,var(--primary)_7%,transparent)_1px,transparent_1px)] [background-size:46px_46px]" />
 
-      <div className="relative mx-auto grid min-h-[calc(100dvh-3rem)] w-full max-w-6xl items-center gap-6 lg:grid-cols-[1.04fr_0.96fr]">
-        <section className="hidden h-full min-h-[640px] flex-col justify-between rounded-[2rem] border border-border bg-accent/78 p-8 shadow-[var(--shadow-floating)] backdrop-blur-xl lg:flex">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="group inline-flex items-center gap-3 rounded-full bg-card/74 py-2 pl-2 pr-4 text-sm font-semibold text-foreground shadow-[var(--shadow-level1)] transition hover:bg-card">
-              <span className="grid size-9 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground transition group-hover:scale-105">
-                Ex
-              </span>
-              Excuse
-            </Link>
-            <span className="rounded-full border border-border bg-card/56 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">
-              Gallery light
+      {/* 固定左上品牌 */}
+      <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10 lg:px-14">
+        <Link to="/" className="group inline-flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-level1)] transition group-hover:scale-105">
+            <Sparkles className="size-5" />
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="text-base font-semibold tracking-tight text-foreground">Excuse</span>
+            <span className="mt-1 text-[11px] font-medium text-muted-foreground">创意生产工作台</span>
+          </span>
+        </Link>
+        <Link
+          to="/login"
+          className="hidden rounded-full border border-border bg-card/70 px-4 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm transition hover:text-foreground sm:inline-flex"
+        >
+          返回登录
+        </Link>
+      </header>
+
+      {/* 主体：左品牌叙事 + 右悬浮表单卡 */}
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-stretch gap-12 px-6 pb-16 sm:px-10 lg:flex-row lg:items-center lg:gap-16 lg:px-14 lg:pb-0">
+        {/* 背景品牌叙事（桌面） */}
+        <div className="hidden max-w-xl lg:block">
+          <h1 className="text-balance text-5xl font-semibold leading-[1.05] tracking-[-0.035em] text-foreground xl:text-6xl">
+            让想象力，
+            <br />
+            拥有生产力。
+          </h1>
+          <p className="mt-7 max-w-md text-pretty text-lg leading-8 text-muted-foreground">
+            从提示词、故事、参考素材到可复用资产——把生成过程、成本与失败恢复放进同一个专业工作台。
+          </p>
+          <ul className="mt-10 space-y-3.5">
+            {valuePoints.map(point => (
+              <li key={point.text} className="flex items-start gap-3 text-sm leading-6 text-muted-foreground">
+                <span className={`mt-2 size-1.5 shrink-0 rounded-full ${point.dot}`} />
+                <span>{point.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 悬浮表单卡 */}
+        <section className="mx-auto w-full max-w-[460px] self-center rounded-3xl border border-border bg-card/92 p-6 shadow-[var(--shadow-floating)] backdrop-blur-xl sm:p-8 lg:ml-auto lg:mr-2">
+          {/* 移动端品牌头 */}
+          <div className="mb-7 flex items-center gap-3 lg:hidden">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <Sparkles className="size-4" />
             </span>
+            <span className="text-sm font-semibold text-foreground">Excuse · 创意生产工作台</span>
           </div>
 
-          <div className="max-w-xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
-            <h1 className="mt-5 max-w-[12ch] text-balance text-5xl font-semibold leading-[1.03] tracking-[-0.035em] text-foreground">
-              让创意生产保持清楚、稳定、可追溯。
-            </h1>
-            <p className="mt-6 max-w-lg text-pretty text-base leading-7 text-muted-foreground">
-              从提示词、故事、参考素材到可复用资产，Excuse 把生成过程、成本和失败恢复放在同一个专业工作台里。
-            </p>
-          </div>
+          <p className="text-xs font-semibold tracking-wide text-primary">{eyebrow}</p>
+          <h2 className="mt-3 text-balance text-2xl font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-3xl">
+            {title}
+          </h2>
+          <p className="mt-2.5 text-pretty text-sm leading-6 text-muted-foreground">{description}</p>
 
-          <div className="grid gap-3">
-            <div className="rounded-[1.75rem] border border-border bg-card/68 p-5 shadow-[var(--shadow-floating)]">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">今日生产状态</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-[-0.03em] text-foreground">18 runs</p>
-                </div>
-                <div className="rounded-full bg-primary-container px-3 py-1 text-xs font-semibold text-on-primary-container">96.4% stable</div>
-              </div>
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                {authHighlights.map(item => (
-                  <div key={item.label} className="rounded-2xl border border-border bg-background/82 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
-                    <p className="mt-2 text-sm font-medium text-foreground">{item.value}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-full border border-border bg-card/54 px-4 py-3 text-sm text-muted-foreground">
-              <span>AI creative production desk</span>
-              <span className="font-medium text-primary">cost · assets · workflow</span>
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto w-full max-w-[480px] rounded-[2rem] border border-border bg-card/86 p-5 shadow-[var(--shadow-floating)] backdrop-blur-xl sm:p-7 lg:ml-auto">
-          <div className="mb-8 flex items-center justify-between gap-4 lg:hidden">
-            <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-              <span className="grid size-9 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">Ex</span>
-              Excuse
-            </Link>
-            <span className="rounded-full bg-primary-container px-3 py-1 text-xs font-medium text-on-primary-container">Creative desk</span>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-border bg-background/72 p-5 sm:p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
-            <h2 className="mt-3 text-balance text-3xl font-semibold leading-tight tracking-[-0.025em] text-foreground">{title}</h2>
-            <p className="mt-3 text-pretty text-sm leading-6 text-muted-foreground">{description}</p>
-          </div>
-
-          <div className="mt-6">
+          <div className="mt-7">
             {children}
           </div>
         </section>

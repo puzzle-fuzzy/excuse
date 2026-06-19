@@ -58,7 +58,7 @@ export default function ShotNode({ data }: NodeProps) {
             <span>
               <span className="text-muted-foreground">时长：</span>
               {shot.duration}
-              s
+              秒
             </span>
             <span
               className={statusBadgeClass(hasDialogue ? 'success' : 'neutral', 'text-[10px] px-1.5')}
@@ -175,7 +175,7 @@ export default function ShotNode({ data }: NodeProps) {
         {/* 视频 Prompt */}
         {shot.videoPrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Video Prompt：</span>
+            <span className="text-muted-foreground text-xs">视频提示词：</span>
             <p className="text-xs bg-muted rounded p-2 mt-0.5 max-h-20 overflow-auto">
               {shot.videoPrompt}
             </p>
@@ -185,7 +185,7 @@ export default function ShotNode({ data }: NodeProps) {
         {/* 负面 Prompt */}
         {shot.negativePrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Negative Prompt：</span>
+            <span className="text-muted-foreground text-xs">负面提示词：</span>
             <p className="text-xs bg-muted rounded p-2 mt-0.5 max-h-15 overflow-auto text-[color:var(--status-danger-fg)]">
               {shot.negativePrompt}
             </p>

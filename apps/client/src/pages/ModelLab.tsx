@@ -40,6 +40,16 @@ import {
 } from '@/lib/model-lab-presets'
 import { copyToClipboard } from '@/lib/utils'
 
+const RECORD_STATUS_LABELS: Record<string, string> = {
+  pending: '待处理',
+  submitting: '提交中',
+  processing: '处理中',
+  saving_output: '保存中',
+  succeeded: '成功',
+  failed: '失败',
+  cancelled: '已取消',
+}
+
 type LabValue = string | number | boolean
 
 interface LabReferenceFile {
@@ -291,7 +301,7 @@ export default function ModelLab() {
         <div>
           <div className="flex items-center gap-2">
             <Beaker className="size-5 text-primary" />
-            <h1 className="text-lg font-semibold">Model Lab</h1>
+            <h1 className="text-lg font-semibold">模型实验室</h1>
             <Badge variant="secondary">内部实验</Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -524,7 +534,7 @@ export default function ModelLab() {
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={record.status === 'failed' ? 'destructive' : 'secondary'}>
-                      {record.status}
+                      {RECORD_STATUS_LABELS[record.status] ?? record.status}
                     </Badge>
                     <span className="text-sm font-medium">{record.model}</span>
                     <span className="text-xs text-muted-foreground">

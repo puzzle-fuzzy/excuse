@@ -99,7 +99,7 @@ describe('model lab page', () => {
   it('加载模型并渲染内部 lab 标题', async () => {
     render(<ModelLab />)
 
-    expect(await screen.findByText('Model Lab')).toBeInTheDocument()
+    expect(await screen.findByText('模型实验室')).toBeInTheDocument()
     expect(screen.getByText('内部实验')).toBeInTheDocument()
     expect(screen.getAllByText(/Qwen Plus/).length).toBeGreaterThan(0)
     expect(screen.getByLabelText(/提示词/)).toBeInTheDocument()

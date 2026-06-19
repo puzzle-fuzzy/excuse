@@ -39,7 +39,7 @@ export default function Login() {
 
   return (
     <AuthPageShell
-      eyebrow="Welcome back"
+      eyebrow="欢迎回来"
       title="登录你的账户"
       description="继续管理你的生成任务、资产库和创意生产流程。"
     >
@@ -57,7 +57,7 @@ export default function Login() {
           <Input
             id="email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="请输入邮箱"
             disabled={isSubmitting}
             autoComplete="email"
             className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"

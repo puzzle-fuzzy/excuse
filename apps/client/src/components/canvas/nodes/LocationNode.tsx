@@ -105,7 +105,7 @@ export default function LocationNode({ data }: NodeProps) {
         {/* scenePrompt */}
         {location.scenePrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Scene Prompt：</span>
+            <span className="text-muted-foreground text-xs">场景提示词：</span>
             <p className="text-xs bg-muted rounded p-2 mt-0.5 max-h-20 overflow-auto">
               {location.scenePrompt}
             </p>
@@ -115,7 +115,7 @@ export default function LocationNode({ data }: NodeProps) {
         {/* negativePrompt */}
         {location.negativePrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Negative Prompt：</span>
+            <span className="text-muted-foreground text-xs">负面提示词：</span>
             <p className={statusTextClass('danger', 'text-xs bg-muted rounded p-2 mt-0.5 max-h-15 overflow-auto')}>
               {location.negativePrompt}
             </p>
@@ -124,7 +124,7 @@ export default function LocationNode({ data }: NodeProps) {
 
         {/* Dev mode */}
         <details className="mt-2">
-          <summary className="text-xs text-muted-foreground cursor-pointer">完整 Profile JSON</summary>
+          <summary className="text-xs text-muted-foreground cursor-pointer">完整档案 JSON</summary>
           <pre className="text-[10px] bg-muted rounded p-2 mt-1 max-h-75 overflow-auto whitespace-pre-wrap">
             {JSON.stringify(profile, null, 2)}
           </pre>

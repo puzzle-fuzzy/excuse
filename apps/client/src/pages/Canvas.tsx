@@ -244,7 +244,7 @@ export default function Canvas() {
               <span className={statusDotClass(projectStats.active > 0 ? 'info' : 'neutral', 'size-2 rounded-full')} />
               {projectStats.active > 0 ? `${projectStats.active} 个 Canvas 项目正在推进` : '导演台已准备好'}
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Canvas director desk</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Canvas 导演台</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               把故事文本推进成可检查的生产流水线：角色、场景、分镜、视频和最终成片都能被追踪和恢复。
             </p>
@@ -305,7 +305,7 @@ export default function Canvas() {
                 <Badge variant="outline">
                   {storyText.trim().length}
                   {' '}
-                  chars
+                  字符
                 </Badge>
               </div>
               <Textarea
@@ -441,13 +441,13 @@ export default function Canvas() {
                                   <Film className="size-3.5" />
                                   {project.shots.length}
                                   {' '}
-                                  shots
+                                  镜头
                                 </span>
                                 <span className="inline-flex items-center gap-1">
                                   <FileText className="size-3.5" />
                                   {project.characters.length}
                                   {' '}
-                                  roles
+                                  角色
                                 </span>
                               </div>
                             </button>

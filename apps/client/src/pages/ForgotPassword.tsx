@@ -32,7 +32,7 @@ export default function ForgotPassword() {
 
   return (
     <AuthPageShell
-      eyebrow="Account recovery"
+      eyebrow="账户恢复"
       title="忘记密码"
       description={submitted ? '重置链接已发送' : '输入你的注册邮箱，我们将发送密码重置链接。'}
     >
@@ -70,7 +70,7 @@ export default function ForgotPassword() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder="请输入邮箱"
                   disabled={isSubmitting}
                   autoComplete="email"
                   className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"

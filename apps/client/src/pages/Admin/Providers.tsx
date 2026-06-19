@@ -29,9 +29,9 @@ export function AdminProvidersTab() {
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-sm">Provider 错误率与模型成本</CardTitle>
+            <CardTitle className="text-sm">服务商错误率与模型成本</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              count / cost / tokens 来自 generation_records 聚合；avg / p50 / p95 延迟聚合 server + worker 进程内 metrics。
+              调用数 / 成本 / Token 来自 generation_records 聚合；平均 / P50 / P95 延迟聚合自服务端与工作进程内指标。
             </p>
           </div>
           <Select value={String(windowHours)} onValueChange={v => setWindowHours(Number(v))}>
@@ -46,7 +46,7 @@ export function AdminProvidersTab() {
       </CardHeader>
       <CardContent>
         {isLoading
-          ? <p className="py-8 text-center text-sm text-muted-foreground">正在读取 provider 统计...</p>
+          ? <p className="py-8 text-center text-sm text-muted-foreground">正在读取服务商统计...</p>
           : items.length === 0
             ? <p className="py-8 text-center text-sm text-muted-foreground">该窗口内暂无生成记录</p>
             : (
@@ -60,12 +60,12 @@ export function AdminProvidersTab() {
                         <th className="py-2 text-right font-medium">成功</th>
                         <th className="py-2 text-right font-medium">失败</th>
                         <th className="py-2 text-right font-medium">失败率</th>
-                        <th className="py-2 text-right font-medium">avg</th>
-                        <th className="py-2 text-right font-medium">p50</th>
-                        <th className="py-2 text-right font-medium">p95</th>
+                        <th className="py-2 text-right font-medium">平均</th>
+                        <th className="py-2 text-right font-medium">P50</th>
+                        <th className="py-2 text-right font-medium">P95</th>
                         <th className="py-2 text-right font-medium">成本</th>
-                        <th className="py-2 text-right font-medium">输入 tokens</th>
-                        <th className="py-2 text-right font-medium">输出 tokens</th>
+                        <th className="py-2 text-right font-medium">输入 Token</th>
+                        <th className="py-2 text-right font-medium">输出 Token</th>
                       </tr>
                     </thead>
                     <tbody>

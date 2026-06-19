@@ -44,7 +44,7 @@ export default function Register() {
 
   return (
     <AuthPageShell
-      eyebrow="Create account"
+      eyebrow="创建账户"
       title="创建新账户"
       description="建立你的创意生产空间，保存资产、任务记录和后续可复用的生成参数。"
     >
@@ -62,7 +62,7 @@ export default function Register() {
           <Input
             id="username"
             type="text"
-            placeholder="your_name"
+            placeholder="请输入用户名"
             disabled={isSubmitting}
             autoComplete="username"
             className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"
@@ -77,7 +77,7 @@ export default function Register() {
           <Input
             id="email"
             type="email"
-            placeholder="you@example.com"
+            placeholder="请输入邮箱"
             disabled={isSubmitting}
             autoComplete="email"
             className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"

@@ -37,7 +37,7 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
       onUpdate()
     }
     catch {
-      toast.error('更新镜头 Prompt 失败')
+      toast.error('更新镜头提示词失败')
     }
     finally {
       setSaving(false)
@@ -63,7 +63,7 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
     <>
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">
-          视频 Prompt
+          视频提示词
           {saving && <span className={statusTextClass('warning', 'ml-2')}>保存中...</span>}
         </label>
         <PromptEditor
@@ -79,7 +79,7 @@ export function ShotDetailPanel({ shot, project, onUpdate, confirm }: ShotDetail
 
       {shot.negativePrompt && (
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Negative Prompt</label>
+          <label className="text-xs font-medium text-muted-foreground">负面提示词</label>
           <p className="text-xs bg-muted/50 rounded p-2 font-mono whitespace-pre-wrap">
             {shot.negativePrompt}
           </p>

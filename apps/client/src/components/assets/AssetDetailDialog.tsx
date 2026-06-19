@@ -282,7 +282,7 @@ export function AssetDetailDialog({ item, onClose, onAction }: AssetDetailDialog
                     value={editPurpose}
                     onChange={e => setEditPurpose(e.target.value)}
                     disabled={editLoading}
-                    placeholder="如 reference / avatar / first-frame"
+                    placeholder="如 参考图 / 头像 / 首帧"
                     maxLength={50}
                   />
                 </div>

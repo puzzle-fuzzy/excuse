@@ -7,14 +7,14 @@ export default function TokenCostDetail({ cost }: { cost: CostDetail }) {
       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
         {cost.inputTokens != null && (
           <span>
-            输入 Tokens:
+            输入 Token:
             {' '}
             {cost.inputTokens}
           </span>
         )}
         {cost.outputTokens != null && (
           <span>
-            输出 Tokens:
+            输出 Token:
             {' '}
             {cost.outputTokens}
           </span>
@@ -23,14 +23,14 @@ export default function TokenCostDetail({ cost }: { cost: CostDetail }) {
           <span>
             输入单价: ¥
             {Number(cost.inputUnitPrice).toFixed(4)}
-            /1M
+            /百万
           </span>
         )}
         {cost.outputUnitPrice != null && (
           <span>
             输出单价: ¥
             {Number(cost.outputUnitPrice).toFixed(4)}
-            /1M
+            /百万
           </span>
         )}
         {cost.inputCost != null && (

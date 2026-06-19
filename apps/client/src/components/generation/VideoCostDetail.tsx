@@ -10,7 +10,7 @@ export default function VideoCostDetail({ cost }: { cost: CostDetail }) {
             时长:
             {' '}
             {cost.duration}
-            s
+            秒
           </span>
         )}
         {cost.resolution && (
@@ -24,7 +24,7 @@ export default function VideoCostDetail({ cost }: { cost: CostDetail }) {
           <span>
             单价: ¥
             {Number(cost.unitPrice).toFixed(4)}
-            /s
+            /秒
           </span>
         )}
       </div>

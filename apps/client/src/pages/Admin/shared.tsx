@@ -130,7 +130,7 @@ export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecor
     case 'worker-task':
       return '统一任务'
     case 'pipeline-run':
-      return 'Pipeline'
+      return '流水线'
     case 'time-window':
       return '候选·时间窗口'
   }
@@ -139,9 +139,9 @@ export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecor
 export function recentRecordExecutionLabel(kind: string) {
   switch (kind) {
     case 'legacy-provider-task':
-      return 'Legacy provider task'
+      return '旧版生成任务'
     case 'canvas-worker':
-      return 'Canvas worker'
+      return 'Canvas 工作进程'
     case 'gateway':
       return 'Gateway'
     case 'inline':
@@ -249,7 +249,7 @@ export function ApiKeyTable({
   onRevoke?: (key: AdminApiKeyItem) => void
 }) {
   if (keys.length === 0) {
-    return <p className="text-xs text-muted-foreground">暂无 API Key</p>
+    return <p className="text-xs text-muted-foreground">暂无 API 密钥</p>
   }
 
   return (
@@ -258,7 +258,7 @@ export function ApiKeyTable({
         <TableRow className="border-b text-left text-muted-foreground">
           <TableHead className="h-auto py-1.5">前缀</TableHead>
           {showName && <TableHead className="h-auto py-1.5">名称</TableHead>}
-          <TableHead className="h-auto py-1.5">Scope</TableHead>
+          <TableHead className="h-auto py-1.5">范围</TableHead>
           <TableHead className="h-auto py-1.5">限流</TableHead>
           <TableHead className="h-auto py-1.5">额度消耗</TableHead>
           <TableHead className="h-auto py-1.5">状态</TableHead>
@@ -277,7 +277,7 @@ export function ApiKeyTable({
             {showName && <TableCell className="py-1.5 text-xs">{key.name ?? '-'}</TableCell>}
             <TableCell className="py-1.5">
               <Badge variant={key.scope === 'gateway' ? 'secondary' : 'outline'} className="text-[10px]">
-                {key.scope === 'gateway' ? 'Gateway' : 'All'}
+                {key.scope === 'gateway' ? 'Gateway' : '完全访问'}
               </Badge>
             </TableCell>
             <TableCell className="py-1.5 text-xs text-muted-foreground">
@@ -399,11 +399,11 @@ export function TaskTable({ tasks, isLoading, isMutating, onRequeue, onCancel, o
             </TableCell>
             <TableCell className="py-2 text-xs text-muted-foreground">
               <div>
-                project:
+                项目：
                 {shortId(task.projectId)}
               </div>
               <div>
-                record:
+                记录：
                 {shortId(task.generationRecordId)}
               </div>
             </TableCell>

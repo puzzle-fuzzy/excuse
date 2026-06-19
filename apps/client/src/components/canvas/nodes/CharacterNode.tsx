@@ -118,7 +118,7 @@ export default function CharacterNode({ data }: NodeProps) {
         {/* identityPrompt */}
         {character.identityPrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Identity Prompt：</span>
+            <span className="text-muted-foreground text-xs">身份提示词：</span>
             <p className="text-xs bg-muted rounded p-2 mt-0.5 max-h-20 overflow-auto">
               {character.identityPrompt}
             </p>
@@ -128,7 +128,7 @@ export default function CharacterNode({ data }: NodeProps) {
         {/* negativePrompt */}
         {character.negativePrompt && (
           <div>
-            <span className="text-muted-foreground text-xs">Negative Prompt：</span>
+            <span className="text-muted-foreground text-xs">负面提示词：</span>
             <p className={statusTextClass('danger', 'text-xs bg-muted rounded p-2 mt-0.5 max-h-15 overflow-auto')}>
               {character.negativePrompt}
             </p>
@@ -137,7 +137,7 @@ export default function CharacterNode({ data }: NodeProps) {
 
         {/* Dev mode: full profileJson */}
         <details className="mt-2">
-          <summary className="text-xs text-muted-foreground cursor-pointer">完整 Profile JSON</summary>
+          <summary className="text-xs text-muted-foreground cursor-pointer">完整档案 JSON</summary>
           <pre className="text-[10px] bg-muted rounded p-2 mt-1 max-h-75 overflow-auto whitespace-pre-wrap">
             {JSON.stringify(profile, null, 2)}
           </pre>

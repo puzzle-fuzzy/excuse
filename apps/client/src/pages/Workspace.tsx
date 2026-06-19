@@ -225,7 +225,7 @@ export default function Workspace() {
               <span className={statusDotClass(activeRecords.length > 0 ? 'info' : 'neutral', 'size-2 rounded-full')} />
               {activeRecords.length > 0 ? `${activeRecords.length} 个生成任务正在处理` : '创作台已准备好'}
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Create production</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">创作台</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
               先写清楚创作意图，再按需要展开模型和参数。生成结果会进入右侧队列，并沉淀为可追溯资产。
             </p>
@@ -334,7 +334,7 @@ export default function Workspace() {
                       <p className="text-xs text-muted-foreground">默认配置可直接生成，需要精调时再修改。</p>
                     </div>
                   </div>
-                  <Badge variant="secondary">{selectedModel?.requestType || 'standard'}</Badge>
+                  <Badge variant="secondary">{selectedModel?.requestType || '标准'}</Badge>
                 </div>
 
                 <div className="space-y-4 p-4">
@@ -434,7 +434,7 @@ export default function Workspace() {
               <Badge variant="outline">
                 {records.length}
                 {' '}
-                records
+                条记录
               </Badge>
             </div>
 

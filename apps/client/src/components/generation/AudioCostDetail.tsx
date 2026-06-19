@@ -10,14 +10,14 @@ export default function AudioCostDetail({ cost }: { cost: CostDetail }) {
             时长:
             {' '}
             {cost.duration}
-            s
+            秒
           </span>
         )}
         {cost.unitPrice != null && (
           <span>
             单价: ¥
             {Number(cost.unitPrice).toFixed(4)}
-            /s
+            /秒
           </span>
         )}
       </div>

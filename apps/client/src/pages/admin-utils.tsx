@@ -64,8 +64,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   file_delete: '删除文件',
   file_update: '更新文件',
   billing_transaction: '计费交易',
-  api_key_create: '创建 API Key',
-  api_key_revoke: '撤销 API Key',
+  api_key_create: '创建 API 密钥',
+  api_key_revoke: '撤销 API 密钥',
   admin_action: '管理员操作',
   canvas_project_create: '创建项目',
   canvas_project_delete: '删除项目',
@@ -124,7 +124,7 @@ export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecor
     case 'worker-task':
       return '统一任务'
     case 'pipeline-run':
-      return 'Pipeline'
+      return '流水线'
     case 'time-window':
       return '候选·时间窗口'
   }
@@ -133,9 +133,9 @@ export function generationRecordMatchLabel(matchReason: AdminTaskGenerationRecor
 export function recentRecordExecutionLabel(kind: AdminUserRecentRecord['executionKind']) {
   switch (kind) {
     case 'legacy-provider-task':
-      return 'Legacy provider task'
+      return '旧版生成任务'
     case 'canvas-worker':
-      return 'Canvas worker'
+      return 'Canvas 工作进程'
     case 'gateway':
       return 'Gateway'
     case 'inline':
