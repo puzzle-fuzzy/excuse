@@ -12,7 +12,7 @@ export function RunningOverlay({ label, runningPhaseInfo }: RunningOverlayProps)
       ? `正在${runningPhaseInfo.label}${runningPhaseInfo.modelName ? ` · ${runningPhaseInfo.modelName}` : ''}...`
       : '正在生成...')
   return (
-    <div className="absolute inset-0 bg-white/30 flex items-center justify-center rounded-lg pointer-events-none">
+    <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg pointer-events-none">
       <div className={statusBadgeClass('warning', 'px-3 py-1.5 shadow animate-pulse')}>
         {displayLabel}
       </div>

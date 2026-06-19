@@ -177,7 +177,7 @@ export default function RecordCard({
             </div>
             {/* 重扣费提示 */}
             {record.recovery.recharges && (
-              <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 rounded px-2 py-1">
+              <div className="flex items-center gap-1 text-xs text-[color:var(--status-warning-fg)] bg-[color:var(--status-warning-bg)] rounded px-2 py-1">
                 <TriangleAlert className="size-3 shrink-0" />
                 <span>重试将重新扣费</span>
               </div>

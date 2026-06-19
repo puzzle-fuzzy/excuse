@@ -30,9 +30,9 @@ interface PromptEditorProps {
 const TYPE_PREFIX = { character: 'Character', location: 'Location', shot: 'Shot' } as const
 const TYPE_LABEL = { character: '角色', location: '场景', shot: '镜头' } as const
 const TYPE_COLORS = {
-  character: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-  location: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  shot: 'border border-[color:var(--status-info-border)] bg-[color:var(--status-info-bg)] text-[color:var(--status-info-fg)]',
+  character: 'bg-[color:var(--node-character)]/12 text-[color:var(--node-character)]',
+  location: 'bg-[color:var(--node-location)]/12 text-[color:var(--node-location)]',
+  shot: 'bg-[color:var(--node-shot)]/12 text-[color:var(--node-shot)]',
 } as const
 
 export function PromptEditor({

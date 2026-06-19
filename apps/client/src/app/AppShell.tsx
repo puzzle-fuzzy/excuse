@@ -110,9 +110,9 @@ function ShellNavLink({ item, compact = false, onNavigate }: { item: NavItem, co
       end={item.end}
       onClick={onNavigate}
       className={({ isActive }) => cn(
-        'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+        'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
         isActive
-          ? 'bg-primary/10 text-primary'
+          ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground'
           : 'text-sidebar-foreground/72 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
       )}
     >
@@ -237,7 +237,7 @@ function Topbar({ onOpenMobile }: { onOpenMobile: () => void }) {
             )}
           </Button>
           {notificationsOpen && (
-            <div className="absolute right-0 top-11 z-50 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-lg">
+            <div className="absolute right-0 top-11 z-50 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[var(--shadow-floating)]">
               <div className="flex items-center justify-between border-b px-3 py-2">
                 <div>
                   <div className="text-sm font-semibold">通知</div>

@@ -53,17 +53,17 @@ export function statusBadgeClass(tone: StatusTone, className?: string) {
 export const CATEGORY_TOKENS: Record<string, { icon: string, active: string, bar: string }> = {
   text: {
     icon: 'text-[color:var(--brand-text)]',
-    active: 'bg-[color:var(--brand-text)] text-white',
+    active: 'bg-[color:var(--brand-text)] text-primary-foreground',
     bar: 'bg-[color:var(--brand-text)]',
   },
   image: {
     icon: 'text-[color:var(--brand-image)]',
-    active: 'bg-[color:var(--brand-image)] text-white',
+    active: 'bg-[color:var(--brand-image)] text-primary-foreground',
     bar: 'bg-[color:var(--brand-image)]',
   },
   video: {
     icon: 'text-[color:var(--brand-video)]',
-    active: 'bg-[color:var(--brand-video)] text-white',
+    active: 'bg-[color:var(--brand-video)] text-primary-foreground',
     bar: 'bg-[color:var(--brand-video)]',
   },
   audio: {

@@ -6,9 +6,9 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext'
+import { AuthPageShell } from '../components/auth/AuthPageShell'
 import { PasswordInput } from '../components/PasswordInput'
 import { Button } from '../components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { registerSchema } from '../lib/form-schemas'
 
@@ -43,95 +43,99 @@ export default function Register() {
   const bannerError = errors.username?.message ?? serverError
 
   return (
-    <div className="brand-auth-shell flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold tracking-tight">Excuse</CardTitle>
-          <CardDescription>创建新账户</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {bannerError && (
-              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {bannerError}
-              </div>
-            )}
+    <AuthPageShell
+      eyebrow="Create account"
+      title="创建新账户"
+      description="建立你的创意生产空间，保存资产、任务记录和后续可复用的生成参数。"
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {bannerError && (
+          <div className="rounded-[1rem] border border-[color:var(--status-danger-border)] bg-[color:var(--status-danger-bg)] px-4 py-3 text-sm font-medium text-destructive">
+            {bannerError}
+          </div>
+        )}
 
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium">
-                用户名
-              </label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="your_name"
-                disabled={isSubmitting}
-                autoComplete="username"
-                {...register('username')}
-              />
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="username" className="text-sm font-medium text-foreground">
+            用户名
+          </label>
+          <Input
+            id="username"
+            type="text"
+            placeholder="your_name"
+            disabled={isSubmitting}
+            autoComplete="username"
+            className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"
+            {...register('username')}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                邮箱
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                disabled={isSubmitting}
-                autoComplete="email"
-                {...register('email')}
-              />
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="email" className="text-sm font-medium text-foreground">
+            邮箱
+          </label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="you@example.com"
+            disabled={isSubmitting}
+            autoComplete="email"
+            className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"
+            {...register('email')}
+          />
+        </div>
 
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                密码
-              </label>
-              <PasswordInput
-                id="password"
-                placeholder="至少 6 个字符"
-                disabled={isSubmitting}
-                autoComplete="new-password"
-                {...register('password')}
-              />
-              {errors.password && (
-                <p className="text-xs text-destructive">{errors.password.message}</p>
-              )}
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="password" className="text-sm font-medium text-foreground">
+            密码
+          </label>
+          <PasswordInput
+            id="password"
+            placeholder="至少 6 个字符"
+            disabled={isSubmitting}
+            autoComplete="new-password"
+            className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"
+            {...register('password')}
+          />
+          {errors.password && (
+            <p className="text-xs font-medium text-destructive">{errors.password.message}</p>
+          )}
+        </div>
 
-            <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="text-sm font-medium">
-                确认密码
-              </label>
-              <PasswordInput
-                id="confirmPassword"
-                placeholder="再次输入密码"
-                disabled={isSubmitting}
-                autoComplete="new-password"
-                {...register('confirmPassword')}
-              />
-              {errors.confirmPassword && (
-                <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-              )}
-            </div>
+        <div className="space-y-2">
+          <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+            确认密码
+          </label>
+          <PasswordInput
+            id="confirmPassword"
+            placeholder="再次输入密码"
+            disabled={isSubmitting}
+            autoComplete="new-password"
+            className="h-12 border-input bg-card px-5 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/18"
+            {...register('confirmPassword')}
+          />
+          {errors.confirmPassword && (
+            <p className="text-xs font-medium text-destructive">{errors.confirmPassword.message}</p>
+          )}
+        </div>
 
-            <Button type="submit" className="brand-cta w-full" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
-              注册
-            </Button>
+        <Button
+          type="submit"
+          className="h-12 w-full bg-primary text-[15px] font-semibold text-primary-foreground shadow-[var(--shadow-floating)] hover:bg-primary/90"
+          disabled={isSubmitting}
+        >
+          {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+          注册
+        </Button>
 
-            <p className="text-center text-sm text-muted-foreground">
-              已有账户？
-              {' '}
-              <Link to="/login" className="text-primary underline-offset-4 hover:underline">
-                登录
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        <p className="text-center text-sm text-muted-foreground">
+          已有账户？
+          {' '}
+          <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+            登录
+          </Link>
+        </p>
+      </form>
+    </AuthPageShell>
   )
 }

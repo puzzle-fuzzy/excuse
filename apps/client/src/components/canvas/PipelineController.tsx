@@ -32,7 +32,7 @@ export default function PipelineController(props: Props) {
   const { projectStatus, showShotStats, shotStats, hasFailedShots } = ctrl
 
   return (
-    <div className="border-t bg-background/95 px-4 py-3 shadow-[0_-8px_24px_oklch(0.17_0.018_205_/_6%)] backdrop-blur-sm">
+    <div className="border-t bg-background/95 px-4 py-3 shadow-[var(--shadow-docked)] backdrop-blur-sm">
       {/* Shot statistics */}
       {showShotStats && shotStats && (
         <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border bg-muted/25 px-3 py-2 text-xs">

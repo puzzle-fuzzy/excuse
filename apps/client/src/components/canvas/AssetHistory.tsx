@@ -137,14 +137,14 @@ export default function AssetHistory({
                   </button>
                 )}
                 {asset.locked && (
-                  <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                  <span className="px-1.5 py-0.5 rounded bg-[color:var(--status-warning-bg)] text-[color:var(--status-warning-fg)]">
                     🔒 锁定
                   </span>
                 )}
                 {!asset.locked && asset.isActive && (
                   <button
                     onClick={() => handleLockToggle(asset.id, false)}
-                    className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/70"
                   >
                     锁定此版本
                   </button>
@@ -152,7 +152,7 @@ export default function AssetHistory({
                 {asset.locked && asset.isActive && (
                   <button
                     onClick={() => handleLockToggle(asset.id, true)}
-                    className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/70"
                   >
                     取消锁定
                   </button>

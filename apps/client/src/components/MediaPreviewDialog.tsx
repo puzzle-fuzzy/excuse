@@ -37,20 +37,20 @@ export default function MediaPreviewDialog({ url, onClose }: MediaPreviewDialogP
           />
         )}
         {mediaType === 'audio' && (
-          <div className="flex items-center gap-4 rounded-lg bg-gray-900 p-8" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-4 rounded-lg bg-popover p-8" onClick={e => e.stopPropagation()}>
             <audio src={url} controls autoPlay />
           </div>
         )}
         <a
           href={url}
           download
-          className="absolute right-2 top-2 rounded-lg bg-black/50 p-2 text-white hover:bg-black/70"
+          className="absolute right-2 top-2 rounded-lg bg-foreground/40 p-2 text-background hover:bg-foreground/60"
           onClick={e => e.stopPropagation()}
         >
           <Download className="size-4" />
         </a>
         <button
-          className="absolute left-2 top-2 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+          className="absolute left-2 top-2 rounded-full bg-foreground/40 p-1.5 text-background hover:bg-foreground/60"
           onClick={(e) => {
             e.stopPropagation()
             onClose()

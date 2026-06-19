@@ -334,7 +334,7 @@ export default function ApiKeys() {
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>
               <AlertDialogAction
-                className={cn('bg-destructive text-white hover:bg-destructive/90')}
+                className={cn('bg-destructive text-destructive-foreground hover:bg-destructive/90')}
                 onClick={() => revokeMutation.mutate(revokeTarget.id)}
               >
                 撤销

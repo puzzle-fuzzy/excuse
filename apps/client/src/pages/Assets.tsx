@@ -806,7 +806,7 @@ function AssetCard({
           <div className="relative size-full">
             <video src={item.previewUrl} className="size-full object-cover transition-transform duration-300 group-hover:scale-105" muted />
             <div className="absolute inset-0 flex items-center justify-center bg-black/15 transition-colors group-hover:bg-black/25">
-              <span className="grid size-10 place-items-center rounded-full bg-white/90 text-foreground shadow-lg">
+              <span className="grid size-10 place-items-center rounded-full bg-background/90 text-foreground shadow-lg">
                 <Video className="size-4" />
               </span>
             </div>
@@ -846,7 +846,7 @@ function AssetCard({
           className={cn(
             'absolute right-2 top-2 grid size-7 place-items-center rounded-full shadow-sm backdrop-blur-md transition-all',
             item.isFavorite
-              ? 'bg-white/90 text-[color:var(--status-warning-fg)] opacity-100'
+              ? 'bg-background/90 text-[color:var(--status-warning-fg)] opacity-100'
               : 'bg-black/40 text-white opacity-0 hover:bg-black/60 group-hover:opacity-100',
           )}
         >

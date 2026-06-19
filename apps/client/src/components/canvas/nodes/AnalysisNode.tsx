@@ -9,9 +9,9 @@ export default function AnalysisNode({ data }: NodeProps) {
   const analysis = project.analysis
 
   return (
-    <div className={`rounded-lg border-2 bg-emerald-50 shadow-md w-85 relative ${runningBorder(isRunning, 'border-emerald-400')}`}>
-      <Handle type="target" position={Position.Top} className="bg-emerald-400!" />
-      <div className="bg-emerald-400 text-white px-3 py-2 font-semibold text-sm flex items-center justify-between rounded-t-md">
+    <div className={`rounded-xl border-2 bg-card shadow-[var(--shadow-floating)] w-85 relative ${runningBorder(isRunning, 'border-[color:var(--node-analysis)]')}`}>
+      <Handle type="target" position={Position.Top} className="bg-[color:var(--node-analysis)]!" />
+      <div className="bg-[color:var(--node-analysis)] text-white px-3 py-2 font-semibold text-sm flex items-center justify-between rounded-t-xl">
         <span>故事分析</span>
         {isRunning && <RunningBadge label={runningPhaseInfo?.label} />}
       </div>
@@ -42,7 +42,7 @@ export default function AnalysisNode({ data }: NodeProps) {
                   <span className="text-muted-foreground">角色：</span>
                   <div className="flex flex-wrap gap-1 mt-0.5">
                     {analysis.characterNames.map(name => (
-                      <span key={name} className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs">{name}</span>
+                      <span key={name} className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs">{name}</span>
                     ))}
                   </div>
                 </div>
@@ -50,14 +50,14 @@ export default function AnalysisNode({ data }: NodeProps) {
                   <span className="text-muted-foreground">场景：</span>
                   <div className="flex flex-wrap gap-1 mt-0.5">
                     {analysis.sceneNames.map(name => (
-                      <span key={name} className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs">{name}</span>
+                      <span key={name} className="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs">{name}</span>
                     ))}
                   </div>
                 </div>
                 {/* Dev mode: raw JSON */}
                 <details className="mt-2">
                   <summary className="text-xs text-muted-foreground cursor-pointer">原始 JSON</summary>
-                  <pre className="text-[10px] bg-white rounded p-2 mt-1 max-h-50 overflow-auto whitespace-pre-wrap">
+                  <pre className="text-[10px] bg-muted rounded p-2 mt-1 max-h-50 overflow-auto whitespace-pre-wrap">
                     {JSON.stringify(analysis, null, 2)}
                   </pre>
                 </details>
@@ -67,7 +67,7 @@ export default function AnalysisNode({ data }: NodeProps) {
               <p className="text-xs text-muted-foreground">等待分析...</p>
             )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="bg-emerald-400!" />
+      <Handle type="source" position={Position.Bottom} className="bg-[color:var(--node-analysis)]!" />
     </div>
   )
 }

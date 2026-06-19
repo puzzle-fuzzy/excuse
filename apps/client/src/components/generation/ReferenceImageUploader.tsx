@@ -76,7 +76,7 @@ export default function ReferenceImageUploader({
                   <img src={file.url} alt={file.name} className="size-full object-cover" />
                   <button
                     type="button"
-                    className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-white text-xs"
+                    className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs"
                     onClick={() => onRemove(file.id)}
                     aria-label={`删除 ${file.name}`}
                   >
