@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### 新增 `apps/admin` 管理端后台（PRODUCT_DEVELOPMENT_BLUEPRINT Phase 2）（2026-06-19）
+
+- 调查结论：蓝图 Phase 2 的 MVP 能力（Dashboard / 用户管理 / 任务管理 / Provider / 项目 / Gateway / 审计 / API Key / 充值）已 ~85% 落在 `apps/client` 的 `/admin` 模块（19 个 `/api/admin/*` 端点 + 6 个 `packages/db/src/repositories/admin/` repo + 6-tab 客户端）。本轮按蓝图字面要求把该模块迁出为**独立应用** `apps/admin`，建立更严格 auth 边界与独立部署目标（不新增功能能力）。
+- 技术栈与用户端完全对齐：React 19 + Vite + Tailwind v4 + shadcn/ui（radix-nova）+ React Router v7 + TanStack Query + Eden Treaty。dev 端口 **8008**（避开 server 5007 / client 8007 / site 4317 / worker 5100），`/api` 代理到 5007，复用同一 httpOnly cookie 会话。
+- **移植**（wholesale cp，import 路径不变）：`api/admin.ts` + `api/auth-api.ts` + `auth/{AuthContext,ProtectedRoute}` + `lib/{utils,admin-format,category-labels}` + `components/{theme-provider,PasswordInput,auth/AuthPageShell}` + 9 个 shadcn 基元（alert-dialog/badge/button/card/dialog/input/select/table/sonner/skeleton）+ `pages/Admin/` 8 文件（index shell + shared + Overview/Users/ApiKeys/Audit/Projects/Providers）。`index.css` / `index.html` 同步移植（title 改「Excuse 管理后台」，加 `noindex`）。
+- **裁剪**（管理端为内部运营工具，按需精简）：`api/api-core.ts` 去掉 `sseClient` 依赖（token 仅内存留存）；`api/query-client.ts` 去掉 `client-logger`/`error-report` 上报改 console 兜底，仅保留 `adminQueryKeys`；`auth/AuthProvider.tsx` 去掉 SSE 连接生命周期，`register` 抛错（不支持自助注册）；`lib/form-schemas.ts` 仅保留 `loginSchema`（去掉 ModelParameter 依赖）；新增 `lib/generation-utils.ts` 作为 `formatCents` 单函数 shim（保持 import 路径不变，无需改 6 处调用）；新增简化版 `components/ErrorBoundary.tsx`（不上报）；`main.tsx` 去掉 `reportWebVitals`/`ReactQueryDevtools`；新增 `App.tsx` 路由收敛为「登录 + 根控制台」。
+- **鉴权**：零服务端改动。沿用 `ADMIN_USER_IDS` 白名单守卫（`apps/server/src/routes/admin/index.ts:38-42`）；非管理员登录后访问根路由，`fetchAdminOverview()` 返回 403，Admin shell 渲染「无权访问」提示并指向 `ADMIN_USER_IDS`（与原客户端行为一致）。`index.html` 加 `<meta name="robots" content="noindex, nofollow">`。
+- **monorepo 接线**：根 `package.json` 新增 `dev:admin` / `build:admin`；`dev` 并发链 + `--names`/`--prefix-colors` 追加 `ADMIN`；`build` 顺序链末尾追加 `build:admin`；`typecheck` 并发链追加 admin。CI（`.github/workflows/ci.yml`）走根脚本，typecheck/build job 自动覆盖 admin，无需改 CI。
+- 验收：`apps/admin` lint ✅（0 error）/ typecheck ✅ / build ✅（2056 模块，Login+Admin 分包）；**根** typecheck ✅（6 并发全 0）/ build ✅（server→worker→client→site→admin 全绿）/ `check:boundaries` ✅（admin→server 跨 app 类型 import 与 client 同样放行）；dev smoke：`:8008` 2s 内启动，`/api/health/live` 经代理回 200。
+- **范围外（后续补齐，已记入 `apps/admin/README.md`）**：① 禁用/启用用户（`accounts.isActive` 仍只读，无 endpoint/UI）；② 任务 requeue/cancel 写 audit_logs；③ 管理端余额流水列表 + 人工调账/退款标记（仅有 `credit/add` 充值）；④ admin 引入 vitest（移植代码已由 client 测试覆盖）。
+
 ### TODO 核查与对账（2026-06-19）
 
 - **TODO.md 复核**：逐项验证审计 12 项待办（P0-1/2/3、P1-4/5/6/7、P2-8/9/10、P3-11/12）的提交与产物，确认全部真实完成。修复 TODO.md 内部矛盾——原「建议执行顺序」末尾遗留一行 `做 P1-4 ...（进行中）` 与已标记 ✅ 的 P1-4 自相矛盾（P1-4 实测已完成：`ModelLab.tsx` 810→588 行，`useModelLabModels.ts` + `ModelComparisonSection.tsx` 均在）。
