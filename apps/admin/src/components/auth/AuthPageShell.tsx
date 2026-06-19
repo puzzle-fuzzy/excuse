@@ -23,9 +23,7 @@ export function AuthPageShell({ eyebrow, title, description, children }: AuthPag
         <section className="hidden h-full min-h-[640px] flex-col justify-between rounded-[2rem] border border-border bg-accent/78 p-8 shadow-[var(--shadow-floating)] backdrop-blur-xl lg:flex">
           <div className="flex items-center justify-between">
             <Link to="/" className="group inline-flex items-center gap-3 rounded-full bg-card/74 py-2 pl-2 pr-4 text-sm font-semibold text-foreground shadow-[var(--shadow-level1)] transition hover:bg-card">
-              <span className="grid size-9 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground transition group-hover:scale-105">
-                Ex
-              </span>
+              <img src="/logo.webp" alt="Excuse" className="size-9 rounded-full object-cover transition group-hover:scale-105" />
               Excuse
             </Link>
             <span className="rounded-full border border-border bg-card/56 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate">
@@ -72,7 +70,7 @@ export function AuthPageShell({ eyebrow, title, description, children }: AuthPag
         <section className="mx-auto w-full max-w-[480px] rounded-[2rem] border border-border bg-card/86 p-5 shadow-[var(--shadow-floating)] backdrop-blur-xl sm:p-7 lg:ml-auto">
           <div className="mb-8 flex items-center justify-between gap-4 lg:hidden">
             <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-              <span className="grid size-9 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">Ex</span>
+              <img src="/logo.webp" alt="Excuse" className="size-9 rounded-full object-cover" />
               Excuse
             </Link>
             <span className="rounded-full bg-primary-container px-3 py-1 text-xs font-medium text-on-primary-container">Creative desk</span>
