@@ -1,6 +1,6 @@
 import type { CanvasPipelinePhase as SharedCanvasPipelinePhase } from '@excuse/shared'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import type { accounts, canvasAssetCategoryEnum, canvasAssets, canvasAssetStatusEnum, canvasCharacters, canvasContinuityReports, canvasLocations, canvasPipelinePhaseEnum, canvasPipelineRuns, canvasPipelineRunStatusEnum, canvasProjects, canvasProjectStatusEnum, canvasShots, canvasShotStatusEnum, creditAccounts, creditTransactions, generationCategoryEnum, generationRecords, generationStatusEnum, notifications, subtitleProjects, subtitleProjectStatusEnum, taskDomainEnum, tasks, taskStatusEnum, uploadedFiles, usageEvents } from './schema'
+import type { accounts, canvasAssetCategoryEnum, canvasAssets, canvasAssetStatusEnum, canvasCharacters, canvasContinuityReports, canvasLocations, canvasPipelinePhaseEnum, canvasPipelineRuns, canvasPipelineRunStatusEnum, canvasProjects, canvasProjectStatusEnum, canvasShots, canvasShotStatusEnum, creditAccounts, creditTransactions, generationCategoryEnum, generationRecords, generationStatusEnum, idempotencyKeys, notifications, subtitleProjects, subtitleProjectStatusEnum, taskDomainEnum, tasks, taskStatusEnum, uploadedFiles, usageEvents } from './schema'
 
 // ===== Drizzle 行类型（从 schema 自动推导） =====
 
@@ -15,6 +15,12 @@ export type GenerationRecordRow = InferSelectModel<typeof generationRecords>
 
 /** generation_records 表 — 插入参数类型 */
 export type GenerationRecordInsert = InferInsertModel<typeof generationRecords>
+
+/** idempotency_keys 表 — 查询结果行类型 */
+export type IdempotencyKeyRow = InferSelectModel<typeof idempotencyKeys>
+
+/** idempotency_keys 表 — 插入参数类型 */
+export type IdempotencyKeyInsert = InferInsertModel<typeof idempotencyKeys>
 
 /** uploaded_files 表 — 查询结果行类型 */
 export type UploadedFileRow = InferSelectModel<typeof uploadedFiles>

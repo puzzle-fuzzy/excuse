@@ -4,6 +4,8 @@ import type { ServerConfig } from '../config'
 import type { ServerContext } from '../context'
 import { assertCreditLedgerPolicy, getBillingPolicy } from '@excuse/billing'
 import {
+  attachGenerationRecordToIdempotencyKey,
+  claimIdempotencyKey,
   deleteGenerationRecord,
   getGenerationRecordById,
   listGenerationRecords,
@@ -15,10 +17,13 @@ import { orchestrateGeneration, serializeRecord } from '../modules/generation/or
 import * as svc from '../modules/generation/service'
 import { createRequireAuthPlugin } from '../plugins/auth'
 import { audit } from '../services/audit'
-import { ForbiddenError, NotFoundError, RateLimitError, ValidationError } from '../utils/app-errors'
+import { ConflictError, ForbiddenError, NotFoundError, RateLimitError, ValidationError } from '../utils/app-errors'
 import { checkCategoryRateLimit } from '../utils/category-rate-limit'
-import { createDedupeKey } from '../utils/dedupe-key'
+import { createDedupeKey, createGenerationRequestHash, createIdempotencyKeyHash, isValidIdempotencyKey, normalizeIdempotencyKey } from '../utils/dedupe-key'
 import { assertPromptWithinLimit } from '../utils/prompt-limits'
+
+const GENERATE_IDEMPOTENCY_SCOPE = 'workspace.generate'
+const IDEMPOTENCY_KEY_TTL_MS = 24 * 60 * 60 * 1000
 
 /**
  * 生成任务路由 — CRUD + retry/cancel
@@ -47,8 +52,12 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
   return new Elysia({ prefix: '/api' })
     .use(createRequireAuthPlugin(config))
     // 发起生成 — 前置校验后委托 orchestrateGeneration 执行核心编排
-    .post('/generate', async ({ body, userId }) => {
+    .post('/generate', async ({ body, userId, headers }) => {
       const { model, parameters, referenceFileIds } = body
+      const idempotencyKey = normalizeIdempotencyKey(headers['idempotency-key'])
+      if (idempotencyKey && !isValidIdempotencyKey(idempotencyKey)) {
+        throw new ValidationError('Idempotency-Key 仅支持 1-128 位字母、数字、点、下划线、波浪线、冒号或短横线')
+      }
 
       // 1. 模型校验
       const modelConfig = getModelById(model)
@@ -103,8 +112,46 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         parameters: validatedParams,
         referenceFileIds,
       })
+
+      let idempotencyClaimId: string | undefined
+      if (idempotencyKey) {
+        const keyHash = await createIdempotencyKeyHash(idempotencyKey)
+        const requestHash = await createGenerationRequestHash({
+          model,
+          parameters: validatedParams,
+          referenceFileIds,
+        })
+        const claim = await claimIdempotencyKey({
+          accountId: userId,
+          scope: GENERATE_IDEMPOTENCY_SCOPE,
+          keyHash,
+          requestHash,
+          expiresAt: new Date(Date.now() + IDEMPOTENCY_KEY_TTL_MS),
+        })
+
+        if (!claim.claimed) {
+          if (claim.conflict) {
+            throw new ConflictError('Idempotency-Key 已被用于不同的生成请求，请更换后重试')
+          }
+
+          if (!claim.row.generationRecordId) {
+            throw new ConflictError('相同 Idempotency-Key 的请求仍在初始化，请稍后重试')
+          }
+
+          const existing = await getGenerationRecordById(claim.row.generationRecordId)
+          if (existing) {
+            return { success: true, record: serializeRecord(existing), duplicated: true } satisfies GenerateResponse
+          }
+        }
+
+        idempotencyClaimId = claim.row.id
+      }
+
       const dedupeResult = await svc.checkDedupe(dedupeKey, userId)
       if (dedupeResult.duplicated) {
+        if (idempotencyClaimId) {
+          await attachGenerationRecordToIdempotencyKey(idempotencyClaimId, dedupeResult.record.id)
+        }
         const updated = await getGenerationRecordById(dedupeResult.record.id)
         return { success: true, record: serializeRecord(updated ?? dedupeResult.record), duplicated: true } satisfies GenerateResponse
       }
@@ -125,6 +172,9 @@ export function createGenerateRoutes(config: ServerConfig, ctx: ServerContext) {
         estimatedCost,
         dedupeKey,
       })
+      if (idempotencyClaimId) {
+        await attachGenerationRecordToIdempotencyKey(idempotencyClaimId, createResult.record.id)
+      }
       if (!createResult.created) {
         const updated = await getGenerationRecordById(createResult.record.id)
         return { success: true, record: serializeRecord(updated ?? createResult.record), duplicated: true } satisfies GenerateResponse

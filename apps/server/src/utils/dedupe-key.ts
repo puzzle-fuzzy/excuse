@@ -5,6 +5,15 @@ interface DedupeKeyInput {
   referenceFileIds?: readonly string[]
 }
 
+export interface GenerationRequestHashInput {
+  model: string
+  parameters: unknown
+  referenceFileIds?: readonly string[]
+}
+
+const IDEMPOTENCY_KEY_MAX_LENGTH = 128
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._~:-]+$/
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object'
     && value !== null
@@ -37,6 +46,29 @@ async function sha256Hex(value: string): Promise<string> {
   const encoded = new TextEncoder().encode(value)
   const hash = await crypto.subtle.digest('SHA-256', encoded)
   return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+export function normalizeIdempotencyKey(value: string | null | undefined): string | null {
+  const normalized = value?.trim()
+  return normalized ? normalized : null
+}
+
+export function isValidIdempotencyKey(value: string): boolean {
+  return value.length <= IDEMPOTENCY_KEY_MAX_LENGTH && IDEMPOTENCY_KEY_PATTERN.test(value)
+}
+
+export async function createIdempotencyKeyHash(value: string): Promise<string> {
+  return sha256Hex(value)
+}
+
+export async function createGenerationRequestHash(input: GenerationRequestHashInput): Promise<string> {
+  const canonicalPayload = canonicalStringify({
+    model: input.model,
+    parameters: input.parameters,
+    referenceFileIds: input.referenceFileIds,
+  })
+
+  return sha256Hex(canonicalPayload)
 }
 
 /**
