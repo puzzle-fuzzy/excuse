@@ -11,6 +11,7 @@ import { registerProviderCallGuard, registerProviderCallObserver } from '@excuse
 import { createLogger, isPgTableNotFoundError } from '@excuse/shared'
 import { sweepOrphanTasksWithAdapter } from '@excuse/task-engine'
 import { createHealthServer } from './health'
+import { audit } from './services/audit'
 import { getProviderCallsSnapshot, recordProviderCall } from './services/metrics'
 import { providerCallGuard, recordProviderCallOutcome, warmProviderHealthCache } from './services/provider-health'
 
@@ -221,6 +222,17 @@ async function reconcileStaleReservedCredits(): Promise<number> {
         accountId: orphan.accountId,
         generationRecordId: orphan.generationRecordId,
         description: CREDIT_RECONCILE_DESCRIPTION,
+      })
+      await audit('credit_refund', {
+        accountId: orphan.accountId,
+        targetId: orphan.generationRecordId,
+        detail: {
+          accountId: orphan.accountId,
+          generationRecordId: orphan.generationRecordId,
+          amountCents: orphan.reservedCents,
+          description: CREDIT_RECONCILE_DESCRIPTION,
+          source: 'worker_video',
+        },
       })
       reconciled++
     }
